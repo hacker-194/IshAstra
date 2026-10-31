@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strix"
+version = "3.6.0"
+description = "Authorized security assessment platform: scope gate, adapters, findings and evidence"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.162,<1.0",
+    # >=1.3.1: CVE-2025-62727 (unauthenticated Range-header CPU exhaustion in
+    # StaticFiles/FileResponse, fixed 0.49.1) and the Host-header request.url issues.
+    "starlette>=1.3.1,<2.0",
+    "uvicorn>=0.30,<1.0",
+    "pydantic>=2.8,<3.0",
+    "defusedxml>=0.7.1,<1.0",   # parse nmap output without XML entity/DTD attacks
+    "aiosqlite>=0.20,<1.0",     # async SQLite database driver
+    "httpx>=0.27,<1.0",         # async HTTP client with connection pooling
+    "redis>=5.0,<6.0",          # Redis client for rate limiting and caching
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "httpx>=0.27"]
+# `dev` must cover every tool CI invokes (ruff, mypy) so `pip install -e ".[dev]"`
+# is sufficient to run the pipeline locally and in CI.
+dev = ["strix[test]", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+strix = "strix.cli:main"
+strix-code-scan = "strix.code_scan:main"
+strix-collab = "strix.core.collab:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"strix.api" = ["static/*"]
+"strix" = ["rules/*.yml"]
+"strix.lab" = ["oracle.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "PIE", "RET"]
+ignore = [
+    "B008",   # Depends() in defaults is the FastAPI idiom
+    "UP042",  # (str, Enum) kept: StrEnum changes str()/format() output
+    "C408",   # dict(...) reads fine in test fixtures
+]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true

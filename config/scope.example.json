@@ -1,0 +1,10 @@
+{
+  "program": "Example Bug Bounty Program",
+  "authorized_by": "Jane Analyst, Security Operations",
+  "authorization_ref": "engagement-2026-014 / program policy v3",
+  "include": ["example.com", "*.example.com", "api.example.org"],
+  "exclude": ["billing.example.com", "*.internal.example.com"],
+  "authorized_networks": [],
+  "allowed_ports": [80, 443],
+  "allow_broad_networks": false
+}

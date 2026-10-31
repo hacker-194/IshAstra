@@ -1,0 +1,387 @@
+"""Single-process background worker for assessment jobs.
+
+``submit`` returns immediately with a durable job id; worker threads claim
+queued jobs and run them off the HTTP request path, and cancellation reaches
+the adapter's kill switch, down to killing a running subprocess.
+
+Built for the single-process deployment this ships as: the queue is in memory
+(run one process, or replace the queue before scaling out), job rows live in
+SQLite so a restart marks rows left queued/running as failed rather than
+losing them, and concurrency and queue depth are bounded with overflow
+refused.
+"""
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import os
+import queue
+import threading
+import time
+from collections.abc import Callable
+from typing import Any
+
+import strix.core.jobs as jobs_module
+from strix.config import Settings
+from strix.core import store_async as store
+from strix.core.jobs import Job
+
+log = logging.getLogger(__name__)
+# Everything created after this instant belongs to the running process, so the
+# restart sweep must not touch it (a queued job is persisted before it is
+# submitted, and would otherwise be "interrupted" by its own worker's startup).
+PROCESS_STARTED_AT = time.time()
+_settings = Settings.from_env()
+CONCURRENCY = _settings.workers
+QUEUE_MAX = _settings.queue_max
+
+# Main event loop reference for thread-safe async submission
+_main_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Set the main event loop for cross-thread async submission."""
+    global _main_loop
+    _main_loop = loop
+
+
+class AssessmentQueueFull(RuntimeError):
+    """The bounded queue refused the job — nothing was enqueued."""
+
+
+class WorkerLeaseError(RuntimeError):
+    """Another process already runs the worker for this database."""
+
+
+# The in-memory queue is per process, so a second worker process would silently
+# ignore work queued in the first (and could re-run rows left by it). An
+# exclusive advisory lock on a sidecar file makes "one worker process" a
+# property the deployment cannot violate by accident. Reentrant within one
+# process: several AssessmentWorker instances (tests, restarts) share it.
+_lease_files: dict[str, Any] = {}
+
+
+def _lease_path() -> str:
+    return os.path.abspath(store.current_path()) + ".worker-lock"
+
+
+def _acquire_lock_posix(handle) -> None:
+    """Acquire exclusive lock on POSIX using fcntl.flock."""
+    import fcntl
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def _acquire_lock_windows(handle) -> None:
+    """Acquire exclusive lock on Windows using msvcrt.locking."""
+    import msvcrt
+    # Lock the first byte of the file (non-blocking)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined]
+
+
+def _release_lock_posix(handle) -> None:
+    """Release lock on POSIX."""
+    import fcntl
+    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _release_lock_windows(handle) -> None:
+    """Release lock on Windows."""
+    import msvcrt
+    # Unlock the first byte
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
+
+
+def _acquire_worker_lease_sync(path: str | None = None) -> str:
+    """Synchronous worker lease acquisition (blocking). Run in thread pool.
+
+    Always attempts the lock; the file is the source of truth. The in-process
+    cache (_lease_files) is only used to track handles we own for release,
+    not to skip acquisition (that would allow a crashed-and-restarted process
+    to bypass the lock if it kept the same PID).
+
+    On startup, if the lock file exists with a stale PID (process dead),
+    we remove it before attempting to acquire.
+    """
+    resolved = path or _lease_path()
+
+    # Check for stale lock file from a crashed process
+    if os.path.exists(resolved):
+        try:
+            with open(resolved, encoding="utf-8") as f:
+                pid_str = f.read().strip()
+            if pid_str:
+                stale_pid = int(pid_str)
+                # Check if process is still alive (signal 0 = existence check)
+                try:
+                    os.kill(stale_pid, 0)
+                except OSError:
+                    # Process is dead, remove stale lock file
+                    log.info("Removing stale worker lock file (PID %d dead)", stale_pid)
+                    os.remove(resolved)
+        except (OSError, ValueError):
+            # Can't read/parse PID, let the lock attempt handle it
+            pass
+
+    # Open the actual lock file for locking (fcntl/msvcrt locks are on the fd)
+    handle = open(resolved, "a+", encoding="utf-8")  # noqa: SIM115
+    try:
+        if os.name == "nt":
+            _acquire_lock_windows(handle)
+        else:
+            _acquire_lock_posix(handle)
+    except (OSError, ImportError):
+        handle.close()
+        raise WorkerLeaseError(
+            f"another Strix worker process already owns {resolved}; run one "
+            "process per database (or remove a stale lock if no worker runs)"
+        ) from None
+
+    # Write our PID atomically
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"{os.getpid()}\n")
+    handle.flush()
+    _lease_files[resolved] = handle
+    return resolved
+
+
+def _release_worker_lease_sync(path: str | None = None) -> None:
+    """Synchronous worker lease release (blocking). Run in thread pool."""
+    resolved = path or _lease_path()
+    handle = _lease_files.pop(resolved, None)
+    if handle is None:
+        return
+    try:
+        if os.name == "nt":
+            _release_lock_windows(handle)
+        else:
+            _release_lock_posix(handle)
+    except (OSError, ImportError):
+        pass  # Best effort
+    handle.close()
+
+
+async def acquire_worker_lease(path: str | None = None) -> str:
+    """Take the per-database worker lease. Raises WorkerLeaseError if taken.
+
+    Runs blocking file lock operations in a thread pool to avoid blocking the event loop.
+    """
+    return await asyncio.to_thread(_acquire_worker_lease_sync, path)
+
+
+async def release_worker_lease(path: str | None = None) -> None:
+    """Release the worker lease if this process holds it (idempotent).
+
+    Runs blocking file lock operations in a thread pool to avoid blocking the event loop.
+    """
+    await asyncio.to_thread(_release_worker_lease_sync, path)
+
+
+class AssessmentWorker:
+    def __init__(self, *, concurrency: int = CONCURRENCY,
+                 queue_max: int = QUEUE_MAX) -> None:
+        self.concurrency = concurrency
+        self._queue: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
+        self._active: dict[str, Job] = {}
+        self._on_finish: dict[str, Callable[[Job], None]] = {}
+        self._lock = threading.Lock()
+        self._threads: list[threading.Thread] = []
+        self._started = False
+        self._start_lock = threading.Lock()
+        self._stopping = threading.Event()
+        self.name = f"strix-worker-{os.getpid()}-{id(self) & 0xFFFF:x}"
+        self._lease: str | None = None
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+    async def start(self) -> None:
+        """Idempotent: sweep interrupted jobs, then spawn the workers."""
+        with self._start_lock:
+            if self._started:
+                return
+            # One worker process per database, enforced rather than documented.
+            # Taken before the sweep: if another process owns the queue, this one
+            # must not touch its rows at all.
+            self._lease = await acquire_worker_lease()
+            self._started = True
+            # Rows a dead process left queued/running become failed before
+            # this process accepts any new work. Rows written by this process
+            # (after PROCESS_STARTED_AT) are excluded.
+            await store.fail_interrupted(created_before=PROCESS_STARTED_AT)
+            for index in range(self.concurrency):
+                thread = threading.Thread(target=self._loop,
+                                          name=f"strix-worker-{index}", daemon=True)
+                thread.start()
+                self._threads.append(thread)
+
+    # ------------------------------------------------------------------
+    # Public operations
+    # ------------------------------------------------------------------
+    async def submit(self, job: Job, on_finish: Callable[[Job], None]) -> None:
+        """Queue a prepared job. Raises AssessmentQueueFull when at capacity."""
+        await self.start()
+        with self._lock:
+            self._active[job.id] = job
+            self._on_finish[job.id] = on_finish
+        try:
+            self._queue.put_nowait(job)
+        except queue.Full:
+            with self._lock:
+                self._active.pop(job.id, None)
+                self._on_finish.pop(job.id, None)
+            raise AssessmentQueueFull(
+                f"assessment queue is full ({self._queue.maxsize} waiting)"
+            ) from None
+
+    def cancel(self, job_id: str) -> bool:
+        """Signal a queued or running job to stop. False if it is not ours."""
+        with self._lock:
+            job = self._active.get(job_id)
+        if job is None:
+            return False
+        job.cancel()
+        return True
+
+    def cancel_for_policy(self, policy_id: str) -> int:
+        """Cancel every queued/running job bound to ``policy_id``.
+
+        Authorization withdrawn must stop work that is no longer authorized:
+        revoking an engagement policy cancels its in-flight assessments. Jobs
+        not yet dequeued fail at their execution-time re-validation instead.
+        Returns how many jobs were signalled.
+        """
+        with self._lock:
+            targets = [job for job in self._active.values()
+                       if (job.policy or {}).get("policy_id") == policy_id]
+        for job in targets:
+            job.cancel()
+        return len(targets)
+
+    async def shutdown(self, timeout: float = 10.0) -> None:
+        """Stop cleanly: cancel running jobs, wait for workers, fail what never ran.
+
+        Safe to call more than once; ``start()`` may be called again afterwards.
+        """
+        with self._start_lock:
+            if not self._started:
+                return
+            self._stopping.set()
+            with self._lock:
+                running = list(self._active.values())
+            for job in running:
+                job.cancel()  # adapters honor this and kill their subprocess
+            deadline = time.monotonic() + timeout
+            for thread in self._threads:
+                thread.join(max(0.0, deadline - time.monotonic()))
+            if any(thread.is_alive() for thread in self._threads):
+                log.warning("worker threads still running after %.0fs shutdown", timeout)
+            self._threads.clear()
+            # Whatever was queued or mid-run is now failed in the database, not
+            # left looking live (the same sweep a crashed process gets at start).
+            await store.fail_interrupted()
+            while True:
+                try:
+                    self._queue.get_nowait()
+                    self._queue.task_done()
+                except queue.Empty:
+                    break
+            with self._lock:
+                self._active.clear()
+                self._on_finish.clear()
+            self._stopping.clear()
+            self._started = False
+            if self._lease is not None:
+                await release_worker_lease(self._lease)
+                self._lease = None
+
+    # ------------------------------------------------------------------
+    # Worker loop
+    # ------------------------------------------------------------------
+    def _run_async(self, coro):
+        """Run an async coroutine from a worker thread.
+
+        Uses the main event loop if available (via run_coroutine_threadsafe),
+        otherwise creates a new event loop. This avoids 'RuntimeError: cannot
+        run event loop while another is running' when a thread inherits a loop.
+        """
+        global _main_loop
+        if _main_loop is not None and not _main_loop.is_closed():
+            # Submit to main loop and wait for result
+            future = asyncio.run_coroutine_threadsafe(coro, _main_loop)
+            return future.result()
+        # Fallback: create a new loop for this thread
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+        finally:
+            with contextlib.suppress(Exception):
+                loop.close()
+            asyncio.set_event_loop(None)
+
+    def _run_one(self, job: Job) -> None:
+        with self._lock:
+            on_finish = self._on_finish.get(job.id)
+        import strix.api.dependencies as deps_module
+        from strix.api.dependencies import _cleanup_pool_sync
+
+        def _cleanup_pool_if_closed():
+            """Clean up pool if its event loop is closed."""
+            # With ContextVar, the pool is isolated per event loop.
+            # If we're running in a thread with a closed loop, the ContextVar
+            # for that loop is no longer accessible. This is a best-effort cleanup.
+            pool = deps_module._db_pool.get(None)
+            if pool is not None:
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_closed():
+                        _cleanup_pool_sync(pool)
+                        deps_module._db_pool.set(None)
+                except RuntimeError:
+                    # No running loop - pool will be GC'd
+                    pass
+
+        claimed = self._run_async(store.claim_job(job.id, tenant=job.actor, worker=self.name))
+        _cleanup_pool_if_closed()
+
+        if not claimed:
+            log.warning("job %s was already claimed; not executing it again", job.id)
+            job.state = jobs_module.JobState.FAILED
+            job.error = "job was already claimed by another execution"
+            job.finished_at = time.time()
+        else:
+            job.attempts += 1
+            job.worker_id = self.name
+            try:
+                jobs_module.execute(job)
+            except Exception as exc:
+                log.exception("assessment %s crashed", job.id)
+                job.state = jobs_module.JobState.FAILED
+                job.error = f"internal error: {type(exc).__name__}"
+                job.finished_at = time.time()
+        if on_finish is not None:
+            try:
+                on_finish(job)
+            except Exception:
+                log.exception("final save failed for %s", job.id)
+        _cleanup_pool_if_closed()
+
+    def _loop(self) -> None:
+        while not self._stopping.is_set():
+            try:
+                job = self._queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            try:
+                self._run_one(job)
+            finally:
+                with self._lock:
+                    self._active.pop(job.id, None)
+                    self._on_finish.pop(job.id, None)
+                self._queue.task_done()
+
+
+# One worker for the process: FastAPI startup and the first submit both use it.
+assessment_worker = AssessmentWorker()

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: static analysis and tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            constraints.txt
+      - name: Install (pinned)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -c constraints.txt -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests scripts
+      - name: Type check
+        run: mypy
+      - name: Secret scan
+        run: python scripts/check_secrets.py .
+      - name: Unit and integration tests
+        run: pytest -q
+      - name: Dependency audit
+        run: |
+          pip install pip-audit
+          # Audits the exact environment installed above (runtime + dev).
+          # --skip-editable: the local `strix` package itself is not on PyPI;
+          # everything else in the environment is audited and a known
+          # advisory anywhere fails the job (--strict cannot be combined
+          # with an editable package in the environment).
+          pip-audit --skip-editable --progress-spinner off
+
+  integration:
+    name: live server, detection lab and image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            constraints.txt
+      - name: Install with the external scanner this profile uses
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nmap
+          python -m pip install --upgrade pip
+          pip install -c constraints.txt -e ".[dev]"
+      - name: Detection benchmark (loopback lab only)
+        run: python -m strix.lab --no-nuclei --workflow web,network --report lab.json
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: detection-benchmark
+          path: lab.json
+      - name: End-to-end smoke test against a real uvicorn process
+        run: python scripts/smoke_e2e.py
+
+  docker:
+    name: container build and health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t strix:ci .
+      - name: Container answers its health check
+        run: |
+          set -euo pipefail
+          docker run -d --name strix-ci -p 8000:8000 \
+            -e STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+            strix:ci
+          for _ in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then
+              curl -fsS http://127.0.0.1:8000/api/ready
+              docker rm -f strix-ci > /dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs strix-ci
+          docker rm -f strix-ci > /dev/null
+          exit 1
+      - name: Unauthenticated metrics are refused
+        run: |
+          set -euo pipefail
+          docker run -d --name strix-ci-metrics -p 8001:8000 \
+            -e STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+            strix:ci
+          for _ in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/api/health || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/api/metrics)" = "401"
+          docker rm -f strix-ci-metrics > /dev/null

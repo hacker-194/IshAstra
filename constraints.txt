@@ -1,0 +1,28 @@
+# Exact versions of every direct dependency, for reproducible installs.
+#
+#   pip install -c constraints.txt -e ".[dev]"      # developer / CI
+#   pip install --no-cache-dir -c constraints.txt . # Docker image
+#
+# Why not a hash-pinned lock: a hashed lock is only meaningful for the single
+# platform and Python version it was generated on, and this project ships for
+# Linux/CPython 3.12+. Pinning the direct set here keeps installs reproducible
+# without pretending cross-platform hashes are verified. Refresh deliberately:
+#
+#   pip index versions <package>        # review the changelog first
+#   sed -i 's/^<package>==.*/<package>==<new>/' constraints.txt
+#   pip install -c constraints.txt -e ".[dev]" && pytest && python -m strix.lab
+#
+# `pip-audit` runs against the installed environment in CI, so a new advisory
+# against anything in this set (or its transitive closure) fails the pipeline.
+
+fastapi==0.162.0
+starlette==1.10.0
+uvicorn==0.54.0
+pydantic==2.14.1
+defusedxml==0.7.1
+
+# Test and static-analysis tooling (the `dev` extra).
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.17.2
+mypy==2.4.0

@@ -10,10 +10,12 @@ SQLite so a restart marks rows left queued/running as failed rather than
 losing them, and concurrency and queue depth are bounded with overflow
 refused.
 """
+
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import gc
 import logging
 import os
 import queue
@@ -24,7 +26,7 @@ from typing import Any
 
 import strix.core.jobs as jobs_module
 from strix.config import Settings
-from strix.core import store_async as store
+from strix.core import store
 from strix.core.jobs import Job
 
 log = logging.getLogger(__name__)
@@ -32,19 +34,25 @@ log = logging.getLogger(__name__)
 # restart sweep must not touch it (a queued job is persisted before it is
 # submitted, and would otherwise be "interrupted" by its own worker's startup).
 PROCESS_STARTED_AT = time.time()
-_settings = Settings.from_env()
-CONCURRENCY = _settings.workers
-QUEUE_MAX = _settings.queue_max
 
-# Main event loop reference for thread-safe async submission
-_main_loop: asyncio.AbstractEventLoop | None = None
+# Run a memory check every N finished jobs (ru_maxrss is the process peak).
+_MEMORY_CHECK_INTERVAL = 25
+_jobs_since_mem_check = 0
+
+# Lazy settings accessor - avoids module-level import-time evaluation
+def _get_worker_settings() -> Settings:
+    from strix.config import Settings
+    return Settings.from_env()
 
 
-def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
-    """Set the main event loop for cross-thread async submission."""
-    global _main_loop
-    _main_loop = loop
+def _get_concurrency() -> int:
+    return _get_worker_settings().workers
 
+def _get_queue_max() -> int:
+    return _get_worker_settings().queue_max
+
+def _get_worker_memory_limit_mb() -> int:
+    return getattr(_get_worker_settings(), "worker_memory_mb", 1024)
 
 class AssessmentQueueFull(RuntimeError):
     """The bounded queue refused the job — nothing was enqueued."""
@@ -63,18 +71,32 @@ _lease_files: dict[str, Any] = {}
 
 
 def _lease_path() -> str:
-    return os.path.abspath(store.current_path()) + ".worker-lock"
+    target = store.current_path()
+    if target.startswith(("postgresql://", "postgres://")):
+        # A DSN must not become a filename (it contains the password). The lock
+        # is host-local, which matches the documented single-host deployment.
+        import hashlib
+        import tempfile
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(target)
+        key = f"{parts.hostname}:{parts.port or 5432}{parts.path}"
+        digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return os.path.join(tempfile.gettempdir(), f"strix-{digest}.worker-lock")
+    return os.path.abspath(target) + ".worker-lock"
 
 
 def _acquire_lock_posix(handle) -> None:
     """Acquire exclusive lock on POSIX using fcntl.flock."""
     import fcntl
+
     fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 def _acquire_lock_windows(handle) -> None:
     """Acquire exclusive lock on Windows using msvcrt.locking."""
     import msvcrt
+
     # Lock the first byte of the file (non-blocking)
     msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined]
 
@@ -82,12 +104,14 @@ def _acquire_lock_windows(handle) -> None:
 def _release_lock_posix(handle) -> None:
     """Release lock on POSIX."""
     import fcntl
+
     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _release_lock_windows(handle) -> None:
     """Release lock on Windows."""
     import msvcrt
+
     # Unlock the first byte
     msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
 
@@ -179,10 +203,13 @@ async def release_worker_lease(path: str | None = None) -> None:
 
 
 class AssessmentWorker:
-    def __init__(self, *, concurrency: int = CONCURRENCY,
-                 queue_max: int = QUEUE_MAX) -> None:
-        self.concurrency = concurrency
-        self._queue: queue.Queue[Job] = queue.Queue(maxsize=queue_max)
+    def __init__(
+        self, *, concurrency: int | None = None, queue_max: int | None = None
+    ) -> None:
+        self.concurrency = concurrency if concurrency is not None else _get_concurrency()
+        self._queue: queue.Queue[Job] = queue.Queue(
+            maxsize=queue_max if queue_max is not None else _get_queue_max()
+        )
         self._active: dict[str, Job] = {}
         self._on_finish: dict[str, Callable[[Job], None]] = {}
         self._lock = threading.Lock()
@@ -211,8 +238,9 @@ class AssessmentWorker:
             # (after PROCESS_STARTED_AT) are excluded.
             await store.fail_interrupted(created_before=PROCESS_STARTED_AT)
             for index in range(self.concurrency):
-                thread = threading.Thread(target=self._loop,
-                                          name=f"strix-worker-{index}", daemon=True)
+                thread = threading.Thread(
+                    target=self._thread_entry, name=f"strix-worker-{index}", daemon=True
+                )
                 thread.start()
                 self._threads.append(thread)
 
@@ -253,8 +281,11 @@ class AssessmentWorker:
         Returns how many jobs were signalled.
         """
         with self._lock:
-            targets = [job for job in self._active.values()
-                       if (job.policy or {}).get("policy_id") == policy_id]
+            targets = [
+                job
+                for job in self._active.values()
+                if (job.policy or {}).get("policy_id") == policy_id
+            ]
         for job in targets:
             job.cancel()
         return len(targets)
@@ -267,20 +298,44 @@ class AssessmentWorker:
         with self._start_lock:
             if not self._started:
                 return
+            log.debug(
+                "Shutting down worker, stopping=%s, threads=%d",
+                self._stopping.is_set(),
+                len(self._threads),
+            )
             self._stopping.set()
             with self._lock:
                 running = list(self._active.values())
+            log.debug("Cancelling %d running jobs", len(running))
             for job in running:
                 job.cancel()  # adapters honor this and kill their subprocess
             deadline = time.monotonic() + timeout
-            for thread in self._threads:
-                thread.join(max(0.0, deadline - time.monotonic()))
+            for i, thread in enumerate(self._threads):
+                remaining = max(0.0, deadline - time.monotonic())
+                log.debug(
+                    "Joining thread %d/%d (ident=%s), remaining=%.2fs",
+                    i + 1,
+                    len(self._threads),
+                    thread.ident,
+                    remaining,
+                )
+                thread.join(remaining)
+                log.debug("Thread %d joined, alive=%s", i + 1, thread.is_alive())
             if any(thread.is_alive() for thread in self._threads):
-                log.warning("worker threads still running after %.0fs shutdown", timeout)
+                log.warning(
+                    "worker threads still running after %.0fs shutdown", timeout
+                )
             self._threads.clear()
+            # Give aiosqlite worker threads time to fully shut down before
+            # the main thread uses the database
+            await asyncio.sleep(1.0)
+            log.debug("Worker threads cleared, calling fail_interrupted")
             # Whatever was queued or mid-run is now failed in the database, not
             # left looking live (the same sweep a crashed process gets at start).
-            await store.fail_interrupted()
+            try:
+                await store.fail_interrupted()
+            except Exception as exc:
+                log.debug("fail_interrupted skipped due to: %s", exc)
             while True:
                 try:
                     self._queue.get_nowait()
@@ -299,52 +354,51 @@ class AssessmentWorker:
     # ------------------------------------------------------------------
     # Worker loop
     # ------------------------------------------------------------------
-    def _run_async(self, coro):
-        """Run an async coroutine from a worker thread.
-
-        Uses the main event loop if available (via run_coroutine_threadsafe),
-        otherwise creates a new event loop. This avoids 'RuntimeError: cannot
-        run event loop while another is running' when a thread inherits a loop.
-        """
-        global _main_loop
-        if _main_loop is not None and not _main_loop.is_closed():
-            # Submit to main loop and wait for result
-            future = asyncio.run_coroutine_threadsafe(coro, _main_loop)
-            return future.result()
-        # Fallback: create a new loop for this thread
+    def _thread_entry(self) -> None:
+        """Entry point for worker threads: create and run a dedicated event loop."""
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            asyncio.set_event_loop(loop)
-            return loop.run_until_complete(coro)
+            self._loop(loop)
         finally:
             with contextlib.suppress(Exception):
                 loop.close()
             asyncio.set_event_loop(None)
 
-    def _run_one(self, job: Job) -> None:
+    def _maybe_check_memory(self) -> None:
+        """Periodically check RSS and trigger GC if over limit."""
+        global _jobs_since_mem_check
+        _jobs_since_mem_check += 1
+        if _jobs_since_mem_check < _MEMORY_CHECK_INTERVAL:
+            return
+        _jobs_since_mem_check = 0
+        try:
+            import resource
+            import sys
+
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            # ru_maxrss is KB on Linux, bytes on macOS
+            if sys.platform == "darwin":
+                rss_mb = rusage.ru_maxrss / (1024 * 1024)
+            else:
+                rss_mb = rusage.ru_maxrss / 1024
+            if rss_mb > _get_worker_memory_limit_mb():
+                log.warning(
+                    "Worker RSS %.1f MB exceeds limit %d MB; forcing GC",
+                    rss_mb,
+                    _get_worker_memory_limit_mb(),
+                )
+                gc.collect()
+        except Exception:
+            pass  # Memory check is best-effort
+
+    def _run_one(self, loop: asyncio.AbstractEventLoop, job: Job) -> None:
         with self._lock:
             on_finish = self._on_finish.get(job.id)
-        import strix.api.dependencies as deps_module
-        from strix.api.dependencies import _cleanup_pool_sync
 
-        def _cleanup_pool_if_closed():
-            """Clean up pool if its event loop is closed."""
-            # With ContextVar, the pool is isolated per event loop.
-            # If we're running in a thread with a closed loop, the ContextVar
-            # for that loop is no longer accessible. This is a best-effort cleanup.
-            pool = deps_module._db_pool.get(None)
-            if pool is not None:
-                try:
-                    loop = asyncio.get_running_loop()
-                    if loop.is_closed():
-                        _cleanup_pool_sync(pool)
-                        deps_module._db_pool.set(None)
-                except RuntimeError:
-                    # No running loop - pool will be GC'd
-                    pass
-
-        claimed = self._run_async(store.claim_job(job.id, tenant=job.actor, worker=self.name))
-        _cleanup_pool_if_closed()
+        claimed = loop.run_until_complete(
+            store.claim_job(job.id, tenant=job.actor, worker=self.name)
+        )
 
         if not claimed:
             log.warning("job %s was already claimed; not executing it again", job.id)
@@ -366,21 +420,30 @@ class AssessmentWorker:
                 on_finish(job)
             except Exception:
                 log.exception("final save failed for %s", job.id)
-        _cleanup_pool_if_closed()
+        # Periodic memory check to catch leaks early
+        self._maybe_check_memory()
 
-    def _loop(self) -> None:
+    def _loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Synchronous main loop for the worker thread, using the thread's event loop."""
+        log.debug("Worker thread %s starting loop", threading.get_ident())
         while not self._stopping.is_set():
             try:
                 job = self._queue.get(timeout=0.25)
             except queue.Empty:
                 continue
+            log.debug("Worker thread %s got job %s", threading.get_ident(), job.id)
             try:
-                self._run_one(job)
+                self._run_one(loop, job)
             finally:
                 with self._lock:
                     self._active.pop(job.id, None)
                     self._on_finish.pop(job.id, None)
                 self._queue.task_done()
+        log.debug(
+            "Worker thread %s exiting loop (stopping=%s)",
+            threading.get_ident(),
+            self._stopping.is_set(),
+        )
 
 
 # One worker for the process: FastAPI startup and the first submit both use it.

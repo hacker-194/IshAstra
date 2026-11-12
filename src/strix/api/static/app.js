@@ -520,6 +520,15 @@ function renderAssessment(job) {
             </div>
             <div class="evidence-block"><strong>Evidence:</strong> ${escapeHtml(f.evidence)}</div>
             <div class="defense-badge-row"><strong>Remediation:</strong> ${escapeHtml(f.remediation || 'Review the evidence.')}</div>
+            <div class="finding-status-row">
+              <span class="badge ${f.status === 'closed' ? 'low' : 'neutral'}">${escapeHtml((f.status || 'new').toUpperCase().replace(/_/g, ' '))}</span>
+              ${(f.allowed_transitions || []).length ? `
+                <select class="finding-status-select" data-finding-select="${escapeHtml(f.fingerprint)}">
+                  ${f.allowed_transitions.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s.replace(/_/g, ' '))}</option>`).join('')}
+                </select>
+                <button class="strix-btn secondary action-btn" data-finding-update="${escapeHtml(f.fingerprint)}">Update</button>
+              ` : '<span class="assess-history-meta">No further transitions</span>'}
+            </div>
           </div>
         </div>
       `).join('')
@@ -557,6 +566,28 @@ function renderAssessment(job) {
 
   container.querySelector('[data-sarif]')?.addEventListener('click', () => downloadSarif(job.id));
   container.querySelector('#btn-cancel-job')?.addEventListener('click', () => cancelJob(job.id));
+  container.querySelectorAll('[data-finding-update]').forEach(button => {
+    button.addEventListener('click', () => updateFindingStatus(job.id, button.dataset.findingUpdate, container));
+  });
+}
+
+async function updateFindingStatus(jobId, fingerprint, container) {
+  const select = container.querySelector(`[data-finding-select="${fingerprint}"]`);
+  const status = select?.value;
+  if (!status) return;
+  try {
+    const res = await fetch(`/api/assess/${encodeURIComponent(jobId)}/findings/${encodeURIComponent(fingerprint)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Finding update failed');
+    showToast(`Finding moved to ${data.status.replace(/_/g, ' ')}`, 'success');
+    await openJob(jobId);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 async function downloadSarif(jobId) {

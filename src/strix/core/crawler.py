@@ -4,6 +4,7 @@ The crawler only decides which pages exist. Every assertion here checks a
 boundary that keeps it honest: same-origin, scope gate, page/depth/link caps,
 and the hand-off contract with the HTTP assessment adapter.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -14,11 +15,7 @@ from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from strix.core.adapter_base import (
-    Adapter,
-    AdapterResult,
-    checked_destination,
-)
+from strix.core.adapter_base import Adapter, AdapterResult, checked_destination
 from strix.core.probe import EndpointProbe
 from strix.core.scope import check as scope_check
 from strix.core.scope import destination as scope_destination
@@ -36,6 +33,7 @@ SKIP_SCHEMES = ("mailto:", "tel:", "javascript:", "data:", "blob:")
 @dataclass
 class CrawledPage:
     """A page that was actually fetched."""
+
     url: str
     status: int
     depth: int
@@ -47,6 +45,7 @@ class CrawledPage:
 @dataclass
 class CrawlResult:
     """What the crawler discovered and what it actually fetched."""
+
     pages: list[CrawledPage] = field(default_factory=list)
     discovered: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -136,15 +135,18 @@ class WebCrawler:
         self.max_total_links = min(max_total_links, MAX_TOTAL_LINKS)
         self.timeout = timeout
 
-    def crawl(self, start_url: str, *, deadline: float,
-               cancel: threading.Event | None = None) -> CrawlResult:
+    def crawl(
+        self, start_url: str, *, deadline: float, cancel: threading.Event | None = None
+    ) -> CrawlResult:
         """Crawl from start_url until deadline or budget exhausted."""
         result = CrawlResult()
 
         # Scope check the seed
         denial, reason, destination = scope_destination(start_url)
         if denial or destination is None:
-            raise ValueError(f"scope refused {start_url}: {reason or 'destination unavailable'}")
+            raise ValueError(
+                f"scope refused {start_url}: {reason or 'destination unavailable'}"
+            )
 
         seed_origin = f"{destination.scheme}://{destination.host}"
         if destination.port not in (80, 443):
@@ -185,13 +187,17 @@ class WebCrawler:
                 fetched.add(url)
 
                 # Extract links if HTML (even at max_depth for discovery, but don't queue beyond max_depth)
-                content_type = response.get("headers", {}).get("content-type", "").lower()
+                content_type = (
+                    response.get("headers", {}).get("content-type", "").lower()
+                )
                 if "text/html" in content_type and depth <= self.max_depth:
                     extractor = _LinkExtractor(url)
                     with contextlib.suppress(Exception):
-                        extractor.feed(body)  # Malformed HTML - just skip link extraction
+                        extractor.feed(
+                            body
+                        )  # Malformed HTML - just skip link extraction
 
-                    for raw_link in extractor.urls[:self.max_links_per_page]:
+                    for raw_link in extractor.urls[: self.max_links_per_page]:
                         if link_count >= self.max_total_links:
                             result.notes.append("link budget exhausted")
                             break
@@ -205,7 +211,9 @@ class WebCrawler:
                         # Same-origin check
                         try:
                             link_parsed = urlparse(normalized)
-                            link_origin = f"{link_parsed.scheme}://{link_parsed.hostname}"
+                            link_origin = (
+                                f"{link_parsed.scheme}://{link_parsed.hostname}"
+                            )
                             if link_parsed.port not in (80, 443, None):
                                 link_origin += f":{link_parsed.port}"
                         except Exception:

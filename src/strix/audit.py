@@ -3,6 +3,7 @@
 Each chain link is HMAC-SHA256 when ``hmac_key`` is set, so someone who can
 edit the database but does not hold the key cannot rebuild a consistent chain.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +16,7 @@ import time
 from collections import deque
 from typing import Any
 
-from strix.core import store_async as store
+from strix.core import store
 from strix.core.findings import redact
 from strix.core.locks import _ReentrantAsyncLock, _SimpleAsyncLock, async_locked
 
@@ -101,7 +102,7 @@ class AuditChain:
     def __init__(self, *, persistent: bool = False, hmac_key: str = "") -> None:
         self._persistent = persistent
         self._key = hmac_key.encode()
-        self._entries: list[dict[str, Any]] = []   # in-memory mode only
+        self._entries: list[dict[str, Any]] = []  # in-memory mode only
         self._lock = threading.Lock()
         self._cache_lock = threading.Lock()
         self._cached: tuple[float, tuple[bool, str | None]] | None = None
@@ -137,8 +138,12 @@ class AuditChain:
             else:
                 sequence = len(self._entries) + 1
                 previous = self._entries[-1]["hash"] if self._entries else GENESIS_HASH
-            body = {**entry, "previous_hash": previous, "sequence": sequence,
-                    "timestamp": time.time()}
+            body = {
+                **entry,
+                "previous_hash": previous,
+                "sequence": sequence,
+                "timestamp": time.time(),
+            }
             digest = self._digest(body)
             if self._persistent:
                 asyncio.run(store.chain_insert(sequence, previous, digest, body))
@@ -156,8 +161,12 @@ class AuditChain:
         else:
             sequence = len(self._entries) + 1
             previous = self._entries[-1]["hash"] if self._entries else GENESIS_HASH
-        body = {**entry, "previous_hash": previous, "sequence": sequence,
-                "timestamp": time.time()}
+        body = {
+            **entry,
+            "previous_hash": previous,
+            "sequence": sequence,
+            "timestamp": time.time(),
+        }
         digest = self._digest(body)
         if self._persistent:
             await store.chain_insert(sequence, previous, digest, body)
@@ -169,14 +178,27 @@ class AuditChain:
     def _iter_entries(self):
         if not self._persistent:
             for entry in list(self._entries):
-                yield (entry.get("sequence"), entry.get("previous_hash"), entry.get("hash"),
-                       {k: v for k, v in entry.items() if k != "hash"})
+                yield (
+                    entry.get("sequence"),
+                    entry.get("previous_hash"),
+                    entry.get("hash"),
+                    {k: v for k, v in entry.items() if k != "hash"},
+                )
             return
+
         async def _collect():
             result = []
             async for row in store.chain_rows():
-                result.append((row["sequence"], row["previous_hash"], row["hash"], json.loads(row["data"])))
+                result.append(
+                    (
+                        row["sequence"],
+                        row["previous_hash"],
+                        row["hash"],
+                        json.loads(row["data"]),
+                    )
+                )
             return result
+
         yield from asyncio.run(_collect())
 
     async def _iter_entries_async(self):
@@ -184,19 +206,34 @@ class AuditChain:
         async with self._get_async_lock():
             if not self._persistent:
                 for entry in list(self._entries):
-                    yield (entry.get("sequence"), entry.get("previous_hash"), entry.get("hash"),
-                           {k: v for k, v in entry.items() if k != "hash"})
+                    yield (
+                        entry.get("sequence"),
+                        entry.get("previous_hash"),
+                        entry.get("hash"),
+                        {k: v for k, v in entry.items() if k != "hash"},
+                    )
                 return
             async for row in store.chain_rows():
-                yield row["sequence"], row["previous_hash"], row["hash"], json.loads(row["data"])
+                yield row["sequence"], row["previous_hash"], row["hash"], json.loads(
+                    row["data"]
+                )
 
     def verify(self) -> tuple[bool, str | None]:
         expected_previous, expected_sequence = GENESIS_HASH, 1
         for sequence, previous, digest, body in self._iter_entries():
             if sequence != expected_sequence:
-                return False, f"Chain broken: expected sequence {expected_sequence}, found {sequence}"
-            if previous != expected_previous or body.get("previous_hash") != expected_previous:
-                return False, f"Chain broken at sequence {sequence} (prev hash mismatch)"
+                return (
+                    False,
+                    f"Chain broken: expected sequence {expected_sequence}, found {sequence}",
+                )
+            if (
+                previous != expected_previous
+                or body.get("previous_hash") != expected_previous
+            ):
+                return (
+                    False,
+                    f"Chain broken at sequence {sequence} (prev hash mismatch)",
+                )
             if not hmac.compare_digest(self._digest(body), digest or ""):
                 return False, f"Hash mismatch at sequence {sequence}"
             expected_previous, expected_sequence = digest, expected_sequence + 1
@@ -208,40 +245,65 @@ class AuditChain:
         expected_previous, expected_sequence = GENESIS_HASH, 1
         async for sequence, previous, digest, body in self._iter_entries_async():
             if sequence != expected_sequence:
-                return False, f"Chain broken: expected sequence {expected_sequence}, found {sequence}"
-            if previous != expected_previous or body.get("previous_hash") != expected_previous:
-                return False, f"Chain broken at sequence {sequence} (prev hash mismatch)"
+                return (
+                    False,
+                    f"Chain broken: expected sequence {expected_sequence}, found {sequence}",
+                )
+            if (
+                previous != expected_previous
+                or body.get("previous_hash") != expected_previous
+            ):
+                return (
+                    False,
+                    f"Chain broken at sequence {sequence} (prev hash mismatch)",
+                )
             if not hmac.compare_digest(self._digest(body), digest or ""):
                 return False, f"Hash mismatch at sequence {sequence}"
             expected_previous, expected_sequence = digest, expected_sequence + 1
         return True, None
 
     def verify_cached(self, max_age: float = 30.0) -> tuple[bool, str | None]:
-        """``verify()`` at most once per ``max_age`` seconds, for unauthenticated probes."""
+        """``verify()`` at most once per ``max_age`` seconds, for unauthenticated probes.
+
+        Only caches successful verifications. Failed verifications are never cached
+        so they always re-verify on next call.
+        """
         now = time.monotonic()
         with self._cache_lock:
             if self._cached and now - self._cached[0] < max_age:
                 return self._cached[1]
         result = self.verify()
-        with self._cache_lock:
-            self._cached = (now, result)
+        # Only cache successful verifications
+        if result[0]:
+            with self._cache_lock:
+                self._cached = (now, result)
         return result
 
     @async_locked
-    async def verify_cached_async(self, max_age: float = 30.0) -> tuple[bool, str | None]:
-        """Async version of verify_cached (for async callers)."""
+    async def verify_cached_async(
+        self, max_age: float = 30.0
+    ) -> tuple[bool, str | None]:
+        """Async version of verify_cached (for async callers).
+
+        Only caches successful verifications. Failed verifications are never cached
+        so they always re-verify on next call.
+        """
         now = time.monotonic()
         with self._cache_lock:
             if self._cached and now - self._cached[0] < max_age:
                 return self._cached[1]
         result = await self.verify_async()
-        with self._cache_lock:
-            self._cached = (now, result)
+        # Only cache successful verifications
+        if result[0]:
+            with self._cache_lock:
+                self._cached = (now, result)
         return result
 
     # -- introspection -----------------------------------------------------
     def __len__(self) -> int:
-        return asyncio.run(store.chain_count()) if self._persistent else len(self._entries)
+        return (
+            asyncio.run(store.chain_count()) if self._persistent else len(self._entries)
+        )
 
     @async_locked
     async def len_async(self) -> int:

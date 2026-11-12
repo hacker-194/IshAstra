@@ -7,13 +7,14 @@ connection. Redirects are never followed -- a redirect target is scope-checked
 and reported, not contacted. Header names are normalized to lowercase so a
 server sending lowercase headers is not misreported as missing them.
 """
+
 from __future__ import annotations
 
 import contextlib
 import http.client
 import re
 import secrets
-import select
+import selectors
 import socket
 import ssl
 import threading
@@ -99,8 +100,10 @@ def _all_cookies_secure(raw: Any) -> bool:
         return False
     for cookie in cookies:
         attributes = [part.strip() for part in cookie.split(";")[1:]]
-        if not any(attribute.partition("=")[0].strip().lower() == "secure"
-                   for attribute in attributes):
+        if not any(
+            attribute.partition("=")[0].strip().lower() == "secure"
+            for attribute in attributes
+        ):
             return False
     return True
 
@@ -108,8 +111,9 @@ def _all_cookies_secure(raw: Any) -> bool:
 USER_AGENT = f"strix-probe/{__version__} (+authorized-testing)"
 
 
-def _read_response_with_deadline(sock: socket.socket, deadline: float | None,
-                                 request_timeout: float):
+def _read_response_with_deadline(
+    sock: socket.socket, deadline: float | None, request_timeout: float
+):
     """Read HTTP response status line and headers with deadline enforcement.
 
     This prevents slowloris-style attacks where the server sends headers
@@ -118,30 +122,34 @@ def _read_response_with_deadline(sock: socket.socket, deadline: float | None,
     Returns a response object with read1() and getheaders() methods.
     """
     # Create a file-like object for reading
-    sock_file = sock.makefile('rb')
+    sock_file = sock.makefile("rb")
     try:
         # Read status line with deadline enforcement
-        status_line_bytes = _read_line_with_deadline(sock_file, sock, deadline, request_timeout)
+        status_line_bytes = _read_line_with_deadline(
+            sock_file, sock, deadline, request_timeout
+        )
         if not status_line_bytes:
             raise http.client.BadStatusLine("empty status line")
-        status_line = status_line_bytes.decode('iso-8859-1').strip()
+        status_line = status_line_bytes.decode("iso-8859-1").strip()
 
         # Parse status line: HTTP/1.1 200 OK
-        parts = status_line.split(' ', 2)
+        parts = status_line.split(" ", 2)
         if len(parts) < 2:
             raise http.client.BadStatusLine(status_line)
         status_code = int(parts[1])
-        reason_phrase = parts[2] if len(parts) > 2 else ''
+        reason_phrase = parts[2] if len(parts) > 2 else ""
 
         # Read headers with deadline enforcement
         headers_list = []
         while True:
-            line_bytes = _read_line_with_deadline(sock_file, sock, deadline, request_timeout)
-            if not line_bytes or line_bytes == b'\r\n' or line_bytes == b'\n':
+            line_bytes = _read_line_with_deadline(
+                sock_file, sock, deadline, request_timeout
+            )
+            if not line_bytes or line_bytes == b"\r\n" or line_bytes == b"\n":
                 break  # End of headers
-            line = line_bytes.decode('iso-8859-1').rstrip('\r\n')
-            if ':' in line:
-                key, value = line.split(':', 1)
+            line = line_bytes.decode("iso-8859-1").rstrip("\r\n")
+            if ":" in line:
+                key, value = line.split(":", 1)
                 headers_list.append((key.strip(), value.strip()))
 
         # Return a simple response object with the needed methods
@@ -167,8 +175,9 @@ def _read_response_with_deadline(sock: socket.socket, deadline: float | None,
         raise
 
 
-def _read_line_with_deadline(sock_file, sock: socket.socket,
-                              deadline: float | None, request_timeout: float) -> bytes:
+def _read_line_with_deadline(
+    sock_file, sock: socket.socket, deadline: float | None, request_timeout: float
+) -> bytes:
     """Read a line from socket with deadline enforcement."""
     chunks = []
     while True:
@@ -184,14 +193,14 @@ def _read_line_with_deadline(sock_file, sock: socket.socket,
             if not chunk:
                 break  # EOF
             chunks.append(chunk)
-            if chunk == b'\n':
+            if chunk == b"\n":
                 break
         except TimeoutError:
             raise
         except Exception as e:
             # Socket timeout or other error
             raise TimeoutError(f"timeout reading response: {e}") from e
-    return b''.join(chunks)
+    return b"".join(chunks)
 
 
 class EndpointProbe:
@@ -199,13 +208,23 @@ class EndpointProbe:
         self.timeout = timeout
         self.max_body = max_body
 
-    def _fetch(self, url: str, *, timeout: float | None = None,
-               deadline: float | None = None,
-               auth: Any | None = None) -> dict[str, Any]:
+    def _fetch(
+        self,
+        url: str,
+        *,
+        timeout: float | None = None,
+        deadline: float | None = None,
+        auth: Any | None = None,
+    ) -> dict[str, Any]:
         denial, reason, dest = scope_destination(url)
         if denial or dest is None:
-            return {"url": url, "status": "blocked", "reason": reason or "destination refused",
-                    "headers": {}, "body": ""}
+            return {
+                "url": url,
+                "status": "blocked",
+                "reason": reason or "destination refused",
+                "headers": {},
+                "body": "",
+            }
 
         parsed = urlparse(url)
         target = parsed.path or "/"
@@ -219,8 +238,13 @@ class EndpointProbe:
             timeout_values.append(deadline - time.monotonic())
         request_timeout = min(timeout_values)
         if request_timeout <= 0:
-            return {"url": url, "status": "timeout", "error": "request deadline exhausted",
-                    "headers": {}, "body": ""}
+            return {
+                "url": url,
+                "status": "timeout",
+                "error": "request deadline exhausted",
+                "headers": {},
+                "body": "",
+            }
         request_timeout = max(0.001, request_timeout)
         connection = None
         sock = None
@@ -228,13 +252,17 @@ class EndpointProbe:
             # Connect to the validated IP only. HTTPConnection is given a live
             # socket so it never resolves the hostname itself; for https the
             # handshake still verifies the certificate against the real host.
-            connection = http.client.HTTPConnection(dest.host, dest.port,
-                                                    timeout=request_timeout)
-            sock = socket.create_connection((dest.ip, dest.port), timeout=request_timeout)
+            connection = http.client.HTTPConnection(
+                dest.host, dest.port, timeout=request_timeout
+            )
+            sock = socket.create_connection(
+                (dest.ip, dest.port), timeout=request_timeout
+            )
             sock.settimeout(request_timeout)
             if dest.scheme == "https":
                 sock = ssl.create_default_context().wrap_socket(
-                    sock, server_hostname=dest.host)
+                    sock, server_hostname=dest.host
+                )
             # Ensure timeout is set on the (possibly SSL-wrapped) socket
             sock.settimeout(request_timeout)
             connection.sock = sock
@@ -242,7 +270,8 @@ class EndpointProbe:
             if auth is not None:
                 if auth.cookies:
                     request_headers["Cookie"] = "; ".join(
-                        f"{name}={value}" for name, value in auth.cookies)
+                        f"{name}={value}" for name, value in auth.cookies
+                    )
                 if auth.bearer:
                     request_headers["Authorization"] = f"Bearer {auth.bearer}"
                 for name, value in auth.headers:
@@ -252,17 +281,17 @@ class EndpointProbe:
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError("request deadline exhausted before response headers")
+                    raise TimeoutError(
+                        "request deadline exhausted before response headers"
+                    )
                 if sock.fileno() >= 0:
                     sock.settimeout(max(0.001, min(request_timeout, remaining)))
-            # Use select to wait for the socket to become readable (response headers arrived)
-            # This enforces the timeout even when getresponse() doesn't respect socket timeout
-            # Use request_timeout (which accounts for probe's own timeout) not the caller's deadline
+            # Wait for response headers even if the socket timeout is not honored.
             if sock.fileno() >= 0:
-                select_timeout = request_timeout
-                ready = select.select([sock], [], [], select_timeout)
-                if not ready[0]:
-                    raise TimeoutError("timeout waiting for response headers")
+                with selectors.DefaultSelector() as selector:
+                    selector.register(sock, selectors.EVENT_READ)
+                    if not selector.select(request_timeout):
+                        raise TimeoutError("timeout waiting for response headers")
             # Read response status line and headers manually with deadline enforcement
             # to prevent slowloris-style slow header attacks
             response = _read_response_with_deadline(sock, deadline, request_timeout)
@@ -272,7 +301,9 @@ class EndpointProbe:
                 if deadline is not None:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
-                        raise TimeoutError("request deadline exhausted while reading response")
+                        raise TimeoutError(
+                            "request deadline exhausted while reading response"
+                        )
                     # HTTPConnection may detach/close its socket after a
                     # Connection: close response. Update timeout only while the
                     # socket object is still live; buffered response bytes can
@@ -310,8 +341,13 @@ class EndpointProbe:
             if sock is not None:
                 with contextlib.suppress(Exception):
                     sock.close()
-            return {"url": url, "status": "error", "error": str(exc)[:300],
-                    "headers": {}, "body": ""}
+            return {
+                "url": url,
+                "status": "error",
+                "error": str(exc)[:300],
+                "headers": {},
+                "body": "",
+            }
 
         location = headers.get("location")
         if location:
@@ -321,7 +357,10 @@ class EndpointProbe:
             try:
                 redirect_denial, redirect_reason = scope_check(urljoin(url, location))
             except ValueError:  # a hostile server can send an unparseable Location
-                redirect_denial, redirect_reason = "invalid_target", "unparseable redirect target"
+                redirect_denial, redirect_reason = (
+                    "invalid_target",
+                    "unparseable redirect target",
+                )
             result["redirect_in_scope"] = not redirect_denial
             if redirect_denial:
                 result["redirect_reason"] = redirect_reason
@@ -342,13 +381,24 @@ class EndpointProbe:
                 "cookie_secure": _all_cookies_secure(headers.get("set-cookie")),
             },
         }
-        for key in ("reason", "error", "redirect_to", "redirect_in_scope", "redirect_reason"):
+        for key in (
+            "reason",
+            "error",
+            "redirect_to",
+            "redirect_in_scope",
+            "redirect_reason",
+        ):
             if key in result:
                 out[key] = result[key]
         return out
 
-    def reflections(self, url: str, *, cancel: threading.Event | None = None,
-                    deadline: float | None = None) -> list[dict[str, Any]]:
+    def reflections(
+        self,
+        url: str,
+        *,
+        cancel: threading.Event | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Check benign marker reflections, respecting a caller's deadline/cancel event.
 
         Reflection alone is not proof of XSS; this method reports only the raw
@@ -379,19 +429,30 @@ class EndpointProbe:
                 # make a failed context check look like a clean result.
                 with contextlib.suppress(Exception):
                     context_parser.feed(body)
-                contexts = list(dict.fromkeys(context_parser.contexts)) or ["raw_response"]
-                found.append({
-                    "parameter": name,
-                    "url": marked_url,
-                    "contexts": contexts,
-                    "evidence": (f"marker reflected verbatim for parameter '{name}' in "
-                                 f"context(s) {', '.join(contexts)}; "
-                                 "execution context was not tested"),
-                })
+                contexts = list(dict.fromkeys(context_parser.contexts)) or [
+                    "raw_response"
+                ]
+                found.append(
+                    {
+                        "parameter": name,
+                        "url": marked_url,
+                        "contexts": contexts,
+                        "evidence": (
+                            f"marker reflected verbatim for parameter '{name}' in "
+                            f"context(s) {', '.join(contexts)}; "
+                            "execution context was not tested"
+                        ),
+                    }
+                )
         return found
 
-    def redirect_tests(self, url: str, *, cancel: threading.Event | None = None,
-                       deadline: float | None = None) -> list[dict[str, Any]]:
+    def redirect_tests(
+        self,
+        url: str,
+        *,
+        cancel: threading.Event | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Safely test query values for a server-controlled redirect.
 
         The canary destination is under the reserved .invalid TLD and is never
@@ -429,20 +490,29 @@ class EndpointProbe:
             # Exact unique host, not a substring match, avoids attacker-shaped
             # values such as strix-<token>.invalid.attacker.example.
             if destination.hostname and destination.hostname.lower() == canary_host:
-                found.append({
-                    "parameter": name,
-                    "status": response.get("status"),
-                    "request_url": marked_url,
-                    "location": location,
-                    "canary": canary,
-                    "evidence": (f"parameter '{name}' controlled the Location destination: "
-                                 f"HTTP {response.get('status')} Location={location!r}; "
-                                 "redirect was not followed"),
-                })
+                found.append(
+                    {
+                        "parameter": name,
+                        "status": response.get("status"),
+                        "request_url": marked_url,
+                        "location": location,
+                        "canary": canary,
+                        "evidence": (
+                            f"parameter '{name}' controlled the Location destination: "
+                            f"HTTP {response.get('status')} Location={location!r}; "
+                            "redirect was not followed"
+                        ),
+                    }
+                )
         return found
 
-    def database_error_tests(self, url: str, *, cancel: threading.Event | None = None,
-                             deadline: float | None = None) -> list[dict[str, Any]]:
+    def database_error_tests(
+        self,
+        url: str,
+        *,
+        cancel: threading.Event | None = None,
+        deadline: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Look for database error leakage after a low-impact quote mutation.
 
         This is evidence of a possible injection path, not proof of exploitable
@@ -470,14 +540,16 @@ class EndpointProbe:
             pattern = next((p for p in SQL_ERROR_PATTERNS if p.search(body)), None)
             match = pattern.search(body) if pattern is not None else None
             if pattern is not None and match is not None:
-                sample = body[max(0, match.start() - 60): match.end() + 100]
-                found.append({
-                    "parameter": name,
-                    "status": response.get("status"),
-                    "request_url": marked_url,
-                    "signature": pattern.pattern,
-                    "evidence": f"database error signature after quote mutation: {sample[:300]!r}",
-                })
+                sample = body[max(0, match.start() - 60) : match.end() + 100]
+                found.append(
+                    {
+                        "parameter": name,
+                        "status": response.get("status"),
+                        "request_url": marked_url,
+                        "signature": pattern.pattern,
+                        "evidence": f"database error signature after quote mutation: {sample[:300]!r}",
+                    }
+                )
         return found
 
 
@@ -490,9 +562,9 @@ _HEADER_DEDUCTIONS = (
 _GRADES = ((85, "A"), (70, "B"), (50, "C"))
 
 
-def grade_security_headers(headers: dict[str, Any],
-                           security_headers: dict[str, Any], *,
-                           is_https: bool = True) -> tuple[int, str, list[str]]:
+def grade_security_headers(
+    headers: dict[str, Any], security_headers: dict[str, Any], *, is_https: bool = True
+) -> tuple[int, str, list[str]]:
     """Score a received response; HSTS is evaluated only for HTTPS responses."""
     score = 100
     deductions: list[str] = []

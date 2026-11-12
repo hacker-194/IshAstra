@@ -1,9 +1,9 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 # nmap powers the "network"/"ports" profiles (the native TCP detector and the
 # git-exposure detector need no external binary); omit it to ship a smaller
 # image — the job will report nmap as unavailable, never as clean.
-RUN apt-get update && apt-get install -y --no-install-recommends nmap \
+RUN apt-get update && apt-get install -y --no-install-recommends nmap sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --home-dir /home/strix strix \
     && mkdir -p /var/lib/strix /etc/strix && chown strix /var/lib/strix
@@ -13,8 +13,10 @@ WORKDIR /app
 # src/ last so an application change does not invalidate the dependency layer.
 COPY pyproject.toml constraints.txt README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir -c constraints.txt . \
-    && pip uninstall -y pip setuptools 2>/dev/null || true
+# Fail the build if installation fails: an earlier `|| true` silently shipped an
+# image with no `strix` entrypoint after a malformed requirement.
+RUN pip install --no-cache-dir -c constraints.txt .
+RUN pip uninstall -y pip setuptools || true
 
 USER strix
 ENV STRIX_DB=/var/lib/strix/strix.db \

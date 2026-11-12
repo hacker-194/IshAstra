@@ -15,14 +15,17 @@ authorization. ``load()`` is strict and atomic: a malformed document raises
 ``ValueError`` and leaves the previous valid policy installed -- never an
 unrestricted one.
 """
+
 from __future__ import annotations
 
 import asyncio
 import contextvars
 import ipaddress
 import json
+import logging
 import re
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -31,6 +34,30 @@ from urllib.parse import ParseResult, urlparse
 from strix.core.authz import AuthConfig
 from strix.core.collab import CollabConfig
 from strix.core.urls import parse_url
+
+log = logging.getLogger(__name__)
+
+# ContextVar for pinned destination during job execution: set once at
+# execution start, read by adapters to avoid re-resolving (TOCTOU fix).
+_pinned_destination: contextvars.ContextVar[Destination | None] = (
+    contextvars.ContextVar("pinned_destination", default=None)
+)
+
+
+def set_pinned_destination(dest: Destination) -> contextvars.Token[Destination | None]:
+    """Pin the destination for the current task. Returns token for reset."""
+    return _pinned_destination.set(dest)
+
+
+def reset_pinned_destination(token: contextvars.Token[Destination | None]) -> None:
+    """Reset the pinned destination."""
+    _pinned_destination.reset(token)
+
+
+def get_pinned_destination() -> Destination | None:
+    """Get the pinned destination for the current task, if any."""
+    return _pinned_destination.get(None)
+
 
 INTERNAL_SUFFIXES = (".localhost", ".local", ".internal", ".home.arpa")
 
@@ -134,9 +161,14 @@ def is_special_use(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bo
     if embedded_is_special_use(address):
         return True
     return bool(
-        address.is_loopback or address.is_link_local or address.is_multicast
-        or address.is_unspecified or address.is_private or address.is_reserved
-        or getattr(address, "is_site_local", False) or not address.is_global
+        address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_unspecified
+        or address.is_private
+        or address.is_reserved
+        or getattr(address, "is_site_local", False)
+        or not address.is_global
     )
 
 
@@ -183,8 +215,10 @@ def _host_pattern_error(pattern: str) -> str:
         return ""
     labels = host[:-1].split(".") if host.endswith(".") else host.split(".")
     if len(host) > _MAX_HOST or not all(_LABEL.fullmatch(label) for label in labels):
-        return (f"host entry {pattern!r} is not a valid DNS name "
-                "(IDNs must be given as punycode)")
+        return (
+            f"host entry {pattern!r} is not a valid DNS name "
+            "(IDNs must be given as punycode)"
+        )
     return ""
 
 
@@ -200,7 +234,11 @@ def _ambiguous(url: str, parsed: ParseResult) -> str:
         return "target contains whitespace or control characters"
     if "\\" in url:
         return "target contains a backslash, which parsers read differently"
-    if parsed.username is not None or parsed.password is not None or "@" in parsed.netloc:
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or "@" in parsed.netloc
+    ):
         return "target must not contain credentials"
     if "%" in parsed.netloc:
         return "target host must not be percent-encoded"
@@ -218,6 +256,7 @@ def _ambiguous(url: str, parsed: ParseResult) -> str:
 @dataclass(frozen=True)
 class Destination:
     """The single address a connection is allowed to use."""
+
     scheme: str
     host: str
     port: int
@@ -253,11 +292,14 @@ class Scope:
 
     def __post_init__(self) -> None:
         missing = [
-            name for name in ("program", "authorized_by", "authorization_ref")
+            name
+            for name in ("program", "authorized_by", "authorization_ref")
             if not str(getattr(self, name)).strip()
         ]
         if missing:
-            raise ValueError(f"authorization record incomplete: missing {', '.join(missing)}")
+            raise ValueError(
+                f"authorization record incomplete: missing {', '.join(missing)}"
+            )
         if not self.include:
             raise ValueError("scope has no in-scope hosts")
         for host in (*self.include, *self.exclude):
@@ -269,21 +311,30 @@ class Scope:
                 parsed_network = ipaddress.ip_network(network, strict=False)
             except (ValueError, TypeError) as exc:
                 raise ValueError(
-                    f"authorized_networks entry {network!r} is not a CIDR network") from exc
-            if (parsed_network.version == 6
-                    and parsed_network.network_address.ipv4_mapped is not None):
+                    f"authorized_networks entry {network!r} is not a CIDR network"
+                ) from exc
+            if (
+                parsed_network.version == 6
+                and parsed_network.network_address.ipv4_mapped is not None
+            ):
                 raise ValueError(
                     f"authorized_networks entry {network!r} is an IPv4-mapped IPv6 "
-                    "network; authorize the IPv4 CIDR directly (e.g. 10.0.0.0/8)")
+                    "network; authorize the IPv4 CIDR directly (e.g. 10.0.0.0/8)"
+                )
             floor = _MIN_PREFIX[parsed_network.version]
             if parsed_network.prefixlen < floor and not self.allow_broad_networks:
                 raise ValueError(
                     f"authorized_networks entry {network!r} covers more than a "
                     f"/{floor} (it is /{parsed_network.prefixlen}); refusing a "
                     "dangerously broad authorization — split the range or set "
-                    "allow_broad_networks=true to override deliberately")
-        if any(not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535
-               for port in self.allowed_ports):
+                    "allow_broad_networks=true to override deliberately"
+                )
+        if any(
+            not isinstance(port, int)
+            or isinstance(port, bool)
+            or not 1 <= port <= 65535
+            for port in self.allowed_ports
+        ):
             raise ValueError("allowed_ports entries must be integers from 1 to 65535")
 
     def _listed(self, host: str, patterns: tuple[str, ...]) -> bool:
@@ -298,7 +349,9 @@ class Scope:
         return False
 
     def _networks(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-        return [ipaddress.ip_network(net, strict=False) for net in self.authorized_networks]
+        return [
+            ipaddress.ip_network(net, strict=False) for net in self.authorized_networks
+        ]
 
     # ------------------------------------------------------------------
     # Layer 1: URL / host gate (no DNS)
@@ -306,8 +359,11 @@ class Scope:
     def _gate(self, url: str) -> tuple[str, str, str, int | None]:
         """(denial, reason, host, port) from the URL alone."""
         parsed = parse_url(url)
-        if (parsed is None or parsed.scheme not in ("http", "https")
-                or not parsed.hostname):
+        if (
+            parsed is None
+            or parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+        ):
             return "invalid_target", "target must be an absolute http(s) URL", "", None
         if ".." in url:
             return "invalid_target", "target contains a traversal sequence", "", None
@@ -316,18 +372,38 @@ class Scope:
             return "invalid_target", ambiguity, "", None
         host = parsed.hostname.lower()
         if self._listed(host, self.exclude):
-            return "out_of_scope", f"{host} is explicitly out of scope", host, parsed.port
+            return (
+                "out_of_scope",
+                f"{host} is explicitly out of scope",
+                host,
+                parsed.port,
+            )
         if not self._listed(host, self.include):
-            return "out_of_scope", f"{host} is not in the authorized scope", host, parsed.port
-        effective_port = parsed.port if parsed.port is not None \
+            return (
+                "out_of_scope",
+                f"{host} is not in the authorized scope",
+                host,
+                parsed.port,
+            )
+        effective_port = (
+            parsed.port
+            if parsed.port is not None
             else (443 if parsed.scheme == "https" else 80)
+        )
         if effective_port < 1:
-            return ("invalid_target", "port 0 is not a connectable service port",
-                    host, parsed.port)
+            return (
+                "invalid_target",
+                "port 0 is not a connectable service port",
+                host,
+                parsed.port,
+            )
         if self.allowed_ports and effective_port not in self.allowed_ports:
-            return ("out_of_scope",
-                    f"port {effective_port} is not in the authorized port scope",
-                    host, parsed.port)
+            return (
+                "out_of_scope",
+                f"port {effective_port} is not in the authorized port scope",
+                host,
+                parsed.port,
+            )
         return "", "", host, parsed.port
 
     # ------------------------------------------------------------------
@@ -343,7 +419,11 @@ class Scope:
             if host == "localhost" or host.endswith(INTERNAL_SUFFIXES):
                 return "out_of_scope", f"{host} is an internal host name", []
             if fail_on_empty:
-                return "resolution_failed", f"cannot resolve {host} (timeout or overload)", []
+                return (
+                    "resolution_failed",
+                    f"cannot resolve {host} (timeout or overload)",
+                    [],
+                )
             return "", "", []
         for value in addresses:
             address = ipaddress.ip_address(value.split("%")[0])
@@ -353,7 +433,11 @@ class Scope:
                 continue
             if host == str(address):
                 return "out_of_scope", f"{address} is a non-public address", []
-            return "out_of_scope", f"{host} resolves to non-public address {address}", []
+            return (
+                "out_of_scope",
+                f"{host} resolves to non-public address {address}",
+                [],
+            )
         return "", "", addresses
 
     # ------------------------------------------------------------------
@@ -369,7 +453,11 @@ class Scope:
             if host == "localhost" or host.endswith(INTERNAL_SUFFIXES):
                 return "out_of_scope", f"{host} is an internal host name", []
             if fail_on_empty:
-                return "resolution_failed", f"cannot resolve {host} (timeout or overload)", []
+                return (
+                    "resolution_failed",
+                    f"cannot resolve {host} (timeout or overload)",
+                    [],
+                )
             return "", "", []
         for value in addresses:
             address = ipaddress.ip_address(value.split("%")[0])
@@ -379,15 +467,30 @@ class Scope:
                 continue
             if host == str(address):
                 return "out_of_scope", f"{address} is a non-public address", []
-            return "out_of_scope", f"{host} resolves to non-public address {address}", []
+            return (
+                "out_of_scope",
+                f"{host} resolves to non-public address {address}",
+                [],
+            )
         return "", "", addresses
+
+    def gate(self, url: str) -> tuple[str, str]:
+        """(denial, reason) judged from the URL alone, without DNS.
+
+        Offline verifiers use this: whether a recorded action matched the
+        authorization, independent of what DNS answers today.
+        """
+        denial, reason, _host, _port = self._gate(url)
+        return denial, reason
 
     def check(self, url: str) -> tuple[str, str]:
         """Return ("", "") when the target may be contacted, else (denial, reason)."""
         denial, reason, host, port = self._gate(url)
         if denial:
             return denial, reason
-        denial, reason, _addresses = self._authorize_sync(host, port, fail_on_empty=False)
+        denial, reason, _addresses = self._authorize_sync(
+            host, port, fail_on_empty=False
+        )
         return denial, reason
 
     async def check_async(self, url: str) -> tuple[str, str]:
@@ -395,7 +498,9 @@ class Scope:
         denial, reason, host, port = self._gate(url)
         if denial:
             return denial, reason
-        denial, reason, _addresses = await self._authorize(host, port, fail_on_empty=False)
+        denial, reason, _addresses = await self._authorize(
+            host, port, fail_on_empty=False
+        )
         return denial, reason
 
     def destination(self, url: str) -> tuple[str, str, Destination | None]:
@@ -415,8 +520,11 @@ class Scope:
             return "resolution_failed", f"cannot resolve {host}", None
         scheme = (parse_url(url) or urlparse(url)).scheme
         connect_port = port if port is not None else (443 if scheme == "https" else 80)
-        return "", "", Destination(scheme=scheme, host=host,
-                                   port=connect_port, ip=addresses[0])
+        return (
+            "",
+            "",
+            Destination(scheme=scheme, host=host, port=connect_port, ip=addresses[0]),
+        )
 
     async def destination_async(self, url: str) -> tuple[str, str, Destination | None]:
         """Async version of destination for use in async contexts."""
@@ -430,8 +538,12 @@ class Scope:
             return "resolution_failed", f"cannot resolve {host}", None
         scheme = (parse_url(url) or urlparse(url)).scheme
         connect_port = port if port is not None else (443 if scheme == "https" else 80)
-        return "", "", Destination(scheme=scheme, host=host,
-                                   port=connect_port, ip=addresses[0])
+        return (
+            "",
+            "",
+            Destination(scheme=scheme, host=host, port=connect_port, ip=addresses[0]),
+        )
+
 
 _active: Scope | None = None
 
@@ -439,6 +551,32 @@ _active: Scope | None = None
 # was authorized under for exactly one job execution. Nothing else may set it.
 # ContextVar propagates correctly across async boundaries (unlike threading.local).
 _bound: contextvars.ContextVar[Scope | None] = contextvars.ContextVar("bound_scope")
+
+# Receipt observer: Strix Proof installs one for the duration of a job so every
+# gate decision is recorded as evidence. ``None`` means nothing is observed.
+_observer: contextvars.ContextVar[Callable[[str, str, str], None] | None] = (
+    contextvars.ContextVar("scope_observer", default=None)
+)
+
+
+def set_observer(observer: Callable[[str, str, str], None]) -> contextvars.Token:
+    """Install a callback receiving (url, denial, reason) for every gate decision."""
+    return _observer.set(observer)
+
+
+def reset_observer(token: contextvars.Token) -> None:
+    _observer.reset(token)
+
+
+def _notify(url: str, denial: str, reason: str) -> None:
+    """Tell the installed observer; it can never break a gate call."""
+    observer = _observer.get()
+    if observer is None:
+        return
+    try:
+        observer(url, denial, reason)
+    except Exception:  # evidence loss is logged, never turned into a scan failure
+        log.exception("gate observer failed for %s", url)
 
 
 class bound:
@@ -496,10 +634,21 @@ def configure(
     call leaves the previous configuration untouched.
     """
     global _active
-    _active = Scope(program, authorized_by, authorization_ref, tuple(include),
-                    tuple(exclude), tuple(authorized_networks), tuple(allowed_ports),
-                    auth, collab, policy_id, int(policy_version), tenant_id,
-                    bool(allow_broad_networks))
+    _active = Scope(
+        program,
+        authorized_by,
+        authorization_ref,
+        tuple(include),
+        tuple(exclude),
+        tuple(authorized_networks),
+        tuple(allowed_ports),
+        auth,
+        collab,
+        policy_id,
+        int(policy_version),
+        tenant_id,
+        bool(allow_broad_networks),
+    )
     return _active
 
 
@@ -512,16 +661,29 @@ def check(url: str) -> tuple[str, str]:
     """Gate used by the scanner, the adapters and the HTTP probe."""
     thread_scope = current()
     if thread_scope is None:
-        return "out_of_scope", "no authorized scope configured — nothing may be scanned"
-    return thread_scope.check(url)
+        denial, reason = (
+            "out_of_scope",
+            "no authorized scope configured — nothing may be scanned",
+        )
+    else:
+        denial, reason = thread_scope.check(url)
+    _notify(url, denial, reason)
+    return denial, reason
 
 
 def destination(url: str) -> tuple[str, str, Destination | None]:
     """Authoritative gate for code that opens a socket."""
     thread_scope = current()
     if thread_scope is None:
-        return "out_of_scope", "no authorized scope configured — nothing may be scanned", None
-    return thread_scope.destination(url)
+        denial, reason, dest = (
+            "out_of_scope",
+            "no authorized scope configured — nothing may be scanned",
+            None,
+        )
+    else:
+        denial, reason, dest = thread_scope.destination(url)
+    _notify(url, denial, reason)
+    return denial, reason, dest
 
 
 # Fields a scope document may carry, with the types each must have. Anything
@@ -529,9 +691,15 @@ def destination(url: str) -> tuple[str, str, Destination | None]:
 # would otherwise be silently ignored and the operator would believe they had
 # authorized something they had not.
 _SCOPE_FIELD_TYPES: dict[str, tuple[type, ...]] = {
-    "program": (str,), "authorized_by": (str,), "authorization_ref": (str,),
-    "include": (list,), "exclude": (list,), "authorized_networks": (list,),
-    "allowed_ports": (list,), "auth": (dict,), "collab": (dict,),
+    "program": (str,),
+    "authorized_by": (str,),
+    "authorization_ref": (str,),
+    "include": (list,),
+    "exclude": (list,),
+    "authorized_networks": (list,),
+    "allowed_ports": (list,),
+    "auth": (dict,),
+    "collab": (dict,),
     "allow_broad_networks": (bool,),
 }
 _REQUIRED_SCOPE_FIELDS = ("program", "authorized_by", "authorization_ref", "include")
@@ -547,12 +715,14 @@ def parse_scope_document(data: Any) -> Scope:
     if not isinstance(data, dict):
         raise ValueError(
             "scope document must be a JSON object with fields such as program, "
-            f"include, authorized_networks (got {type(data).__name__})")
+            f"include, authorized_networks (got {type(data).__name__})"
+        )
     unknown = sorted(set(data) - set(_SCOPE_FIELD_TYPES))
     if unknown:
         raise ValueError(
             f"scope document has unknown field(s): {', '.join(unknown)}; allowed "
-            f"fields are: {', '.join(sorted(_SCOPE_FIELD_TYPES))}")
+            f"fields are: {', '.join(sorted(_SCOPE_FIELD_TYPES))}"
+        )
     for name in _REQUIRED_SCOPE_FIELDS:
         value = data.get(name)
         if name == "include":
@@ -578,9 +748,14 @@ def parse_scope_document(data: Any) -> Scope:
                 raise ValueError(f"scope document {name}: {complaint}")
     ports = data.get("allowed_ports", [])
     for port in ports:
-        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+        if (
+            not isinstance(port, int)
+            or isinstance(port, bool)
+            or not 1 <= port <= 65535
+        ):
             raise ValueError(
-                f"scope document allowed_ports: {port!r} is not an integer from 1 to 65535")
+                f"scope document allowed_ports: {port!r} is not an integer from 1 to 65535"
+            )
     auth_config: AuthConfig | None = None
     if isinstance(data.get("auth"), dict):
         # A malformed principal fails the whole scope: credentials must never
@@ -626,5 +801,6 @@ def load(path: str | Path) -> Scope | None:
     except json.JSONDecodeError as exc:
         raise ValueError(
             f"scope document {document} is not valid JSON: {exc.msg} "
-            f"(line {exc.lineno}, column {exc.colno})") from None
+            f"(line {exc.lineno}, column {exc.colno})"
+        ) from None
     return parse_scope_document(data)

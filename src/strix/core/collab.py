@@ -9,6 +9,7 @@ stored), ``CollabServer`` is a minimal HTTP server that also answers
 ``GET /poll/<token>`` so a separate process can consume them, and
 ``CollabClient`` polls it. Tokens are 128-bit random hex.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,7 +57,11 @@ class CollabConfig:
         if not host or len(host) > 253:
             raise ValueError("collab.host must be a usable host name or address")
         port = data.get("port", 0)
-        if not isinstance(port, int) or isinstance(port, bool) or not 0 <= port <= 65535:
+        if (
+            not isinstance(port, int)
+            or isinstance(port, bool)
+            or not 0 <= port <= 65535
+        ):
             raise ValueError("collab.port must be an integer from 0 to 65535")
         return cls(host=host, port=port)
 
@@ -74,7 +79,9 @@ class CollabLog:
 
     def poll(self, token: str) -> list[dict[str, Any]]:
         with self._lock:
-            return [dict(entry) for entry in self._entries if entry.get("token") == token]
+            return [
+                dict(entry) for entry in self._entries if entry.get("token") == token
+            ]
 
     def count(self) -> int:
         with self._lock:
@@ -100,9 +107,16 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             return None
         headers: dict[str, str] = {}
         sensitive_headers = {
-            "authorization", "proxy-authorization", "cookie", "set-cookie",
-            "x-api-key", "api-key", "x-auth-token", "x-access-token",
-            "x-forwarded-access-token", "x-csrf-token",
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "x-api-key",
+            "api-key",
+            "x-auth-token",
+            "x-access-token",
+            "x-forwarded-access-token",
+            "x-csrf-token",
         }
         budget = MAX_HEADER_BYTES
         for name, value in self.headers.items():
@@ -111,26 +125,30 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             key = name.lower()[:64]
             clipped = value[:budget]
             budget -= len(clipped)
-            headers[key] = "[REDACTED]" if key in sensitive_headers else redact_text(clipped)
-        self.log_store.record({
-            "token": token,
-            "method": self.command,
-            "path": redact_text(self.path[:512]),
-            "peer": self.client_address[0] if self.client_address else "",
-            "ts": time.time(),
-            "headers": headers,
-        })
+            headers[key] = (
+                "[REDACTED]" if key in sensitive_headers else redact_text(clipped)
+            )
+        self.log_store.record(
+            {
+                "token": token,
+                "method": self.command,
+                "path": redact_text(self.path[:512]),
+                "peer": self.client_address[0] if self.client_address else "",
+                "ts": time.time(),
+                "headers": headers,
+            }
+        )
         return token
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         if self.path.startswith("/poll/"):
-            token = self.path[len("/poll/"):].strip("/")
+            token = self.path[len("/poll/") :].strip("/")
             if not TOKEN_PATTERN.fullmatch(token):
-                self._respond(400, b'{"error": "invalid token"}',
-                              "application/json")
+                self._respond(400, b'{"error": "invalid token"}', "application/json")
                 return
-            payload = json.dumps({"token": token,
-                                  "callbacks": self.log_store.poll(token)}).encode()
+            payload = json.dumps(
+                {"token": token, "callbacks": self.log_store.poll(token)}
+            ).encode()
             self._respond(200, payload, "application/json")
             return
         if self._record() is not None:
@@ -145,15 +163,21 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             length = int(raw_length)
         except (TypeError, ValueError):
             self.close_connection = True
-            self._respond(400, b'{"error":"invalid content length"}', "application/json")
+            self._respond(
+                400, b'{"error":"invalid content length"}', "application/json"
+            )
             return
         if length < 0:
             self.close_connection = True
-            self._respond(400, b'{"error":"invalid content length"}', "application/json")
+            self._respond(
+                400, b'{"error":"invalid content length"}', "application/json"
+            )
             return
         if length > 4096:
             self.close_connection = True
-            self._respond(413, b'{"error":"callback body too large"}', "application/json")
+            self._respond(
+                413, b'{"error":"callback body too large"}', "application/json"
+            )
             return
         if length:
             self.rfile.read(length)
@@ -169,8 +193,9 @@ class _CanaryHandler(BaseHTTPRequestHandler):
 class CollabServer:
     """Runnable canary listener. Binds to ``host:port`` (port 0 = ephemeral)."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 0,
-                 log: CollabLog | None = None) -> None:
+    def __init__(
+        self, host: str = "127.0.0.1", port: int = 0, log: CollabLog | None = None
+    ) -> None:
         self.host = host
         self.port = port
         self.log = log or CollabLog()
@@ -190,8 +215,9 @@ class CollabServer:
         handler = type("_BoundHandler", (_CanaryHandler,), {"log_store": self.log})
         self._server = ThreadingHTTPServer((self.host, self.port), handler)
         self.port = self._server.server_address[1]  # resolved when port was 0
-        thread = threading.Thread(target=self._server.serve_forever,
-                                  name="strix-collab", daemon=True)
+        thread = threading.Thread(
+            target=self._server.serve_forever, name="strix-collab", daemon=True
+        )
         thread.start()
 
     def stop(self) -> None:
@@ -239,16 +265,22 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="strix-collab",
         description="Strix out-of-band canary listener; callbacks are recorded "
-                    "and served at /poll/<token>")
-    parser.add_argument("--host", default="127.0.0.1",
-                        help="interface to bind (default: 127.0.0.1; engagements "
-                             "need an address the target can reach)")
+        "and served at /poll/<token>",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="interface to bind (default: 127.0.0.1; engagements "
+        "need an address the target can reach)",
+    )
     parser.add_argument("--port", type=int, default=8765, help="port to bind")
     args = parser.parse_args(argv)
     server = CollabServer(host=args.host, port=args.port)
     server.start()
-    print(f"strix-collab listening on {server.base_url} "
-          f"(poll API: {server.base_url}/poll/<token>)")
+    print(
+        f"strix-collab listening on {server.base_url} "
+        f"(poll API: {server.base_url}/poll/<token>)"
+    )
     try:
         while True:
             time.sleep(3600)

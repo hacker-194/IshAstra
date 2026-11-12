@@ -1,316 +1,40 @@
 # Changelog
 
-## 3.6.0 — 2026-10-27 (strix-agent integration)
+## 0.1.0 — 2026-11-12
 
-- **New `agent` profile: the upstream autonomous engine, integrated as an
-  external process.** `src/strix/core/adapters.py` gains `StrixAgentAdapter`
-  (id `strix-agent`), which runs the operator-installed, pinned `strix-agent`
-  CLI headless against the *scope-authorized* target and normalizes the run's
-  own artifacts (`strix_runs/<run>/run.json`, `vulnerabilities.json`) into this
-  platform's finding model. Nothing upstream is vendored or imported and no new
-  dependency is added; the engine is never resolved through `PATH` — both
-  projects ship a `strix` console script, so the adapter requires an explicit
-  `STRIX_AGENT_BIN` and refuses a binary whose `--version` is not a `strix`
-  version.
-- **Honesty rules for AI-authored findings.** Engine findings are stored
-  `unverified` with provenance (run id, engine agent, its severity/confidence
-  claims, its evidence, PoC and remediation text). A finding naming any asset
-  outside the engagement is dropped and the run becomes partial; coverage is
-  complete only when the engine's own record says `completed`; the headless exit
-  statuses `0` and `2` are normal completions while anything else is a failed
-  run; ingestion is bounded at 200 reports with bounded text.
-- **Bounded, least-privilege execution.** The engine runs as one subprocess in a
-  private 0700 working directory under the job's deadline and cancellation
-  switch. `_run_tool` gained `cwd` and `env_extra`, so the engine receives
-  `STRIX_LLM`/`LLM_API_KEY`/`LLM_API_BASE` by name and never the platform's
-  environment.
-- **Configuration, API and UI.** New `STRIX_AGENT_BIN`, `STRIX_AGENT_SCAN_MODE`
-  (default `quick`), `STRIX_AGENT_WORKDIR`, `STRIX_AGENT_MAX_TURNS` and
-  `STRIX_AGENT_MAX_BUDGET_USD`; the profile is listed by `/api/adapters` and
-  selectable in the web UI, which requests the 900 s deadline such a run needs.
-  `INTEGRATION_STRIX_AGENT.md` records the architecture, the component-by-
-  component mapping, the licence/dependency record and the remaining work.
+First tagged release. The assessment core was already in place; this release
+adds the proof-of-authorization layer and freezes a installable baseline.
 
-### Corrected against the live engine
+### Strix Proof (new)
 
-The engine was then installed for real (`strix-agent==1.7.0`, its 5.9 GB
-sandbox image, a real container) and run against the loopback lab, which
-contradicted four assumptions in the first version of the adapter:
+- **Signed grants** (`strix grant`): an Ed25519-signed document naming the
+  program, the authorizing person, the reference, the hosts/CIDRs and the
+  validity window. Expired, tampered or out-of-scope grants are refused.
+- **Receipt ledger**: every allow/deny decision is appended to a hash-chained
+  JSONL ledger that resumes safely across restarts and detects reordering,
+  deletion and edits.
+- **Gate service** (`strix gate`): `POST /v1/authorize` for tools and agents,
+  plus `/v1/grant`, `/v1/receipts` and `/v1/proof`. Refuses a non-loopback bind
+  without a token.
+- **Verification**: `strix verify` offline, or `POST /api/proof/verify` over
+  HTTP with no account. Trust requires pinning the issuer key
+  (`--issuer-key` / `trusted_issuer`); an unpinned pack reports
+  `issuer_trusted: false`.
+- **`strix assess --grant`** derives the assessment scope from a grant and
+  records gate decisions into the pack.
 
-- **A run that files nothing writes no `vulnerabilities.json`** — and exits `0`
-  with `run.json` status `completed`. The adapter treated the missing index as a
-  broken artifact and failed the job, so a clean scan was reported as a broken
-  one. Absence now means zero findings; a corrupt index is still a failure.
-- **The engine prints its failure panel on stdout, not stderr** (`stderr` is
-  empty for an LLM-connection failure, and no run directory is written at all).
-  The failure excerpt now falls back to stdout, with whitespace collapsed.
-- **A loopback target is rewritten so the sandbox can reach the host**
-  (`http://127.0.0.1:8765/` → `http://host.docker.internal:8765/`), and findings
-  are filed against the rewritten URL. The adapter now accepts the engine's own
-  rewrite of the target it was handed — and only that, taken from the run
-  record's `targets_info`, so an agent still cannot introduce an asset.
-- **The engine's configuration surface is wider than the three documented
-  variables**: it also accepts `OPENAI_API_KEY`,
-  `OPENAI_API_BASE`/`OPENAI_BASE_URL`/`OLLAMA_API_BASE`/`LITELLM_BASE_URL`, and
-  `STRIX_IMAGE` to point the sandbox at a mirror or an air-gapped registry. All
-  are forwarded by name now. The engine persists whatever it is handed into
-  `~/.strix/cli-config.json`, so any text it echoes is scrubbed of the values
-  the platform forwarded before it reaches coverage, the API or a report.
+### Assessment platform
 
-### Repository cleanup
+- Fail-closed scope gate with DNS pinning, engagement policies, tenant
+  isolation, HMAC audit chain, redaction in logs/SARIF/evidence, and
+  retention.
+- Adapters for HTTP, Nuclei, Nmap and agent profiles; SARIF, JSON, CSV, OSCAL
+  and printable HTML reports.
+- Docker Compose stack (Strix + Redis + nginx), Prometheus/Grafana overlay,
+  and a tag-driven release workflow.
 
-- **Removed two stale, duplicated documents.** `RELEASE_VERIFICATION.md` was a
-  working log for the 3.4.0/3.5.0 releases: its benchmark table, Juice Shop
-  evaluation, smoke-test, container and CI sections duplicated
-  `DETECTION_BENCHMARK.md` and the per-release verification notes below, and
-  its test counts were two releases old. `SECURITY_AUDIT.md` recorded a
-  v3.4.0 audit whose findings table is the *Post-3.4.0 audit hardening*
-  section, whose residual risks are covered by the README's *Security notes* /
-  *Known limitations* and by `DEPLOYMENT.md`, and which stated that `ruff` and
-  `mypy` were not run — no longer true, both run in CI. The one fact recorded
-  nowhere else (an unreproduced test failure seen during the 3.5.0
-  verification) was moved into that release's verification note.
-- **Removed generated artifacts from the tree:** `src/strix.egg-info/` (already
-  ignored, regenerated by `pip install -e .`) and the local `__pycache__/`,
-  `.pytest_cache/`, `.ruff_cache/` and `.mypy_cache/` directories.
-- **Consolidated a duplicated authorization check.** The
-  snapshot-or-global scope check with its `400`/`403` mapping was written out
-  four times (create, retry, monitor configuration and
-  `deps.check_scope_or_raise`); it is now the single
-  `deps.check_target_or_raise`. Behaviour is unchanged — the same tests cover
-  every refusal path.
-- **Documentation corrections:** the README no longer claims CI does not build
-  the container image (its `docker` job does), the detection-lab section links
-  to the measured results in `DETECTION_BENCHMARK.md`, the engine limitation no
-  longer contradicts the live-verification section above it, and
-  `INTEGRATION_STRIX_AGENT.md` states the adapter's real test count.
-  `.env.example` gained `STRIX_IMAGE` and the engine's provider-variable
-  aliases; `.gitignore` covers every lab report name the documented commands
-  write; `.dockerignore` excludes the local tool caches and `.github`.
+### Known limits
 
-### Verification for this release
-
-Executed 2026-10-27 on CPython 3.14.4 (Linux x86_64), dependency versions per `constraints.txt`:
-
-- `pytest`: **646 passed, 4 skipped** (627 passed and 4 skipped before this
-  work). The 19 new tests drive a stub CLI that writes real upstream-shaped
-  artifacts and cover normalization, out-of-scope drops, the engine's target
-  rewrite, partial coverage, failure exit statuses, a stdout-only failure panel,
-  credential scrubbing, a run that files nothing, missing/corrupt artifacts,
-  timeout, cancellation, provider-environment forwarding and the
-  self-invocation guard.
-- `ruff check src tests scripts`: all checks passed. `mypy`: no issues in 46
-  source files.
-- **Live integration, real engine:** `strix-agent` 1.7.0 with its real sandbox
-  image and container, driven through the platform's own API against the
-  loopback lab. Completed path: job `completed` in ~12 s, `clean`, coverage
-  naming the real run, no findings. Failure path (provider unreachable): job
-  `failed`, `clean: false`, coverage carrying the engine's own
-  `LLM CONNECTION FAILED` message with the forwarded key absent.
-- **Still not verified: a live engine-filed finding.** The model behind the live
-  run was a local scripted OpenAI-compatible endpoint (no provider key exists on
-  this host); the engine's reporting tools declined its scripted calls, so no
-  finding was filed. Finding ingestion is therefore verified against the
-  engine's own report schema (read from the installed package) and the fixtures,
-  not against a live report.
-
-## 3.5.0 — 2026-10-26 (production readiness)
-
-- **SQLite under concurrency:** write transactions now use `BEGIN IMMEDIATE`.
-  A deferred `BEGIN` that read first and wrote second could not upgrade its
-  snapshot under WAL once another connection committed, and SQLite raised
-  `database is locked` immediately — bypassing the busy timeout — so a job or
-  its final result could fail to save under load. First-connect schema creation
-  is serialized per process, so simultaneous openers can no longer race the
-  migrations (`table jobs already exists`), and every connection sets
-  `busy_timeout` and `synchronous=NORMAL`. Regression tests reproduce both
-  failures on the old code and pass on this one.
-- **Data retention (opt-in):** `STRIX_RETENTION_DAYS` (default `0` = keep
-  everything forever) prunes finished jobs/findings and plain audit entries
-  older than the configured age at startup and every 6 hours, then reclaims the
-  file space. Queued/running jobs are never pruned and the sealed audit chain
-  is never pruned (deleting old links would break verification from genesis).
-- **Operations:** a missing `STRIX_AUDIT_HMAC_KEY` now logs a loud startup
-  warning (the chain still works, but is only tamper-*evident* against naive
-  edits); `SIGTERM` shutdown is bounded at 30 s so systemd/container restarts
-  cannot hang on a wedged connection; `.env.example` documents
-  `STRIX_WEBHOOK_SECRET` and `STRIX_RETENTION_DAYS`; `DEPLOYMENT.md` collects
-  the systemd/proxy/backup/rotation runbook.
-
-### Verification for this release
-
-Executed 2026-10-26 on CPython 3.14.4 (Linux x86_64), dependency versions per `constraints.txt`:
-
-- `pytest`: **627 passed, 4 skipped** (631 collected; includes the new
-  concurrency/retention tests; the concurrency regression test reproduces
-  `database is locked` against the old deferred-`BEGIN` code).
-- `ruff check src tests scripts`: all checks passed. `mypy`: no issues in 46
-  source files. `scripts/check_secrets.py`: clean.
-- `scripts/smoke_e2e.py`: **15/15 end-to-end checks passed** on a live uvicorn
-  process (real scope gate, real assessment of the loopback lab, idempotency,
-  exports, refusals).
-- Live boot test: server started with a real scope document, `GET /api/health`
-  200, missing-HMAC-key warning observed, `SIGTERM` produced a clean bounded
-  shutdown.
-- `strix-code-scan .`: inconclusive (Semgrep/Bandit/Trivy absent) — no clean
-  scanner verdict is claimed.
-- One unexplained observation from this release's verification, kept because it
-  was never reproduced: a single run of the extracted release tree failed
-  `tests/test_lifecycle.py::test_idempotency_keys_are_scoped_to_the_tenant` and
-  the assertion output was not captured (only the summary line). It passed in
-  isolation and in the 7 full-suite runs that followed. If it recurs, capture
-  the assertion output before touching the test.
-
----
-
-## Post-3.4.0 audit hardening (folded into 3.5.0)
-
-- **Real-world detection evaluation:** assessed a Dockerized OWASP Juice Shop
-  through the full API → worker → adapter pipeline against a pre-registered
-  oracle: 2/2 true positives (missing CSP, open port 3000), 0 false positives,
-  6/6 negative controls held (soft-404 `.git` bait, parameterized search,
-  redirect endpoints, non-reflecting bundle, closed ports, absent OpenAPI).
-  Results in `realworld-results.json` and `DETECTION_BENCHMARK.md`, including
-  the coverage limits (SPA crawl reached one page; nuclei unavailable).
-
-- **Policy binding:** a queued job is refused when its policy version has changed;
-  policy updates create a new version and cancel jobs tied to the prior version.
-  Reports use authorization metadata captured with the historical job instead of
-  accidentally rewriting old evidence from today's policy.
-- **Policy API/validation:** added administrator-only `PATCH /api/policies/{id}`;
-  invalid scope definitions are converted into actionable policy errors instead of
-  leaking as unhandled server errors, and already-expired policies cannot be created.
-- **API-key lifecycle:** serialized key mutations, persisted before exposing changes,
-  refused rotation of expired/revoked keys, and preserved the original expiration
-  unless a new TTL was explicitly supplied.
-- **Secret redaction:** recursive redaction now masks values based on sensitive field
-  names (including short `Authorization` and `X-API-Key` values); malformed URL parsing
-  no longer bypasses query redaction. Probe payloads and errors are sanitized.
-- **Configuration/deployment:** invalid scope modes fail closed, known `.env.example`
-  placeholder keys are no longer usable, and startup aborts when a configured bootstrap
-  key is invalid rather than quietly retaining an older persisted admin key.
-- **Monitoring/callbacks:** rejected credential-bearing webhook/monitor query strings,
-  removed unsafe legacy persisted destinations, prevented duplicate sinks, enforced
-  bounded callback bodies, and upgraded canary tokens to 128 bits of entropy.
-- **Browser/API hardening:** CORS does not enable credentialed cross-origin requests;
-  `PATCH` is included for the versioned policy API.
-
-## 3.4.0 — Security architecture & detection lab
-
-### Authorization architecture (per-engagement policies)
-
-- Added `EngagementPolicy` and a SQLite-backed `PolicyRegistry` (migration 5):
-  versioned authorization records with tenant, status, validity window
-  (`effective_at` / `expires_at`), allowed hosts / networks / ports, and
-  authorization metadata.
-- Every assessment is bound to the policy (id + version) it ran under; the
-  worker re-validates the binding before execution, so revoking or expiring a
-  policy stops already-queued work. Revoking a policy cancels its queued and
-  running jobs.
-- Policies are created, updated and revoked by administrators only
-  (`/api/policies`). In managed mode `GET /api/scope` shows a tenant only its
-  own policy; customers cannot authorize their own targets.
-- Worker and probe judge every outbound connection against the job's own
-  policy snapshot instead of a single global scope (per-thread `bound()`
-  enforcement).
-- Network ranges broader than a `/8` are refused unless the record explicitly
-  sets `allow_broad_networks: true`. IPv4-mapped IPv6 CIDRs are always refused.
-  Port `0` is refused (a bug that made an unset port list mean "any" is fixed).
-
-### Secret protection at every output boundary
-
-- New `redaction` module: bearer/JWT/AWS/PEM/`user:pass@`/signed-parameter and
-  assignment-shaped secrets, plus sensitive query-parameter values (host and
-  path stay identifiable) and `Set-Cookie` values (flags kept for grading).
-- Applied where data leaves the process: stored job targets and errors,
-  `Job.to_dict`, adapter coverage details, audit entries and the audit chain,
-  monitor alerts and webhook payloads, evidence reports, SARIF/HTML exports
-  and probe responses.
-- Covered by an end-to-end sweep that plants representative credentials and
-  inspects all eleven output paths for leakage.
-
-### Configuration validation (fail closed)
-
-- `scope.load` is strict: the document root must be an object (a valid JSON
-  array used to crash startup with an unhandled exception), unknown fields are
-  refused, and every field's type and syntax (hosts, CIDRs, ports, profiles,
-  authorization metadata) is validated with actionable error messages.
-- A failed reload keeps the previous valid configuration; a fresh process with
-  a broken file serves but refuses every assessment.
-
-### Multi-tenant hardening
-
-- Authorization is enforced in the service and data layers (SQL-level tenant
-  filtering, 404 instead of 403), not only by filtering API responses.
-- Webhook sinks and monitor targets persist across restarts (previously
-  in-memory only).
-
-### Detection lab
-
-- `strix.lab` ships a deterministic, deliberately vulnerable loopback target,
-  a versioned oracle (`oracle.json` v1.0.0) that maps every route to the
-  finding an honest scanner should — or must not — produce, including the
-  verification level it may claim, and a runner that scores the production
-  adapters against it.
-
-### Tooling
-
-- `mypy` is declared in the dev extras (CI ran it, but it was never
-  installable) and the codebase passes `ruff check` and `mypy` clean.
-- `.gitignore` covers `.mypy_cache/`, `lab-eval.json` and local `tools/`.
-
-### Verified
-
-- `pytest`: **506 passed, 5 skipped** (the skips are opt-in tests that run the
-  real nmap/nuclei/trivy binaries, absent in this environment).
-- `ruff check .`: clean. `mypy`: clean (42 files).
-- Boot smoke test: a fresh process with a broken scope file serves but refuses
-  all assessments (403); with a valid file, the scope is active and ports are
-  enforced.
-
-### Not claimed
-
-- The in-memory job queue and per-process rate limits remain (single-process
-  deployment; see the README's known limitations).
-- Lab metrics are specific to the eleven-case oracle on a loopback target;
-  they say nothing about recall on arbitrary applications.
-
-## 3.2.0 — Detection profiles & code scan
-
-- Added `web-deep` bounded dynamic validation: redirect tests use unique
-  `*.invalid` canaries and never follow redirects; a low-impact quote mutation
-  surfaces database-error signatures, which remain inferred indicators, not
-  confirmed SQL injection.
-- Added `api` / `api-deep` profiles: discover same-origin OpenAPI/Swagger
-  documents and check at most 30 literal GET endpoints whose documentation
-  declares authentication. No credentials are sent; a success is an unverified
-  authorization-mismatch indicator.
-- Added `strix-code-scan`: bounded local snapshot of source and manifests,
-  normalized Semgrep / Bandit / Trivy output, packaged local Semgrep ruleset,
-  secret values and raw source lines omitted from findings.
-- Corrected SARIF result locations to the standard `artifactLocation` +
-  optional `region.startLine` structure.
-- Missing API documentation, missing scanner binaries, invalid tool output and
-  incomplete snapshots never produce a clean verdict.
-
-## Earlier security pass
-
-- Request bodies are counted as ASGI chunks before handlers run (413 above the
-  cap), including when `Content-Length` is absent or wrong; JSON nesting
-  checks count objects and arrays and survive parser recursion failures.
-- HTTP probes connect to the IP returned by the scope gate; Nmap receives the
-  validated IP; Nuclei receives it with the original Host header and TLS SNI
-  and redirects disabled.
-- Without an explicit `allowed_ports` list, Nmap scans only the target URL's
-  port instead of broadening to a top-port sweep.
-- Findings honesty: URL signatures and reflections are low-confidence,
-  unverified indicators; ordinary redirects are notes, not open-redirect
-  findings; open ports are informational; header checks are not invented when
-  there was no HTTP response; HSTS is judged only on HTTPS responses.
-- Cookie flags are parsed as attributes; all cookies must be `Secure` for a
-  positive result.
-- The HTTP probe honors deadlines while reading responses and between
-  reflection requests; subprocess stdout/stderr are drained concurrently with
-  per-stream caps, and timeout, cancellation or overflow terminate the tool.
-- Webhook response bodies are bounded and redirects are not followed.
-- Regression tests cover all of the above.
+- Single writer, SQLite only; no horizontal scaling or automatic failover.
+- The gate authorizes and records; it is not a packet filter.
+- No grant revocation list yet, and no external timestamp authority.

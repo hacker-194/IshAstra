@@ -13,6 +13,7 @@ No existing file serves this purpose - each module has its own duplicate impleme
 User instruction: "fix all the audit findings" - Should Fix #6: Consolidate duplicate
 _ReentrantAsyncLock/_SimpleAsyncLock implementations into shared module
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,6 +31,7 @@ class _SimpleAsyncLock:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._acquired = False
 
     def _check_loop(self) -> None:
         try:
@@ -55,10 +57,13 @@ class _SimpleAsyncLock:
     async def __aenter__(self):
         self._check_loop()
         await self._lock.acquire()
+        self._acquired = True
         return self
 
     async def __aexit__(self, *exc: Any):
-        self._lock.release()
+        if self._acquired:
+            self._lock.release()
+            self._acquired = False
         return False
 
 
@@ -118,8 +123,10 @@ class _ReentrantAsyncLock:
 
 def async_locked(method):
     """Serialize one async operation; reentrant lock permits nested helper calls."""
+
     @wraps(method)
     async def wrapped(self, *args, **kwargs):
         async with self._get_async_lock():
             return await method(self, *args, **kwargs)
+
     return wrapped

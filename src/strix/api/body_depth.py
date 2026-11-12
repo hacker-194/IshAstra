@@ -5,6 +5,7 @@ counts bytes while streaming, so missing or inaccurate Content-Length headers
 cannot make the application buffer an arbitrary payload. The accepted body is
 replayed once to the downstream application after validation.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,8 +16,13 @@ from starlette.responses import JSONResponse
 from strix.config import Settings
 
 MAX_NESTING_DEPTH = 10
-MAX_BODY_BYTES = Settings.from_env().max_body_bytes
+MAX_BODY_BYTES = 0  # 0 = use Settings.from_env().max_body_bytes
 _BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _get_max_body_bytes() -> int:
+    """Lazy accessor to avoid module-level settings capture."""
+    return MAX_BODY_BYTES if MAX_BODY_BYTES > 0 else Settings.from_env().max_body_bytes
 
 
 def json_depth(value: Any) -> int:
@@ -36,28 +42,51 @@ def json_depth(value: Any) -> int:
     return deepest
 
 
-async def _send_rejection(scope, receive, send, status_code: int, detail: str,
-                          headers: dict[str, str] | None = None) -> None:
-    response = JSONResponse(status_code=status_code, content={"detail": detail},
-                            headers=headers or {})
+async def _send_rejection(
+    scope: dict[str, Any],
+    receive: Any,
+    send: Any,
+    status_code: int,
+    detail: str,
+    headers: dict[str, str] | None = None,
+) -> None:
+    # Include request ID if available from RequestIDMiddleware
+    request_id = scope.get("state", {}).get("request_id")
+    response_headers = dict(headers or {})
+    if request_id:
+        response_headers["X-Request-ID"] = request_id
+    response = JSONResponse(
+        status_code=status_code, content={"detail": detail}, headers=response_headers
+    )
     await response(scope, receive, send)
 
 
 class BodyLimitMiddleware:
     """Enforce size and JSON nesting caps while consuming ASGI request chunks."""
 
-    def __init__(self, app, *, max_body_bytes: int | None = None,
-                 max_nesting_depth: int = MAX_NESTING_DEPTH):
+    def __init__(
+        self,
+        app: Any,
+        *,
+        max_body_bytes: int | None = None,
+        max_nesting_depth: int = MAX_NESTING_DEPTH,
+    ):
         self.app = app
         self.max_body_bytes = max_body_bytes
         self.max_nesting_depth = max_nesting_depth
 
-    async def __call__(self, scope, receive, send):
-        if scope.get("type") != "http" or scope.get("method", "").upper() not in _BODY_METHODS:
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if (
+            scope.get("type") != "http"
+            or scope.get("method", "").upper() not in _BODY_METHODS
+        ):
             await self.app(scope, receive, send)
             return
 
-        limit = self.max_body_bytes if self.max_body_bytes is not None else MAX_BODY_BYTES
+        # Allow runtime override via module-level constant for testing
+        limit = _get_max_body_bytes()
+        if self.max_body_bytes is not None and MAX_BODY_BYTES == 0:
+            limit = self.max_body_bytes
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
         content_length = headers.get(b"content-length")
         if content_length is not None:
@@ -66,12 +95,14 @@ class BodyLimitMiddleware:
                 if declared_size < 0:
                     raise ValueError
             except (UnicodeDecodeError, ValueError):
-                await _send_rejection(scope, receive, send, 400, "Invalid Content-Length")
+                await _send_rejection(
+                    scope, receive, send, 400, "Invalid Content-Length"
+                )
                 return
             if declared_size > limit:
                 await _send_rejection(
-                    scope, receive, send, 413,
-                    f"Request body exceeds {limit} bytes")
+                    scope, receive, send, 413, f"Request body exceeds {limit} bytes"
+                )
                 return
 
         # Buffer only after counting each chunk. This is bounded by max_body_bytes
@@ -89,8 +120,8 @@ class BodyLimitMiddleware:
             total += len(chunk)
             if total > limit:
                 await _send_rejection(
-                    scope, receive, send, 413,
-                    f"Request body exceeds {limit} bytes")
+                    scope, receive, send, 413, f"Request body exceeds {limit} bytes"
+                )
                 return
             if chunk:
                 chunks.append(chunk)
@@ -103,12 +134,15 @@ class BodyLimitMiddleware:
 
         body = b"".join(chunks)
         content_type = headers.get(b"content-type", b"").decode("latin-1").lower()
-        if "application/json" in content_type and body:
+        if body and (
+            "application/json" in content_type or body.lstrip().startswith((b"{", b"["))
+        ):
             try:
                 value = json.loads(body)
             except RecursionError:
-                await _send_rejection(scope, receive, send, 400,
-                                      "Request body nesting is too deep")
+                await _send_rejection(
+                    scope, receive, send, 400, "Request body nesting is too deep"
+                )
                 return
             except (ValueError, UnicodeDecodeError):
                 # The Pydantic/route parser returns the more specific invalid JSON error.
@@ -117,15 +151,19 @@ class BodyLimitMiddleware:
                 depth = json_depth(value)
                 if depth > self.max_nesting_depth:
                     await _send_rejection(
-                        scope, receive, send, 400,
+                        scope,
+                        receive,
+                        send,
+                        400,
                         f"Request body nesting depth ({depth}) exceeds maximum allowed "
                         f"({self.max_nesting_depth})",
-                        headers={"X-Nesting-Depth": str(depth)})
+                        headers={"X-Nesting-Depth": str(depth)},
+                    )
                     return
 
         replayed = False
 
-        async def replay_receive():
+        async def replay_receive() -> dict[str, Any]:
             nonlocal replayed
             if not replayed:
                 replayed = True
@@ -134,4 +172,3 @@ class BodyLimitMiddleware:
             return await receive()
 
         await self.app(scope, replay_receive, send)
-

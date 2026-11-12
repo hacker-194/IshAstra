@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `master` is the default branch here; keep `main` too so a rename does not
+    # silently disable the pipeline (it did: pushes ran no jobs at all).
+    branches: [master, main]
   pull_request:
 
 permissions:
@@ -71,6 +73,8 @@ jobs:
           pip install -c constraints.txt -e ".[dev]"
       - name: Detection benchmark (loopback lab only)
         run: python -m strix.lab --no-nuclei --workflow web,network --report lab.json
+      - name: Nmap live integration test
+        run: python3 tests/test_nmap_integration.py
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
         with:
@@ -86,15 +90,31 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build image
         run: docker build -t strix:ci .
-      - name: Container answers its health check
+      - name: Image contains its entrypoint
+        run: docker run --rm --entrypoint sh strix:ci -c 'command -v strix && strix --help >/dev/null'
+      - name: Validate compose files
+        run: |
+          set -euo pipefail
+          cp .env.production.example .env.production
+          cp config/scope.example.json config/scope.json
+          mkdir -p secrets
+          printf 'ci-token\n' > secrets/strix_api_key
+          docker compose --env-file .env.production config -q
+          GRAFANA_PASSWORD=ci-only docker compose --env-file .env.production \
+            -f docker-compose.yml -f docker-compose.monitoring.yml config -q
+      - name: Container answers its health check with a loaded scope
         run: |
           set -euo pipefail
           docker run -d --name strix-ci -p 8000:8000 \
             -e STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+            -e STRIX_AUDIT_HMAC_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+            -e STRIX_SCOPE_FILE=/etc/strix/scope.json \
+            -v "$PWD/config/scope.example.json:/etc/strix/scope.json:ro" \
             strix:ci
-          for _ in $(seq 1 40); do
+          for _ in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then
-              curl -fsS http://127.0.0.1:8000/api/ready
+              curl -fsS http://127.0.0.1:8000/api/ready | \
+                python -c 'import json,sys; d=json.load(sys.stdin); assert d["ready"] and d["scope_configured"], d'
               docker rm -f strix-ci > /dev/null
               exit 0
             fi

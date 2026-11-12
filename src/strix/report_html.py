@@ -5,15 +5,25 @@ report can be attached to an email or archived. All finding text is HTML-
 escaped: evidence routinely contains attacker-controlled strings, and a
 report that executes its own evidence would be an own-goal XSS.
 """
+
 from __future__ import annotations
 
 import html
 from typing import Any
 
-_SEVERITY_CLASS = {"critical": "sev-critical", "high": "sev-high",
-                   "medium": "sev-medium", "low": "sev-low", "info": "sev-info"}
-_STATE_CLASS = {"completed": "state-ok", "partial": "state-warn",
-                "failed": "state-bad", "cancelled": "state-warn"}
+_SEVERITY_CLASS = {
+    "critical": "sev-critical",
+    "high": "sev-high",
+    "medium": "sev-medium",
+    "low": "sev-low",
+    "info": "sev-info",
+}
+_STATE_CLASS = {
+    "completed": "state-ok",
+    "partial": "state-warn",
+    "failed": "state-bad",
+    "cancelled": "state-warn",
+}
 
 
 def _esc(value: Any) -> str:
@@ -31,8 +41,10 @@ def render_html_report(report: dict[str, Any]) -> str:
 
     severity_chips = " ".join(
         f'<span class="chip {_SEVERITY_CLASS.get(sev, "sev-info")}">{_esc(sev)}'
-        f'<b>{int(severity_counts.get(sev, 0))}</b></span>'
-        for sev in order if severity_counts.get(sev))
+        f"<b>{int(severity_counts.get(sev, 0))}</b></span>"
+        for sev in order
+        if severity_counts.get(sev)
+    )
 
     adapter_rows = "".join(
         f"<tr><td>{_esc(run.get('adapter'))}</td>"
@@ -41,7 +53,8 @@ def render_html_report(report: dict[str, Any]) -> str:
         f"<td>{int(run.get('findings') or 0)}</td>"
         f"<td>{_esc(run.get('elapsed_ms'))}</td>"
         f"<td class=\"detail\">{_esc(run.get('detail'))}</td></tr>"
-        for run in adapters)
+        for run in adapters
+    )
 
     finding_cards: list[str] = []
     for index, finding in enumerate(findings, 1):
@@ -62,6 +75,9 @@ def render_html_report(report: dict[str, Any]) -> str:
        &middot; Location: <code>{_esc(finding.get('location'))}</code></p>
     <pre class="evidence">{_esc(finding.get('evidence'))}</pre>
     <p class="fix"><b>Remediation:</b> {_esc(finding.get('remediation'))}</p>
+    <p class="meta">Lifecycle: <b>{_esc(finding.get('status') or 'new')}</b>
+       &middot; remediation {_esc(finding.get('remediation_status') or 'pending')}
+       &middot; risk {_esc(finding.get('risk_rating') or 'low')}</p>
     <p class="desc">{_esc(finding.get('description'))}</p>
   </article>""")
 

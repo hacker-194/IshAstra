@@ -10,6 +10,7 @@ signature), ``/.git/config`` (git exposure bait). Negative routes it must not
 report: ``/safe`` (CSP, no reflection), ``/login?next=`` (ignores next),
 ``/item?id=`` (static, no error), ``/public`` (plain 200).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,19 +23,19 @@ _INDEX_HTML = (
     "<body><h1>Strix Detection Lab</h1>"
     "<p>This intentionally vulnerable application exists to measure scanner "
     "behavior. It serves static bait and negative fixtures on loopback only.</p>"
-    "<ul><li><a href=\"/search?q=lab\">search</a></li>"
-    "<li><a href=\"/redirect?to=https://example.com/\">redirect</a></li>"
-    "<li><a href=\"/sqlerror?id=1\">item lookup</a></li>"
-    "<li><a href=\"/safe?q=lab\">safe</a></li>"
-    "<li><a href=\"/item?id=7\">item</a></li>"
-    "<li><a href=\"/public\">public</a></li></ul>"
+    '<ul><li><a href="/search?q=lab">search</a></li>'
+    '<li><a href="/redirect?to=https://example.com/">redirect</a></li>'
+    '<li><a href="/sqlerror?id=1">item lookup</a></li>'
+    '<li><a href="/safe?q=lab">safe</a></li>'
+    '<li><a href="/item?id=7">item</a></li>'
+    '<li><a href="/public">public</a></li></ul>'
     "</body></html>"
 )
 
 _SQL_ERROR_BODY = (
     "Traceback (most recent call last):\n"
-    "  File \"/app/db.py\", line 41, in lookup\n"
-    "sqlite3.OperationalError: near \"'\": syntax error\n"
+    '  File "/app/db.py", line 41, in lookup\n'
+    'sqlite3.OperationalError: near "\'": syntax error\n'
 )
 
 _HARDENED_HEADERS = {
@@ -52,8 +53,13 @@ class LabHandler(BaseHTTPRequestHandler):
     sys_version = ""
 
     # -- helpers -----------------------------------------------------------
-    def _send(self, status: int, body: bytes, content_type: str,
-              extra_headers: dict[str, str] | None = None) -> None:
+    def _send(
+        self,
+        status: int,
+        body: bytes,
+        content_type: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -84,9 +90,11 @@ class LabHandler(BaseHTTPRequestHandler):
             # Positive: verbatim reflection of the q parameter into HTML.
             # Reflection alone is an indicator, never a confirmed XSS.
             q = params.get("q", "")
-            body = (f"<!doctype html><html><head><title>Search</title></head>"
-                    f"<body><h1>Results</h1><p>Results for: {q}</p>"
-                    f"<p>No documents matched.</p></body></html>")
+            body = (
+                f"<!doctype html><html><head><title>Search</title></head>"
+                f"<body><h1>Results</h1><p>Results for: {q}</p>"
+                f"<p>No documents matched.</p></body></html>"
+            )
             self._send(200, body.encode(), "text/html; charset=utf-8")
 
         elif route == "/redirect":
@@ -96,8 +104,11 @@ class LabHandler(BaseHTTPRequestHandler):
             if to.lower().startswith(("http://", "https://")):
                 self._send(302, b"", "text/plain", {"Location": to})
             else:
-                self._send(400, b"missing absolute 'to' parameter\n",
-                           "text/plain; charset=utf-8")
+                self._send(
+                    400,
+                    b"missing absolute 'to' parameter\n",
+                    "text/plain; charset=utf-8",
+                )
 
         elif route == "/sqlerror":
             # Positive: quote mutation produces a database error signature.
@@ -114,8 +125,10 @@ class LabHandler(BaseHTTPRequestHandler):
             # Positive: the exact bait the official nuclei `git-config`
             # exposure template matches (word match on [core], status 200,
             # body must not be HTML).
-            bait = (b"[core]\n\trepositoryformatversion = 0\n"
-                    b"\tfilemode = true\n\tbare = false\n")
+            bait = (
+                b"[core]\n\trepositoryformatversion = 0\n"
+                b"\tfilemode = true\n\tbare = false\n"
+            )
             self._send(200, bait, "text/plain")
 
         elif route == "/.git/HEAD":
@@ -126,8 +139,12 @@ class LabHandler(BaseHTTPRequestHandler):
         elif route == "/safe":
             # Negative: parameter is accepted and completely ignored, and the
             # hardened headers must suppress the missing-CSP check.
-            self._send(200, b"Nothing to see here.\n", "text/plain; charset=utf-8",
-                       dict(_HARDENED_HEADERS))
+            self._send(
+                200,
+                b"Nothing to see here.\n",
+                "text/plain; charset=utf-8",
+                dict(_HARDENED_HEADERS),
+            )
 
         elif route == "/login":
             # Negative: redirect target is a fixed same-origin path; the
@@ -138,13 +155,18 @@ class LabHandler(BaseHTTPRequestHandler):
             # Negative: static catalog text; a quote mutation changes nothing.
             identifier = params.get("id", "")
             text = f"Catalog item {identifier!r}: widget, $9.99, in stock.\n"
-            self._send(200, text.encode(), "text/plain; charset=utf-8",
-                       dict(_HARDENED_HEADERS))
+            self._send(
+                200, text.encode(), "text/plain; charset=utf-8", dict(_HARDENED_HEADERS)
+            )
 
         elif route == "/public":
             # Negative: hardened page with no bait files anywhere near it.
-            self._send(200, b"Public lab index. No exposures here.\n",
-                       "text/plain; charset=utf-8", dict(_HARDENED_HEADERS))
+            self._send(
+                200,
+                b"Public lab index. No exposures here.\n",
+                "text/plain; charset=utf-8",
+                dict(_HARDENED_HEADERS),
+            )
 
         else:
             self._send(404, b"not found\n", "text/plain; charset=utf-8")
@@ -163,6 +185,7 @@ class LabServer(ThreadingHTTPServer):
         # Scanners routinely reset connections mid-response; that is client
         # behavior, not a lab fault, and must not spray tracebacks on stderr.
         import sys
+
         exc = sys.exception()
         if isinstance(exc, (ConnectionResetError, BrokenPipeError, TimeoutError)):
             return
@@ -184,8 +207,9 @@ class LabTarget:
 
     def __enter__(self) -> LabTarget:
         self._server = LabServer(("127.0.0.1", 0))
-        self._thread = threading.Thread(target=self._server.serve_forever,
-                                        name="strix-lab-target", daemon=True)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever, name="strix-lab-target", daemon=True
+        )
         self._thread.start()
         return self
 
@@ -211,12 +235,15 @@ def main() -> int:
     """Serve the lab for manual inspection (Ctrl+C to stop)."""
     parser = argparse.ArgumentParser(
         description="Serve the Strix detection lab on loopback (deliberately "
-                    "vulnerable static bait; never bind it to a public interface).")
+        "vulnerable static bait; never bind it to a public interface)."
+    )
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     server = LabServer(("127.0.0.1", args.port))
-    print(f"strix detection lab on http://127.0.0.1:{server.server_address[1]} "
-          "(Ctrl+C to stop)")
+    print(
+        f"strix detection lab on http://127.0.0.1:{server.server_address[1]} "
+        "(Ctrl+C to stop)"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

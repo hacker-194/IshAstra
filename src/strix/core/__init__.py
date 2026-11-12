@@ -23,7 +23,6 @@ __all__ = [
     "scope",
     "signatures",
     "store",
-    "store_async",
     "urls",
     "worker",
 ]

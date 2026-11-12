@@ -5,6 +5,7 @@ its content has git's actual structure; a 200 serving an HTML shell (SPA
 catch-all, generic error page) is not an exposure. The body is never stored --
 only the structural markers that were found go into the evidence.
 """
+
 from __future__ import annotations
 
 import re
@@ -57,9 +58,14 @@ class GitExposureAdapter(Adapter):
     def _is_config(body: str) -> bool:
         return all(p.search(body) for p in _CONFIG_MARKERS)
 
-    def assess(self, target: str, *, timeout: float,
-               cancel: threading.Event,
-               context: dict[str, Any] | None = None) -> AdapterResult:
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
         destination = checked_destination(target)
         result = AdapterResult()
 
@@ -71,7 +77,9 @@ class GitExposureAdapter(Adapter):
             if status != 200:
                 if status == "error" or status == "timeout":
                     result.partial = True
-                    result.notes.append("request failed; exposure could not be ruled out")
+                    result.notes.append(
+                        "request failed; exposure could not be ruled out"
+                    )
                 else:
                     result.notes.append(f"no exposed git metadata ({status})")
                 return result
@@ -92,7 +100,9 @@ class GitExposureAdapter(Adapter):
             if head_status != 200:
                 if head_status in ("error", "timeout"):
                     result.partial = True
-                    result.notes.append("request failed; exposure could not be ruled out")
+                    result.notes.append(
+                        "request failed; exposure could not be ruled out"
+                    )
                 else:
                     result.notes.append("git config present but HEAD missing")
                     result.partial = True
@@ -105,19 +115,21 @@ class GitExposureAdapter(Adapter):
                 return result
 
             # Both checks passed -- this is a real exposed git repo
-            result.findings.append(Finding(
-                asset=target,
-                category="git_config_exposed",
-                title="Exposed Git Repository",
-                severity="high",
-                confidence="high",
-                detector=self.id,
-                detector_version=self.version,
-                evidence="markers present: [core], repositoryformatversion",
-                location=config_url,
-                description="The target exposes a .git directory allowing full source code disclosure.",
-                verification="observed",
-            ))
+            result.findings.append(
+                Finding(
+                    asset=target,
+                    category="git_config_exposed",
+                    title="Exposed Git Repository",
+                    severity="high",
+                    confidence="high",
+                    detector=self.id,
+                    detector_version=self.version,
+                    evidence="markers present: [core], repositoryformatversion",
+                    location=config_url,
+                    description="The target exposes a .git directory allowing full source code disclosure.",
+                    verification="observed",
+                )
+            )
             return result
 
         except AdapterCancelled:

@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: strix
+    scheme: http
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      # Mounted from ./secrets/strix_api_key by docker-compose.monitoring.yml.
+      credentials_file: /etc/prometheus/token
+    static_configs:
+      - targets: ["strix:8000"]

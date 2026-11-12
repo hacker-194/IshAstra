@@ -7,6 +7,7 @@ accepted connection is an observed fact, no protocol bytes are sent -- and
 when nmap is installed both run, with findings de-duplicating on
 (asset, category, location).
 """
+
 from __future__ import annotations
 
 import socket
@@ -50,6 +51,7 @@ def port_finding(
         remediation=remediation,
         verification="observed",
     )
+
 
 # Static table of conventionally risky ports, not a vulnerability feed. Drive
 # severity from an exposure policy per asset if that ever matters.
@@ -104,9 +106,14 @@ class TCPPortAdapter(Adapter):
         except (TimeoutError, OSError):
             return "filtered"
 
-    def assess(self, target: str, *, timeout: float,
-               cancel: threading.Event,
-               context: dict[str, Any] | None = None) -> AdapterResult:
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
         destination = checked_destination(target)
         result = AdapterResult()
 
@@ -136,20 +143,22 @@ class TCPPortAdapter(Adapter):
             if state == "open":
                 # Severity from RISKY_PORTS table, default to info.
                 severity, remediation = RISKY_PORTS.get(port, ("info", ""))
-                result.findings.append(Finding(
-                    asset=asset_url,
-                    category="open_tcp_port",
-                    title=f"Open TCP Port {port}",
-                    severity=severity,
-                    confidence="high",
-                    detector=self.id,
-                    detector_version=self.version,
-                    evidence=f"TCP connection to {destination.ip}:{port} succeeded",
-                    location=f"{destination.host}:{port}/tcp",
-                    description=f"Port {port} is open on {destination.host}.",
-                    remediation=remediation,
-                    verification="observed",
-                ))
+                result.findings.append(
+                    Finding(
+                        asset=asset_url,
+                        category="open_tcp_port",
+                        title=f"Open TCP Port {port}",
+                        severity=severity,
+                        confidence="high",
+                        detector=self.id,
+                        detector_version=self.version,
+                        evidence=f"TCP connection to {destination.ip}:{port} succeeded",
+                        location=f"{destination.host}:{port}/tcp",
+                        description=f"Port {port} is open on {destination.host}.",
+                        remediation=remediation,
+                        verification="observed",
+                    )
+                )
             elif state == "filtered":
                 result.partial = True
                 result.notes.append(f"port {port}: filtered (no answer)")

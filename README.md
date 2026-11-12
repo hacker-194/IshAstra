@@ -13,9 +13,7 @@ records the results as normalized findings you can export (SARIF) or file
   the document authorizes them. Built-in HTTP, Nmap and Nuclei connections use
   the validated destination IP; external redirects are disabled or never followed.
 - **Assessments** – `web`, `web-deep`, `api`, `api-deep` and `network` profiles
-  run the appropriate adapters as background jobs. The optional `agent` profile
-  instead runs the upstream autonomous engine (`strix-agent`) as an external,
-  scope-gated process — see *Autonomous AI engine*. `web-deep` adds bounded,
+  run the appropriate adapters as background jobs. `web-deep` adds bounded,
   non-destructive GET validation for redirect handling and database error
   leakage; `api` discovers same-origin OpenAPI/Swagger documents and checks
   documented protected GET endpoints without credentials. A result is only
@@ -26,9 +24,16 @@ records the results as normalized findings you can export (SARIF) or file
   target. Missing tools or unavailable vulnerability databases result in a
   partial/inconclusive report, never a clean verdict.
 - **Findings** – one normalized model (severity, confidence, verification,
-  evidence, CWE, remediation), deduplicated across tools, credentials redacted,
-  persisted in SQLite, exportable as SARIF 2.1.0.
-- **Evidence reports** – scope authorization + findings, sealed in a hash chain.
+  evidence, CWE, remediation), enriched with defensive security fields
+  (CVSS score, business impact, asset criticality, risk rating, exploit availability,
+  user impact, compliance references, remediation status, discovery/report/resolution dates),
+  deduplicated across tools, credentials redacted, persisted in SQLite,
+  exportable as SARIF 2.1.0. Findings have an enforced client lifecycle
+  (`new → triaged → in_progress → fix_verified → closed`, plus deferred/reopened)
+  with audited, tenant-scoped status changes.
+- **Strix Proof** – a signed authorization *grant*, a hash-chained receipt for
+  every gate decision taken under it, and a portable proof pack anyone can
+  verify offline. See [Strix Proof](#strix-proof).
 - **Monitoring** – re-assesses registered targets and alerts (log / webhook) on
   *newly appeared* high-severity findings.
 - **Multi-tenant API** – bearer keys (hashed, persisted), per-tenant data
@@ -39,15 +44,22 @@ records the results as normalized findings you can export (SARIF) or file
 
 ```bash
 pip install -e ".[dev]"
-cp config/scope.example.json scope.json     # edit: what you are authorized to test
+cp scope.example.json scope.json            # edit: what you are authorized to test
 export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-strix --port 8000                           # UI at http://127.0.0.1:8000
+strix serve --host 0.0.0.0 --port 8000      # UI at http://127.0.0.1:8000
+# `strix --host 0.0.0.0 --port 8000` also works as the default serve mode.
 ```
 
 ```bash
 curl -H "Authorization: Bearer $STRIX_API_KEY" -H 'Content-Type: application/json' \
      -d '{"target": "https://app.example.com/", "profile": "web"}' \
      http://127.0.0.1:8000/api/assess          # 202 + job id; poll /api/assess/{id}
+
+# Triage one finding (same controls are in the web UI). The fingerprint is
+# returned with each finding; illegal transitions are refused with 409.
+curl -X PATCH -H "Authorization: Bearer $STRIX_API_KEY" -H 'Content-Type: application/json' \
+     -d '{"status": "triaged"}' \
+     http://127.0.0.1:8000/api/assess/$JOB_ID/findings/$FINGERPRINT
 ```
 
 Interactive API docs: `/docs`. Without a scope document **and** without an
@@ -76,6 +88,67 @@ are broader than a `/8` are refused unless the record sets
 IPv6 network syntax (`::ffff:0:0/96`) is always refused; authorize the IPv4
 CIDR directly.
 
+## Strix Proof
+
+Whoever runs a scan can produce findings. Strix Proof answers the question a
+client, auditor or insurer actually asks: **was that action authorized, and can
+you show it?**
+
+```bash
+# 1. The asset owner signs what may be tested, for how long.
+strix grant --program "nrb annual assessment" \
+            --authorized-by "Example Bank Ltd" --ref "PO-2026-0417" \
+            --include app.example.com --include '*.example.com' \
+            --port 443 --days 14 --out grant.json --key-out issuer.key
+
+# 2. Any agent asks the gate before acting; every decision is receipted.
+strix gate --grant grant.json --ledger receipts.jsonl --gate-key gate.key
+curl -H 'Content-Type: application/json' \
+     -d '{"url": "https://app.example.com/login", "method": "GET"}' \
+     http://127.0.0.1:8787/v1/authorize
+
+# 3. Bundle the grant and receipts, then verify anywhere, offline.
+strix proof  --grant grant.json --ledger receipts.jsonl --out proof.json
+strix verify proof.json --issuer-key issuer.key
+```
+
+The same verification is available over HTTP for parties who have no Strix
+install and no account: `POST /api/proof/verify` with
+`{"proof": <pack>, "trusted_issuer": <public key>}` returns the same report.
+That endpoint is unauthenticated and stateless — it stores nothing from the
+request.
+
+A Strix scan can be run under the same grant, receipting each decision it
+makes:
+
+```bash
+strix assess --grant grant.json --target https://app.example.com/ \
+             --profile web --proof-out proof.json --proof-ledger receipts.jsonl
+```
+
+**What the artifacts are.** A grant is JSON signed with Ed25519 over a
+canonical encoding of who authorized what, which hosts/networks/ports, and the
+validity window. A receipt is `{seq, grant_id, url, decision, reason, …}`
+chained by `previous` and `hash` and signed by the gate, so altering, dropping
+or reordering one breaks the chain. A proof pack is grant + receipts + the gate
+public key + a summary.
+
+**Verification is not trust.** `strix verify` reports each check
+(`grant_signature`, `issuer_trusted`, `chain`, `scope_compliance`, `gate_key`).
+Pin the issuer with `--issuer-key`: a grant verifies cryptographically even
+when someone else signed it, so an unpinned proof proves integrity, not
+authority. Verification also re-checks every allowed action against the grant
+(hosts, ports, networks) and against the grant's time window — an action taken
+after expiry fails even though the receipt's own chain is intact.
+
+**Scope of enforcement.** The gate cannot stop an agent that ignores it; it is
+an authorization service, not a packet filter. What it does provide: every
+decision it was asked for is receipted, and any action absent from a complete
+ledger was never presented for authorization. Strix's own adapters enforce the
+same grant through the scope gate, which pins the resolved address it
+validated, so a scan cannot drift outside the grant between DNS lookup and
+connect.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -95,16 +168,6 @@ CIDR directly.
 | `STRIX_LOG_FORMAT` | `text` | `json` for one structured log object per line. |
 | `STRIX_LOG_LEVEL` | `INFO` | Python log level. |
 | `STRIX_RATE_LIMIT_DISABLED` | – | `1` disables limits (local development only). |
-| `STRIX_AGENT_BIN` | – | Path to the installed `strix-agent` CLI. Unset disables the `agent` profile (it reports the adapter as unavailable, never clean). |
-| `STRIX_AGENT_SCAN_MODE` | `quick` | Engine scan mode: `quick`, `standard` or `deep`. |
-| `STRIX_AGENT_WORKDIR` | system temp | Where per-run engine artifacts are written and kept. |
-| `STRIX_AGENT_MAX_TURNS` | engine default | Per-agent turn ceiling passed to the engine. |
-| `STRIX_AGENT_MAX_BUDGET_USD` | engine default | Stop the engine run at this LLM spend. |
-| `STRIX_LLM` | – | The *engine's* model. Forwarded by name, never the platform's whole environment. |
-| `LLM_API_KEY` / `OPENAI_API_KEY` | – | The engine's provider key (it accepts either name). |
-| `LLM_API_BASE` / `OPENAI_API_BASE` / `OPENAI_BASE_URL` / `OLLAMA_API_BASE` | – | The engine's provider endpoint (any OpenAI-compatible server, including a local open-source model). |
-| `STRIX_IMAGE` | upstream default | Sandbox image the engine runs its agents in — point it at a mirror for air-gapped hosts. |
-
 `nmap` and `nuclei` are optional external binaries; `GET /api/adapters` reports
 which are usable. Missing tools reduce coverage and the job says so. The API
 profile is built in and does not require external tools.
@@ -150,105 +213,14 @@ symlinks, common vendor/build directories, files above 2 MiB, and excess files
 or bytes. Such omissions are recorded. This command provides SAST/SCA indicators,
 not proof that code paths are exploitable; review and validate findings.
 
-### Autonomous AI engine (optional)
-
-The `agent` profile delegates an assessment to the upstream open-source engine
-[`usestrix/strix`](https://github.com/usestrix/strix) (`strix-agent`, Apache-2.0):
-autonomous AI pentesting agents that use their own tools inside a sandbox. Strix
-integrates it as an **external process** — nothing from upstream is vendored
-here, the engine is never imported, and it can be upgraded or replaced on its
-own schedule. What this platform adds around it is the authorization boundary,
-the job lifecycle and the normalized finding model; the full record (decisions,
-component mapping, licence notes and remaining work) is in
-`INTEGRATION_STRIX_AGENT.md`.
-
-Prerequisites (on the assessment host, not in this package):
-
-- **Docker, running** — the engine executes its agents in a sandbox container.
-- **An LLM provider of the engine's own**: `STRIX_LLM` (for example
-  `openrouter/your-model`, or an open-source model served locally through Ollama
-  or vLLM behind any OpenAI-compatible endpoint) plus its `LLM_API_KEY` and,
-  when needed, `LLM_API_BASE`. These are the engine's variables; the adapter
-  forwards those three by name and passes nothing else of the platform's
-  environment to the engine.
-- **The engine itself, pinned**: `pipx install strix-agent==1.7.0` (verified
-  against 1.7.0, upstream commit `ef5d810`), then point `STRIX_AGENT_BIN` at the
-  installed binary. A `PATH` lookup is deliberately not used: both projects ship
-  a console script named `strix`, so the setting must name the engine explicitly
-  and the adapter refuses any binary whose `--version` does not report a `strix`
-  version.
-
-```bash
-export STRIX_AGENT_BIN="$HOME/.local/bin/strix-agent"
-export STRIX_LLM="openrouter/your-model"     # the engine's provider
-export LLM_API_KEY="..."                     # the engine's key
-export STRIX_AGENT_SCAN_MODE=quick            # quick | standard | deep
-curl -H "Authorization: Bearer $STRIX_API_KEY" -H 'Content-Type: application/json' \
-     -d '{"target": "https://app.example.com/", "profile": "agent", "timeout": 900}' \
-     http://127.0.0.1:8000/api/assess
-```
-
-How it runs: the target passes the same scope gate as every other engine — a
-refused target never reaches the engine, and no LLM call is spent on it — then
-`strix-agent --target <authorized url> --non-interactive --scan-mode <mode>` runs
-in a private working directory under the job's deadline and cancellation switch,
-and the run artifacts it wrote (`strix_runs/<run-name>/run.json` and
-`vulnerabilities.json`) are read back. Headless exit status `0` (no findings) and
-`2` (findings reported) are normal completions; anything else is a failed run, so
-a broken engine can never look like a clean target.
-
-Honesty rules applied to its output:
-
-- **Its findings are `unverified`**: they are the engine's own claims, recorded
-  with a provenance line (run id, engine agent, its severity/confidence claims,
-  its evidence, PoC and remediation text). Strix did not reproduce them.
-- **A finding naming any asset outside the engagement is dropped**, not imported
-  — an agent does not get to widen its own scope — and the run becomes partial
-  as a result.
-- **Coverage is claimed only when the engine's own record says `completed`.** Any
-  other status keeps the findings but reports partial coverage, so the verdict
-  reads "inconclusive — do not treat as clean".
-- Ingestion is bounded (first 200 reports, bounded text, control characters
-  stripped) and the cap is stated in the job's coverage detail.
-
-Know before you enable it: the engine drives a browser, an interception proxy
-and a shell inside its own sandbox, so its connections **cannot be pinned to the
-address this gate validated** the way the nmap and nuclei adapters pin theirs
-(keep host-level egress filtering on). Run artifacts are kept on the assessment
-host for inspection (`STRIX_AGENT_WORKDIR` chooses where) and are never deleted
-by the platform, and only `quick` fits the API's 900 s request ceiling —
-`standard` and `deep` need a longer deadline than the API currently accepts.
-
-Verified against the real engine, not only against its documentation. With
-`strix-agent` 1.7.0, its own sandbox image and a real container, an `agent` job
-took ~12 s to complete scoped, clean and artifact-parsed; a provider failure
-produced a `failed` job carrying the engine's own error. Five behaviours are
-worth knowing in advance, each now handled or documented:
-
-- **The first run pulls a multi-gigabyte sandbox image** (~5.9 GB for 1.7.0)
-  before anything else. Pre-pull it (`docker pull ghcr.io/usestrix/strix-sandbox:1.3.0`)
-  or set `STRIX_IMAGE`; a job whose deadline is shorter than the pull is a
-  `timeout`, not a clean target.
-- **A provider failure is fast and loud**: the engine preflights the LLM
-  connection, exits `1` and writes no run directory. The platform reports the
-  job as `failed` with the engine's own message.
-- **A run that files nothing writes no finding index**, and still completes: the
-  job is `completed` with zero findings, never a failure.
-- **The engine rewrites a loopback target for its sandbox** (`127.0.0.1` becomes
-  `host.docker.internal`). Findings filed against that rewrite are matched back
-  to the asset you authorized; findings naming anything else are dropped.
-- **The engine persists the provider configuration it was handed** into
-  `~/.strix/cli-config.json` for the account running it — treat that file as a
-  secret, and note that a value it cannot parse there breaks every later run
-  until it is fixed (`INTEGRATION_STRIX_AGENT.md` §8).
-
-## API
 
 | | |
 |---|---|
 | `GET /api/health`, `/api/ready` | liveness, readiness (no auth) |
+| `GET /api/metrics` | Prometheus exposition (admin key required) |
 | `POST /api/assess` · `GET /api/assess[/{id}]` · `POST /api/assess/{id}/cancel` | jobs (`wait=true` runs inline, max 120 s) |
 | `GET /api/assess/{id}/sarif` | SARIF export |
+| `PATCH /api/assess/{id}/findings/{fingerprint}` | triage a finding; invalid transitions return 409 |
 | `POST /api/report` | evidence report for a target's latest finished job |
 | `POST /api/probe` | one request, graded on security headers |
 | `GET /api/scope`, `/api/adapters`, `/api/overview` | context |
@@ -276,8 +248,11 @@ sitting directly under `src/strix` (`cli.py`, `config.py`, `code_scan.py`,
 
 ## Deploying
 
-`DEPLOYMENT.md` is the full operator runbook: systemd unit, reverse proxy,
-first-run checklist, backups, key rotation, retention and troubleshooting.
+`DEPLOYMENT.md` is the full operator runbook: container/systemd install, reverse
+proxy and TLS, first-run checklist, backups, key rotation, retention, scaling
+limits and troubleshooting. For a Nepal-focused pilot (NRB/NTA/NCSP evidence,
+in-country hosting, legal and commercial gates), see
+[`NEPAL_LAUNCH_READINESS.md`](NEPAL_LAUNCH_READINESS.md).
 
 - Put Strix behind a TLS-terminating reverse proxy; it speaks plain HTTP and binds
   to `127.0.0.1` unless told otherwise. List the proxy in `STRIX_TRUSTED_PROXIES`
@@ -289,6 +264,10 @@ first-run checklist, backups, key rotation, retention and troubleshooting.
   and keep both out of the repository and database host's reach. A startup without
   `STRIX_AUDIT_HMAC_KEY` still serves, but logs a warning: the audit chain then only
   detects accidental or naive tampering.
+- If you restore a SQLite database created under a different HMAC key, startup will
+  fail closed until the operator explicitly clears the stale chain. Use
+  `strix serve --reset-audit-chain` only after a deliberate recovery decision; this
+  discards the old sealed chain intentionally.
 - The database grows with every assessment and audit event. Set `STRIX_RETENTION_DAYS`
   to a positive value to prune finished jobs/findings and plain audit entries that old
   (a sweep runs at startup and every 6 hours); the sealed audit chain is always kept.
@@ -368,6 +347,8 @@ first-run checklist, backups, key rotation, retention and troubleshooting.
   process. Jobs left running by a dead process are marked `failed` at startup,
   never "success". Scaling out needs a shared queue and limiter.
 - **SQLite.** Fine for one node and moderate volume; not for a multi-node setup.
+  PostgreSQL is not a supported backend yet: the worker runs threaded adapters
+  on separate event loops and asyncpg pools are loop-bound.
 - **Per-key scopes are not modeled.** A tenant has one key and one tier; expiry
   (`ttl_days`) and rotation exist, but fine-grained scopes do not.
 - **URL-signature findings are inferences**, labelled as such. The additional
@@ -379,18 +360,11 @@ first-run checklist, backups, key rotation, retention and troubleshooting.
   partial result. Local Semgrep rules are deliberately small and need organization-
   specific rules; do not interpret a successful scan as proof that code is secure.
 - The `nmap`/`nuclei` adapters are covered by stubbed tests, not by running the
-  real binaries in CI. The `agent` profile's engine is the same in CI — its
-  tests drive a stub that writes real upstream-shaped artifacts — but it has
-  additionally been run live once against the real engine, as described above;
-  what that run did not prove is a live engine-filed finding, so finding
-  ingestion remains schema- and fixture-verified only.
-- **The `agent` profile's engine is not address-pinned.** Its agents resolve and
-  contact the target from inside their own sandbox container. The scope gate
-  validates the target and findings naming other assets are dropped, but the
-  platform cannot re-check a name that resolves differently inside the sandbox.
-  Cancelling or timing out a run kills the engine process; whether its sandbox
-  container is removed depends on the engine and is not verified here, so check
-  `docker ps` after a killed run.
-- The `agent` profile accepts URLs and hosts only. A local source directory is
-  not an authorized asset in this platform's scope model; use
-  `strix-code-scan` for local repositories.
+  real binaries in CI. The stub writes real upstream-shaped artifacts, so finding
+  ingestion is schema- and fixture-verified only; a live engine-filed finding has
+  not been demonstrated. A remote Git repository is not an authorized asset in
+  this platform's scope model; use `strix-code-scan` for local checkouts.
+- **`src/hunt` is a design scaffold**, not a second product. The Rust crates
+  (`mesh`, `killchain`, `chain`, `zk_scope`, `zk_fingerprint`) compile and expose
+  types, but the CLI refuses every subcommand because no engine, prover or mesh
+  loop is wired up yet, and there are no tests. Do not present it as working.

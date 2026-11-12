@@ -10,6 +10,7 @@ after submission stops the job instead of scanning, and every outbound
 connection is judged against the bound snapshot rather than another tenant's
 authorization.
 """
+
 from __future__ import annotations
 
 import logging
@@ -69,9 +70,13 @@ class AdapterRun:
     def to_dict(self) -> dict[str, Any]:
         # Adapter detail travels into coverage, API responses, reports and the
         # database; tool output can echo credentials, so it is redacted here.
-        return {"adapter": self.adapter, "state": self.state.value,
-                "detail": redact(self.detail),
-                "findings": self.findings, "elapsed_ms": self.elapsed_ms}
+        return {
+            "adapter": self.adapter,
+            "state": self.state.value,
+            "detail": redact(self.detail),
+            "findings": self.findings,
+            "elapsed_ms": self.elapsed_ms,
+        }
 
 
 @dataclass
@@ -109,21 +114,29 @@ class Job:
         counts = {state.value: 0 for state in RunState}
         for run in self.runs:
             counts[run.state.value] += 1
-        return {"total": len(self.runs), **counts, "adapters": [r.to_dict() for r in self.runs]}
+        return {
+            "total": len(self.runs),
+            **counts,
+            "adapters": [r.to_dict() for r in self.runs],
+        }
 
     @property
     def verdict(self) -> str:
         """What the job is allowed to claim."""
         if self.state is JobState.COMPLETED:
-            return ("no findings (complete coverage)" if not self.findings
-                    else f"{len(self.findings)} finding(s)")
+            return (
+                "no findings (complete coverage)"
+                if not self.findings
+                else f"{len(self.findings)} finding(s)"
+            )
         if self.state is JobState.PARTIAL:
             if not self.findings:
                 return "inconclusive: no findings (partial coverage)"
             return f"{len(self.findings)} finding(s) (partial coverage, inconclusive)"
         if self.state is JobState.FAILED:
-            if not self.runs or all(r.state in (RunState.UNAVAILABLE, RunState.REJECTED)
-                                  for r in self.runs):
+            if not self.runs or all(
+                r.state in (RunState.UNAVAILABLE, RunState.REJECTED) for r in self.runs
+            ):
                 return "no usable coverage"
             return f"failed: {self.error}"
         if self.state is JobState.CANCELLED:
@@ -132,9 +145,11 @@ class Job:
 
     def is_clean(self) -> bool:
         """True only when complete coverage with zero findings."""
-        return (self.state is JobState.COMPLETED
-                and not self.findings
-                and all(run.state is RunState.OK for run in self.runs))
+        return (
+            self.state is JobState.COMPLETED
+            and not self.findings
+            and all(run.state is RunState.OK for run in self.runs)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -172,6 +187,7 @@ def prepare(
     The snapshot is captured now and will be re-validated at execution time.
     """
     from strix.core.scope import current as current_scope
+
     if scope_snapshot is None:
         scope_snapshot = current_scope()
     if scope_snapshot is None:
@@ -207,6 +223,8 @@ def execute(job: Job) -> None:
     against another tenant's authorization.
     """
     from strix.core.scope import bound as scope_bound
+    from strix.core.scope import destination as scope_destination
+    from strix.core.scope import reset_pinned_destination, set_pinned_destination
 
     if job.scope_snapshot is None:
         job.state = JobState.FAILED
@@ -227,177 +245,235 @@ def execute(job: Job) -> None:
             job.finished_at = time.time()
             return
 
-        # Check if the bound policy has been revoked or expired
-        policy_id = job.policy.get("policy_id")
-        if policy_id:
-            from strix.core import policies as policies_module
-            policy = policies_module.registry.get(policy_id)
-            if policy is None:
-                job.state = JobState.FAILED
-                job.error = f"authorization policy {policy_id} not found"
-                job.finished_at = time.time()
-                return
-            valid, why = policy.is_valid()
-            if not valid:
-                job.state = JobState.FAILED
-                job.error = redact(why)
-                job.finished_at = time.time()
-                return
-            # Check version matches (policy was updated after job was prepared)
-            job_version = job.policy.get("policy_version")
-            if job_version is not None and policy.version != job_version:
+        # Pin the destination to prevent DNS rebinding between gate check
+        # and adapter connect. The first successful resolution is authoritative.
+        _, _, pinned = scope_destination(job.target)
+        token = set_pinned_destination(pinned) if pinned is not None else None
+
+        def _reset_pin():
+            nonlocal token
+            if token is not None:
+                reset_pinned_destination(token)
+                token = None
+
+        try:
+            # Check if the bound policy has been revoked or expired
+            policy_id = job.policy.get("policy_id")
+            if policy_id:
+                from strix.core import policies as policies_module
+
+                policy = policies_module.registry.get(policy_id)
+                if policy is None:
+                    job.state = JobState.FAILED
+                    job.error = f"authorization policy {policy_id} not found"
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+                valid, why = policy.is_valid()
+                if not valid:
+                    job.state = JobState.FAILED
+                    job.error = redact(why)
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+                # Check version matches (policy was updated after job was prepared)
+                job_version = job.policy.get("policy_version")
+                if job_version is not None and policy.version != job_version:
+                    job.state = JobState.FAILED
+                    job.error = (
+                        f"authorization policy {policy_id} changed after this job was "
+                        f"queued (job bound to v{job_version}, current v{policy.version})"
+                    )
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+
+            # Check actor matches the bound scope's tenant (prevents impersonation)
+            if (
+                job.actor
+                and job.scope_snapshot.tenant_id
+                and job.actor != job.scope_snapshot.tenant_id
+            ):
                 job.state = JobState.FAILED
                 job.error = (
-                    f"authorization policy {policy_id} changed after this job was "
-                    f"queued (job bound to v{job_version}, current v{policy.version})"
+                    f"actor {job.actor!r} does not belong to this authorization "
+                    f"(bound to {job.scope_snapshot.tenant_id!r})"
                 )
                 job.finished_at = time.time()
+                _reset_pin()
                 return
 
-        # Check actor matches the bound scope's tenant (prevents impersonation)
-        if job.actor and job.scope_snapshot.tenant_id \
-                and job.actor != job.scope_snapshot.tenant_id:
-            job.state = JobState.FAILED
-            job.error = (
-                f"actor {job.actor!r} does not belong to this authorization "
-                f"(bound to {job.scope_snapshot.tenant_id!r})"
-            )
-            job.finished_at = time.time()
-            return
-
-        adapters = adapter_module.select(job.profile)
-        if not adapters:
-            job.state = JobState.FAILED
-            job.error = f"no adapters for profile {job.profile!r}"
-            job.finished_at = time.time()
-            return
-
-        all_findings: list[Finding] = []
-        partial = False
-        any_adapter_ran = False
-
-        for adapter in adapters:
-            if job.cancelled:
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.CANCELLED,
-                    detail="cancelled before execution",
-                ))
-                job.state = JobState.CANCELLED
+            adapters = adapter_module.select(job.profile)
+            if not adapters:
+                job.state = JobState.FAILED
+                job.error = f"no adapters for profile {job.profile!r}"
                 job.finished_at = time.time()
+                _reset_pin()
                 return
 
-            ok, detail = adapter.available()
-            if not ok:
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.UNAVAILABLE,
-                    detail=detail,
-                ))
-                continue
+            all_findings: list[Finding] = []
+            partial = False
+            any_adapter_ran = False
 
-            any_adapter_ran = True
-            start = time.monotonic()
-            try:
-                result = adapter.assess(job.target, timeout=job.policy.get("timeout", 300.0),
-                                        cancel=job._cancel, context={})
-            except AdapterCancelled:
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.CANCELLED,
-                    detail="cancelled",
-                    elapsed_ms=(time.monotonic() - start) * 1000,
-                ))
-                job.state = JobState.CANCELLED
-                job.finished_at = time.time()
-                return
-            except AdapterTimeout:
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.TIMEOUT,
-                    detail="adapter timed out",
-                    elapsed_ms=(time.monotonic() - start) * 1000,
-                ))
-                partial = True
-                continue
-            except AdapterNotApplicable as exc:
+            for adapter in adapters:
+                if job.cancelled:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.CANCELLED,
+                            detail="cancelled before execution",
+                        )
+                    )
+                    job.state = JobState.CANCELLED
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+
+                ok, detail = adapter.available()
+                if not ok:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.UNAVAILABLE,
+                            detail=detail,
+                        )
+                    )
+                    continue
+
                 any_adapter_ran = True
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.REJECTED,
-                    detail=str(exc),
-                    elapsed_ms=(time.monotonic() - start) * 1000,
-                ))
-                partial = True
-                continue
-            except AdapterError as exc:
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.FAILED,
-                    detail=str(exc),
-                    elapsed_ms=(time.monotonic() - start) * 1000,
-                ))
-                partial = True
-                continue
-            except Exception as exc:
-                log.exception("adapter %s crashed", adapter.id)
-                job.runs.append(AdapterRun(
-                    adapter=adapter.id,
-                    state=RunState.FAILED,
-                    detail=f"{type(exc).__name__}: {exc}",
-                    elapsed_ms=(time.monotonic() - start) * 1000,
-                ))
-                job.state = JobState.FAILED
-                job.finished_at = time.time()
-                return
-
-            elapsed = (time.monotonic() - start) * 1000
-            run_state = RunState.PARTIAL if result.partial else RunState.OK
-            if result.partial:
-                partial = True
-            job.runs.append(AdapterRun(
-                adapter=adapter.id,
-                state=run_state,
-                detail="; ".join(result.notes) if result.notes else "",
-                findings=len(result.findings),
-                elapsed_ms=elapsed,
-            ))
-            all_findings.extend(result.findings)
-
-        job.findings = dedupe(all_findings)
-        job.finished_at = time.time()
-        if job.state is JobState.RUNNING:
-            if not any_adapter_ran:
-                job.state = JobState.FAILED
-                job.error = "no adapter was able to run"
-            else:
-                # Check if all adapters that ran were REJECTED or UNAVAILABLE
-                # (no usable coverage)
-                ran_states = {run.state for run in job.runs
-                              if run.state not in (RunState.UNAVAILABLE, RunState.REJECTED)}
-                if not ran_states:
+                start = time.monotonic()
+                try:
+                    result = adapter.assess(
+                        job.target,
+                        timeout=job.policy.get("timeout", 300.0),
+                        cancel=job._cancel,
+                        context={},
+                    )
+                except AdapterCancelled:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.CANCELLED,
+                            detail="cancelled",
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
+                    job.state = JobState.CANCELLED
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+                except AdapterTimeout:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.TIMEOUT,
+                            detail="adapter timed out",
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
+                    partial = True
+                    continue
+                except AdapterNotApplicable as exc:
+                    any_adapter_ran = True
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.REJECTED,
+                            detail=str(exc),
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
+                    partial = True
+                    continue
+                except AdapterError as exc:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.FAILED,
+                            detail=str(exc),
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
+                    partial = True
+                    continue
+                except Exception as exc:
+                    log.exception("adapter %s crashed", adapter.id)
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.FAILED,
+                            detail=f"{type(exc).__name__}: {exc}",
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
                     job.state = JobState.FAILED
-                    # Use REJECTED adapter details for error if available
-                    rejected_details = [run.detail for run in job.runs
-                                        if run.state is RunState.REJECTED]
-                    if rejected_details:
-                        job.error = redact("; ".join(rejected_details))
-                    else:
-                        job.error = "no usable coverage"
-                elif all(state in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)
-                         for state in ran_states):
-                    # All adapters that ran failed/timed out/cancelled - job failed
+                    job.finished_at = time.time()
+                    _reset_pin()
+                    return
+
+                elapsed = (time.monotonic() - start) * 1000
+                run_state = RunState.PARTIAL if result.partial else RunState.OK
+                if result.partial:
+                    partial = True
+                job.runs.append(
+                    AdapterRun(
+                        adapter=adapter.id,
+                        state=run_state,
+                        detail="; ".join(result.notes) if result.notes else "",
+                        findings=len(result.findings),
+                        elapsed_ms=elapsed,
+                    )
+                )
+                all_findings.extend(result.findings)
+
+            job.findings = dedupe(all_findings)
+            job.finished_at = time.time()
+            if job.state is JobState.RUNNING:
+                if not any_adapter_ran:
                     job.state = JobState.FAILED
-                    failed_details = [run.detail for run in job.runs
-                                      if run.state in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)]
-                    if failed_details:
-                        job.error = redact("; ".join(failed_details))
-                    else:
-                        job.error = "all adapters failed"
-                elif partial:
-                    job.state = JobState.PARTIAL
+                    job.error = "no adapter was able to run"
                 else:
-                    job.state = JobState.COMPLETED
+                    # Check if all adapters that ran were REJECTED or UNAVAILABLE
+                    # (no usable coverage)
+                    ran_states = {
+                        run.state
+                        for run in job.runs
+                        if run.state not in (RunState.UNAVAILABLE, RunState.REJECTED)
+                    }
+                    if not ran_states:
+                        job.state = JobState.FAILED
+                        # Use REJECTED adapter details for error if available
+                        rejected_details = [
+                            run.detail
+                            for run in job.runs
+                            if run.state is RunState.REJECTED
+                        ]
+                        if rejected_details:
+                            job.error = redact("; ".join(rejected_details))
+                        else:
+                            job.error = "no usable coverage"
+                    elif all(
+                        state in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)
+                        for state in ran_states
+                    ):
+                        # All adapters that ran failed/timed out/cancelled - job failed
+                        job.state = JobState.FAILED
+                        failed_details = [
+                            run.detail
+                            for run in job.runs
+                            if run.state
+                            in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)
+                        ]
+                        if failed_details:
+                            job.error = redact("; ".join(failed_details))
+                        else:
+                            job.error = "all adapters failed"
+                    elif partial:
+                        job.state = JobState.PARTIAL
+                    else:
+                        job.state = JobState.COMPLETED
+        finally:
+            _reset_pin()
 
 
 def run_assessment(
@@ -416,8 +492,15 @@ def run_assessment(
 
     If ``wait`` is False, returns the prepared job without executing it.
     """
-    job = prepare(target, profile=profile, actor=actor, policy=policy, timeout=timeout,
-                  idempotency_key=idempotency_key, scope_snapshot=scope_snapshot)
+    job = prepare(
+        target,
+        profile=profile,
+        actor=actor,
+        policy=policy,
+        timeout=timeout,
+        idempotency_key=idempotency_key,
+        scope_snapshot=scope_snapshot,
+    )
     if cancel is not None:
         # Use the caller's cancel event
         job._cancel = cancel

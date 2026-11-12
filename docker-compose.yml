@@ -1,0 +1,113 @@
+# Production stack: SQLite + Redis + Strix + nginx.
+#
+#   cp .env.production.example .env.production     # edit every value
+#   cp config/scope.example.json config/scope.json # edit to the signed scope
+#   docker compose --env-file .env.production up -d --build
+#
+# Exactly one Strix process may run per database: the worker takes an exclusive
+# lease, so a second replica exits instead of double-running jobs. Scale this
+# host vertically; see DEPLOYMENT.md §8. PostgreSQL is not a supported backend
+# for the threaded worker yet (asyncpg pools are bound to one event loop).
+name: strix
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks: [strix_net]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  strix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.production
+    environment:
+      STRIX_DB: /var/lib/strix/strix.db
+      STRIX_REDIS_URL: redis://redis:6379/0
+      STRIX_REDIS_REQUIRED: "1"
+      STRIX_WORKERS: "1"
+      STRIX_SCOPE_FILE: /etc/strix/scope.json
+      # Only nginx's compose subnet may supply X-Forwarded-For.
+      STRIX_TRUSTED_PROXIES: 172.28.0.0/24
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - strix_data:/var/lib/strix
+      # A directory mount, not ./scope.json: a missing bind-mount source is
+      # silently created as a directory by Docker, which then fails at startup.
+      - ./config:/etc/strix:ro
+    # Loopback-only for bootstrap/admin (nginx serves the public port).
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Healthy only when the DB/audit chain answer AND an authorization record
+      # is loaded: a scanner with no scope is running but cannot assess anything.
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json,urllib.request as u;
+          d=json.load(u.urlopen('http://127.0.0.1:8000/api/ready', timeout=3));
+          assert d['ready'] and d['scope_configured'], d
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+    networks: [strix_net]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+    ports:
+      - "80:80"
+    depends_on:
+      # Not service_healthy: managed-mode deployments need the loopback API to
+      # create their first policy before scope_configured becomes true.
+      strix:
+        condition: service_started
+    restart: unless-stopped
+    networks: [strix_net]
+
+volumes:
+  redis_data:
+  strix_data:
+
+networks:
+  strix_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

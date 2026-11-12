@@ -727,6 +727,24 @@ body.strix-theme::before {
   font-size: 12px;
 }
 
+.finding-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.finding-status-select {
+  background: rgba(148, 163, 184, 0.08);
+  color: inherit;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
 .finding-meta-row {
   display: flex;
   gap: var(--space-md);

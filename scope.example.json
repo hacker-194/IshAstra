@@ -1,0 +1,22 @@
+{
+  "program": "NRB Compliance Assessment - Sample Bank",
+  "authorized_by": "Chief Information Security Officer",
+  "authorization_ref": "NRB-DIR-SEC-2024-001",
+  "include": [
+    "*.examplebank.com",
+    "api.examplebank.com",
+    "mobile.examplebank.com",
+    "ibank.examplebank.com"
+  ],
+  "exclude": [
+    "test.examplebank.com",
+    "dev.examplebank.com",
+    "staging.examplebank.com"
+  ],
+  "authorized_networks": [
+    "10.0.0.0/8",
+    "172.16.0.0/12"
+  ],
+  "allowed_ports": [80, 443, 8443, 9443],
+  "allow_broad_networks": false
+}

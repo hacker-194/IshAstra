@@ -9,6 +9,7 @@ invented. It never prints the matched value, only a masked preview.
 Usage: python scripts/check_secrets.py [ROOT]
 Exit: 0 clean, 1 findings, 2 unusable invocation.
 """
+
 from __future__ import annotations
 
 import re
@@ -16,20 +17,63 @@ import sys
 from pathlib import Path
 
 # Directory names that never contain committed source.
-SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "build", "dist", "node_modules",
-             ".mypy_cache", ".ruff_cache", ".pytest_cache"}
-SKIP_SUFFIXES = {".pyc", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".sqlite",
-                 ".db", ".whl", ".gz", ".woff", ".woff2", ".ico"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    "graphify-out",
+    "target",  # Rust build output (src/hunt)
+}
+SKIP_SUFFIXES = {
+    ".pyc",
+    ".zip",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".pdf",
+    ".sqlite",
+    ".db",
+    ".whl",
+    ".gz",
+    ".woff",
+    ".woff2",
+    ".ico",
+}
 MAX_BYTES = 2 * 1024 * 1024
 
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("strix api key", re.compile(r"strix_[A-Za-z0-9_-]{20,}")),
-    ("private key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----")),
+    # Keys are `strix_` + `secrets.token_urlsafe(32)` (43 url-safe base64 chars).
+    # Require that length and at least one upper-case letter or digit so metric
+    # and counter names (`strix_http_request_duration_seconds`) are not reported
+    # as credentials — they are all lower-case words joined by underscores.
+    (
+        "strix api key",
+        re.compile(
+            r"\bstrix_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"
+        ),
+    ),
+    (
+        "private key",
+        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----"),
+    ),
     ("aws access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("github token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b")),
     ("github fine-grained token", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b")),
     ("slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")),
+    (
+        "jwt",
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
+        ),
+    ),
     ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
 )
 

@@ -5,6 +5,7 @@ scope mode, placeholder bootstrap key, unparsable trusted proxy, unknown log
 format) raises at startup instead of being coerced into something plausible.
 A bad integer falls back to its documented default -- it cannot widen access.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -16,7 +17,8 @@ from dataclasses import dataclass
 # keeps one of these is protected by a published secret, so it must not start.
 _PLACEHOLDER = re.compile(
     r"change[-_ ]?me|replace[-_ ]?me|your[-_ ]?(api[-_ ]?key|secret|token)|"
-    r"placeholder|example|dummy|^secret$|^test$")
+    r"placeholder|example|dummy|^secret$|^test$"
+)
 
 MIN_SECRET_LENGTH = 16
 _LOG_FORMATS = frozenset({"text", "json"})
@@ -31,7 +33,9 @@ def _int(name: str, default: int, *, minimum: int = 1) -> int:
 
 
 def _csv(name: str) -> tuple[str, ...]:
-    return tuple(item.strip() for item in os.environ.get(name, "").split(",") if item.strip())
+    return tuple(
+        item.strip() for item in os.environ.get(name, "").split(",") if item.strip()
+    )
 
 
 def _secret(name: str, value: str) -> str:
@@ -43,7 +47,8 @@ def _secret(name: str, value: str) -> str:
     if _PLACEHOLDER.search(value.strip().lower()):
         raise ValueError(
             f"{name} still contains an example/placeholder value; generate a "
-            "random secret (e.g. `openssl rand -base64 32`)")
+            "random secret (e.g. `openssl rand -base64 32`)"
+        )
     return value
 
 
@@ -54,24 +59,35 @@ def _choice(name: str, value: str, allowed: frozenset[str], *, lower: bool) -> s
     return normalized
 
 
-def _proxies(name: str, entries: tuple[str, ...]) -> frozenset[str]:
-    """Trusted proxy addresses. A CIDR would never match a peer string, so it is
-    refused rather than silently trusting nothing (or everything)."""
+def _proxies(
+    name: str, entries: tuple[str, ...]
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    """Trusted proxy addresses, as literal IPs or CIDR networks.
+
+    Kept as networks: membership testing is the stdlib's job, so a /8 stays one
+    object instead of being expanded into 16 million strings.
+    """
+    networks = []
     for entry in entries:
         try:
-            ipaddress.ip_address(entry)
+            networks.append(ipaddress.ip_network(entry.strip(), strict=False))
         except ValueError:
             raise ValueError(
-                f"{name} entries must be literal IP addresses (got {entry!r}); "
-                "list each proxy address explicitly") from None
-    return frozenset(entries)
+                f"{name} entries must be IP addresses or CIDR networks "
+                f"(got {entry!r})"
+            ) from None
+    return tuple(networks)
 
 
 @dataclass(frozen=True)
 class Settings:
     scope_file: str = "scope.json"
+    # SQLite file path, or the PostgreSQL DSN when STRIX_DATABASE_URL is set.
+    # Callers pass this straight to store.configure().
     db_path: str = "strix.db"
-    api_key: str = ""                       # bootstrap admin key
+    # The PostgreSQL DSN as supplied (empty when SQLite is used).
+    database_url: str = ""
+    api_key: str = ""  # bootstrap admin key
     # Authorization operating mode: "global" (single organization, scope file),
     # "managed" (per-tenant engagement policies), or "auto" (managed as soon as
     # a policy exists in the database, global before that).
@@ -79,50 +95,80 @@ class Settings:
     workers: int = 1
     queue_max: int = 32
     cors_origins: tuple[str, ...] = ()
-    trusted_proxies: frozenset[str] = frozenset()
+    trusted_proxies: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = ()
     rate_limit_disabled: bool = False
     redis_required: bool = False
+    debug: bool = False
     audit_max_entries: int = 10_000
     audit_hmac_key: str = ""
-    webhook_secret: str = ""               # HMAC key for alert webhook signatures
+    webhook_secret: str = ""  # HMAC key for alert webhook signatures
+    # Encryption key for webhook secrets at rest (AES-GCM, 32 bytes base64).
+    # If not set, webhook URLs are stored in plaintext (not recommended for production).
+    encryption_key: str = ""
     # 0 disables retention: evidence is never deleted silently on upgrade. A
     # positive value prunes finished jobs/findings and plain audit entries that
     # old; the sealed audit chain is always kept in full.
     retention_days: int = 0
     max_body_bytes: int = 1_048_576
+    max_nesting_depth: int = 10
     log_format: str = "text"
     log_level: str = "INFO"
     redis_url: str = "redis://localhost:6379/0"
+    # Worker memory limit in MB (0 = disabled)
+    worker_memory_mb: int = 1024
 
     @classmethod
     def from_env(cls) -> Settings:
         scope_mode = os.environ.get("STRIX_SCOPE_MODE", "auto").strip().lower()
         if scope_mode not in {"auto", "global", "managed"}:
             raise ValueError("STRIX_SCOPE_MODE must be one of: auto, global, managed")
+        database_url = os.environ.get("STRIX_DATABASE_URL", "").strip()
         return cls(
             scope_file=os.environ.get("STRIX_SCOPE_FILE", "scope.json"),
-            db_path=os.environ.get("STRIX_DB", "strix.db"),
-            api_key=_secret("STRIX_API_KEY", os.environ.get("STRIX_API_KEY", "").strip()),
+            # PostgreSQL wins when configured; otherwise the SQLite file path.
+            db_path=database_url or os.environ.get("STRIX_DB", "strix.db"),
+            api_key=_secret(
+                "STRIX_API_KEY", os.environ.get("STRIX_API_KEY", "").strip()
+            ),
             scope_mode=scope_mode,
             workers=_int("STRIX_WORKERS", 1),
             queue_max=_int("STRIX_QUEUE_MAX", 32),
             cors_origins=_csv("STRIX_CORS_ORIGINS"),
-            trusted_proxies=_proxies("STRIX_TRUSTED_PROXIES",
-                                     _csv("STRIX_TRUSTED_PROXIES")),
+            trusted_proxies=_proxies(
+                "STRIX_TRUSTED_PROXIES", _csv("STRIX_TRUSTED_PROXIES")
+            ),
             rate_limit_disabled=os.environ.get("STRIX_RATE_LIMIT_DISABLED") == "1",
             redis_required=os.environ.get("STRIX_REDIS_REQUIRED") == "1",
+            debug=os.environ.get("STRIX_DEBUG", "").strip().lower() == "1",
             audit_max_entries=_int("STRIX_AUDIT_MAX_ENTRIES", 10_000),
-            audit_hmac_key=_secret("STRIX_AUDIT_HMAC_KEY",
-                                   os.environ.get("STRIX_AUDIT_HMAC_KEY", "").strip()),
-            webhook_secret=_secret("STRIX_WEBHOOK_SECRET",
-                                   os.environ.get("STRIX_WEBHOOK_SECRET", "").strip()),
+            max_nesting_depth=_int("STRIX_MAX_NESTING_DEPTH", 10),
+            audit_hmac_key=_secret(
+                "STRIX_AUDIT_HMAC_KEY",
+                os.environ.get("STRIX_AUDIT_HMAC_KEY", "").strip(),
+            ),
+            webhook_secret=_secret(
+                "STRIX_WEBHOOK_SECRET",
+                os.environ.get("STRIX_WEBHOOK_SECRET", "").strip(),
+            ),
             retention_days=_int("STRIX_RETENTION_DAYS", 0, minimum=0),
             max_body_bytes=_int("STRIX_MAX_BODY_BYTES", 1_048_576),
-            log_format=_choice("STRIX_LOG_FORMAT",
-                               os.environ.get("STRIX_LOG_FORMAT", "text"),
-                               _LOG_FORMATS, lower=True),
-            log_level=_choice("STRIX_LOG_LEVEL",
-                              os.environ.get("STRIX_LOG_LEVEL", "INFO"),
-                              _LOG_LEVELS, lower=False),
+            log_format=_choice(
+                "STRIX_LOG_FORMAT",
+                os.environ.get("STRIX_LOG_FORMAT", "text"),
+                _LOG_FORMATS,
+                lower=True,
+            ),
+            log_level=_choice(
+                "STRIX_LOG_LEVEL",
+                os.environ.get("STRIX_LOG_LEVEL", "INFO"),
+                _LOG_LEVELS,
+                lower=False,
+            ),
             redis_url=os.environ.get("STRIX_REDIS_URL", "redis://localhost:6379/0"),
+            worker_memory_mb=_int("STRIX_WORKER_MEMORY_MB", 1024, minimum=0),
+            database_url=database_url,
+            encryption_key=_secret(
+                "STRIX_ENCRYPTION_KEY",
+                os.environ.get("STRIX_ENCRYPTION_KEY", "").strip(),
+            ),
         )

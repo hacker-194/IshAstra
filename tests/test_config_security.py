@@ -23,12 +23,14 @@ def test_scope_mode_normalizes_case_and_whitespace(monkeypatch):
 def test_managed_mode_fails_closed_for_invalid_runtime_value(monkeypatch):
     from strix.api import deps
 
-    monkeypatch.setattr(deps, "settings", replace(deps.settings, scope_mode="unexpected"))
+    monkeypatch.setattr(
+        deps, "settings", replace(deps.settings, scope_mode="unexpected")
+    )
     assert deps.managed_mode() is True
 
 
 def test_monitor_rejects_sensitive_query_params_without_mutating_targets():
-    monitor = Monitor(audit_chain=AuditChain())
+    monitor = Monitor(audit_chain=AuditChain(), webhook_secret="test-secret")
     monitor.targets = ["https://safe.example/path"]
     with pytest.raises(ValueError, match="credential-bearing"):
         monitor.add_target("https://example.com/?access_token=secret")
@@ -48,8 +50,10 @@ def test_duplicate_webhook_sink_fails_without_replacing_existing_sink(monkeypatc
     from strix.monitor import WebhookAlertSink
 
     saved = []
-    monkeypatch.setattr(store, "save_webhook_sink", lambda name, url: saved.append((name, url)))
-    monitor = Monitor(audit_chain=AuditChain())
+    monkeypatch.setattr(
+        store, "save_webhook_sink", lambda name, url: saved.append((name, url))
+    )
+    monitor = Monitor(audit_chain=AuditChain(), webhook_secret="test-secret")
     existing = WebhookAlertSink("alerts", "https://hooks.example.com/first")
     monitor.alert_sinks.append(existing)
     with pytest.raises(ValueError, match="already exists"):
@@ -58,27 +62,37 @@ def test_duplicate_webhook_sink_fails_without_replacing_existing_sink(monkeypatc
     assert saved == []
 
 
-@pytest.mark.parametrize("name,value", [
-    ("STRIX_API_KEY", "change-me-to-a-long-random-string"),
-    ("STRIX_API_KEY", "short"),
-    ("STRIX_AUDIT_HMAC_KEY", "change-me-too"),
-])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("STRIX_API_KEY", "change-me-to-a-long-random-string"),
+        ("STRIX_API_KEY", "short"),
+        ("STRIX_AUDIT_HMAC_KEY", "change-me-too"),
+    ],
+)
 def test_settings_reject_example_or_weak_bootstrap_secrets(monkeypatch, name, value):
     monkeypatch.delenv("STRIX_API_KEY", raising=False)
     monkeypatch.delenv("STRIX_AUDIT_HMAC_KEY", raising=False)
     monkeypatch.setenv(name, value)
-    with pytest.raises(ValueError, match="STRIX_API_KEY|STRIX_AUDIT_HMAC_KEY|placeholder"):
+    with pytest.raises(
+        ValueError, match="STRIX_API_KEY|STRIX_AUDIT_HMAC_KEY|placeholder"
+    ):
         Settings.from_env()
 
 
-def test_invalid_bootstrap_key_aborts_startup_instead_of_using_persisted_key(monkeypatch):
+def test_invalid_bootstrap_key_aborts_startup_instead_of_using_persisted_key(
+    monkeypatch,
+):
     import asyncio
 
     from strix.api import app as app_module
     from strix.api import deps
 
     monkeypatch.setattr(deps, "settings", replace(deps.settings, api_key="too-short"))
-    monkeypatch.setattr(app_module.api_keys, "adopt",
-                        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("too short")))
+    monkeypatch.setattr(
+        app_module.api_keys,
+        "adopt",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("too short")),
+    )
     with pytest.raises(RuntimeError, match="refusing to start"):
         asyncio.run(app_module._bootstrap_admin_key_async())

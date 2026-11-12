@@ -1,0 +1,50 @@
+# Optional observability overlay. Start it with the production stack:
+#
+#   mkdir -p secrets
+#   printf '%s' "$STRIX_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
+#   docker compose --env-file .env.production \
+#     -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# /api/metrics requires the admin key, so Prometheus reads the same key from the
+# mounted token file. Both UIs bind to loopback only; reach them over an SSH
+# tunnel or put them behind your own authenticated proxy.
+name: strix
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./secrets/strix_api_key:/etc/prometheus/token:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      strix:
+        condition: service_started
+    restart: unless-stopped
+    networks: [strix_net]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    volumes:
+      - ./deploy/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env.production}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks: [strix_net]
+
+volumes:
+  prometheus_data:
+  grafana_data:

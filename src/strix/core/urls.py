@@ -5,6 +5,7 @@
 ``.port`` is read. Every parse of caller-supplied text goes through here so a
 hostile URL is a refusal, never an unhandled exception.
 """
+
 from __future__ import annotations
 
 from urllib.parse import ParseResult, urlparse

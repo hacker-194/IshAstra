@@ -1,11 +1,18 @@
+
+certs
+config/scope.json
+*.db*
+.env
+.env.production
 .git
-.venv
-tests
+.github
+.mypy_cache
 **/__pycache__
 .pytest_cache
 .ruff_cache
-.mypy_cache
-.github
-*.db*
+# Rust scaffold: not imported by the Python package, only adds build context
 scope.json
-.env
+secrets
+src/hunt
+tests
+.venv

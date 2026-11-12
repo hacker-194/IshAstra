@@ -1,18 +1,31 @@
-.venv/
-__pycache__/
+
+build/
+certs/
+.claude/
+.claude-flow/
+config/scope.json
+dist/
+*.egg-info/
+.env
+.freebuff/
+# Generated artifacts (`python -m strix.lab` and its documented variants)
+# Generated knowledge graph and local agent state
+graphify-out/
+lab*.json
+# Local runtime state and secrets
+.coverage
+.mypy_cache/
+*.worker-lock
+*_test.db
+nft-was-invoked.json
 *.pyc
+__pycache__/
 .pytest_cache/
 .ruff_cache/
-.mypy_cache/
-*.egg-info/
-build/
-dist/
-
-# Local runtime state and secrets
-.env
-strix.db*
+# Rust build output for the src/hunt scaffold (hundreds of MB, never source)
 scope.json
+secrets/
+src/hunt/target/
+strix.db*
 tools/
-
-# Generated artifacts (`python -m strix.lab` and its documented variants)
-lab*.json
+.venv/

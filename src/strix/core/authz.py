@@ -10,6 +10,7 @@ supports one: anonymous and authenticated callers get the same answer
 data (a BOLA/IDOR indicator, labelled inferred). A 200/403 difference means the
 endpoint does enforce authorization and is recorded as a note, not a finding.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -21,18 +22,28 @@ from urllib.parse import parse_qsl, urlencode
 from strix.core.urls import parse_url
 
 _PRINCIPAL_ID = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+# Object-reference query parameters: id, order_id, user-id, orderId.
+_ID_PARAM = re.compile(r"(?:[A-Za-z][A-Za-z0-9_]*[_-]?)?id", re.IGNORECASE)
 _COOKIE_NAME = re.compile(r"[A-Za-z0-9_.!#$%&'*+\-^`|~]{1,128}")
 _HEADER_NAME = re.compile(r"[A-Za-z0-9-]{1,128}")
 _MAX_VALUE_LEN = 4096
 _MAX_ENDPOINTS = 8
-# An object identifier: a numeric path segment or an id-like query parameter.
-_ID_SEGMENT = re.compile(r"^/?\d{1,12}(?=/|$)")
-_ID_PARAM = re.compile(r"^(?:id|user_?id|order_?id|account_?id|item_?id|uid|pid)$",
-                       re.IGNORECASE)
 # Query parameters whose variation is part of the endpoint's function, not an
 # object reference (pagination, formatting, filters).
-_NON_OBJECT_PARAMS = frozenset({"page", "per_page", "limit", "offset", "sort",
-                                "order", "format", "q", "search", "filter"})
+_NON_OBJECT_PARAMS = frozenset(
+    {
+        "page",
+        "per_page",
+        "limit",
+        "offset",
+        "sort",
+        "order",
+        "format",
+        "q",
+        "search",
+        "filter",
+    }
+)
 
 
 def _clean_header_value(value: str) -> str:
@@ -54,7 +65,9 @@ class Principal:
 
     def __post_init__(self) -> None:
         if not _PRINCIPAL_ID.fullmatch(self.id):
-            raise ValueError(f"principal id {self.id!r} must match {_PRINCIPAL_ID.pattern}")
+            raise ValueError(
+                f"principal id {self.id!r} must match {_PRINCIPAL_ID.pattern}"
+            )
         for name, value in self.cookies:
             if not _COOKIE_NAME.fullmatch(name):
                 raise ValueError(f"cookie name {name!r} is not a valid cookie name")
@@ -85,13 +98,18 @@ class Principal:
                     raise ValueError(f"cookie entry {raw!r} must be name=value")
                 cookies.append((name, value))
         headers = [(str(k), str(v)) for k, v in (data.get("headers", {}) or {}).items()]
-        return cls(id=data["id"], cookies=tuple(cookies), headers=tuple(headers),
-                   bearer=str(data.get("bearer", "")))
+        return cls(
+            id=data["id"],
+            cookies=tuple(cookies),
+            headers=tuple(headers),
+            bearer=str(data.get("bearer", "")),
+        )
 
 
 @dataclass(frozen=True)
 class AuthConfig:
     """The engagement's test principals (in-memory only)."""
+
     users: tuple[Principal, ...] = ()
 
     def __post_init__(self) -> None:
@@ -115,8 +133,9 @@ class AuthConfig:
         return tuple(user.id for user in self.users)
 
 
-def candidate_endpoints(urls: list[str], *, max_endpoints: int = _MAX_ENDPOINTS
-                        ) -> list[str]:
+def candidate_endpoints(
+    urls: list[str], *, max_endpoints: int = _MAX_ENDPOINTS
+) -> list[str]:
     """URLs that look like object references worth testing for authorization.
 
     A candidate has a numeric path segment (``/api/orders/1001``) or an
@@ -135,8 +154,11 @@ def candidate_endpoints(urls: list[str], *, max_endpoints: int = _MAX_ENDPOINTS
                 break
         if not is_candidate and parsed.query:
             for name, value in parse_qsl(parsed.query, keep_blank_values=True):
-                if (_ID_PARAM.fullmatch(name) and value.isdigit()
-                        and name.lower() not in _NON_OBJECT_PARAMS):
+                if (
+                    _ID_PARAM.fullmatch(name)
+                    and value.isdigit()
+                    and name.lower() not in _NON_OBJECT_PARAMS
+                ):
                     is_candidate = True
                     break
         if is_candidate:
@@ -189,8 +211,10 @@ class DifferentialResult:
     principals_identical: bool = False
 
     def evidence_line(self) -> str:
-        parts = [f"{pid}: HTTP {status} body={digest}"
-                 for pid, status, digest in self.responses]
+        parts = [
+            f"{pid}: HTTP {status} body={digest}"
+            for pid, status, digest in self.responses
+        ]
         return "; ".join(parts)
 
 

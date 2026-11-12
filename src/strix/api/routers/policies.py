@@ -4,6 +4,7 @@ A customer must never authorize its own targets: policies are created, updated
 and revoked by administrators here, and every mutation is audited and sealed in
 the tamper-evident chain. Tenants read their own policy through ``/api/scope``.
 """
+
 from __future__ import annotations
 
 import time
@@ -24,45 +25,68 @@ router = APIRouter(prefix="/api")
 @router.get("/policies")
 async def list_policies(tenant: Tenant = Depends(require_admin)) -> dict[str, Any]:
     """Every engagement policy (administrators only)."""
-    items = [policy.to_dict(include_hosts=True) for policy in await policies.registry.list_async()]
-    return {"count": len(items), "mode": "managed" if await deps.managed_mode_async() else "global",
-            "policies": items}
+    items = [
+        policy.to_dict(include_hosts=True)
+        for policy in await policies.registry.list_async()
+    ]
+    return {
+        "count": len(items),
+        "mode": "managed" if await deps.managed_mode_async() else "global",
+        "policies": items,
+    }
 
 
 @router.post("/policies")
-async def create_policy(req: PolicyCreateRequest,
-                  tenant: Tenant = Depends(require_admin)) -> dict[str, Any]:
+async def create_policy(
+    req: PolicyCreateRequest, tenant: Tenant = Depends(require_admin)
+) -> dict[str, Any]:
     """Authorize one engagement for one tenant. A normal customer cannot do this."""
     now = time.time()
     effective_at = now + req.effective_in_seconds if req.effective_in_seconds else None
     expires_at = now + req.ttl_seconds if req.ttl_seconds else None
     try:
         policy = await policies.registry.create_async(
-            tenant_id=req.tenant, program=req.program, authorized_by=req.authorized_by,
-            authorization_ref=req.authorization_ref, include=req.include,
-            exclude=req.exclude, authorized_networks=req.authorized_networks,
+            tenant_id=req.tenant,
+            program=req.program,
+            authorized_by=req.authorized_by,
+            authorization_ref=req.authorization_ref,
+            include=req.include,
+            exclude=req.exclude,
+            authorized_networks=req.authorized_networks,
             allowed_ports=req.allowed_ports,
             allow_broad_networks=req.allow_broad_networks,
-            effective_at=effective_at, expires_at=expires_at,
-            created_by=tenant["tenant_id"])
+            effective_at=effective_at,
+            expires_at=expires_at,
+            created_by=tenant["tenant_id"],
+        )
     except PolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
-    await audit_async(tenant, {"event": "policy_created", "policy_id": policy.policy_id,
-                   "policy_tenant": policy.tenant_id, "version": policy.version,
-                   "program": policy.program,
-                   "authorization_ref": policy.authorization_ref,
-                   "allow_broad_networks": policy.allow_broad_networks,
-                   "expires_at": policy.expires_at})
+    await audit_async(
+        tenant,
+        {
+            "event": "policy_created",
+            "policy_id": policy.policy_id,
+            "policy_tenant": policy.tenant_id,
+            "version": policy.version,
+            "program": policy.program,
+            "authorization_ref": policy.authorization_ref,
+            "allow_broad_networks": policy.allow_broad_networks,
+            "expires_at": policy.expires_at,
+        },
+    )
     return {**policy.to_dict(include_hosts=True), "created_by": tenant["tenant_id"]}
 
 
 @router.patch("/policies/{policy_id}")
-async def update_policy(policy_id: str, req: PolicyUpdateRequest,
-                  tenant: Tenant = Depends(require_admin)) -> dict[str, Any]:
+async def update_policy(
+    policy_id: str, req: PolicyUpdateRequest, tenant: Tenant = Depends(require_admin)
+) -> dict[str, Any]:
     """Change an authorization, increment its version and invalidate queued jobs."""
     fields_set = req.model_fields_set
     if not fields_set:
-        raise HTTPException(status_code=400, detail="At least one policy field must be supplied")
+        raise HTTPException(
+            status_code=400, detail="At least one policy field must be supplied"
+        )
     changes = req.model_dump(exclude_unset=True, exclude_none=True)
     now = time.time()
     if "ttl_seconds" in fields_set:
@@ -73,25 +97,38 @@ async def update_policy(policy_id: str, req: PolicyUpdateRequest,
         effective_in_seconds = req.effective_in_seconds
         changes.pop("effective_in_seconds", None)
         changes["effective_at"] = (
-            now + effective_in_seconds if effective_in_seconds is not None else None)
+            now + effective_in_seconds if effective_in_seconds is not None else None
+        )
     # Explicit null clears only time-window fields. It is not meaningful for
     # required textual scope fields or lists, so leave those unchanged.
     if not changes:
-        raise HTTPException(status_code=400, detail="No usable policy changes were supplied")
+        raise HTTPException(
+            status_code=400, detail="No usable policy changes were supplied"
+        )
     try:
         policy = await policies.registry.update_async(policy_id, **changes)
     except PolicyError as exc:
         status_code = 404 if str(exc).startswith("unknown policy") else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from None
     cancelled = assessment_worker.cancel_for_policy(policy.policy_id)
-    await audit_async(tenant, {"event": "policy_updated", "policy_id": policy.policy_id,
-                   "policy_tenant": policy.tenant_id, "version": policy.version,
-                   "changed_fields": sorted(changes), "cancelled_jobs": cancelled})
+    await audit_async(
+        tenant,
+        {
+            "event": "policy_updated",
+            "policy_id": policy.policy_id,
+            "policy_tenant": policy.tenant_id,
+            "version": policy.version,
+            "changed_fields": sorted(changes),
+            "cancelled_jobs": cancelled,
+        },
+    )
     return {**policy.to_dict(include_hosts=True), "cancelled_jobs": cancelled}
 
 
 @router.post("/policies/{policy_id}/revoke")
-async def revoke_policy(policy_id: str, tenant: Tenant = Depends(require_admin)) -> dict[str, Any]:
+async def revoke_policy(
+    policy_id: str, tenant: Tenant = Depends(require_admin)
+) -> dict[str, Any]:
     """Withdraw an authorization: submissions are refused, and queued or running
     assessments bound to this policy are cancelled at the next adapter boundary."""
     try:
@@ -99,15 +136,28 @@ async def revoke_policy(policy_id: str, tenant: Tenant = Depends(require_admin))
     except PolicyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from None
     cancelled = assessment_worker.cancel_for_policy(policy.policy_id)
-    await audit_async(tenant, {"event": "policy_revoked", "policy_id": policy.policy_id,
-                   "policy_tenant": policy.tenant_id, "version": policy.version,
-                   "cancelled_jobs": cancelled})
-    return {"policy_id": policy.policy_id, "status": policy.status,
-            "version": policy.version, "cancelled_jobs": cancelled}
+    await audit_async(
+        tenant,
+        {
+            "event": "policy_revoked",
+            "policy_id": policy.policy_id,
+            "policy_tenant": policy.tenant_id,
+            "version": policy.version,
+            "cancelled_jobs": cancelled,
+        },
+    )
+    return {
+        "policy_id": policy.policy_id,
+        "status": policy.status,
+        "version": policy.version,
+        "cancelled_jobs": cancelled,
+    }
 
 
 @router.get("/policies/{policy_id}")
-async def get_policy(policy_id: str, tenant: Tenant = Depends(require_admin)) -> dict[str, Any]:
+async def get_policy(
+    policy_id: str, tenant: Tenant = Depends(require_admin)
+) -> dict[str, Any]:
     policy = await policies.registry.get_async(policy_id)
     if policy is None:
         raise HTTPException(status_code=404, detail="Unknown policy")

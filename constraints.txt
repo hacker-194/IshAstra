@@ -14,15 +14,24 @@
 #
 # `pip-audit` runs against the installed environment in CI, so a new advisory
 # against anything in this set (or its transitive closure) fails the pipeline.
+#
+# Every package listed in pyproject.toml's runtime and dev extras belongs here;
+# a dependency that is only pinned in pyproject.toml can drift between runs.
 
+# Runtime
 fastapi==0.162.0
 starlette==1.10.0
 uvicorn==0.54.0
 pydantic==2.14.1
 defusedxml==0.7.1
-
-# Test and static-analysis tooling (the `dev` extra).
-pytest==9.1.1
+aiosqlite==0.22.1
 httpx==0.28.1
+redis==5.3.1
+cryptography==50.0.2
+prometheus-client==0.26.0
+
+# Test and development
+pytest==9.1.1
+pytest-asyncio==1.4.1
 ruff==0.17.2
 mypy==2.4.0

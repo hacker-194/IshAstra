@@ -14,6 +14,7 @@ persisted job record (policy id + version), again at execution, and at every
 connection through the bound snapshot. Policy mutations are administrator
 operations -- gated and audited by the API layer.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +26,7 @@ from dataclasses import dataclass, replace
 from functools import wraps
 from typing import Any
 
-from strix.core import store_async as store
+from strix.core import store
 from strix.core.locks import _ReentrantAsyncLock, async_locked
 from strix.core.scope import Scope
 
@@ -68,19 +69,32 @@ class EngagementPolicy:
     created_by: str = ""
 
     def __post_init__(self) -> None:
-        missing = [name for name in ("policy_id", "tenant_id", "program",
-                                     "authorized_by", "authorization_ref")
-                   if not str(getattr(self, name, "") or "").strip()]
+        missing = [
+            name
+            for name in (
+                "policy_id",
+                "tenant_id",
+                "program",
+                "authorized_by",
+                "authorization_ref",
+            )
+            if not str(getattr(self, name, "") or "").strip()
+        ]
         if missing:
             raise PolicyError(f"policy record incomplete: missing {', '.join(missing)}")
         if not TENANT_ID.fullmatch(self.tenant_id):
             raise PolicyError(f"tenant_id {self.tenant_id!r} is not a valid tenant id")
         if self.status not in POLICY_STATUSES:
-            raise PolicyError(f"status {self.status!r} must be one of {POLICY_STATUSES}")
+            raise PolicyError(
+                f"status {self.status!r} must be one of {POLICY_STATUSES}"
+            )
         if self.version < 1:
             raise PolicyError("version must be a positive integer")
-        if self.effective_at is not None and self.expires_at is not None \
-                and float(self.effective_at) >= float(self.expires_at):
+        if (
+            self.effective_at is not None
+            and self.expires_at is not None
+            and float(self.effective_at) >= float(self.expires_at)
+        ):
             raise PolicyError("effective_at must be earlier than expires_at")
 
     # -- lifecycle ---------------------------------------------------------
@@ -90,10 +104,15 @@ class EngagementPolicy:
         if self.status != "active":
             return False, f"authorization policy {self.policy_id} is {self.status}"
         if self.effective_at is not None and moment < float(self.effective_at):
-            return False, (f"authorization policy {self.policy_id} is not yet "
-                           f"effective (from {self.effective_at})")
+            return False, (
+                f"authorization policy {self.policy_id} is not yet "
+                f"effective (from {self.effective_at})"
+            )
         if self.expires_at is not None and moment >= float(self.expires_at):
-            return False, f"authorization policy {self.policy_id} expired at {self.expires_at}"
+            return (
+                False,
+                f"authorization policy {self.policy_id} expired at {self.expires_at}",
+            )
         return True, ""
 
     # -- gate snapshot -----------------------------------------------------
@@ -141,42 +160,56 @@ class EngagementPolicy:
     # -- persistence round-trip ---------------------------------------------
     def to_row(self) -> dict[str, Any]:
         return {
-            "policy_id": self.policy_id, "tenant_id": self.tenant_id,
-            "program": self.program, "authorized_by": self.authorized_by,
+            "policy_id": self.policy_id,
+            "tenant_id": self.tenant_id,
+            "program": self.program,
+            "authorized_by": self.authorized_by,
             "authorization_ref": self.authorization_ref,
-            "include": list(self.include), "exclude": list(self.exclude),
+            "include": list(self.include),
+            "exclude": list(self.exclude),
             "authorized_networks": list(self.authorized_networks),
             "allowed_ports": list(self.allowed_ports),
             "allow_broad_networks": self.allow_broad_networks,
-            "status": self.status, "version": self.version,
-            "created_at": self.created_at, "updated_at": self.updated_at,
-            "effective_at": self.effective_at, "expires_at": self.expires_at,
+            "status": self.status,
+            "version": self.version,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "effective_at": self.effective_at,
+            "expires_at": self.expires_at,
             "created_by": self.created_by,
         }
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> EngagementPolicy:
         return cls(
-            policy_id=row["policy_id"], tenant_id=row["tenant_id"],
-            program=row["program"], authorized_by=row["authorized_by"],
+            policy_id=row["policy_id"],
+            tenant_id=row["tenant_id"],
+            program=row["program"],
+            authorized_by=row["authorized_by"],
             authorization_ref=row["authorization_ref"],
-            include=tuple(row["include"]), exclude=tuple(row["exclude"]),
+            include=tuple(row["include"]),
+            exclude=tuple(row["exclude"]),
             authorized_networks=tuple(row["authorized_networks"]),
             allowed_ports=tuple(row["allowed_ports"]),
             allow_broad_networks=bool(row["allow_broad_networks"]),
-            status=row["status"], version=int(row["version"]),
-            created_at=float(row["created_at"]), updated_at=float(row["updated_at"]),
-            effective_at=row["effective_at"], expires_at=row["expires_at"],
+            status=row["status"],
+            version=int(row["version"]),
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
+            effective_at=row["effective_at"],
+            expires_at=row["expires_at"],
             created_by=row.get("created_by", ""),
         )
 
 
 def _registry_locked(method):
     """Serialize one registry operation; RLock permits nested helper calls."""
+
     @wraps(method)
     def wrapped(self, *args, **kwargs):
         with self._lock:
             return method(self, *args, **kwargs)
+
     return wrapped
 
 
@@ -206,8 +239,9 @@ class PolicyRegistry:
     async def load_async(self) -> int:
         """Replace the in-memory view with what the database holds (startup)."""
         rows = await store.load_policies()
-        self._policies = {row["policy_id"]: EngagementPolicy.from_row(row)
-                          for row in rows}
+        self._policies = {
+            row["policy_id"]: EngagementPolicy.from_row(row) for row in rows
+        }
         self._loaded = True
         return len(self._policies)
 
@@ -226,16 +260,23 @@ class PolicyRegistry:
 
     # -- mutations -----------------------------------------------------------
     @async_locked
-    async def create_async(self, *, tenant_id: str, program: str, authorized_by: str,
-                   authorization_ref: str, include: list[str],
-                   exclude: list[str] | None = None,
-                   authorized_networks: list[str] | None = None,
-                   allowed_ports: list[int] | None = None,
-                   allow_broad_networks: bool = False,
-                   effective_at: float | None = None,
-                   expires_at: float | None = None,
-                   created_by: str = "",
-                   policy_id: str | None = None) -> EngagementPolicy:
+    async def create_async(
+        self,
+        *,
+        tenant_id: str,
+        program: str,
+        authorized_by: str,
+        authorization_ref: str,
+        include: list[str],
+        exclude: list[str] | None = None,
+        authorized_networks: list[str] | None = None,
+        allowed_ports: list[int] | None = None,
+        allow_broad_networks: bool = False,
+        effective_at: float | None = None,
+        expires_at: float | None = None,
+        created_by: str = "",
+        policy_id: str | None = None,
+    ) -> EngagementPolicy:
         """Validate and persist a new policy. Scope fields are checked by
         building the gate snapshot, so an unparsable host or a dangerously
         broad CIDR is refused here, before any assessment can cite it."""
@@ -247,19 +288,24 @@ class PolicyRegistry:
         policy = EngagementPolicy(
             policy_id=chosen_id,
             tenant_id=tenant_id.strip(),
-            program=program.strip(), authorized_by=authorized_by.strip(),
+            program=program.strip(),
+            authorized_by=authorized_by.strip(),
             authorization_ref=authorization_ref.strip(),
-            include=tuple(include), exclude=tuple(exclude or ()),
+            include=tuple(include),
+            exclude=tuple(exclude or ()),
             authorized_networks=tuple(authorized_networks or ()),
             allowed_ports=tuple(allowed_ports or ()),
             allow_broad_networks=bool(allow_broad_networks),
-            status="active", version=1,
-            created_at=moment, updated_at=moment,
-            effective_at=effective_at, expires_at=expires_at,
+            status="active",
+            version=1,
+            created_at=moment,
+            updated_at=moment,
+            effective_at=effective_at,
+            expires_at=expires_at,
             created_by=created_by.strip(),
         )
         try:
-            policy.to_scope()      # validates hosts/networks/ports before persistence
+            policy.to_scope()  # validates hosts/networks/ports before persistence
         except ValueError as exc:
             raise PolicyError(str(exc)) from exc
         # A future effective_at is a valid scheduled policy, but an expiry that
@@ -271,23 +317,41 @@ class PolicyRegistry:
         return policy
 
     @_registry_locked
-    def create(self, *, tenant_id: str, program: str, authorized_by: str,
-               authorization_ref: str, include: list[str],
-               exclude: list[str] | None = None,
-               authorized_networks: list[str] | None = None,
-               allowed_ports: list[int] | None = None,
-               allow_broad_networks: bool = False,
-               effective_at: float | None = None,
-               expires_at: float | None = None,
-               created_by: str = "",
-               policy_id: str | None = None) -> EngagementPolicy:
+    def create(
+        self,
+        *,
+        tenant_id: str,
+        program: str,
+        authorized_by: str,
+        authorization_ref: str,
+        include: list[str],
+        exclude: list[str] | None = None,
+        authorized_networks: list[str] | None = None,
+        allowed_ports: list[int] | None = None,
+        allow_broad_networks: bool = False,
+        effective_at: float | None = None,
+        expires_at: float | None = None,
+        created_by: str = "",
+        policy_id: str | None = None,
+    ) -> EngagementPolicy:
         """Sync wrapper for create_async (for non-async callers)."""
-        return asyncio.run(self.create_async(
-            tenant_id=tenant_id, program=program, authorized_by=authorized_by,
-            authorization_ref=authorization_ref, include=include, exclude=exclude,
-            authorized_networks=authorized_networks, allowed_ports=allowed_ports,
-            allow_broad_networks=allow_broad_networks, effective_at=effective_at,
-            expires_at=expires_at, created_by=created_by, policy_id=policy_id))
+        return asyncio.run(
+            self.create_async(
+                tenant_id=tenant_id,
+                program=program,
+                authorized_by=authorized_by,
+                authorization_ref=authorization_ref,
+                include=include,
+                exclude=exclude,
+                authorized_networks=authorized_networks,
+                allowed_ports=allowed_ports,
+                allow_broad_networks=allow_broad_networks,
+                effective_at=effective_at,
+                expires_at=expires_at,
+                created_by=created_by,
+                policy_id=policy_id,
+            )
+        )
 
     @async_locked
     async def update_async(self, policy_id: str, **changes: Any) -> EngagementPolicy:
@@ -298,17 +362,27 @@ class PolicyRegistry:
             raise PolicyError(f"unknown policy {policy_id}")
         if "status" in changes and changes["status"] != current.status:
             raise PolicyError("status changes must go through revoke()")
-        allowed = {"program", "authorized_by", "authorization_ref", "include",
-                   "exclude", "authorized_networks", "allowed_ports",
-                   "allow_broad_networks", "effective_at", "expires_at"}
+        allowed = {
+            "program",
+            "authorized_by",
+            "authorization_ref",
+            "include",
+            "exclude",
+            "authorized_networks",
+            "allowed_ports",
+            "allow_broad_networks",
+            "effective_at",
+            "expires_at",
+        }
         unknown = set(changes) - allowed
         if unknown:
             raise PolicyError(f"cannot update field(s): {', '.join(sorted(unknown))}")
         for field in ("include", "exclude", "authorized_networks", "allowed_ports"):
             if field in changes:
                 changes[field] = tuple(changes[field])
-        updated = replace(current, version=current.version + 1,
-                          updated_at=_now(), **changes)
+        updated = replace(
+            current, version=current.version + 1, updated_at=_now(), **changes
+        )
         try:
             updated.to_scope()
         except ValueError as exc:
@@ -325,14 +399,17 @@ class PolicyRegistry:
         return asyncio.run(self.update_async(policy_id, **changes))
 
     @async_locked
-    async def revoke_async(self, policy_id: str, *, now: float | None = None) -> EngagementPolicy:
+    async def revoke_async(
+        self, policy_id: str, *, now: float | None = None
+    ) -> EngagementPolicy:
         """Revoke: no new submission, no worker start, queued/running jobs cancelled."""
         await self._ensure_loaded_async()
         current = self._policies.get(policy_id)
         if current is None:
             raise PolicyError(f"unknown policy {policy_id}")
-        revoked = replace(current, status="revoked",
-                          version=current.version + 1, updated_at=_now())
+        revoked = replace(
+            current, status="revoked", version=current.version + 1, updated_at=_now()
+        )
         await store.save_policy(revoked.to_row())
         self._policies[policy_id] = revoked
         return revoked
@@ -356,8 +433,9 @@ class PolicyRegistry:
     @_registry_locked
     def list(self, tenant_id: str | None = None) -> list[EngagementPolicy]:
         self._ensure_loaded()
-        policies = sorted(self._policies.values(),
-                          key=lambda p: (p.tenant_id, p.created_at))
+        policies = sorted(
+            self._policies.values(), key=lambda p: (p.tenant_id, p.created_at)
+        )
         if tenant_id is None:
             return policies
         return [p for p in policies if p.tenant_id == tenant_id]
@@ -365,15 +443,17 @@ class PolicyRegistry:
     @async_locked
     async def list_async(self, tenant_id: str | None = None) -> list[EngagementPolicy]:  # type: ignore[valid-type]
         await self._ensure_loaded_async()
-        policies = sorted(self._policies.values(),
-                          key=lambda p: (p.tenant_id, p.created_at))
+        policies = sorted(
+            self._policies.values(), key=lambda p: (p.tenant_id, p.created_at)
+        )
         if tenant_id is None:
             return policies
         return [p for p in policies if p.tenant_id == tenant_id]
 
     @_registry_locked
-    def resolve(self, tenant_id: str, policy_id: str | None = None, *,
-                now: float | None = None) -> tuple[EngagementPolicy | None, str]:
+    def resolve(
+        self, tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+    ) -> tuple[EngagementPolicy | None, str]:
         """The policy a tenant may assess under right now, or the refusal reason.
 
         With ``policy_id``: that exact policy must belong to the tenant and be
@@ -397,8 +477,9 @@ class PolicyRegistry:
         return None, reason or "no usable authorization policy for this tenant"
 
     @async_locked
-    async def resolve_async(self, tenant_id: str, policy_id: str | None = None, *,
-                now: float | None = None) -> tuple[EngagementPolicy | None, str]:
+    async def resolve_async(
+        self, tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+    ) -> tuple[EngagementPolicy | None, str]:
         """Async version of resolve."""
         await self._ensure_loaded_async()
         if policy_id:
@@ -420,8 +501,9 @@ class PolicyRegistry:
 registry = PolicyRegistry()
 
 
-def tenant_scope_snapshot(tenant_id: str, policy_id: str | None = None, *,
-                          now: float | None = None) -> tuple[Scope | None, str]:
+def tenant_scope_snapshot(
+    tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+) -> tuple[Scope | None, str]:
     """(validated gate snapshot, '') or (None, refusal reason) for a tenant."""
     policy, reason = registry.resolve(tenant_id, policy_id, now=now)
     if policy is None:
@@ -432,8 +514,9 @@ def tenant_scope_snapshot(tenant_id: str, policy_id: str | None = None, *,
         return None, f"authorization policy {policy.policy_id} is invalid: {exc}"
 
 
-async def tenant_scope_snapshot_async(tenant_id: str, policy_id: str | None = None, *,
-                          now: float | None = None) -> tuple[Scope | None, str]:
+async def tenant_scope_snapshot_async(
+    tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+) -> tuple[Scope | None, str]:
     """Async version of tenant_scope_snapshot."""
     policy, reason = await registry.resolve_async(tenant_id, policy_id, now=now)
     if policy is None:
@@ -464,8 +547,13 @@ def validate_job_binding(job: Any) -> str:
     if not valid:
         return reason
     bound_version = (getattr(job, "policy", None) or {}).get("policy_version")
-    if (not isinstance(bound_version, int) or isinstance(bound_version, bool)
-            or bound_version != policy.version):
-        return (f"authorization policy {policy_id} changed after this job was queued "
-                f"(bound version {bound_version}, current version {policy.version})")
+    if (
+        not isinstance(bound_version, int)
+        or isinstance(bound_version, bool)
+        or bound_version != policy.version
+    ):
+        return (
+            f"authorization policy {policy_id} changed after this job was queued "
+            f"(bound version {bound_version}, current version {policy.version})"
+        )
     return ""

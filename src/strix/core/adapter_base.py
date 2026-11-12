@@ -4,6 +4,7 @@ Kept in its own module so a detector module (``exposure``, ``ports``) can
 implement an adapter without importing ``strix.core.adapters`` — which imports
 them in turn to build the registry.
 """
+
 from __future__ import annotations
 
 import threading
@@ -11,16 +12,31 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from strix.core.findings import Finding
-from strix.core.scope import Destination
+from strix.core.scope import Destination, get_pinned_destination
 from strix.core.scope import destination as scope_destination
+from strix.core.urls import parse_url
 
 
 def checked_destination(target: str) -> Destination:
     """The pinned destination for ``target``, or ``AdapterError`` when the
-    scope gate refuses it. One place, so no adapter can forget the check."""
+    scope gate refuses it. One place, so no adapter can forget the check.
+
+    Uses a pre-pinned destination from the job execution context if available
+    (set by ``execute()`` after the initial scope check) to avoid TOCTOU
+    between the gate check and the adapter's connect-time resolution.
+    """
+    pinned = get_pinned_destination()
+    if pinned is not None:
+        # Verify the pinned destination matches the requested target
+        parsed = parse_url(target)
+        if parsed and parsed.hostname and parsed.hostname.lower() == pinned.host:
+            return pinned
+        # If target doesn't match, fall through to normal resolution
     denial, reason, destination = scope_destination(target)
     if denial or destination is None:
-        raise AdapterError(f"scope refused {target}: {reason or 'destination unavailable'}")
+        raise AdapterError(
+            f"scope refused {target}: {reason or 'destination unavailable'}"
+        )
     return destination
 
 
@@ -73,9 +89,14 @@ class Adapter:
     def available(self) -> tuple[bool, str]:
         return True, "built in"
 
-    def assess(self, target: str, *, timeout: float,
-               cancel: threading.Event,
-               context: dict[str, Any] | None = None) -> AdapterResult:
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
         """Assess one target. ``context`` is the job-wide shared state: earlier
         adapters (the crawler) may publish discovered in-scope URLs there."""
         raise NotImplementedError

@@ -367,6 +367,10 @@ class JobConflict(RuntimeError):
 _path: str = "strix.db"
 _db_type: str | None = None
 _pool: Any = None
+# Guards the "who creates the pool" decision only -- never held across an
+# await, because the creator's own event loop must stay free to run it.
+_pool_lock = threading.Lock()
+_pool_creating = False
 
 
 def configure(path: str | Path) -> None:
@@ -541,11 +545,31 @@ atexit.register(_discard_pool_at_exit)
 
 
 async def get_db_pool() -> Any:
-    """Get or create the connection pool."""
-    global _pool
-    if _pool is None:
-        _pool = await _create_pool()
-    return _pool
+    """Get or create the connection pool.
+
+    Exactly one caller (on any event loop, in any thread) may build the pool
+    and run the schema migrations; everyone else waits and then reuses it.
+    Without this, two simultaneous first connects both migrated the same
+    fresh database and raised ``duplicate column name`` or
+    ``database is locked``.
+    """
+    global _pool, _pool_creating
+    while True:
+        with _pool_lock:
+            if _pool is not None:
+                return _pool
+            create = not _pool_creating
+            if create:
+                _pool_creating = True
+        if create:
+            try:
+                return await _create_pool()
+            finally:
+                with _pool_lock:
+                    _pool_creating = False
+        # Another loop is building it. Poll instead of blocking this loop on a
+        # threading lock we cannot hold across an await.
+        await asyncio.sleep(0.01)
 
 
 async def close_db_pool() -> None:
@@ -1350,6 +1374,11 @@ async def prune_finished_jobs(older_than: float) -> int:
                   AND finished_at IS NOT NULL AND finished_at < ?""",
             *params,
         )
+        # aiosqlite opens an implicit transaction for DML: without this commit
+        # the pooled connection keeps the write lock and the VACUUM that
+        # follows blocks until its busy timeout (retention never completed).
+        if _is_aiosqlite(db):
+            await db.commit()
         return cursor.rowcount
 
 
@@ -1357,6 +1386,8 @@ async def prune_audit_log(older_than: float) -> int:
     """Delete plain audit-log entries older than the cutoff epoch."""
     async with get_db_async() as db:
         cursor = await _execute(db, "DELETE FROM audit_log WHERE ts < ?", older_than)
+        if _is_aiosqlite(db):
+            await db.commit()
         return cursor.rowcount
 
 
@@ -1408,8 +1439,15 @@ async def vacuum() -> None:
         if _is_asyncpg(db):
             await db.execute("VACUUM")
         else:
-            await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            await db.execute("VACUUM")
+            # aiosqlite returns a cursor per execute(); an unfinalized cursor
+            # leaves its statement open and VACUUM refuses to run ("cannot
+            # VACUUM - SQL statements in progress").
+            for statement in ("PRAGMA wal_checkpoint(TRUNCATE)", "VACUUM"):
+                cursor = await db.execute(statement)
+                try:
+                    await cursor.fetchall()
+                finally:
+                    await cursor.close()
     finally:
         await db.close()
 

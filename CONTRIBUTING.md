@@ -37,11 +37,14 @@ test is about.
 
 ## Boundaries worth knowing before you change things
 
-- `strix/core/store.py` (synchronous, used by the worker, monitor, retention and
-  CLI) and `strix/core/store_async.py` (async, used by the request path) are two
-  implementations of one persistence API. They are known to have drifted; if you
-  change a query in one, check the other. Consolidating them is the single most
-  valuable refactor in the repository.
+- `strix/core/store.py` is the only persistence implementation, and it is
+  asynchronous: the request path, worker, monitor and retention all use it.
+  Synchronous callers (the CLI, and synchronous tests) go through
+  `store._run_async`, which runs one operation on a private pool so it cannot
+  leak connections into the server's pool.
+- Pool creation and schema migration are serialized across event loops and
+  threads: several loops opening a fresh database at once must not migrate it
+  twice. Don't move that check inside an `await` without keeping the guard.
 - Job state lives in SQLite; the queue lives in memory. One process, enforced by
   a lock file, until a shared queue exists.
 - `STRIX_API_KEY` is a bootstrap administrator key, adopted at startup. Keys are

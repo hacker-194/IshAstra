@@ -24,7 +24,8 @@ Ready for a **single-node pilot** (one host, one Strix process, SQLite WAL):
 - Production stack: `docker compose` (Strix + Redis + nginx), required secrets,
   loopback admin port, TLS example, health check that requires a loaded scope,
   optional Prometheus/Grafana overlay.
-- Verified in CI and locally: ruff, mypy, 32 tests, live server boot/shutdown,
+- Verified in CI and locally: ruff, mypy, 648 tests (78% line coverage),
+  live server boot/shutdown,
   clean e2e smoke against the loopback lab, fresh-database migrations.
 
 Known limits to state honestly in a pilot contract:

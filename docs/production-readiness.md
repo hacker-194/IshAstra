@@ -389,6 +389,6 @@ instance, not inferred from source.
   `src tests scripts`; 1560 tests pass with the PostgreSQL suite included
   (70 skipped, all environment-gated).
 
-Still open: the `migrations/alembic/` tree duplicates the runtime schema chain
+Still open: the `migrations/the schema chain in `src/strix/core/store.py`
 and is not authoritative (it also lacks the MSSP tables); multi-node HA and a
 representative soak on deployment hardware remain untested.

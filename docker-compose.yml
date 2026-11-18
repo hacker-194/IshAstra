@@ -106,7 +106,7 @@ services:
       target: runtime
     container_name: strix-worker
     image: strix/worker:dev
-    command: ["celery", "-A", "strix.core.queue:celery_app", "worker", "--loglevel=INFO", "--concurrency=4"]
+    command: ["python", "-m", "strix", "serve", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       - STRIX_DATABASE_URL=postgresql://strix:strix_dev_password@postgres:5432/strix
       - STRIX_REDIS_URL=redis://redis:6379/0

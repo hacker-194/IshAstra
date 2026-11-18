@@ -24,7 +24,7 @@ environment variables.
 | `STRIX_DATABASE_URL` | — | No | PostgreSQL DSN; overrides `STRIX_DB`. Advanced: tested single-host (SIGTERM, load soak, audit chain, Celery integration). |
 | `STRIX_WORKERS` | `1` | No | Concurrent assessment jobs in the in-process worker. |
 | `STRIX_QUEUE_MAX` | `32` | No | Maximum queued jobs. |
-| `STRIX_QUEUE_MODE` | `inprocess` | No | `celery` enables the experimental distributed queue (tested single-host: 10 jobs). |
+| `STRIX_QUEUE_MODE` | `inprocess` | No | `k8s-jobs` enables the experimental distributed queue (tested single-host: 10 jobs). |
 | `STRIX_CELERY_BROKER_URL` | `redis://localhost:6379/1` | No | Celery broker when Celery mode is enabled. |
 | `STRIX_CELERY_RESULT_BACKEND` | `redis://localhost:6379/2` | No | Celery result backend. |
 

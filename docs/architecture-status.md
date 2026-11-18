@@ -39,7 +39,6 @@ Store (SQLite/aiosqlite; optional PostgreSQL) + audit chain
 |---|---|---|
 | **Strix Core** | Configuration, scope gate, policies, jobs, worker, store, findings, audit, metrics | `src/strix/config.py`, `src/strix/core/*` |
 | **Strix Scan** | Live-target detection adapters and profiles | `core/adapters.py`, `adapter_base.py`, `probe.py`, `crawler.py`, `ports.py`, `exposure.py`, `signatures.py` |
-| **Strix Code** | Local repository SAST/SCA/secret scan and SARIF | `code_scan.py`, `rules/semgrep.yml` |
 | **Strix Intelligence** | Advisory AI triage; monitoring baselines | `analyst.py`, `monitor.py` (trend analytics absent) |
 | **Strix Proof** | Signed grants, receipt chain, offline verification | `proof.py`, `core/collab.py`, CLI `grant/gate/proof/verify` |
 | **Strix Monitor** | Recurring assessments, new-finding alerts | `core/scheduler.py`, `monitor.py`, `/api/schedules` |

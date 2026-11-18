@@ -1,6 +1,6 @@
 {{- if and .Values.worker.enabled .Values.workerCostOptimization.keda.enabled }}
 ---
-# KEDA ScaledObject for Celery Worker Queue-based Autoscaling
+# KEDA ScaledObject for worker autoscaling
 # Scales based on Redis queue depth with scale-to-zero support
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject

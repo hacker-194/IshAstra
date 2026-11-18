@@ -1,0 +1,32 @@
+TLC model check - docs/tla/JudgeAddresses.tla (address policy of src/strix/core/scope.py)
+Config:   docs/tla/JudgeAddresses.cfg   (MaxAddresses = 2)
+Command:  java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC -config JudgeAddresses.cfg JudgeAddresses.tla
+
+TLC2 Version 2.16 of 31 December 2020 (rev: cdddf55)
+Running breadth-first search Model-Checking with fp 103 and seed 1737590016506360613 with 1 worker on 12 cores with 1602MB heap and 64MB offheap memory [pid: 168398] (Linux 7.0.0-43-generic amd64, Ubuntu 25.0.5.0.3 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /home/anjal/Downloads/Strix_Hardened_Project_RELEASE_v3.5.0 (2)/strix-v3.5.0-hardened/docs/tla/JudgeAddresses.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Integers.tla
+Parsing file /tmp/Sequences.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/TLC.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module JudgeAddresses
+Starting... (2026-11-18 08:21:28)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-18 08:21:29.
+Progress(4) at 2026-11-18 08:21:32: 665,947 states generated (665,947 s/min), 59,544 distinct states found (59,544 ds/min), 55,924 states left on queue.
+Progress(6) at 2026-11-18 08:22:32: 17,266,024 states generated (16,600,077 s/min), 114,990 distinct states found (55,446 ds/min), 21,171 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.3E-7
+  based on the actual fingerprints:  val = 1.7E-10
+21458641 states generated, 116550 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 6.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 31 and the 95th percentile is 0).
+Finished in 01min 18s at (2026-11-18 08:22:47)

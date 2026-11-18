@@ -390,8 +390,3 @@ def revoke_break_glass_scope(
     )
 
     return document
-
-
-def load_break_glass_jwks(path: str | Path) -> dict[str, Any]:
-    """Load JWKS for break-glass verification."""
-    return json.loads(Path(path).expanduser().read_text())

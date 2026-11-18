@@ -9,9 +9,6 @@ from __future__ import annotations
 import secrets
 
 from fastapi import Depends, Header, HTTPException, Request, status
-from fastapi.responses import Response
-
-from strix.api.dependencies import get_settings
 
 CSRF_COOKIE_NAME = "strix_csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
@@ -19,11 +16,6 @@ CSRF_FORM_FIELD = "csrf_token"
 
 # 1 hour TTL for CSRF tokens
 CSRF_TTL_SECONDS = 3600
-
-
-def generate_csrf_token() -> str:
-    """Generate a cryptographically secure CSRF token."""
-    return secrets.token_urlsafe(32)
 
 
 async def get_csrf_token_from_cookie(request: Request) -> str | None:
@@ -45,20 +37,6 @@ async def get_csrf_token_from_form(request: Request) -> str | None:
     if isinstance(value, str):
         return value
     return None
-
-
-def set_csrf_cookie(response: Response, token: str, secure: bool = True) -> None:
-    """Set the CSRF cookie with secure attributes."""
-    settings = get_settings()
-    response.set_cookie(
-        key=CSRF_COOKIE_NAME,
-        value=token,
-        max_age=CSRF_TTL_SECONDS,
-        httponly=True,
-        secure=secure or settings.environment == "production",
-        samesite="strict",
-        path="/",
-    )
 
 
 async def validate_csrf_token(

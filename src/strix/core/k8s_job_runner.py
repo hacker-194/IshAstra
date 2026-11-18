@@ -139,8 +139,12 @@ class K8sJobRunner:
         job.state = JobState.RUNNING
         job.started_at = time.time()
 
-        # Execute assessment
+        # Execute assessment. Preload the policy registry: the sync API behind
+        # jobs.execute cannot call asyncio.run from inside this event loop.
         try:
+            from strix.core import policies
+
+            await policies.registry.load_async()
             jobs.execute(job)
         except Exception as exc:
             log.exception("Assessment %s crashed", job.id)
@@ -157,9 +161,8 @@ class K8sJobRunner:
             log.exception("Failed to save job %s", job.id)
             return 1
 
-        # Return non-zero for failed/partial jobs (K8s Job will retry if backoffLimit > 0)
-        if job.state in (JobState.FAILED, JobState.PARTIAL):
-            return 1
+        # The terminal state is persisted: a retry would only find it and exit,
+        # so every persisted outcome (including partial) is a successful Job.
         return 0
 
 

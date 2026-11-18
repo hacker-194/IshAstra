@@ -44,8 +44,6 @@ dev = ["strix[test]", "ruff>=0.6", "mypy>=1.10"]
 # Mutation testing for the authorization gate. Kept out of `dev` because a full
 # run is slow; only the nightly/manual mutation-scope job installs it.
 mutation = ["mutmut>=3.7,<4.0"]
-# Celery + Redis queue for horizontal scaling (STRIX_QUEUE_MODE=celery)
-celery = ["celery>=5.3,<6.0", "kombu>=5.3,<6.0"]
 # K8s Jobs queue for horizontal scaling (STRIX_QUEUE_MODE=k8s-jobs)
 k8s-jobs = ["kubernetes>=30.0,<31.0"]
 # OpenTelemetry observability (optional: auto-enabled when OTEL_EXPORTER_OTLP_ENDPOINT is set)

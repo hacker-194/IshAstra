@@ -11,6 +11,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -53,6 +54,12 @@ class K8sJobConfig:
     env_from_secrets: list[dict[str, str]] = field(default_factory=list)
     labels: dict[str, str] = field(default_factory=dict)
     annotations: dict[str, str] = field(default_factory=dict)
+
+
+def _job_name(job_id: str) -> str:
+    """Kubernetes Job names are RFC 1123 subdomains; job ids contain ``_``."""
+    safe = re.sub(r"[^a-z0-9.-]+", "-", job_id.lower()).strip("-.")
+    return f"strix-assess-{safe}"[:63].rstrip("-.")
 
 
 class K8sAssessmentQueue:
@@ -116,7 +123,7 @@ class K8sAssessmentQueue:
             self._on_finish[job.id] = on_finish
 
         # Create K8s Job
-        k8s_job_name = f"strix-assess-{job.id}"
+        k8s_job_name = _job_name(job.id)
         try:
             await self._create_k8s_job(job, k8s_job_name)
             with self._lock:
@@ -143,10 +150,10 @@ class K8sAssessmentQueue:
             "program": job.policy.get("scope_program", ""),
             "authorized_by": job.policy.get("scope_authorized_by", ""),
             "include": job.policy.get("scope_include", []),
-            "exclude": [],
-            "authorized_networks": [],
-            "allowed_ports": [80, 443, 8443, 9443],
-            "allow_broad_networks": False,
+            "exclude": job.policy.get("scope_exclude", []),
+            "authorized_networks": job.policy.get("scope_authorized_networks", []),
+            "allowed_ports": job.policy.get("scope_allowed_ports", [80, 443, 8443, 9443]),
+            "allow_broad_networks": job.policy.get("scope_allow_broad_networks", False),
         }
 
         # Build pod template
@@ -178,7 +185,7 @@ class K8sAssessmentQueue:
                         image=self.config.image,
                         image_pull_policy="IfNotPresent",
                         command=[
-                            "/usr/local/bin/python",
+                            "/opt/venv/bin/python",
                             "-m",
                             "strix.core.k8s_job_runner",
                         ],
@@ -348,11 +355,14 @@ class K8sAssessmentQueue:
         # 3. Database
         egress_rules.append(
             client.V1NetworkPolicyEgressRule(
+                # The database is usually in the release namespace, not this one:
+                # an empty namespace_selector is what makes the rule cross-namespace.
                 to=[
                     client.V1NetworkPolicyPeer(
+                        namespace_selector=client.V1LabelSelector(),
                         pod_selector=client.V1LabelSelector(
                             match_labels={"app.kubernetes.io/name": "postgresql"}
-                        )
+                        ),
                     )
                 ],
                 ports=[client.V1NetworkPolicyPort(protocol="TCP", port=5432)],
@@ -531,14 +541,13 @@ def get_k8s_assessment_queue(
     queue_max: int | None = None,
 ) -> K8sAssessmentQueue:
     """Factory for K8s Jobs queue."""
-    from strix.config import get_settings
-
-    settings = get_settings()
-
     config = K8sJobConfig(
         namespace=os.environ.get("STRIX_K8S_NAMESPACE", "strix-assessments"),
         image=os.environ.get("STRIX_K8S_IMAGE", "")
-        or f"{settings.k8s_image_repository}:{settings.k8s_image_tag}",
+        or (
+            f"{os.environ.get('STRIX_K8S_IMAGE_REPOSITORY', 'ghcr.io/your-org/strix')}"
+            f":{os.environ.get('STRIX_K8S_IMAGE_TAG', '3.5.0')}"
+        ),
         service_account=os.environ.get("STRIX_K8S_SERVICE_ACCOUNT", "strix"),
         runtime_class=os.environ.get("STRIX_K8S_RUNTIME_CLASS", "gvisor") or None,
         priority_class=os.environ.get("STRIX_K8S_PRIORITY_CLASS") or None,

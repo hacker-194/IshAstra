@@ -30,7 +30,7 @@ COPY src ./src
 
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -c constraints.txt .
+    && /opt/venv/bin/pip install --no-cache-dir -c constraints.txt ".[k8s-jobs,postgres]"
 
 # =============================================================================
 # Runtime stage

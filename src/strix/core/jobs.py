@@ -199,6 +199,10 @@ def prepare(
     job_policy.setdefault("scope_program", scope_snapshot.program)
     job_policy.setdefault("scope_authorized_by", scope_snapshot.authorized_by)
     job_policy.setdefault("scope_include", list(scope_snapshot.include))
+    job_policy.setdefault("scope_exclude", list(scope_snapshot.exclude))
+    job_policy.setdefault("scope_authorized_networks", list(scope_snapshot.authorized_networks))
+    job_policy.setdefault("scope_allowed_ports", list(scope_snapshot.allowed_ports))
+    job_policy.setdefault("scope_allow_broad_networks", scope_snapshot.allow_broad_networks)
     job_policy.setdefault("timeout", timeout)
 
     job = Job(

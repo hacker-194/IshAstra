@@ -232,6 +232,10 @@ Environment variables from config
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
+{{- if .Values.redis.enabled }}
+- name: STRIX_REDIS_REQUIRED
+  value: "1"
+{{- end }}
 {{- end }}
 
 {{/*

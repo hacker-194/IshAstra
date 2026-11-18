@@ -6,6 +6,7 @@ Full implementation can be added when AI provider is available.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -59,7 +60,10 @@ class NullProvider(AnalystProvider):
     name = "null"
 
     def complete(self, system: str, prompt: str, *, timeout: float) -> str:
-        return '{"summary": "", "attack_path": "", "priorities": [], "limitations": "No AI provider configured", "ai_enriched": false}'
+        return (
+            '{"summary": "", "attack_path": "", "priorities": [], '
+            '"limitations": "No AI provider configured", "ai_enriched": false}'
+        )
 
 
 def provider_from_env() -> AnalystProvider:
@@ -83,14 +87,9 @@ def analyze_findings(findings: list[dict[str, Any]], provider: AnalystProvider) 
         return TriageOutput(
             summary=f"Analyzed {len(findings)} findings",
             ai_enriched=False,
-            limitations="AI provider not configured"
+            limitations="AI provider not configured",
         )
     except Exception:
         return TriageOutput(
-            summary=f"Analyzed {len(findings)} findings",
-            ai_enriched=False,
-            limitations="Analysis failed"
+            summary=f"Analyzed {len(findings)} findings", ai_enriched=False, limitations="Analysis failed"
         )
-
-
-import os

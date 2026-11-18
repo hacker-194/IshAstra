@@ -512,10 +512,7 @@ class TestLeaderElectionEdgeCases:
             retry_interval=0.1,
         )
 
-        elections = [
-            LeaderElection(config, pg_settings, audit_chain)
-            for _ in range(5)
-        ]
+        elections = [LeaderElection(config, pg_settings, audit_chain) for _ in range(5)]
 
         # All try to campaign simultaneously
         results = []

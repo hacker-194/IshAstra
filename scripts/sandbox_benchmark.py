@@ -16,13 +16,13 @@ import json
 import statistics
 import subprocess
 import sys
-import time
 from dataclasses import asdict, dataclass
 
 
 @dataclass
 class BenchmarkResult:
     """Result of a single benchmark run."""
+
     runtime: str
     scanner: str
     target: str
@@ -37,7 +37,6 @@ class BenchmarkResult:
 
 def run_command(cmd: list[str], timeout: float = 120) -> tuple[int, str, str, float, float, int]:
     """Run a command and return (exit_code, stdout, stderr, user_time, sys_time, max_rss)."""
-    start = time.time()
     try:
         # Use /usr/bin/time -v for resource usage (Linux)
         time_cmd = ["/usr/bin/time", "-v"] + cmd
@@ -47,7 +46,6 @@ def run_command(cmd: list[str], timeout: float = 120) -> tuple[int, str, str, fl
             text=True,
             timeout=timeout,
         )
-        duration = time.time() - start
 
         # Parse /usr/bin/time -v output from stderr
         user_time = 0.0
@@ -82,23 +80,78 @@ def benchmark_scanner(
     # Scanner command templates
     scanner_cmds = {
         "nmap": ["nmap", "-sT", "-Pn", "-n", "-p", "80,443", "--host-timeout", "30s", "-oX", "-", target],
-        "nuclei": ["nuclei", "-u", target, "-t", "http/exposures", "-jsonl", "-silent", "-no-color", "-no-interactsh", "-rate-limit", "10", "-concurrency", "5", "-timeout", "10"],
-        "nikto": ["nikto", "-nointeractive", "-host", target.replace("https://", "").replace("http://", "").split(":")[0], "-port", "443" if target.startswith("https") else "80", "-Format", "json", "-maxtime", "60"],
-        "sqlmap": ["sqlmap", "-u", target, "--batch", "--crawl", "0", "--level", "1", "--risk", "1", "--technique", "BT", "--timeout", "5", "--retries", "0", "--disable-coloring", "--flush-session", "--fresh-queries"],
+        "nuclei": [
+            "nuclei",
+            "-u",
+            target,
+            "-t",
+            "http/exposures",
+            "-jsonl",
+            "-silent",
+            "-no-color",
+            "-no-interactsh",
+            "-rate-limit",
+            "10",
+            "-concurrency",
+            "5",
+            "-timeout",
+            "10",
+        ],
+        "nikto": [
+            "nikto",
+            "-nointeractive",
+            "-host",
+            target.replace("https://", "").replace("http://", "").split(":")[0],
+            "-port",
+            "443" if target.startswith("https") else "80",
+            "-Format",
+            "json",
+            "-maxtime",
+            "60",
+        ],
+        "sqlmap": [
+            "sqlmap",
+            "-u",
+            target,
+            "--batch",
+            "--crawl",
+            "0",
+            "--level",
+            "1",
+            "--risk",
+            "1",
+            "--technique",
+            "BT",
+            "--timeout",
+            "5",
+            "--retries",
+            "0",
+            "--disable-coloring",
+            "--flush-session",
+            "--fresh-queries",
+        ],
     }
 
     if scanner not in scanner_cmds:
-        return [BenchmarkResult(
-            runtime=runtime, scanner=scanner, target=target,
-            duration_seconds=0, cpu_user_seconds=0, cpu_system_seconds=0,
-            max_rss_kb=0, exit_code=-1, success=False,
-            error=f"Unknown scanner: {scanner}"
-        )]
+        return [
+            BenchmarkResult(
+                runtime=runtime,
+                scanner=scanner,
+                target=target,
+                duration_seconds=0,
+                cpu_user_seconds=0,
+                cpu_system_seconds=0,
+                max_rss_kb=0,
+                exit_code=-1,
+                success=False,
+                error=f"Unknown scanner: {scanner}",
+            )
+        ]
 
     base_cmd = scanner_cmds[scanner]
 
     for i in range(iterations):
-        print(f"  [{runtime}/{scanner}] Run {i+1}/{iterations}...", end=" ", flush=True)
+        print(f"  [{runtime}/{scanner}] Run {i + 1}/{iterations}...", end=" ", flush=True)
 
         if runtime == "native":
             cmd = base_cmd
@@ -135,7 +188,9 @@ def benchmark_scanner(
     return results
 
 
-def calculate_overhead(native_results: list[BenchmarkResult], sandbox_results: list[BenchmarkResult]) -> dict[str, float]:
+def calculate_overhead(
+    native_results: list[BenchmarkResult], sandbox_results: list[BenchmarkResult]
+) -> dict[str, float]:
     """Calculate overhead percentages between native and sandbox runs."""
     if not native_results or not sandbox_results:
         return {}
@@ -169,12 +224,20 @@ def calculate_overhead(native_results: list[BenchmarkResult], sandbox_results: l
 def main():
     parser = argparse.ArgumentParser(description="Scanner isolation overhead benchmark")
     parser.add_argument("--target", required=True, help="Target URL to scan")
-    parser.add_argument("--scanners", nargs="+", default=["nmap", "nuclei", "nikto"],
-                        choices=["nmap", "nuclei", "nikto", "sqlmap"],
-                        help="Scanners to benchmark")
-    parser.add_argument("--runtimes", nargs="+", default=["native", "gvisor"],
-                        choices=["native", "gvisor", "kata"],
-                        help="Runtimes to test")
+    parser.add_argument(
+        "--scanners",
+        nargs="+",
+        default=["nmap", "nuclei", "nikto"],
+        choices=["nmap", "nuclei", "nikto", "sqlmap"],
+        help="Scanners to benchmark",
+    )
+    parser.add_argument(
+        "--runtimes",
+        nargs="+",
+        default=["native", "gvisor"],
+        choices=["native", "gvisor", "kata"],
+        help="Runtimes to test",
+    )
     parser.add_argument("--iterations", type=int, default=3, help="Iterations per test")
     parser.add_argument("--timeout", type=int, default=120, help="Timeout per run (seconds)")
     parser.add_argument("--output", type=str, help="Output JSON file")
@@ -210,14 +273,22 @@ def main():
             if overhead:
                 key = f"{scanner}/{runtime}"
                 overhead_summary[key] = overhead
-                print(f"  Overhead vs native: {overhead['time_overhead_percent']:.1f}% time, {overhead['memory_overhead_percent']:.1f}% memory")
+                print(
+                    f"  Overhead vs native: {overhead['time_overhead_percent']:.1f}% time, "
+                    f"{overhead['memory_overhead_percent']:.1f}% memory"
+                )
 
     # Print summary
     print("\n=== OVERHEAD SUMMARY ===")
     for key, overhead in overhead_summary.items():
-        print(f"  {key}: {overhead['time_overhead_percent']:.1f}% time overhead, {overhead['memory_overhead_percent']:.1f}% memory overhead")
+        print(
+            f"  {key}: {overhead['time_overhead_percent']:.1f}% time overhead, "
+            f"{overhead['memory_overhead_percent']:.1f}% memory overhead"
+        )
         print(f"    Native: {overhead['native_avg_duration']:.2f}s / {overhead['native_avg_rss_kb']:.0f}KB")
-        print(f"    Sandbox: {overhead['sandbox_avg_duration']:.2f}s / {overhead['sandbox_avg_rss_kb']:.0f}KB")
+        print(
+            f"    Sandbox: {overhead['sandbox_avg_duration']:.2f}s / {overhead['sandbox_avg_rss_kb']:.0f}KB"
+        )
 
     # Save results
     if args.output:

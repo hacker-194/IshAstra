@@ -185,6 +185,7 @@ class TestCustomerEffectiveLimits:
 
     def test_registered_partner_free_customer(self):
         """Test effective limits for FREE customer under REGISTERED partner."""
+
         # Create mock objects
         class MockPartner:
             tier = MSSPTier.REGISTERED
@@ -203,6 +204,7 @@ class TestCustomerEffectiveLimits:
 
     def test_registered_partner_starter_customer(self):
         """Test effective limits for STARTER customer under REGISTERED partner."""
+
         class MockPartner:
             tier = MSSPTier.REGISTERED
 
@@ -220,6 +222,7 @@ class TestCustomerEffectiveLimits:
 
     def test_authorized_partner_pro_customer(self):
         """Test effective limits for PRO customer under AUTHORIZED partner."""
+
         class MockPartner:
             tier = MSSPTier.AUTHORIZED
 
@@ -237,6 +240,7 @@ class TestCustomerEffectiveLimits:
 
     def test_premier_partner_enterprise_customer(self):
         """Test effective limits for ENTERPRISE customer under PREMIER partner."""
+
         class MockPartner:
             tier = MSSPTier.PREMIER
 
@@ -254,6 +258,7 @@ class TestCustomerEffectiveLimits:
 
     def test_features_included(self):
         """Test that features are included in effective limits."""
+
         class MockPartner:
             tier = MSSPTier.AUTHORIZED
 
@@ -302,7 +307,6 @@ class TestMSSPTierLimitConstraints:
     def test_registered_partner_cannot_have_pro_customer(self):
         """Test that REGISTERED partners cannot have PRO customers."""
         # This is validated in the API layer, but we test the logic here
-        partner_tier = MSSPTier.REGISTERED
         customer_tier = PricingTier.PRO
 
         # REGISTERED partners can only have FREE/STARTER
@@ -311,7 +315,6 @@ class TestMSSPTierLimitConstraints:
 
     def test_authorized_partner_can_have_all_tiers(self):
         """Test that AUTHORIZED partners can have all customer tiers."""
-        partner_tier = MSSPTier.AUTHORIZED
         # AUTHORIZED partners can have any tier
         allowed_tiers = [PricingTier.FREE, PricingTier.STARTER, PricingTier.PRO, PricingTier.ENTERPRISE]
         for tier in allowed_tiers:

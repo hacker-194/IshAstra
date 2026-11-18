@@ -73,8 +73,12 @@ class K8sJobRunner:
 
     async def run(self) -> int:
         """Execute the assessment and persist results. Returns exit code."""
-        log.info("Starting K8s Job assessment: job_id=%s tenant=%s target=%s",
-                 self.job_id, self.tenant_id, self.target)
+        log.info(
+            "Starting K8s Job assessment: job_id=%s tenant=%s target=%s",
+            self.job_id,
+            self.tenant_id,
+            self.target,
+        )
 
         # Configure store from DATABASE_URL
         db_url = os.environ.get("STRIX_DATABASE_URL")
@@ -148,8 +152,7 @@ class K8sJobRunner:
         try:
             assert self.tenant_id is not None
             await store.save_job(job, tenant=self.tenant_id)
-            log.info("Job %s completed with state=%s verdict=%s",
-                     job.id, job.state.value, job.verdict)
+            log.info("Job %s completed with state=%s verdict=%s", job.id, job.state.value, job.verdict)
         except Exception:
             log.exception("Failed to save job %s", job.id)
             return 1

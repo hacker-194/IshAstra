@@ -165,7 +165,10 @@ async def get_usage_report(
     overages = {}
     if limits.assessments_per_month > 0 and usage["assessments_used"] >= limits.assessments_per_month:
         overages["assessments"] = usage["assessments_used"] - limits.assessments_per_month
-    if limits.max_concurrent_assessments > 0 and usage["concurrent_assessments"] >= limits.max_concurrent_assessments:
+    if (
+        limits.max_concurrent_assessments > 0
+        and usage["concurrent_assessments"] >= limits.max_concurrent_assessments
+    ):
         overages["concurrent"] = usage["concurrent_assessments"] - limits.max_concurrent_assessments
     if limits.max_users > 0 and usage["users_count"] >= limits.max_users:
         overages["users"] = usage["users_count"] - limits.max_users
@@ -223,7 +226,7 @@ async def upgrade_tier(
     try:
         new_tier = PricingTier(req.tier.value)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     if current_tier == new_tier:
         raise HTTPException(status_code=400, detail="Already on this tier")
@@ -238,17 +241,24 @@ async def upgrade_tier(
         usage = await _get_current_usage(tenant_id)
 
         violations = []
-        if limits.assessments_per_month > 0 and usage["assessments_used"] > limits.assessments_per_month:
-            violations.append(f"Assessments used ({usage['assessments_used']}) exceeds limit ({limits.assessments_per_month})")
+        assessments_used = usage["assessments_used"]
+        if limits.assessments_per_month > 0 and assessments_used > limits.assessments_per_month:
+            violations.append(
+                f"Assessments used ({assessments_used}) exceeds limit ({limits.assessments_per_month})"
+            )
         if limits.max_users > 0 and usage["users_count"] > limits.max_users:
             violations.append(f"Users ({usage['users_count']}) exceeds limit ({limits.max_users})")
         if limits.max_projects > 0 and usage["projects_count"] > limits.max_projects:
-            violations.append(f"Projects ({usage['projects_count']}) exceeds limit ({limits.max_projects})")
+            projects_used = usage["projects_count"]
+            violations.append(f"Projects ({projects_used}) exceeds limit ({limits.max_projects})")
 
         if violations:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot downgrade: current usage exceeds {new_tier.value} limits: {'; '.join(violations)}",
+                detail=(
+                    f"Cannot downgrade: current usage exceeds {new_tier.value} limits: "
+                    f"{'; '.join(violations)}"
+                ),
             )
 
     # Update tenant tier in database
@@ -393,7 +403,8 @@ async def _get_current_usage(tenant_id: str) -> dict[str, Any]:
         # Schedules
         schedules_row = await store._fetchone(
             conn,
-            "SELECT COUNT(*) as cnt FROM assessment_schedules WHERE target IN (SELECT target FROM jobs WHERE tenant = ?)",
+            "SELECT COUNT(*) as cnt FROM assessment_schedules "
+            "WHERE target IN (SELECT target FROM jobs WHERE tenant = ?)",
             tenant_id,
         )
         schedules_count = schedules_row["cnt"] if schedules_row else 0

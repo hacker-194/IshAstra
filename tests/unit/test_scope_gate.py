@@ -1,7 +1,8 @@
 """Unit tests for Strix ScopeGate (default-deny authorization gate)."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from strix.core.scope import (
     Scope,

@@ -440,12 +440,12 @@ def get_assessment_queue(
     if QUEUE_MODE == QUEUE_MODE_K8S_JOBS:
         log.info("Using K8s Jobs-backed assessment queue")
         from strix.core.k8s_queue import get_k8s_assessment_queue
+
         return get_k8s_assessment_queue(concurrency=concurrency, queue_max=queue_max)
     if QUEUE_MODE == "celery":
         if celery_app is None:
             raise RuntimeError(
-                "STRIX_QUEUE_MODE=celery requires the optional celery extra: "
-                "pip install 'strix[celery]'"
+                "STRIX_QUEUE_MODE=celery requires the optional celery extra: pip install 'strix[celery]'"
             )
         log.info("Using Celery-backed assessment queue")
         return CeleryAssessmentQueue(concurrency=concurrency, queue_max=queue_max)

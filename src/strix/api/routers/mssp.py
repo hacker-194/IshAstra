@@ -105,6 +105,7 @@ def _convert_partner(partner: MSSPPartner, include_limits: bool = False) -> MSSP
 def _convert_customer(customer, effective_limits: dict[str, Any] | None = None) -> MSSPCustomerResponse:
     """Convert core MSSPCustomer to API model."""
     from strix.api.schemas import PricingTierEnum
+
     return MSSPCustomerResponse(
         customer_id=customer.customer_id,
         partner_id=customer.partner_id,
@@ -171,7 +172,7 @@ async def create_mssp_partner(
     try:
         tier = MSSPTier(req.tier.value)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     partner_id, admin_key = await create_partner(
         name=req.name,
@@ -224,12 +225,6 @@ async def get_mssp_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    # Check access
-    if not (tenant.get("global_admin") or tenant.get("admin")):
-        # Check if tenant has partner admin key
-        auth_header = tenant.get("request_headers", {}).get("Authorization") if hasattr(tenant, "get") else None
-        # In practice, the require_partner_admin dependency would be used
-
     return _convert_partner(partner, include_limits=True)
 
 
@@ -246,12 +241,12 @@ async def update_mssp_partner(
     try:
         tier = MSSPTier(req.tier.value) if req.tier else None
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     try:
         status = MSSPPartnerStatus(req.status.value) if req.status else None
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}")
+        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}") from None
 
     partner = await update_partner(
         partner_id,
@@ -338,7 +333,7 @@ async def add_mssp_customer(
     try:
         tier = PricingTier(req.tier.value)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     # Validate tier against partner limits
     if partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
@@ -359,7 +354,7 @@ async def add_mssp_customer(
             trial_days=req.trial_days,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     effective_limits = get_customer_effective_limits(customer, partner)
 
@@ -393,9 +388,7 @@ async def list_mssp_customers(
     customer_status = MSSPCustomerStatus(status.value) if status else None
     customers = await list_partner_customers(partner_id, status=customer_status, limit=limit, offset=offset)
 
-    return {
-        "customers": [_convert_customer(c, get_customer_effective_limits(c, partner)) for c in customers]
-    }
+    return {"customers": [_convert_customer(c, get_customer_effective_limits(c, partner)) for c in customers]}
 
 
 @router.get("/partners/{partner_id}/customers/{customer_id}")
@@ -437,12 +430,12 @@ async def update_mssp_customer(
     try:
         tier = PricingTier(req.tier.value) if req.tier else None
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     try:
         status = MSSPCustomerStatus(req.status.value) if req.status else None
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}")
+        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}") from None
 
     # Validate tier change against partner limits
     if tier and partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
@@ -528,7 +521,7 @@ async def create_mssp_invitation(
     try:
         tier = PricingTier(req.tier.value)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
 
     # Validate tier against partner limits
     if partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
@@ -598,7 +591,7 @@ async def accept_mssp_invitation(
     try:
         customer = await accept_invitation(token, tenant_id)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     partner = await get_partner(customer.partner_id)
     effective_limits = get_customer_effective_limits(customer, partner) if partner else None

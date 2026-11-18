@@ -39,7 +39,7 @@ data:
     # Configuration
     CHECKPOINT_DIR="${STRIX_CHECKPOINT_DIR:-/var/lib/strix/checkpoints}"
     REDIS_URL="${STRIX_REDIS_URL:-redis://redis-master:6379/0}"
-    QUEUE_NAME="${STRIX_QUEUE_NAME:-celery}"
+    QUEUE_NAME="${STRIX_QUEUE_NAME:-strix}"
     GRACE_PERIOD="${STRIX_GRACE_PERIOD:-300}"
     CHECKPOINT_INTERVAL="${STRIX_CHECKPOINT_INTERVAL:-30}"
 

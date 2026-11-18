@@ -51,7 +51,6 @@ commercial edition. Anyone may adopt, modify or redistribute it under MIT.
 | Recurring assessments and new-finding alerts | `src/strix/core/scheduler.py`, `/api/schedules`, monitor webhooks |
 | Multi-tenant API keys, rotation, expiry, read/write scope, audit chain | `src/strix/api/security.py`, `/api/audit` |
 | Multiple users per tenant with `admin`/`analyst`/`viewer` roles | `tenant_users`, `/api/users`; the legacy tenant key remains |
-| Local SAST/SCA/secret scanning | `src/strix/code_scan.py` (Semgrep, Bandit, Trivy) |
 | Advisory AI triage with no tool execution | `src/strix/analyst.py`, `/api/assess/{id}/triage` |
 | SIEM/ticketing/chat/CI connectors | `src/strix/integrations/` |
 | Single-node self-hosted deployment | `Dockerfile`, `docker-compose.yml`, `DEPLOYMENT.md` |

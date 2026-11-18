@@ -166,7 +166,6 @@ Untested / low coverage:
 ├── core/monitor.py        ~30%  (scheduler + webhooks)
 ├── core/retention.py      ~25%  (pruning + vacuum)
 ├── core/analyst.py        ~50%  (AI triage boundaries)
-├── core/code_scan.py      ~20%  (semgrep/bandit/trivy wrappers)
 └── core/collab.py         ~10%  (OOB listener)
 ```
 

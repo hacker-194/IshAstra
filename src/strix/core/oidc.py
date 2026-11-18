@@ -7,7 +7,6 @@ Fail-closed when misconfigured.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import logging
 import secrets
@@ -22,7 +21,14 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from strix.config import Settings
-from strix.core.auth import Authenticator, AuthResult, Principal
+from strix.core.auth import (
+    Authenticator,
+    AuthResult,
+    Principal,
+    generate_nonce,
+    generate_pkce_pair,
+    generate_state,
+)
 from strix.core.store import load_api_keys_sync, save_api_key_sync
 
 log = logging.getLogger(__name__)
@@ -119,24 +125,6 @@ def fetch_oidc_config(issuer: str) -> OIDCProviderConfig:
         resp = client.get(f"{issuer.rstrip('/')}/.well-known/openid-configuration")
         resp.raise_for_status()
         return OIDCProviderConfig.from_dict(resp.json())
-
-
-def generate_pkce_pair() -> tuple[str, str]:
-    """Generate PKCE code_verifier and code_challenge."""
-    code_verifier = secrets.token_urlsafe(32)  # 43 chars
-    digest = hashlib.sha256(code_verifier.encode()).digest()
-    code_challenge = base64.urlsafe_b64encode(digest).decode().rstrip("=")
-    return code_verifier, code_challenge
-
-
-def generate_state() -> str:
-    """Generate secure state parameter."""
-    return secrets.token_urlsafe(32)
-
-
-def generate_nonce() -> str:
-    """Generate nonce for ID token validation."""
-    return secrets.token_urlsafe(32)
 
 
 def exchange_code_for_tokens(

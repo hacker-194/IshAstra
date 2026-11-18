@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from strix.api.dependencies import get_settings
 from strix.api.security import api_keys
 from strix.config import Settings
+from strix.core.auth import generate_nonce, generate_pkce_pair, generate_state
 
 log = logging.getLogger(__name__)
 
@@ -99,27 +100,6 @@ def _cleanup_expired() -> None:
     expired_nonces = [n for n, t in _nonces.items() if now - t > _NONCE_TTL]
     for n in expired_nonces:
         _nonces.pop(n, None)
-
-
-def generate_pkce_pair() -> tuple[str, str]:
-    """Generate PKCE code_verifier and code_challenge."""
-    code_verifier = secrets.token_urlsafe(32)  # 43 chars
-    import base64
-    import hashlib
-
-    digest = hashlib.sha256(code_verifier.encode()).digest()
-    code_challenge = base64.urlsafe_b64encode(digest).decode().rstrip("=")
-    return code_verifier, code_challenge
-
-
-def generate_state() -> str:
-    """Generate secure state parameter."""
-    return secrets.token_urlsafe(32)
-
-
-def generate_nonce() -> str:
-    """Generate nonce for ID token validation."""
-    return secrets.token_urlsafe(32)
 
 
 class OIDCProviderConfig(BaseModel):

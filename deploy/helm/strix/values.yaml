@@ -370,7 +370,7 @@ scheduler:
             averageUtilization: 80
 
 # ============================================================================
-# Celery Workers (Optional - for distributed queue mode)
+# Worker replicas (in-process queue; use the k8s-jobs mode for a fleet)
 # ============================================================================
 worker:
   enabled: false
@@ -435,9 +435,7 @@ worker:
     STRIX_DB: "/var/lib/strix/strix.db"
     STRIX_REDIS_URL: "redis://redis-master:6379/0"
     STRIX_REDIS_REQUIRED: "1"
-    STRIX_QUEUE_MODE: "celery"
-    STRIX_CELERY_BROKER_URL: "redis://redis-master:6379/1"
-    STRIX_CELERY_RESULT_BACKEND: "redis://redis-master:6379/2"
+    STRIX_QUEUE_MODE: "inprocess"
     STRIX_SCOPE_FILE: "/etc/strix/scope.json"
     STRIX_LOG_FORMAT: "json"
     STRIX_LOG_LEVEL: "INFO"
@@ -1155,7 +1153,7 @@ workerCostOptimization:
     horizontalPodAutoscalerConfig: {}
     redis:
       address: ""
-      listName: "celery"
+      listName: "strix"
       listLength: "10"
       enableTLS: "false"
       secretName: ""

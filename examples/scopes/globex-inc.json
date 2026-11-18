@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "program": "Globex Bug Bounty Program",
+  "authorized_by": "Bug Bounty Program Manager",
+  "authorization_ref": "BB-2025-GLOBEX-001",
+  "include": [
+    "api.globex.com",
+    "*.globex.com",
+    "app.globex.com",
+    "cdn.globex.com"
+  ],
+  "exclude": [
+    "admin.globex.com",
+    "internal.globex.com",
+    "*.corp.globex.com",
+    "vpn.globex.com",
+    "git.globex.com"
+  ],
+  "authorized_networks": [
+    "0.0.0.0/0",
+    "::/0"
+  ],
+  "allowed_ports": [80, 443],
+  "allow_broad_networks": true,
+  "expires_at": "2025-12-31T23:59:59Z",
+  "allowed_asns": [
+    "AS13335",  # Cloudflare
+    "AS16509",  # Amazon
+    "AS15169"   # Google
+  ],
+  "allowed_countries": ["US", "CA", "GB", "DE", "FR", "JP", "AU"],
+  "metadata": {
+    "environment": "production",
+    "engagement_type": "bug_bounty",
+    "payout_tier": "standard",
+    "max_severity": "critical"
+  }
+}

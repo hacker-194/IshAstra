@@ -1,33 +1,80 @@
-FROM python:3.12-slim-bookworm
+# syntax=docker/dockerfile:1
+# Strix ScopeGate - production image.
+#
+#   docker build -t strix:3.5.0 .
+#   docker run -p 8000:8000 -e STRIX_ENV=production \
+#     -e STRIX_API_KEY=... -e STRIX_AUDIT_HMAC_KEY=... strix:3.5.0
+#
+# Installs from constraints.txt (the same set CI uses) instead of a package
+# manager the project does not use; the runtime stage copies only the venv.
 
-# nmap powers the "network"/"ports" profiles (the native TCP detector and the
-# git-exposure detector need no external binary); omit it to ship a smaller
-# image — the job will report nmap as unavailable, never as clean.
-RUN apt-get update && apt-get install -y --no-install-recommends nmap sqlite3 \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --create-home --home-dir /home/strix strix \
-    && mkdir -p /var/lib/strix /etc/strix && chown strix /var/lib/strix
+# =============================================================================
+# Build stage
+# =============================================================================
+FROM python:3.12-slim AS builder
+
+# libxmlsec1/libxml2 build against these; python3-saml and WeasyPrint need them.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    pkg-config \
+    libxml2-dev \
+    libxslt1-dev \
+    libxmlsec1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+# README.md is required by pyproject (readme = "README.md"); LICENSE ships in the wheel.
+COPY pyproject.toml constraints.txt README.md LICENSE ./
+COPY src ./src
+
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/venv/bin/pip install --no-cache-dir -c constraints.txt .
+
+# =============================================================================
+# Runtime stage
+# =============================================================================
+FROM python:3.12-slim AS runtime
+
+# Shared libraries only: XML/SAML (xmlsec) and WeasyPrint's PDF stack.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libxml2 \
+    libxslt1.1 \
+    libxmlsec1 \
+    libxmlsec1-openssl \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    shared-mime-info \
+    fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r -g 10001 strix \
+    && useradd -r -u 10001 -g strix -d /app -s /usr/sbin/nologin strix \
+    && mkdir -p /app /var/lib/strix /tmp/strix \
+    && chown -R strix:strix /app /var/lib/strix /tmp/strix
+
+COPY --from=builder /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # SQLite lives on the writable volume; /app stays read-only.
+    STRIX_DB=/var/lib/strix/strix.db
 
 WORKDIR /app
-# constraints.txt pins the exact direct dependency versions used for the release;
-# src/ last so an application change does not invalidate the dependency layer.
-COPY pyproject.toml constraints.txt README.md ./
-COPY src ./src
-# Fail the build if installation fails: an earlier `|| true` silently shipped an
-# image with no `strix` entrypoint after a malformed requirement.
-RUN pip install --no-cache-dir -c constraints.txt .
-RUN pip uninstall -y pip setuptools || true
-
 USER strix
-ENV STRIX_DB=/var/lib/strix/strix.db \
-    STRIX_SCOPE_FILE=/etc/strix/scope.json \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+
 EXPOSE 8000
-VOLUME ["/var/lib/strix"]
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
-  CMD python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"
-# One worker process owns the database (enforced by the worker lease); the
-# server binds all interfaces here because the container network is the
-# boundary — pass --host 127.0.0.1 behind a reverse proxy on the host instead.
-CMD ["strix", "--host", "0.0.0.0", "--port", "8000"]
+
+# /api/health is the unauthenticated liveness route (the old /health is a 404).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+
+ENTRYPOINT ["strix"]
+# The CLI has no `api` group: the server command is `serve`.
+CMD ["serve", "--host", "0.0.0.0", "--port", "8000"]

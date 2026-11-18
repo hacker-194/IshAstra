@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import re
+import secrets
 import time
 from collections import Counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from strix import analyst
-from strix.api import deps
+from strix.api import dependencies as deps
+from strix.api.csrf import validate_csrf_token
+from strix.api.dependencies import settings as deps_settings
 from strix.api.deps import (
     Tenant,
     audit_async,
@@ -20,10 +23,12 @@ from strix.api.deps import (
     check_target_or_raise,
     require_auth,
     tenant_filter,
+    tenant_scope_async,
 )
 from strix.api.schemas import (
     AssessRequest,
     AssessResponse,
+    FindingRemediationUpdate,
     FindingStatusUpdate,
     JobSummaryResponse,
     Page,
@@ -31,19 +36,32 @@ from strix.api.schemas import (
 )
 from strix.core import jobs, store
 from strix.core.adapters import PROFILES
+from strix.core.auth import EncryptedAuthConfig, create_authenticator_from_dict
 from strix.core.findings import to_sarif
+from strix.core.queue import get_assessment_worker
 from strix.core.redaction import redact_text, sanitize_target
-from strix.core.worker import AssessmentQueueFull, WorkerLeaseError, assessment_worker
+from strix.core.worker import AssessmentQueueFull, WorkerLeaseError
 from strix.metrics import record_report
 from strix.report_html import render_html_report
+from strix.report_pdf import generate_pdf_from_job
 
 router = APIRouter(prefix="/api")
 
+# One queue for the process, selected by STRIX_QUEUE_MODE (in-process or Celery).
+# Use a lazy getter to allow test fixtures to set environment variables first.
+_assessment_worker = None
+
+
+def _get_assessment_worker():
+    global _assessment_worker
+    if _assessment_worker is None:
+        _assessment_worker = get_assessment_worker()
+    return _assessment_worker
+
+
 _ACTIVE_STATES = ("queued", "running")
 _RETRYABLE_STATES = ("failed", "partial", "cancelled")
-MAX_INLINE_TIMEOUT = (
-    120.0  # wait=true holds a request thread; longer runs must be queued
-)
+MAX_INLINE_TIMEOUT = 120.0  # wait=true holds a request thread; longer runs must be queued
 # A client-chosen deduplication token. Bounded and printable so it can be a
 # database key without escaping concerns.
 _IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9._:-]{1,128}")
@@ -103,9 +121,7 @@ async def record_job(job: jobs.Job, tenant: Tenant) -> dict[str, Any]:
             "actor": tenant_id,
             "policy": job.policy,
             "findings": len(job.findings),
-            "failed_adapters": [
-                run.adapter for run in job.runs if run.state.value != "ok"
-            ],
+            "failed_adapters": [run.adapter for run in job.runs if run.state.value != "ok"],
         },
     )
     chain_hash = await deps.audit_chain.append_async(
@@ -129,19 +145,20 @@ def record_job_sync(job: jobs.Job, tenant: Tenant) -> dict[str, Any]:
     """
     try:
         loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If loop is already running (rare in worker thread context),
-            # run in a new thread to avoid deadlock
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, record_job(job, tenant))
-                return future.result()
-        else:
-            return loop.run_until_complete(record_job(job, tenant))
     except RuntimeError:
         # No event loop in this thread (e.g., tests)
         return asyncio.run(record_job(job, tenant))
+    if loop.is_running():
+        # If loop is already running (rare in worker thread context),
+        # run in a new thread to avoid deadlock. Do not catch RuntimeError
+        # from the coroutine itself here: retrying would save a partial job
+        # twice and hide the real failure.
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, record_job(job, tenant))
+            return future.result()
+    return loop.run_until_complete(record_job(job, tenant))
 
 
 @router.post("/assess", response_model=AssessResponse)
@@ -149,6 +166,7 @@ async def create_assessment(
     req: AssessRequest,
     tenant: Tenant = Depends(require_auth),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> AssessResponse | JSONResponse:
     """Queue an authorized assessment (202 + job id), or run it inline with ``wait``.
 
@@ -167,12 +185,8 @@ async def create_assessment(
             prior_dict = dict(prior)
             prior_dict["deduplicated"] = True
             prior_dict.setdefault("poll_url", f"/api/assess/{prior_dict['id']}")
-            prior_dict.setdefault(
-                "cancel_url", f"/api/assess/{prior_dict['id']}/cancel"
-            )
-            status_code = (
-                status.HTTP_202_ACCEPTED if prior["state"] in _ACTIVE_STATES else 200
-            )
+            prior_dict.setdefault("cancel_url", f"/api/assess/{prior_dict['id']}/cancel")
+            status_code = status.HTTP_202_ACCEPTED if prior["state"] in _ACTIVE_STATES else 200
             # Return JSONResponse for correct status code; response_model validates content
             return JSONResponse(status_code=status_code, content=prior_dict)
     target = req.target.strip()
@@ -181,8 +195,39 @@ async def create_assessment(
     # Managed mode: this tenant's own engagement policy is the authorization
     # (optionally the exact policy named in the request); global mode falls
     # back to the single scope document. Either way the refusal is immediate.
-    snapshot = await deps.tenant_scope_async(tenant, req.policy_id)
+    snapshot = await tenant_scope_async(tenant, req.policy_id)
     check_target_or_raise(target, snapshot)
+
+    # Enforce API key's include_hosts restriction (per-project key scope)
+    include_hosts = tenant.get("include_hosts")
+    if include_hosts:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(target)
+        target_host = parsed.hostname or ""
+        if target_host:
+            target_host = target_host.lower().strip(".")
+            allowed = [h.strip().lower().strip(".") for h in include_hosts.split(",") if h.strip()]
+            # Support wildcard subdomain matching (e.g., "*.example.com")
+            matched = False
+            for pattern in allowed:
+                if pattern.startswith("*."):
+                    # *.example.com covers subdomains only, never the apex
+                    suffix = pattern[1:]
+                    if target_host.endswith(suffix) and target_host != pattern[2:]:
+                        matched = True
+                        break
+                elif target_host == pattern:
+                    matched = True
+                    break
+            if not matched:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Target {target_host} is not within this API key's allowed hosts: {include_hosts}"
+                    ),
+                )
+
     if req.profile not in PROFILES:
         raise HTTPException(
             status_code=400,
@@ -196,6 +241,32 @@ async def create_assessment(
         )
 
     actor = tenant["tenant_id"]
+
+    # Build job policy, including encrypted auth config if provided
+    job_policy = {}
+    if req.auth is not None:
+        if not deps_settings.encryption_key:
+            raise HTTPException(
+                status_code=500,
+                detail="Authentication encryption key not configured (STRIX_ENCRYPTION_KEY)",
+            )
+        # Create authenticator from request config
+        auth_config = req.auth.model_dump(exclude_none=True)
+        # Ensure principal_id is set
+        if "principal_id" not in auth_config or not auth_config["principal_id"]:
+            auth_config["principal_id"] = f"auth-{secrets.token_hex(4)}"
+        try:
+            authenticator = create_authenticator_from_dict(auth_config)
+            encrypted_auth = EncryptedAuthConfig.create(authenticator, deps_settings.encryption_key)
+            job_policy["encrypted_auth_config"] = {
+                "principal_id": encrypted_auth.principal_id,
+                "authenticator_type": encrypted_auth.authenticator_type,
+                "encrypted_config": encrypted_auth.encrypted_config,
+                "created_at": encrypted_auth.created_at,
+            }
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid auth configuration: {exc}") from exc
+
     if req.wait:
         job = jobs.run_assessment(
             target,
@@ -204,6 +275,7 @@ async def create_assessment(
             timeout=req.timeout,
             scope_snapshot=snapshot,
             idempotency_key=key,
+            policy=job_policy or None,
         )
         try:
             result = await record_job(job, tenant)
@@ -218,15 +290,9 @@ async def create_assessment(
             prior_dict = dict(prior)
             prior_dict["deduplicated"] = True
             prior_dict.setdefault("poll_url", f"/api/assess/{prior_dict['id']}")
-            prior_dict.setdefault(
-                "cancel_url", f"/api/assess/{prior_dict['id']}/cancel"
-            )
+            prior_dict.setdefault("cancel_url", f"/api/assess/{prior_dict['id']}/cancel")
             return JSONResponse(
-                status_code=(
-                    status.HTTP_202_ACCEPTED
-                    if prior["state"] in _ACTIVE_STATES
-                    else 200
-                ),
+                status_code=(status.HTTP_202_ACCEPTED if prior["state"] in _ACTIVE_STATES else 200),
                 content=prior_dict,
             )
 
@@ -239,6 +305,7 @@ async def create_assessment(
         timeout=req.timeout,
         scope_snapshot=snapshot,
         idempotency_key=key,
+        policy=job_policy or None,
     )
     try:
         await store.save_job(job, tenant=actor)
@@ -264,7 +331,7 @@ async def create_assessment(
         record_job_sync(finished, tenant)
 
     try:
-        await assessment_worker.submit(job, on_finish=finish)
+        await _get_assessment_worker().submit(job, on_finish=finish)
     except AssessmentQueueFull as exc:
         job.state = jobs.JobState.FAILED
         job.error = str(exc)
@@ -279,9 +346,7 @@ async def create_assessment(
                 "reason": "queue_full",
             },
         )
-        raise HTTPException(
-            status_code=503, detail="Assessment queue is full — try again shortly"
-        ) from None
+        raise HTTPException(status_code=503, detail="Assessment queue is full — try again shortly") from None
     except WorkerLeaseError as exc:
         # Another process owns the worker for this database; accepting the job
         # would mean it never runs. Refuse instead of queueing it into a void.
@@ -289,7 +354,7 @@ async def create_assessment(
         job.error = "worker unavailable"
         job.finished_at = time.time()
         await store.save_job(job, tenant=actor)
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(status_code=503, detail=f"worker unavailable: {exc}") from None
 
     await audit_async(
         tenant,
@@ -311,7 +376,7 @@ async def list_assessments(
     page_size: int = Query(default=20, ge=1, le=100),
     tenant: Tenant = Depends(require_auth),
 ) -> Page[JobSummaryResponse]:
-    rows = await store.list_jobs(tenant=tenant_filter(tenant), limit=page_size)
+    rows = await store.list_jobs(tenant=tenant_filter(tenant), limit=page_size, offset=(page - 1) * page_size)
     total = await store.count_jobs(tenant=tenant_filter(tenant))
     items = [
         JobSummaryResponse(
@@ -337,7 +402,7 @@ async def list_assessments(
         total=total,
         page=page,
         page_size=page_size,
-        has_next=len(rows) == page_size,
+        has_next=page * page_size < total,
     )
 
 
@@ -350,16 +415,12 @@ async def _get_job_or_404(job_id: str, tenant: Tenant) -> dict[str, Any]:
 
 
 @router.get("/assess/{job_id}")
-async def get_assessment(
-    job_id: str, tenant: Tenant = Depends(require_auth)
-) -> dict[str, Any]:
+async def get_assessment(job_id: str, tenant: Tenant = Depends(require_auth)) -> dict[str, Any]:
     return await _get_job_or_404(job_id, tenant)
 
 
 @router.get("/assess/{job_id}/sarif")
-async def get_sarif(
-    job_id: str, tenant: Tenant = Depends(require_auth)
-) -> JSONResponse:
+async def get_sarif(job_id: str, tenant: Tenant = Depends(require_auth)) -> JSONResponse:
     await _get_job_or_404(job_id, tenant)
     findings = await store.get_findings(job_id, tenant=tenant_filter(tenant))
     return JSONResponse(content=to_sarif(findings), media_type="application/sarif+json")
@@ -371,6 +432,7 @@ async def update_finding_status(
     fingerprint: str,
     update: FindingStatusUpdate,
     tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     """Move a finding through triage/remediation; the transition is audited.
 
@@ -379,14 +441,10 @@ async def update_finding_status(
     """
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] in _ACTIVE_STATES:
-        raise HTTPException(
-            status_code=409, detail="Wait for the assessment to finish before triaging"
-        )
+        raise HTTPException(status_code=409, detail="Wait for the assessment to finish before triaging")
     if not re.fullmatch(r"[0-9a-f]{32}", fingerprint):
         raise HTTPException(status_code=404, detail="Unknown finding")
-    before = next(
-        (f for f in job.get("findings", []) if f["fingerprint"] == fingerprint), None
-    )
+    before = next((f for f in job.get("findings", []) if f["fingerprint"] == fingerprint), None)
     if before is None:
         raise HTTPException(status_code=404, detail="Unknown finding")
 
@@ -396,6 +454,8 @@ async def update_finding_status(
             fingerprint,
             tenant=tenant_filter(tenant),
             to_status=update.status,
+            actor=tenant["tenant_id"],
+            note=redact_text(update.note) if update.note else "",
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
@@ -416,15 +476,103 @@ async def update_finding_status(
     return updated
 
 
+@router.get("/assess/{job_id}/findings/{fingerprint}/history")
+async def finding_history(
+    job_id: str,
+    fingerprint: str,
+    tenant: Tenant = Depends(require_auth),
+) -> dict[str, Any]:
+    """Immutable event timeline plus current remediation metadata."""
+    job = await _get_job_or_404(job_id, tenant)
+    if not re.fullmatch(r"[0-9a-f]{32}", fingerprint):
+        raise HTTPException(status_code=404, detail="Unknown finding")
+    if not any(item["fingerprint"] == fingerprint for item in job.get("findings", [])):
+        raise HTTPException(status_code=404, detail="Unknown finding")
+    tenant_id = job["tenant"]
+    return {
+        "job_id": job_id,
+        "fingerprint": fingerprint,
+        "events": await store.list_finding_events(tenant=tenant_id, job_id=job_id, fingerprint=fingerprint),
+        "remediation": await store.get_finding_remediation(
+            tenant=tenant_id, job_id=job_id, fingerprint=fingerprint
+        )
+        or {
+            "owner": "",
+            "due_at": None,
+            "exception_until": None,
+            "exception_reason": "",
+            "exception_approved_by": "",
+        },
+    }
+
+
+@router.patch("/assess/{job_id}/findings/{fingerprint}/remediation")
+async def update_finding_remediation(
+    job_id: str,
+    fingerprint: str,
+    update: FindingRemediationUpdate,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
+) -> dict[str, Any]:
+    """Assign an owner/deadline or record a time-boxed risk exception."""
+    job = await _get_job_or_404(job_id, tenant)
+    if not re.fullmatch(r"[0-9a-f]{32}", fingerprint):
+        raise HTTPException(status_code=404, detail="Unknown finding")
+    if not any(item["fingerprint"] == fingerprint for item in job.get("findings", [])):
+        raise HTTPException(status_code=404, detail="Unknown finding")
+    now = time.time()
+    if update.due_at is not None and update.due_at < 0:
+        raise HTTPException(status_code=400, detail="due_at must be a positive Unix timestamp")
+    if update.exception_until is not None:
+        if update.exception_until <= now:
+            raise HTTPException(status_code=400, detail="exception_until must be in the future")
+        if not update.exception_reason.strip() or not update.exception_approved_by.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="exception_reason and exception_approved_by are required for a risk exception",
+            )
+    updated = await store.set_finding_remediation(
+        tenant=job["tenant"],
+        job_id=job_id,
+        fingerprint=fingerprint,
+        owner=update.owner.strip(),
+        due_at=update.due_at,
+        exception_until=update.exception_until,
+        exception_reason=redact_text(update.exception_reason.strip()),
+        exception_approved_by=update.exception_approved_by.strip(),
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Unknown finding")
+    await audit_async(
+        tenant,
+        {
+            "event": "finding_remediation_updated",
+            "job": job_id,
+            "fingerprint": fingerprint,
+            "owner": updated["owner"],
+            "due_at": updated["due_at"],
+            "exception_until": updated["exception_until"],
+            "exception_approved_by": updated["exception_approved_by"],
+        },
+    )
+    return updated
+
+
 @router.post("/assess/{job_id}/cancel")
 async def cancel_assessment(
-    job_id: str, tenant: Tenant = Depends(require_auth)
+    job_id: str,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     """Cancel a queued or running job the caller owns (administrators excepted)."""
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] not in _ACTIVE_STATES:
         raise HTTPException(status_code=409, detail=f"Job is already {job['state']}")
-    if not assessment_worker.cancel(job_id):
+    # Persist first: a Celery worker may own execution, and its in-memory job
+    # cannot see this process's event. The durable flag is polled by the owner.
+    persisted = await store.request_cancel(job_id, tenant=tenant_filter(tenant))
+    signalled = _get_assessment_worker().cancel(job_id)
+    if not persisted and not signalled:
         raise HTTPException(status_code=409, detail="Job is not running on this worker")
     await audit_async(
         tenant,
@@ -439,7 +587,9 @@ async def cancel_assessment(
 
 @router.post("/assess/{job_id}/retry")
 async def retry_assessment(
-    job_id: str, tenant: Tenant = Depends(require_auth)
+    job_id: str,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> JSONResponse:
     """Queue a fresh job for a failed, partial or cancelled assessment.
 
@@ -453,35 +603,31 @@ async def retry_assessment(
     if original["state"] not in _RETRYABLE_STATES:
         raise HTTPException(
             status_code=409,
-            detail=(
-                f"Job is {original['state']}; only a failed, partial or cancelled "
-                "job can be retried"
-            ),
+            detail=(f"Job is {original['state']}; only a failed, partial or cancelled job can be retried"),
         )
     target = (original.get("target") or "").strip()
     if not target:
-        raise HTTPException(
-            status_code=409, detail="Stored target is empty; submit a new assessment"
-        )
-    snapshot = await deps.tenant_scope_async(tenant)
+        raise HTTPException(status_code=409, detail="Stored target is empty; submit a new assessment")
+    snapshot = await tenant_scope_async(tenant)
     check_target_or_raise(target, snapshot)
 
     actor = tenant["tenant_id"]
     try:
         policy = original.get("policy")
-        timeout = (
-            float((policy or {}).get("timeout_seconds") or 120.0)
-            if policy is not None
-            else 120.0
-        )
+        timeout = float((policy or {}).get("timeout_seconds") or 120.0) if policy is not None else 120.0
     except (TypeError, ValueError, AttributeError):
         timeout = 120.0
+    # Preserve encrypted auth config from original job
+    retry_policy = {}
+    if policy and "encrypted_auth_config" in policy:
+        retry_policy["encrypted_auth_config"] = policy["encrypted_auth_config"]
     job = jobs.prepare(
         target,
         profile=original["profile"],
         actor=actor,
         timeout=timeout,
         scope_snapshot=snapshot,
+        policy=retry_policy or None,
     )
     job.policy["retry_of"] = job_id
     job.policy["retry_attempt"] = int(original.get("attempts") or 0) + 1
@@ -489,11 +635,7 @@ async def retry_assessment(
         await store.save_job(job, tenant=actor)
     except store.JobConflict:
         # Another retry with same idempotency key raced; return the winner
-        prior = (
-            await _existing_submission(job.idempotency_key, tenant)
-            if job.idempotency_key
-            else None
-        )
+        prior = await _existing_submission(job.idempotency_key, tenant) if job.idempotency_key else None
         if prior is None:
             raise
         return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content=prior)
@@ -509,21 +651,19 @@ async def retry_assessment(
         record_job_sync(finished, tenant)
 
     try:
-        await assessment_worker.submit(job, on_finish=finish)
+        await _get_assessment_worker().submit(job, on_finish=finish)
     except AssessmentQueueFull as exc:
         job.state = jobs.JobState.FAILED
         job.error = str(exc)
         job.finished_at = time.time()
         await store.save_job(job, tenant=actor)
-        raise HTTPException(
-            status_code=503, detail="Assessment queue is full — try again shortly"
-        ) from None
+        raise HTTPException(status_code=503, detail="Assessment queue is full — try again shortly") from None
     except WorkerLeaseError as exc:
         job.state = jobs.JobState.FAILED
         job.error = "worker unavailable"
         job.finished_at = time.time()
         await store.save_job(job, tenant=actor)
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise HTTPException(status_code=503, detail=f"worker unavailable: {exc}") from None
     await audit_async(
         tenant,
         {
@@ -561,9 +701,7 @@ def _bound_authorization(job: dict[str, Any]) -> dict[str, Any]:
     return {
         "program": program if isinstance(program, str) else "",
         "authorized_by": authorized_by if isinstance(authorized_by, str) else "",
-        "authorization_ref": (
-            authorization_ref if isinstance(authorization_ref, str) else ""
-        ),
+        "authorization_ref": (authorization_ref if isinstance(authorization_ref, str) else ""),
         "scope_include": include if isinstance(include, list) else [],
         "policy_id": binding.get("policy_id"),
         "policy_version": binding.get("policy_version"),
@@ -573,7 +711,9 @@ def _bound_authorization(job: dict[str, Any]) -> dict[str, Any]:
 
 @router.post("/report")
 async def build_report(
-    req: ReportRequest, tenant: Tenant = Depends(require_auth)
+    req: ReportRequest,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     """Submission-ready evidence bundle for a target's latest finished assessment."""
     target = req.target.strip()
@@ -603,9 +743,7 @@ async def build_report(
             "findings": [finding["fingerprint"] for finding in findings],
         }
     )
-    await audit_async(
-        tenant, {"event": "report_generated", "target": job["target"], "job": job["id"]}
-    )
+    await audit_async(tenant, {"event": "report_generated", "target": job["target"], "job": job["id"]})
 
     return {
         "program": authorized["program"],
@@ -637,7 +775,9 @@ async def build_report(
 
 @router.post("/assess/{job_id}/triage")
 async def triage_assessment(
-    job_id: str, tenant: Tenant = Depends(require_auth)
+    job_id: str,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     """AI-analyst triage for a finished job's findings (advisory only).
 
@@ -648,14 +788,10 @@ async def triage_assessment(
     """
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] not in ("completed", "partial"):
-        raise HTTPException(
-            status_code=409, detail=f"Job is {job['state']}; triage needs findings"
-        )
+        raise HTTPException(status_code=409, detail=f"Job is {job['state']}; triage needs findings")
     provider = analyst.provider_from_env()
     triage = analyst.analyze_findings(job["findings"], provider)
-    await audit_async(
-        tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": triage.ai_enriched}
-    )
+    await audit_async(tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": triage.ai_enriched})
     return {
         **triage.to_dict(),
         "job_id": job_id,
@@ -668,9 +804,7 @@ async def triage_assessment(
     response_class=HTMLResponse,
     responses={200: {"content": {"text/html": {}}}},
 )
-async def get_html_report(
-    job_id: str, tenant: Tenant = Depends(require_auth)
-) -> HTMLResponse:
+async def get_html_report(job_id: str, tenant: Tenant = Depends(require_auth)) -> HTMLResponse:
     """Self-contained HTML assessment report (evidence pre-redacted)."""
     job = await _get_job_or_404(job_id, tenant)
     findings = await store.get_findings(job_id, tenant=tenant_filter(tenant))
@@ -699,3 +833,27 @@ async def get_html_report(
     record_report("html")
     await audit_async(tenant, {"event": "report_html_generated", "job": job_id})
     return HTMLResponse(render_html_report(report))
+
+
+@router.get(
+    "/assess/{job_id}/report.pdf",
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+async def get_pdf_report(job_id: str, tenant: Tenant = Depends(require_auth)) -> Response:
+    """Professional PDF assessment report generated via WeasyPrint."""
+    job = await _get_job_or_404(job_id, tenant)
+    findings = await store.get_findings(job_id, tenant=tenant_filter(tenant))
+    authorized = _bound_authorization(job)
+
+    try:
+        pdf_bytes = generate_pdf_from_job(job, [f.to_dict() for f in findings], authorized)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=f"PDF generation unavailable: {exc}") from None
+
+    record_report("pdf")
+    await audit_async(tenant, {"event": "report_pdf_generated", "job": job_id})
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="strix-report-{job_id}.pdf"'},
+    )

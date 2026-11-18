@@ -9,13 +9,11 @@ host-level egress filtering on as a second layer if you customize templates.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
 import re
 import shutil
-import signal
 import subprocess
 import threading
 import time
@@ -62,6 +60,15 @@ from strix.core.exposure import GitExposureAdapter
 from strix.core.findings import SEVERITIES, Finding
 from strix.core.ports import RISKY_PORTS, TCPPortAdapter
 from strix.core.probe import EndpointProbe
+from strix.core.sandbox import (
+    SandboxCancelled,
+    SandboxError,
+    SandboxOutputLimitExceeded,
+    SandboxResult,
+    SandboxTimeout,
+    SandboxUnavailable,
+    run_in_sandbox,
+)
 from strix.core.signatures import match_url_signatures
 from strix.core.urls import parse_url
 
@@ -125,9 +132,7 @@ WEB_CHECKS: dict[str, tuple[str, str, str, str]] = {
     ),
 }
 
-_URL_INDICATORS = frozenset(
-    {"sqli", "xss", "open_redirect", "path_traversal", "ssrf", "secret"}
-)
+_URL_INDICATORS = frozenset({"sqli", "xss", "open_redirect", "path_traversal", "ssrf", "secret"})
 
 
 class HTTPAdapter(Adapter):
@@ -149,27 +154,28 @@ class HTTPAdapter(Adapter):
     ) -> AdapterResult:
         checked_destination(target)
 
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
         started = time.monotonic()
         deadline = started + max(0.05, timeout)
         result = AdapterResult()
         # Probe timeout must be shorter than overall deadline to leave headroom
         probe = EndpointProbe(timeout=min(timeout * 0.8, 8.0))
 
-        response = probe.probe(target, deadline=deadline)
+        response = probe.probe(target, deadline=deadline, auth=auth_principal)
         if cancel.is_set():
             raise AdapterCancelled("cancelled during HTTP probe")
         if time.monotonic() >= deadline:
-            raise AdapterTimeout(
-                "HTTP assessment deadline exhausted during initial probe"
-            )
+            raise AdapterTimeout("HTTP assessment deadline exhausted during initial probe")
 
-        reflected = probe.reflections(target, cancel=cancel, deadline=deadline)
+        reflected = probe.reflections(target, cancel=cancel, deadline=deadline, auth=auth_principal)
         if cancel.is_set():
             raise AdapterCancelled("cancelled during reflection checks")
         if time.monotonic() > deadline:
-            raise AdapterTimeout(
-                "HTTP assessment deadline exhausted during reflection checks"
-            )
+            raise AdapterTimeout("HTTP assessment deadline exhausted during reflection checks")
         self._observe(target, response, result, reflected=reflected, notes=result.notes)
 
         # Crawler hand-off: pages discovered in-scope get the same probe-level
@@ -180,16 +186,14 @@ class HTTPAdapter(Adapter):
             if cancel.is_set():
                 raise AdapterCancelled("cancelled during discovered-page probes")
             if time.monotonic() >= deadline:
-                result.notes.append(
-                    "deadline reached before every discovered page was probed"
-                )
+                result.notes.append("deadline reached before every discovered page was probed")
                 break
             if url == target:
                 continue
             page_denial, _page_reason = scope.check(url)
             if page_denial:  # crawler output is untrusted input at this boundary
                 continue
-            page_response = probe.probe(url, deadline=deadline)
+            page_response = probe.probe(url, deadline=deadline, auth=auth_principal)
             self._observe(url, page_response, result, reflected=(), notes=result.notes)
         if len(discovered) > self.MAX_DISCOVERED_PROBES:
             result.notes.append(
@@ -223,11 +227,7 @@ class HTTPAdapter(Adapter):
                 )
             # HSTS only applies to HTTPS responses; a missing header on plain
             # HTTP is not a meaningful HSTS finding.
-            if (
-                parsed_url
-                and parsed_url.scheme == "https"
-                and not headers.get("strict-transport-security")
-            ):
+            if parsed_url and parsed_url.scheme == "https" and not headers.get("strict-transport-security"):
                 observed["missing_hsts"] = (
                     f"HTTPS response {response['status']} carries no Strict-Transport-Security header"
                 )
@@ -240,9 +240,7 @@ class HTTPAdapter(Adapter):
             )
 
         if response.get("redirect_to"):
-            scope_note = (
-                "in-scope" if response.get("redirect_in_scope") else "out-of-scope"
-            )
+            scope_note = "in-scope" if response.get("redirect_in_scope") else "out-of-scope"
             notes.append(
                 f"HTTP redirect observed to {response['redirect_to']} ({scope_note}); "
                 "redirects are not followed and are not classified as vulnerabilities by themselves"
@@ -257,9 +255,7 @@ class HTTPAdapter(Adapter):
 
         for category, evidence in observed.items():
             severity, title, cwe, remediation = WEB_CHECKS[category]
-            is_indicator = (
-                category in _URL_INDICATORS or category == "xss" and bool(reflected)
-            )
+            is_indicator = category in _URL_INDICATORS or category == "xss" and bool(reflected)
             if is_indicator:
                 severity = "info"
                 confidence = "low"
@@ -314,8 +310,14 @@ class DynamicValidationAdapter(Adapter):
             )
         deadline = time.monotonic() + min(max(0.05, timeout), self.MAX_TIMEOUT)
         probe = EndpointProbe(timeout=min(5.0, timeout))
+
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
         result = AdapterResult()
-        redirects = probe.redirect_tests(target, cancel=cancel, deadline=deadline)
+        redirects = probe.redirect_tests(target, cancel=cancel, deadline=deadline, auth=auth_principal)
         if cancel.is_set():
             raise AdapterCancelled("cancelled during redirect validation")
         for item in redirects:
@@ -328,9 +330,7 @@ class DynamicValidationAdapter(Adapter):
                     confidence="high",
                     detector=self.id,
                     detector_version=self.version,
-                    evidence=str(
-                        item.get("evidence") or "External redirect canary observed"
-                    ),
+                    evidence=str(item.get("evidence") or "External redirect canary observed"),
                     location=str(item.get("request_url") or target),
                     description=(
                         "The server returned a Location destination matching a unique "
@@ -347,7 +347,7 @@ class DynamicValidationAdapter(Adapter):
             )
         if time.monotonic() < deadline and not cancel.is_set():
             sql_indicators = probe.database_error_tests(
-                target, cancel=cancel, deadline=deadline
+                target, cancel=cancel, deadline=deadline, auth=auth_principal
             )
             for item in sql_indicators:
                 result.findings.append(
@@ -359,9 +359,7 @@ class DynamicValidationAdapter(Adapter):
                         confidence="medium",
                         detector=self.id,
                         detector_version=self.version,
-                        evidence=str(
-                            item.get("evidence") or "Database error signature observed"
-                        ),
+                        evidence=str(item.get("evidence") or "Database error signature observed"),
                         location=str(item.get("request_url") or target),
                         description=(
                             "A database error signature appeared after a low-impact quote "
@@ -392,9 +390,9 @@ class OpenAPIAdapter(Adapter):
     """Discover OpenAPI/Swagger descriptions and check declared protected GETs.
 
     Only same-origin, in-scope endpoints documented as security-protected are
-    probed, without credentials, and only with GET. A success is reported as an
-    authorization mismatch indicator (unverified) because OpenAPI documents can
-    be stale or endpoint access may be intentionally public.
+    probed, with credentials if available, and only with GET. A success is
+    reported as an authorization mismatch indicator (unverified) because OpenAPI
+    documents can be stale or endpoint access may be intentionally public.
     """
 
     id = "strix-openapi"
@@ -420,9 +418,7 @@ class OpenAPIAdapter(Adapter):
         origin = f"{parsed_target.scheme}://{parsed_target.netloc}"
         path_base = parsed_target.path.rstrip("/")
         candidates = []
-        if parsed_target.path.lower().endswith(
-            ("openapi.json", "swagger.json", "api-docs")
-        ):
+        if parsed_target.path.lower().endswith(("openapi.json", "swagger.json", "api-docs")):
             candidates.append(target)
         candidates.extend(
             [
@@ -438,6 +434,12 @@ class OpenAPIAdapter(Adapter):
         started = time.monotonic()
         deadline = started + max(0.05, timeout)
         probe = EndpointProbe(timeout=min(5.0, timeout), max_body=self.MAX_SPEC_BYTES)
+
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
         spec: dict[str, Any] | None = None
         spec_url = ""
         for candidate in candidates:
@@ -448,13 +450,9 @@ class OpenAPIAdapter(Adapter):
             candidate_denial, _ = scope.check(candidate)
             if candidate_denial:
                 continue
-            response = probe._fetch(candidate, deadline=deadline)
+            response = probe._fetch(candidate, deadline=deadline, auth=auth_principal)
             body = response.get("body", "")
-            if (
-                not isinstance(body, str)
-                or not body
-                or not isinstance(response.get("status"), int)
-            ):
+            if not isinstance(body, str) or not body or not isinstance(response.get("status"), int):
                 continue
             if not 200 <= int(response["status"]) < 300:
                 continue
@@ -463,8 +461,7 @@ class OpenAPIAdapter(Adapter):
             except json.JSONDecodeError:
                 continue
             if isinstance(payload, dict) and (
-                isinstance(payload.get("paths"), dict)
-                and (payload.get("openapi") or payload.get("swagger"))
+                isinstance(payload.get("paths"), dict) and (payload.get("openapi") or payload.get("swagger"))
             ):
                 spec = payload
                 spec_url = candidate
@@ -481,9 +478,7 @@ class OpenAPIAdapter(Adapter):
         if isinstance(servers, list) and servers:
             chosen = None
             for server in servers[:10]:
-                if not isinstance(server, dict) or not isinstance(
-                    server.get("url"), str
-                ):
+                if not isinstance(server, dict) or not isinstance(server.get("url"), str):
                     continue
                 raw_server = server["url"].strip()
                 if "{" in raw_server or "}" in raw_server:
@@ -491,16 +486,11 @@ class OpenAPIAdapter(Adapter):
                 absolute = urljoin(spec_url, raw_server)
                 server_parsed = urlparse(absolute)
                 target_parsed = urlparse(origin)
-                server_port = server_parsed.port or (
-                    443 if server_parsed.scheme == "https" else 80
-                )
-                target_port = target_parsed.port or (
-                    443 if target_parsed.scheme == "https" else 80
-                )
+                server_port = server_parsed.port or (443 if server_parsed.scheme == "https" else 80)
+                target_port = target_parsed.port or (443 if target_parsed.scheme == "https" else 80)
                 if (
                     server_parsed.scheme in {"http", "https"}
-                    and (server_parsed.hostname or "").lower()
-                    == (target_parsed.hostname or "").lower()
+                    and (server_parsed.hostname or "").lower() == (target_parsed.hostname or "").lower()
                     and server_port == target_port
                 ):
                     server_denial, _ = scope.check(absolute)
@@ -527,12 +517,7 @@ class OpenAPIAdapter(Adapter):
             if time.monotonic() >= deadline:
                 result.notes.append("OpenAPI endpoint checks stopped at deadline")
                 break
-            if (
-                not isinstance(path, str)
-                or not path.startswith("/")
-                or "{" in path
-                or "}" in path
-            ):
+            if not isinstance(path, str) or not path.startswith("/") or "{" in path or "}" in path:
                 continue
             if "\\" in path or ".." in path or "?" in path or "#" in path:
                 continue
@@ -552,22 +537,22 @@ class OpenAPIAdapter(Adapter):
             if endpoint_denial:
                 continue
             endpoints_checked += 1
-            response = probe._fetch(endpoint, deadline=deadline)
+            response = probe._fetch(endpoint, deadline=deadline, auth=auth_principal)
             status_code = response.get("status")
             if isinstance(status_code, int) and 200 <= status_code < 300:
+                auth_note = "with credentials" if auth_principal else "without credentials"
                 result.findings.append(
                     Finding(
                         asset=target,
                         category="api_documented_auth_mismatch",
-                        title="Endpoint documented as protected responded successfully without credentials",
+                        title="Endpoint documented as protected responded successfully",
                         severity="medium",
                         confidence="medium",
                         detector=self.id,
                         detector_version=self.version,
                         evidence=(
-                            f"OpenAPI declares security for GET {path}; unauthenticated request "
-                            f"returned HTTP {status_code}. No credentials were sent and response "
-                            "content was not retained."
+                            f"OpenAPI declares security for GET {path}; request {auth_note} "
+                            f"returned HTTP {status_code}. Response content was not retained."
                         ),
                         location=endpoint,
                         description=(
@@ -583,13 +568,12 @@ class OpenAPIAdapter(Adapter):
                     )
                 )
             if endpoints_checked >= self.MAX_ENDPOINTS:
-                result.notes.append(
-                    f"OpenAPI endpoint limit ({self.MAX_ENDPOINTS}) reached"
-                )
+                result.notes.append(f"OpenAPI endpoint limit ({self.MAX_ENDPOINTS}) reached")
                 break
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        auth_note = "with credentials" if auth_principal else "without credentials"
         result.notes.append(
-            f"OpenAPI checked {endpoints_checked} documented protected GET endpoint(s)"
+            f"OpenAPI checked {endpoints_checked} documented protected GET endpoint(s) {auth_note}"
         )
         return result
 
@@ -618,12 +602,16 @@ class CrawlerAdapter(Adapter):
     ) -> AdapterResult:
         checked_destination(target)
         deadline = time.monotonic() + max(0.05, timeout)
+
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
         crawler = WebCrawler(max_pages=CRAWL_MAX_PAGES)
-        crawl = crawler.crawl(target, deadline=deadline, cancel=cancel)
+        crawl = crawler.crawl(target, deadline=deadline, cancel=cancel, auth=auth_principal)
         result = AdapterResult()
-        result.notes.extend(
-            crawl.notes or [f"crawl completed: {len(crawl.pages)} page(s)"]
-        )
+        result.notes.extend(crawl.notes or [f"crawl completed: {len(crawl.pages)} page(s)"])
         result.notes.append(
             f"discovered {len(crawl.discovered)} in-scope link(s) across {len(crawl.pages)} page(s)"
         )
@@ -657,10 +645,7 @@ class AuthorizationDiffAdapter(Adapter):
         authorized = scope.active()
         auth = authorized.auth if authorized else None
         if not isinstance(auth, AuthConfig) or not auth.users:
-            return False, (
-                "no test principals configured "
-                "(add auth.users to the scope document)"
-            )
+            return False, ("no test principals configured (add auth.users to the scope document)")
         return True, f"{len(auth.users)} principal(s): {', '.join(auth.ids)}"
 
     def assess(
@@ -680,9 +665,7 @@ class AuthorizationDiffAdapter(Adapter):
         deadline = time.monotonic() + max(0.05, timeout)
         pool = [target]
         if context:
-            pool.extend(
-                url for url in context.get("discovered_urls", []) if url != target
-            )
+            pool.extend(url for url in context.get("discovered_urls", []) if url != target)
         endpoints = candidate_endpoints(pool, max_endpoints=self.MAX_ENDPOINTS)
         result = AdapterResult()
         if not endpoints:
@@ -744,17 +727,14 @@ class AuthorizationDiffAdapter(Adapter):
                     "authorization enforced on this endpoint"
                 )
         result.notes.append(
-            f"authorization differences checked on {checked} endpoint(s) with "
-            f"{len(auth.users)} principal(s)"
+            f"authorization differences checked on {checked} endpoint(s) with {len(auth.users)} principal(s)"
         )
         return result
 
-    def _fetch_as(
-        self, url: str, principal: Principal | None
-    ) -> tuple[str, int | str, str]:
+    def _fetch_as(self, url: str, principal: Principal | None) -> tuple[str, int | str, str]:
         response = self._probe._fetch(url, auth=principal)
         status = response.get("status")
-        status = status if isinstance(status, (int, str)) else "error"
+        status = status if isinstance(status, int | str) else "error"
         body = response.get("body", "") if isinstance(response.get("body"), str) else ""
         return (
             principal.id if principal else "anonymous",
@@ -762,9 +742,7 @@ class AuthorizationDiffAdapter(Adapter):
             body_digest(body[: self.MAX_BODY_FOR_DIGEST]),
         )
 
-    def _finding(
-        self, category: str, endpoint: str, differential: DifferentialResult
-    ) -> Finding:
+    def _finding(self, category: str, endpoint: str, differential: DifferentialResult) -> Finding:
         if category == "authorization_missing":
             return Finding(
                 asset=endpoint,
@@ -874,8 +852,7 @@ class SSRFOOBAdapter(Adapter):
         collab = authorized.collab if authorized else None
         if not isinstance(collab, CollabConfig):
             return False, (
-                "no out-of-band listener configured "
-                "(add collab.host/collab.port to the scope document)"
+                "no out-of-band listener configured (add collab.host/collab.port to the scope document)"
             )
         if collab.port == 0:
             return True, "in-process collab listener (ephemeral port)"
@@ -894,9 +871,13 @@ class SSRFOOBAdapter(Adapter):
         deadline = time.monotonic() + max(0.05, timeout)
         pool = [target]
         if context:
-            pool.extend(
-                url for url in context.get("discovered_urls", []) if url != target
-            )
+            pool.extend(url for url in context.get("discovered_urls", []) if url != target)
+
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
         candidates = self._candidate_params(pool)
         result = AdapterResult()
         if not candidates:
@@ -917,7 +898,7 @@ class SSRFOOBAdapter(Adapter):
             token = new_token()
             canary = f"{canary_base}/{token}"
             finding = self._probe_param(
-                url, param, canary, token, listener, cancel=cancel, deadline=deadline
+                url, param, canary, token, listener, cancel=cancel, deadline=deadline, auth=auth_principal
             )
             if finding is not None:
                 confirmed += 1
@@ -967,9 +948,10 @@ class SSRFOOBAdapter(Adapter):
         *,
         cancel: threading.Event,
         deadline: float,
+        auth: Any | None = None,
     ) -> Finding | None:
         marked = self._inject(url, param, canary)
-        response = self._probe._fetch(marked, deadline=deadline)
+        response = self._probe._fetch(marked, deadline=deadline, auth=auth)
         body = response.get("body", "") if isinstance(response.get("body"), str) else ""
         in_band = canary in body or canary in str(response.get("redirect_to") or "")
 
@@ -1024,11 +1006,7 @@ class SSRFOOBAdapter(Adapter):
             )
         return Finding(
             asset=url,
-            category=(
-                "ssrf_confirmed_oob"
-                if callback is not None
-                else "ssrf_inband_reflection"
-            ),
+            category=("ssrf_confirmed_oob" if callback is not None else "ssrf_inband_reflection"),
             title=(
                 "Application fetched an attacker-chosen destination (out-of-band confirmed)"
                 if callback is not None
@@ -1079,22 +1057,6 @@ def _bounded(value: Any, limit: int) -> str:
     return _CONTROL_CHARS.sub("", value).strip()[:limit]
 
 
-def _kill_tree(proc: subprocess.Popen) -> None:
-    """Kill the tool and everything it spawned.
-
-    External scanners fork workers. Killing only the parent leaves children
-    holding the output pipes (so the drain threads never finish) and, worse,
-    still scanning after the job reported it stopped. The child is started in
-    its own session, so its process group id equals its pid.
-    """
-    killpg = getattr(os, "killpg", None)  # POSIX only; absent on Windows
-    if killpg is not None:
-        with contextlib.suppress(OSError):
-            killpg(proc.pid, signal.SIGKILL)
-    with contextlib.suppress(OSError):
-        proc.kill()
-
-
 def _run_tool(
     argv: list[str],
     *,
@@ -1105,121 +1067,30 @@ def _run_tool(
 ) -> tuple[int, str, str]:
     """Run an argument array with deadlines and bounded, continuously drained output.
 
-    Reading stdout/stderr only after process exit can deadlock when a child fills
-    an OS pipe buffer. Dedicated drainers avoid that deadlock; each stream is
-    capped, and excess output terminates the tool instead of exhausting memory.
-
-    ``env_extra`` are individually named additions to the minimal environment
-    (a tool that needs its own provider variables); the platform's environment
-    is never passed through wholesale. ``cwd`` exists because some tools write
-    their results relative to the working directory (strix-agent writes
-    ``strix_runs/`` there).
+    Delegates to the sandbox module which provides kernel-level isolation via
+    gVisor/Kata Containers when running in K8s Jobs mode, or falls back to
+    in-process execution with application-layer scope gating.
     """
-    if cancel.is_set():
-        raise AdapterCancelled(f"{Path(argv[0]).name} cancelled before start")
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "LC_ALL": "C",
-        "HOME": os.environ.get("HOME", ""),
-    }
-    if env_extra:
-        env.update(env_extra)
     try:
-        # stdin is pinned to /dev/null: some tools (nuclei) read target URLs
-        # from stdin when it is open, which otherwise parks them forever.
-        proc = subprocess.Popen(
+        result: SandboxResult = run_in_sandbox(
             argv,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.DEVNULL,
-            text=False,
-            env=env,
-            cwd=str(cwd) if cwd is not None else None,
-            # Own session/process group: see _kill_tree.
-            start_new_session=True,
+            timeout=timeout,
+            cancel=cancel,
+            cwd=cwd,
+            env_extra=env_extra,
         )
-    except OSError as exc:
-        log.warning("cannot execute %s: %s", argv[0], exc)  # detail stays server-side
-        raise AdapterError(f"cannot execute {Path(argv[0]).name}") from exc
+    except SandboxTimeout as exc:
+        raise AdapterTimeout(str(exc)) from exc
+    except SandboxCancelled as exc:
+        raise AdapterCancelled(str(exc)) from exc
+    except SandboxOutputLimitExceeded as exc:
+        raise AdapterError(str(exc)) from exc
+    except SandboxUnavailable as exc:
+        raise AdapterError(str(exc)) from exc
+    except SandboxError as exc:
+        raise AdapterError(str(exc)) from exc
 
-    captured: dict[str, list[bytes]] = {"stdout": [], "stderr": []}
-    sizes = {"stdout": 0, "stderr": 0}
-    overflow = {"stdout": False, "stderr": False}
-
-    def drain(channel: str, pipe) -> None:
-        try:
-            while True:
-                chunk = pipe.read1(8192)
-                if not chunk:
-                    break
-                available = MAX_TOOL_OUTPUT_BYTES - sizes[channel]
-                if available > 0:
-                    captured[channel].append(chunk[:available])
-                    sizes[channel] += min(len(chunk), available)
-                if len(chunk) > max(0, available):
-                    overflow[channel] = True
-        except (OSError, ValueError):
-            # Killed processes may close their file descriptors during teardown.
-            pass
-        finally:
-            with contextlib.suppress(OSError):
-                pipe.close()
-
-    assert proc.stdout is not None and proc.stderr is not None
-    out_thread = threading.Thread(
-        target=drain,
-        args=("stdout", proc.stdout),
-        daemon=True,
-        name="strix-tool-stdout",
-    )
-    err_thread = threading.Thread(
-        target=drain,
-        args=("stderr", proc.stderr),
-        daemon=True,
-        name="strix-tool-stderr",
-    )
-    out_thread.start()
-    err_thread.start()
-    deadline = time.monotonic() + max(0.01, timeout)
-    failure: str | None = None
-    while True:
-        if cancel.is_set():
-            failure = "cancelled"
-            break
-        if time.monotonic() >= deadline:
-            failure = "timeout"
-            break
-        if overflow["stdout"] or overflow["stderr"]:
-            failure = "output_limit"
-            break
-        if proc.poll() is not None:
-            break
-        time.sleep(0.02)
-
-    if proc.poll() is None:
-        _kill_tree(proc)
-    try:
-        proc.wait(timeout=2.0)
-    except subprocess.TimeoutExpired:
-        _kill_tree(proc)
-        proc.wait()
-    out_thread.join(timeout=2.0)
-    err_thread.join(timeout=2.0)
-
-    if failure == "cancelled":
-        raise AdapterCancelled(f"{Path(argv[0]).name} cancelled")
-    if failure == "timeout":
-        raise AdapterTimeout(f"{Path(argv[0]).name} exceeded {timeout:g}s")
-    if failure == "output_limit" or overflow["stdout"] or overflow["stderr"]:
-        raise AdapterError(
-            f"{Path(argv[0]).name} output exceeded {MAX_TOOL_OUTPUT_BYTES} bytes per stream"
-        )
-    if out_thread.is_alive() or err_thread.is_alive():
-        raise AdapterError(f"{Path(argv[0]).name} output streams did not close")
-
-    stdout = b"".join(captured["stdout"]).decode("utf-8", errors="replace")
-    stderr = b"".join(captured["stderr"]).decode("utf-8", errors="replace")
-    return proc.returncode, stdout, stderr
+    return result.returncode, result.stdout, result.stderr
 
 
 class NmapAdapter(Adapter):
@@ -1250,9 +1121,7 @@ class NmapAdapter(Adapter):
                     timeout=10,
                     env={"PATH": os.environ.get("PATH", "")},
                 )
-                self._version = (
-                    out.stdout.splitlines()[0].strip() if out.stdout else "unknown"
-                )
+                self._version = out.stdout.splitlines()[0].strip() if out.stdout else "unknown"
             except (OSError, subprocess.SubprocessError) as exc:
                 return False, f"nmap present but unusable: {exc}"
         return True, self._version
@@ -1276,6 +1145,9 @@ class NmapAdapter(Adapter):
 
         active_scope = scope.active()
         argv = [shutil.which("nmap") or "nmap", "-sT", "-Pn", "-n"]
+        # Add -6 flag for IPv6 targets
+        if ":" in destination.ip:
+            argv.append("-6")
         if active_scope and active_scope.allowed_ports:
             # Honor an explicitly restricted engagement scope; do not widen it
             # to the conventional top-ports list.
@@ -1307,13 +1179,9 @@ class NmapAdapter(Adapter):
         result = AdapterResult()
         raw = stdout.encode() if isinstance(stdout, str) else stdout
         if re.search(rb"<!ENTITY|<!DOCTYPE[^>]*\[", raw, re.I):
-            raise AdapterError(
-                "nmap output contains entity declarations; refusing to parse"
-            )
+            raise AdapterError("nmap output contains entity declarations; refusing to parse")
         try:
-            root = safe_fromstring(
-                stdout
-            )  # defusedxml: no DTDs, entities or external refs
+            root = safe_fromstring(stdout)  # defusedxml: no DTDs, entities or external refs
         except (ET.ParseError, DefusedXmlException) as exc:
             raise AdapterError(f"unparseable nmap XML: {type(exc).__name__}") from exc
 
@@ -1321,14 +1189,10 @@ class NmapAdapter(Adapter):
         # scan, nmap error) must not be scored as "nothing open".
         finished = root.find("./runstats/finished")
         if finished is not None and finished.get("errormsg"):
-            raise AdapterError(
-                f"nmap reported an error: {finished.get('errormsg', '')[:200]}"
-            )
+            raise AdapterError(f"nmap reported an error: {finished.get('errormsg', '')[:200]}")
         port_elements = list(root.iter("port"))
         if not port_elements:
-            raise AdapterError(
-                "nmap XML contains no port results; the scan produced no coverage"
-            )
+            raise AdapterError("nmap XML contains no port results; the scan produced no coverage")
 
         result = AdapterResult()
         open_ports = 0
@@ -1345,9 +1209,7 @@ class NmapAdapter(Adapter):
             number = int(port.get("portid", "0"))
             protocol = port.get("protocol", "tcp")
             service = port.find("service")
-            service_name = (
-                service.get("name") if service is not None else ""
-            ) or "unknown"
+            service_name = (service.get("name") if service is not None else "") or "unknown"
             product = (service.get("product") if service is not None else "") or ""
             version = (service.get("version") if service is not None else "") or ""
             banner = " ".join(part for part in (product, version) if part).strip()
@@ -1389,8 +1251,7 @@ class NmapAdapter(Adapter):
             # job cannot claim that surface was assessed.
             result.partial = True
             result.notes.append(
-                "nmap got no answer for "
-                f"{len(unanswered)} port(s) ({', '.join(unanswered[:10])})"
+                f"nmap got no answer for {len(unanswered)} port(s) ({', '.join(unanswered[:10])})"
             )
         result.notes.append(f"nmap -sT {scanned_ports} on {host}: {open_ports} open")
         return result
@@ -1441,14 +1302,11 @@ class NucleiAdapter(Adapter):
             )
         if missing:
             return False, (
-                "nuclei template subset missing: "
-                f"{', '.join(missing)} (run: nuclei -update-templates)"
+                f"nuclei template subset missing: {', '.join(missing)} (run: nuclei -update-templates)"
             )
         if self._version is None:
             try:
-                code, stdout, stderr = _run_tool(
-                    [binary, "-version"], timeout=15.0, cancel=threading.Event()
-                )
+                code, stdout, stderr = _run_tool([binary, "-version"], timeout=15.0, cancel=threading.Event())
             except (AdapterError, OSError) as exc:
                 return False, f"nuclei present but unusable: {exc}"
             if code != 0:
@@ -1540,9 +1398,7 @@ class NucleiAdapter(Adapter):
                 result.findings.append(finding)
 
         if parsed == 0 and skipped:
-            raise AdapterError(
-                f"nuclei produced {skipped} unparseable line(s), none usable"
-            )
+            raise AdapterError(f"nuclei produced {skipped} unparseable line(s), none usable")
         if code != 0 and not result.findings:
             raise AdapterError(f"nuclei exited {code}: {stderr.strip()[:200]}")
         if code != 0:
@@ -1559,9 +1415,7 @@ class NucleiAdapter(Adapter):
         # Every string here comes from a template file and a remote response;
         # it is bounded and stripped of control characters before it becomes a
         # finding (the same rule the AI analyst applies to untrusted text).
-        template = _bounded(
-            payload.get("template-id") or payload.get("templateID"), 120
-        )
+        template = _bounded(payload.get("template-id") or payload.get("templateID"), 120)
         info = payload.get("info") or {}
         if not isinstance(info, dict):
             return None
@@ -1579,9 +1433,7 @@ class NucleiAdapter(Adapter):
         cwe = _bounded(cwe, 60)
         if cwe and re.fullmatch(r"\d+", cwe):
             cwe = f"CWE-{cwe}"  # templates may carry the bare number
-        matched_at = _bounded(
-            payload.get("matched-at") or payload.get("host") or target, 500
-        )
+        matched_at = _bounded(payload.get("matched-at") or payload.get("host") or target, 500)
 
         return Finding(
             asset=target,
@@ -1601,6 +1453,290 @@ class NucleiAdapter(Adapter):
         )
 
 
+class NiktoAdapter(Adapter):
+    """Web server vulnerability scanner using Nikto.
+
+    Runs a bounded scan against the authorized target host with conservative
+    settings: no mutation tests, limited plugin set, and a hard timeout.
+    Only reports findings from the target's scope; does not follow redirects
+    outside the authorized destination.
+    """
+
+    id = "nikto"
+    asset_types = ("web",)
+    requires = ("nikto",)
+    MAX_TIMEOUT = 300.0  # 5 minutes max
+
+    def __init__(self) -> None:
+        self._version: str | None = None
+
+    def available(self) -> tuple[bool, str]:
+        binary = shutil.which("nikto")
+        if not binary:
+            return False, "nikto not installed (apt install nikto)"
+        if self._version is None:
+            try:
+                out = subprocess.run(
+                    [binary, "-Version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    env={"PATH": os.environ.get("PATH", "")},
+                )
+                for line in out.stdout.splitlines() + out.stderr.splitlines():
+                    if "nikto" in line.lower() and any(c.isdigit() for c in line):
+                        self._version = line.strip()
+                        break
+                if not self._version:
+                    self._version = "unknown"
+            except (OSError, subprocess.SubprocessError) as exc:
+                return False, f"nikto present but unusable: {exc}"
+        return True, self._version
+
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
+        destination = checked_destination(target)
+        parsed_target = parse_url(target)
+        host = parsed_target.hostname if parsed_target else None
+        port = destination.port if destination else (parsed_target.port if parsed_target else None)
+        if not host or not port:
+            raise AdapterError(f"no host/port in target {target}")
+
+        ok, detail = self.available()
+        if not ok:
+            raise AdapterError(detail)
+
+        argv = [
+            shutil.which("nikto") or "nikto",
+            "-nointeractive",
+            "-host",
+            host,
+            "-port",
+            str(port),
+            "-Format",
+            "json",
+            "-Display",
+            "V",
+            "-Tuning",
+            "012345789",
+            "-timeout",
+            str(int(timeout / 10)),
+            "-maxtime",
+            str(int(timeout)),
+        ]
+        if parsed_target and parsed_target.scheme == "https":
+            argv.append("-ssl")
+
+        code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
+        if code != 0 and not stdout.strip():
+            raise AdapterError(f"nikto exited {code}: {stderr.strip()[:200]}")
+
+        result = AdapterResult()
+        try:
+            data = json.loads(stdout)
+            if not isinstance(data, list):
+                data = []
+        except json.JSONDecodeError:
+            data = []
+
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            osvdb = str(item.get("OSVDB", "")) or ""
+            plugin_id = str(item.get("id", "")) or ""
+            msg = str(item.get("msg", "")) or ""
+            uri = str(item.get("uri", "")) or ""
+            _ = item.get("method", "")  # method parsed but not used
+
+            if not msg:
+                continue
+
+            msg_lower = msg.lower()
+            high_kws = ("shell", "backdoor", "rce", "sql inject", "xss", "command injection")
+            if any(kw in msg_lower for kw in high_kws):
+                severity = "high"
+            elif any(
+                kw in msg_lower
+                for kw in ("version", "header", "cookie", "dir", "backup", "config", "exposed", "disclos")
+            ):
+                severity = "medium"
+            else:
+                severity = "low"
+
+            finding = Finding(
+                asset=target,
+                category=f"nikto-{plugin_id}" if plugin_id else "nikto-finding",
+                title=_bounded(msg, 200),
+                severity=severity,
+                confidence="medium",
+                detector=self.id,
+                detector_version=self._version or self.version,
+                evidence=f"nikto plugin {plugin_id}: {msg}" + (f" (OSVDB: {osvdb})" if osvdb else ""),
+                location=f"{host}:{port}{uri}" if uri else f"{host}:{port}",
+                description=_bounded(msg, 2000),
+                remediation=(
+                    "Review the web server configuration and apply vendor patches. "
+                    "Validate the finding manually."
+                ),
+                cwe="",
+                verification="inferred",
+            )
+            result.findings.append(finding)
+
+        if not result.findings:
+            result.notes.append("nikto scan completed with no findings")
+        else:
+            result.notes.append(f"nikto {self._version}: {len(result.findings)} finding(s) on {host}:{port}")
+        return result
+
+
+class SqlmapAdapter(Adapter):
+    """SQL injection detection using sqlmap.
+
+    Runs in read-only mode with conservative settings: boolean-based and
+    time-based blind detection only, no exploitation, no file read/write,
+    no OS command execution. Only targets parameters identified in-scope.
+    """
+
+    id = "sqlmap"
+    asset_types = ("web", "api")
+    requires = ("sqlmap",)
+    MAX_TIMEOUT = 300.0
+
+    def __init__(self) -> None:
+        self._version: str | None = None
+
+    def available(self) -> tuple[bool, str]:
+        binary = shutil.which("sqlmap")
+        if not binary:
+            return False, "sqlmap not installed (apt install sqlmap)"
+        if self._version is None:
+            try:
+                out = subprocess.run(
+                    [binary, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    env={"PATH": os.environ.get("PATH", "")},
+                )
+                for line in out.stdout.splitlines():
+                    if line.strip() and any(c.isdigit() for c in line):
+                        self._version = line.strip()
+                        break
+                if not self._version:
+                    self._version = "unknown"
+            except (OSError, subprocess.SubprocessError) as exc:
+                return False, f"sqlmap present but unusable: {exc}"
+        return True, self._version
+
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
+        _ = checked_destination(target)  # validate scope
+        parsed_target = parse_url(target)
+        if parsed_target is None or not parsed_target.query:
+            raise AdapterNotApplicable("no query parameters available; sql injection testing is inconclusive")
+
+        ok, detail = self.available()
+        if not ok:
+            raise AdapterError(detail)
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            argv = [
+                shutil.which("sqlmap") or "sqlmap",
+                "-u",
+                target,
+                "--batch",
+                "--crawl",
+                "0",
+                "--level",
+                "1",
+                "--risk",
+                "1",
+                "--technique",
+                "BT",
+                "--timeout",
+                str(max(5, int(timeout / 20))),
+                "--retries",
+                "0",
+                "--output-dir",
+                tmpdir,
+                "--purge-output",
+                "--disable-coloring",
+                "--flush-session",
+                "--fresh-queries",
+            ]
+
+            if context and "auth_principal" in context and context["auth_principal"]:
+                auth = context["auth_principal"]
+                if auth.cookies:
+                    cookie_str = "; ".join(f"{c.name}={c.value}" for c in auth.cookies)
+                    argv.extend(["--cookie", cookie_str])
+                if auth.headers:
+                    for k, v in auth.headers.items():
+                        argv.extend(["--header", f"{k}: {v}"])
+                if auth.bearer:
+                    argv.extend(["--header", f"Authorization: Bearer {auth.bearer}"])
+
+            code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
+
+        result = AdapterResult()
+
+        lines = stdout.splitlines()
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if "appears to be vulnerable" in line.lower() or "is vulnerable" in line.lower():
+                param_match = re.search(r"parameter\s+'([^']+)'", line)
+                param = param_match.group(1) if param_match else "unknown"
+
+                finding = Finding(
+                    asset=target,
+                    category="sql_injection",
+                    title=f"Potential SQL injection in parameter '{param}'",
+                    severity="high",
+                    confidence="medium",
+                    detector=self.id,
+                    detector_version=self._version or self.version,
+                    evidence=line,
+                    location=target,
+                    description=(
+                        "sqlmap detected a potential SQL injection vector. This is a "
+                        "detection indicator; manual verification is required before "
+                        "remediation."
+                    ),
+                    remediation=(
+                        "Use parameterized queries / prepared statements. Validate and "
+                        "sanitize all user inputs. Implement a Web Application Firewall."
+                    ),
+                    cwe="CWE-89",
+                    verification="inferred",
+                )
+                result.findings.append(finding)
+
+        if not result.findings:
+            result.notes.append("sqlmap scan completed with no injection indicators found")
+        else:
+            result.notes.append(
+                f"sqlmap {self._version}: {len(result.findings)} potential injection indicator(s)"
+            )
+        return result
+
+
 ADAPTERS: dict[str, Adapter] = {
     a.id: a
     for a in (
@@ -1614,6 +1750,8 @@ ADAPTERS: dict[str, Adapter] = {
         TCPPortAdapter(),
         NmapAdapter(),
         NucleiAdapter(),
+        NiktoAdapter(),
+        SqlmapAdapter(),
     )
 }
 # Every profile includes the built-in git-exposure check: it is two bounded
@@ -1631,6 +1769,16 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "strix-dynamic-validation",
         "strix-git-exposure",
         "nuclei",
+        "nikto",
+    ),
+    "web-full": (
+        "strix-crawl",
+        "strix-http",
+        "strix-dynamic-validation",
+        "strix-git-exposure",
+        "nuclei",
+        "nikto",
+        "sqlmap",
     ),
     "api": ("strix-http", "strix-openapi", "strix-git-exposure"),
     "api-deep": (
@@ -1642,6 +1790,18 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "strix-dynamic-validation",
         "strix-git-exposure",
         "nuclei",
+    ),
+    "api-full": (
+        "strix-crawl",
+        "strix-http",
+        "strix-openapi",
+        "strix-authz",
+        "strix-ssrf-oob",
+        "strix-dynamic-validation",
+        "strix-git-exposure",
+        "nuclei",
+        "nikto",
+        "sqlmap",
     ),
     "ports": ("strix-tcp", "nmap"),
     "network": ("strix-http", "strix-tcp", "nmap", "strix-git-exposure"),

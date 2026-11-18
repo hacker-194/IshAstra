@@ -1,113 +1,227 @@
-# Production stack: SQLite + Redis + Strix + nginx.
-#
-#   cp .env.production.example .env.production     # edit every value
-#   cp config/scope.example.json config/scope.json # edit to the signed scope
-#   docker compose --env-file .env.production up -d --build
-#
-# Exactly one Strix process may run per database: the worker takes an exclusive
-# lease, so a second replica exits instead of double-running jobs. Scale this
-# host vertically; see DEPLOYMENT.md §8. PostgreSQL is not a supported backend
-# for the threaded worker yet (asyncpg pools are bound to one event loop).
-name: strix
+# Strix ScopeGate - Docker Compose for Local Development & Testing
+# 
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose up -d --build  # Rebuild and start
+#   docker-compose logs -f        # Follow logs
+#   docker-compose down -v        # Stop and remove volumes
 
 services:
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: strix-postgres
+    environment:
+      POSTGRES_DB: strix
+      POSTGRES_USER: strix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strix_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strix -d strix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - strix-network
+
+  # =============================================================================
+  # Redis for Caching/Queue
+  # =============================================================================
   redis:
     image: redis:7-alpine
+    container_name: strix-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
-    restart: unless-stopped
-    networks: [strix_net]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+    networks:
+      - strix-network
 
-  strix:
+  # =============================================================================
+  # ScopeGate API Service
+  # =============================================================================
+  scope-gate:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file:
-      - .env.production
+      target: runtime
+    container_name: strix-scope-gate
+    image: strix/scope-gate:dev
     environment:
-      STRIX_DB: /var/lib/strix/strix.db
-      STRIX_REDIS_URL: redis://redis:6379/0
-      STRIX_REDIS_REQUIRED: "1"
-      STRIX_WORKERS: "1"
-      STRIX_SCOPE_FILE: /etc/strix/scope.json
-      # Only nginx's compose subnet may supply X-Forwarded-For.
-      STRIX_TRUSTED_PROXIES: 172.28.0.0/24
-      PYTHONUNBUFFERED: "1"
+      - STRIX_DATABASE_URL=postgresql://strix:strix_dev_password@postgres:5432/strix
+      - STRIX_REDIS_URL=redis://redis:6379/0
+      - STRIX_SCOPE_DIR=/etc/strix/scopes
+      - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
+      - STRIX_SCOPE_MAX_AGE_SECONDS=86400
+      - STRIX_LOG_LEVEL=DEBUG
+      - STRIX_METRICS_ENABLED=true
+      - STRIX_OTEL_ENABLED=false
+      - PYTHONUNBUFFERED=1
     volumes:
-      - strix_data:/var/lib/strix
-      # A directory mount, not ./scope.json: a missing bind-mount source is
-      # silently created as a directory by Docker, which then fails at startup.
-      - ./config:/etc/strix:ro
-    # Loopback-only for bootstrap/admin (nginx serves the public port).
+      - ./examples/scopes:/etc/strix/scopes:ro
+      - ./examples/jwks:/etc/strix:ro
+      - ./src:/app/src:ro  # Hot reload for development
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      # Healthy only when the DB/audit chain answer AND an authorization record
-      # is loaded: a scanner with no scope is running but cannot assess anything.
-      test:
-        - CMD
-        - python
-        - -c
-        - >-
-          import json,urllib.request as u;
-          d=json.load(u.urlopen('http://127.0.0.1:8000/api/ready', timeout=3));
-          assert d['ready'] and d['scope_configured'], d
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 5s
-      start_period: 30s
       retries: 3
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "100m"
-        max-file: "5"
-    networks: [strix_net]
+      start_period: 20s
+    networks:
+      - strix-network
     deploy:
       resources:
         limits:
+          cpus: '2'
           memory: 2G
-          cpus: '2.0'
         reservations:
-          memory: 1G
-          cpus: '1.0'
+          cpus: '0.5'
+          memory: 512M
 
+  # =============================================================================
+  # Worker for Background Jobs
+  # =============================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: strix-worker
+    image: strix/worker:dev
+    command: ["celery", "-A", "strix.core.queue:celery_app", "worker", "--loglevel=INFO", "--concurrency=4"]
+    environment:
+      - STRIX_DATABASE_URL=postgresql://strix:strix_dev_password@postgres:5432/strix
+      - STRIX_REDIS_URL=redis://redis:6379/0
+      - STRIX_SCOPE_DIR=/etc/strix/scopes
+      - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
+      - STRIX_LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./examples/scopes:/etc/strix/scopes:ro
+      - ./examples/jwks:/etc/strix:ro
+      - ./src:/app/src:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - strix-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # =============================================================================
+  # Prometheus for Metrics
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: strix-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - strix-network
+
+  # =============================================================================
+  # Grafana for Visualization
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: strix-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - strix-network
+
+  # =============================================================================
+  # Jaeger for Distributed Tracing
+  # =============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: strix-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+    ports:
+      - "16686:16686"  # UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    volumes:
+      - jaeger_data:/var/lib/jaeger
+    networks:
+      - strix-network
+
+  # =============================================================================
+  # NGINX Reverse Proxy (Production-like)
+  # =============================================================================
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:alpine
+    container_name: strix-nginx
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
-      # Not service_healthy: managed-mode deployments need the loopback API to
-      # create their first policy before scope_configured becomes true.
-      strix:
-        condition: service_started
-    restart: unless-stopped
-    networks: [strix_net]
+      - scope-gate
+    networks:
+      - strix-network
 
-volumes:
-  redis_data:
-  strix_data:
-
+# =============================================================================
+# Networks
+# =============================================================================
 networks:
-  strix_net:
+  strix-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.28.0.0/24
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  jaeger_data:

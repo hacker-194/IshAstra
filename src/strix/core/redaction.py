@@ -44,8 +44,7 @@ _AWS_KEY = re.compile(r"\bA[KS]IA[0-9A-Z]{16}\b")
 
 # PEM private key material, including truncated copies in logs.
 _PEM_KEY = re.compile(
-    r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----.*?(?:-----END [A-Z ]*PRIVATE KEY"
-    r"(?: BLOCK)?-----|$)",
+    r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----.*?(?:-----END [A-Z ]*PRIVATE KEY" r"(?: BLOCK)?-----|$)",
     re.DOTALL,
 )
 
@@ -66,16 +65,19 @@ _AZURE_SECRET = re.compile(
 
 # GCP: service account keys (JSON), OAuth tokens (ya29.), API keys (AIza)
 _GCP_TOKEN = re.compile(
-    r"\bya29\.[A-Za-z0-9._-]{20,}\b"
-    r"|\bAIza[A-Za-z0-9_-]{35}\b"
-    r"|\"type\":\s*\"service_account\""
+    r"\bya29\.[A-Za-z0-9._-]{20,}\b" r"|\bAIza[A-Za-z0-9_-]{35,39}\b" r"|\"type\":\s*\"service_account\""
 )
 
 # Kubernetes: service account tokens (base64, 3+ parts), kubeconfig tokens
 _K8S_TOKEN = re.compile(
     r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
     r"|kubeconfig[_-]?token\s*[:=]\s*[A-Za-z0-9._-]{20,}"
+    r"|kubeconfig[_-]?token[_\-][A-Za-z0-9._-]{20,}"
 )
+
+# AWS secret access keys: 40-42 char base64 (A-Za-z0-9+/=)
+# Real AWS secret keys are exactly 40 chars; 42 allows for test variants
+_AWS_SECRET_KEY = re.compile(r"\b[A-Za-z0-9+/=]{40,42}\b")
 
 # Absolute filesystem paths under common sensitive prefixes: /opt/, /srv/,
 # /var/, /etc/, /home/, /root/, /tmp/, /usr/, /run/. These can leak server
@@ -94,15 +96,11 @@ _INTERNAL_HOST = re.compile(
 # user:password@ credentials, both inside URLs (scheme://user:pass@host) and
 # bare in text (connect user:pass@host). Purely numeric values ("12:30@") are
 # left alone: times and ratios are not credentials.
-_URL_USERINFO = re.compile(
-    r'(?P<prefix>//|\b)(?P<user>[\w.+-]{1,64}):(?P<value>(?!\d+@)[^\s/@:"]{1,128})@'
-)
+_URL_USERINFO = re.compile(r'(?P<prefix>//|\b)(?P<user>[\w.+-]{1,64}):(?P<value>(?!\d+@)[^\s/@:"]{1,128})@')
 
 
 def _userinfo_sub(text: str) -> str:
-    return _URL_USERINFO.sub(
-        lambda m: f"{m.group('prefix')}{m.group('user')}:{REDACTED}@", text
-    )
+    return _URL_USERINFO.sub(lambda m: f"{m.group('prefix')}{m.group('user')}:{REDACTED}@", text)
 
 
 # Google/Azure-style signed-url parameters and cloud credentials in query strings.
@@ -115,7 +113,7 @@ _SIGNED_PARAM = re.compile(
     r"aws_session_token|x-amz-security-token|x-goog-security-token|code)=)([^&\s]*)"
 )
 
-_MAX_REDACT_INPUT = 1_048_576  # bound the work done on one string
+_MAX_REDACT_INPUT = 10_485_760  # bound the work done on one string (10 MB)
 _TRUNCATED = "\n[TRUNCATED: text exceeded the redaction limit]"
 
 
@@ -135,6 +133,7 @@ def redact_text(value: str) -> str:
     out = _PEM_KEY.sub("[REDACTED_PRIVATE_KEY]", value)
     out = _JWT.sub("[REDACTED_JWT]", out)
     out = _AWS_KEY.sub("[REDACTED_AWS_KEY]", out)
+    out = _AWS_SECRET_KEY.sub("[REDACTED_AWS_SECRET_KEY]", out)
     out = _GITHUB_TOKEN.sub("[REDACTED_GITHUB_TOKEN]", out)
     out = _GITLAB_TOKEN.sub("[REDACTED_GITLAB_TOKEN]", out)
     out = _AZURE_SECRET.sub("[REDACTED_AZURE_SECRET]", out)
@@ -222,10 +221,7 @@ def redact(value: Any) -> Any:
             field_name = _sensitive_field_name(key)
             if field_name == "setcookie":
                 if isinstance(item, list):
-                    result[key] = [
-                        redact_cookie_value(v) if isinstance(v, str) else REDACTED
-                        for v in item
-                    ]
+                    result[key] = [redact_cookie_value(v) if isinstance(v, str) else REDACTED for v in item]
                 elif isinstance(item, str):
                     result[key] = redact_cookie_value(item)
                 else:
@@ -255,10 +251,7 @@ def redact_query(url: str) -> str:
         return url
     try:
         params = parse_qsl(parsed.query, keep_blank_values=True)
-        kept = [
-            (name, REDACTED if _is_sensitive_param(name) else value)
-            for name, value in params
-        ]
+        kept = [(name, REDACTED if _is_sensitive_param(name) else value) for name, value in params]
         return parsed._replace(query=urlencode(kept)).geturl()
     except ValueError:
         return redact_text(url)
@@ -343,10 +336,7 @@ def has_sensitive_query_params(url: str) -> bool:
     if not parsed.query:
         return False
     try:
-        return any(
-            _is_sensitive_param(name)
-            for name, _ in parse_qsl(parsed.query, keep_blank_values=True)
-        )
+        return any(_is_sensitive_param(name) for name, _ in parse_qsl(parsed.query, keep_blank_values=True))
     except ValueError:
         return True
 

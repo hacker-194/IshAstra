@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "program": "NRB Compliance Assessment - Sample Bank",
   "authorized_by": "Chief Information Security Officer",
   "authorization_ref": "NRB-DIR-SEC-2024-001",
@@ -18,5 +19,31 @@
     "172.16.0.0/12"
   ],
   "allowed_ports": [80, 443, 8443, 9443],
-  "allow_broad_networks": false
+  "allow_broad_networks": false,
+  "auth": {
+    "users": [
+      {
+        "id": "test-user",
+        "cookies": [
+          {"name": "sessionid", "value": "abc123"},
+          {"name": "csrftoken", "value": "xyz789"}
+        ],
+        "headers": {
+          "X-Custom-Header": "custom-value"
+        },
+        "bearer": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    ]
+  },
+  "collab": {
+    "host": "canary.examplebank.com",
+    "port": 0
+  },
+  "expires_at": "2025-12-31T23:59:59Z",
+  "metadata": {
+    "engagement_type": "pentest",
+    "compliance_frameworks": "NRB,NTA,NCSP",
+    "scope_creator": "strix scope-wizard",
+    "tenant_id": "sample-bank"
+  }
 }

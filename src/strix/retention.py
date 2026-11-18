@@ -51,9 +51,7 @@ class RetentionWorker:
         if self.days <= 0 or self._thread is not None:
             return
         self._stopping.clear()
-        self._thread = threading.Thread(
-            target=self._loop, name="strix-retention", daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop, name="strix-retention", daemon=True)
         self._thread.start()
 
     def shutdown(self, timeout: float = 5.0) -> None:

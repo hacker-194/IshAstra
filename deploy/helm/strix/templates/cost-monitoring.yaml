@@ -1,0 +1,478 @@
+{{- if .Values.monitoringExtras.cost.enabled }}
+---
+# ServiceMonitor for Strix Cost Metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: servicemonitor
+    release: {{ .Values.monitoring.servicemonitor.release | default "prometheus" }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "strix.name" . }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: {{ .Values.monitoring.servicemonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.monitoring.servicemonitor.scrapeTimeout | default "10s" }}
+      scheme: {{ .Values.monitoring.servicemonitor.scheme | default "https" }}
+      tlsConfig:
+        insecureSkipVerify: true
+---
+# PrometheusRules for Cost Alerting and Budget Enforcement
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-rules
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheusrule
+    release: {{ .Values.monitoring.prometheusrule.release | default "prometheus" }}
+spec:
+  groups:
+    - name: strix.cost.alerting
+      interval: {{ .Values.monitoringExtras.cost.alertInterval | default "1m" }}
+      rules:
+        # Budget Alert: Monthly spend approaching limit (80%)
+        - alert: StrixBudgetApproachingLimit
+          expr: |
+            (
+              sum by (tenant, project) (
+                rate(strix_assessment_cost_usd_total[1h]) * 24 * 30
+              ) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+            ) > 0.8
+          for: {{ .Values.monitoringExtras.cost.budgetAlertFor | default "5m" }}
+          labels:
+            severity: warning
+            team: finops
+            category: cost
+          annotations:
+            summary: "Tenant {{ "{{ $labels.tenant }}" }} project {{ "{{ $labels.project }}" }} approaching monthly budget limit"
+            description: "Current projected monthly spend is ' }} of budget. Budget: $' }}\',project=\'' }}\' }}}, Projected: $."
+            runbook_url: "https://wiki.strix.io/runbooks/budget-approaching-limit"
+
+        # Budget Alert: Monthly spend exceeded (100%)
+        - alert: StrixBudgetExceeded
+          expr: |
+            (
+              sum by (tenant, project) (
+                rate(strix_assessment_cost_usd_total[1h]) * 24 * 30
+              ) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+            ) > 1.0
+          for: {{ .Values.monitoringExtras.cost.budgetExceededFor | default "1m" }}
+          labels:
+            severity: critical
+            team: finops
+            category: cost
+          annotations:
+            summary: "Tenant {{ "{{ $labels.tenant }}" }} project {{ "{{ $labels.project }}" }} EXCEEDED monthly budget limit"
+            description: "Current spend has exceeded the monthly budget. Immediate action required."
+            runbook_url: "https://wiki.strix.io/runbooks/budget-exceeded"
+
+        # Cost per assessment spike detection
+        - alert: StrixAssessmentCostSpike
+          expr: |
+            (
+              rate(strix_assessment_cost_usd_total[5m]) /
+              rate(strix_assessment_count_total[5m])
+            ) >
+            (
+              avg_over_time(rate(strix_assessment_cost_usd_total[1h]) / rate(strix_assessment_count_total[1h])[1h:5m]) * 3
+            )
+          for: {{ .Values.monitoringExtras.cost.spikeFor | default "10m" }}
+          labels:
+            severity: warning
+            team: finops
+            category: cost
+          annotations:
+            summary: "Assessment cost spike detected for tenant {{ "{{ $labels.tenant }}" }} project {{ "{{ $labels.project }}" }}"
+            description: "Average cost per assessment has increased 3x over baseline. Current: $/assessment."
+            runbook_url: "https://wiki.strix.io/runbooks/assessment-cost-spike"
+
+        # Spot instance termination rate
+        - alert: StrixSpotTerminationRateHigh
+          expr: |
+            rate(strix_spot_termination_total[5m]) > 0.1
+          for: {{ .Values.monitoringExtras.cost.spotTerminationFor | default "2m" }}
+          labels:
+            severity: warning
+            team: platform
+            category: reliability
+          annotations:
+            summary: "High spot instance termination rate detected"
+            description: "Spot termination rate is {{ "{{ $value | humanizePercentage  }}" }}/min. Consider increasing on-demand capacity."
+            runbook_url: "https://wiki.strix.io/runbooks/spot-termination-rate"
+
+        # Queue depth growing - scaling not keeping up
+        - alert: StrixQueueDepthGrowing
+          expr: |
+            strix_assessment_queue_pending > 100
+            and
+            rate(strix_assessment_queue_pending[5m]) > 10
+          for: {{ .Values.monitoringExtras.cost.queueDepthFor | default "5m" }}
+          labels:
+            severity: warning
+            team: platform
+            category: capacity
+          annotations:
+            summary: "Assessment queue depth growing rapidly"
+            description: "Queue has ' }} pending assessments and growing at /sec. KEDA scaling may be insufficient.."
+            runbook_url: "https://wiki.strix.io/runbooks/queue-depth-growing"
+
+        # Idle worker cost (workers running but no work)
+        - alert: StrixIdleWorkerCost
+          expr: |
+            (
+              sum by (tenant) (kube_pod_status_phase{phase="Running", namespace=~".*-strix-worker"})
+              -
+              sum by (tenant) (strix_worker_busy)
+            ) > 5
+          for: {{ .Values.monitoringExtras.cost.idleWorkerFor | default "30m" }}
+          labels:
+            severity: info
+            team: finops
+            category: cost
+          annotations:
+            summary: "{{ "{{ $value }}" }} idle workers detected for tenant {{ "{{ $labels.tenant }}" }}"
+            description: "Workers are running but not processing assessments. Consider reducing minReplicas or enabling scale-to-zero."
+            runbook_url: "https://wiki.strix.io/runbooks/idle-worker-cost"
+
+    - name: strix.cost.recording
+      interval: {{ .Values.monitoringExtras.cost.recordingInterval | default "1m" }}
+      rules:
+        # Recording rule: Hourly cost per tenant/project
+        - record: strix:cost:hourly:tenant_project
+          expr: |
+            sum by (tenant, project) (rate(strix_assessment_cost_usd_total[1h]))
+
+        # Recording rule: Daily cost per tenant/project
+        - record: strix:cost:daily:tenant_project
+          expr: |
+            sum by (tenant, project) (rate(strix_assessment_cost_usd_total[24h]))
+
+        # Recording rule: Cost per assessment (rolling 1h)
+        - record: strix:cost:per_assessment:1h
+          expr: |
+            sum by (tenant, project, assessment_type) (
+              rate(strix_assessment_cost_usd_total[1h]) / rate(strix_assessment_count_total[1h])
+            )
+
+        # Recording rule: Spot vs On-demand cost breakdown
+        - record: strix:cost:spot_vs_ondemand:1h
+          expr: |
+            sum by (tenant, project, instance_type) (rate(strix_assessment_cost_usd_total[1h]))
+
+        # Recording rule: Worker utilization
+        - record: strix:worker:utilization:5m
+          expr: |
+            sum by (tenant, project) (strix_worker_busy) / sum by (tenant, project) (kube_pod_status_phase{phase="Running", namespace=~".*-strix-worker"})
+
+        # Recording rule: Queue latency (time from enqueue to start)
+        - record: strix:queue:latency:p99:5m
+          expr: |
+            histogram_quantile(0.99, sum by (tenant, project, le) (rate(strix_assessment_queue_latency_seconds_bucket[5m])))
+
+        # Recording rule: Monthly budget utilization
+        - record: strix:budget:utilization:monthly
+          expr: |
+            sum by (tenant, project) (strix:cost:daily:tenant_project * 30) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+
+---
+# ConfigMap for Cost Exporter (custom metrics)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter-config
+data:
+  config.yaml: |
+    # Cost Exporter Configuration
+    # Generates custom Prometheus metrics for cost attribution
+
+    # Cloud provider pricing (updated via CI/CD or external sync)
+    pricing:
+      aws:
+        # On-demand pricing per vCPU-hour and GiB-hour (USD)
+        ondemand:
+          cpu_per_hour: 0.034
+          memory_per_gib_hour: 0.0045
+        # Spot pricing (typically 60-90% discount)
+        spot:
+          cpu_per_hour: 0.0068
+          memory_per_gib_hour: 0.0009
+        # Instance types and their specs
+        instances:
+          m6i.large:    { vcpu: 2, memory_gib: 8,   ondemand_hourly: 0.077,  spot_hourly: 0.015 }
+          m6i.xlarge:   { vcpu: 4, memory_gib: 16,  ondemand_hourly: 0.154,  spot_hourly: 0.031 }
+          m6i.2xlarge:  { vcpu: 8, memory_gib: 32,  ondemand_hourly: 0.308,  spot_hourly: 0.062 }
+          m6i.4xlarge:  { vcpu: 16, memory_gib: 64, ondemand_hourly: 0.616,  spot_hourly: 0.123 }
+          c6i.large:    { vcpu: 2, memory_gib: 4,   ondemand_hourly: 0.068,  spot_hourly: 0.014 }
+          c6i.xlarge:   { vcpu: 4, memory_gib: 8,   ondemand_hourly: 0.136,  spot_hourly: 0.027 }
+          c6i.2xlarge:  { vcpu: 8, memory_gib: 16,  ondemand_hourly: 0.272,  spot_hourly: 0.054 }
+          r6i.large:    { vcpu: 2, memory_gib: 16,  ondemand_hourly: 0.101,  spot_hourly: 0.020 }
+          r6i.xlarge:   { vcpu: 4, memory_gib: 32,  ondemand_hourly: 0.202,  spot_hourly: 0.040 }
+      gcp:
+        ondemand:
+          cpu_per_hour: 0.031
+          memory_per_gib_hour: 0.0042
+        spot:
+          cpu_per_hour: 0.0093
+          memory_per_gib_hour: 0.0013
+        instances:
+          n2-standard-2:  { vcpu: 2, memory_gib: 8,   ondemand_hourly: 0.074,  spot_hourly: 0.015 }
+          n2-standard-4:  { vcpu: 4, memory_gib: 16,  ondemand_hourly: 0.148,  spot_hourly: 0.030 }
+          n2-standard-8:  { vcpu: 8, memory_gib: 32,  ondemand_hourly: 0.296,  spot_hourly: 0.059 }
+          c2-standard-4:  { vcpu: 4, memory_gib: 16,  ondemand_hourly: 0.168,  spot_hourly: 0.034 }
+      azure:
+        ondemand:
+          cpu_per_hour: 0.036
+          memory_per_gib_hour: 0.0048
+        spot:
+          cpu_per_hour: 0.0072
+          memory_per_gib_hour: 0.0010
+        instances:
+          Standard_D2s_v5:  { vcpu: 2, memory_gib: 8,   ondemand_hourly: 0.078,  spot_hourly: 0.016 }
+          Standard_D4s_v5:  { vcpu: 4, memory_gib: 16,  ondemand_hourly: 0.156,  spot_hourly: 0.031 }
+          Standard_D8s_v5:  { vcpu: 8, memory_gib: 32,  ondemand_hourly: 0.312,  spot_hourly: 0.062 }
+
+    # Tenant budgets (can be overridden per namespace via annotations)
+    default_budget_monthly_usd: 1000
+
+    # Assessment type cost multipliers
+    assessment_multipliers:
+      quick: 0.5
+      standard: 1.0
+      deep: 2.5
+      compliance: 3.0
+      custom: 1.5
+
+    # Metrics to expose
+    metrics:
+      - name: strix_assessment_cost_usd_total
+        type: counter
+        help: "Total cost of assessments in USD"
+        labels: [tenant, project, assessment_type, instance_type, priority_class]
+      - name: strix_assessment_count_total
+        type: counter
+        help: "Total number of assessments completed"
+        labels: [tenant, project, assessment_type, status]
+      - name: strix_assessment_queue_pending
+        type: gauge
+        help: "Number of pending assessments in queue"
+        labels: [tenant, project, priority]
+      - name: strix_assessment_queue_latency_seconds
+        type: histogram
+        help: "Queue latency from enqueue to start"
+        labels: [tenant, project, priority]
+        buckets: [1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]
+      - name: strix_worker_busy
+        type: gauge
+        help: "Number of workers currently processing assessments"
+        labels: [tenant, project, node_pool]
+      - name: strix_spot_termination_total
+        type: counter
+        help: "Total spot instance terminations"
+        labels: [tenant, project, node_pool, reason]
+      - name: strix_tenant_budget_monthly_usd
+        type: gauge
+        help: "Monthly budget limit for tenant/project in USD"
+        labels: [tenant, project]
+      - name: strix_node_pool_cost_usd_per_hour
+        type: gauge
+        help: "Current hourly cost of node pool"
+        labels: [node_pool, instance_type, lifecycle]
+      - name: strix_pod_resource_cost_usd_per_hour
+        type: gauge
+        help: "Estimated hourly cost of pod resources"
+        labels: [tenant, project, pod, priority_class, node_pool]
+
+    # Collection intervals
+    collection:
+      pod_metrics_interval: 30s
+      node_metrics_interval: 60s
+      cost_calculation_interval: 60s
+      budget_check_interval: 300s
+
+    # Kubernetes integration
+    kubernetes:
+      # Label selectors for identifying Strix workloads
+      workload_selector:
+        app.kubernetes.io/name: strix
+      # Node pool identification
+      node_pool_label: "node.kubernetes.io/instance-type"
+      lifecycle_label: "node.kubernetes.io/lifecycle"  # spot, on-demand
+      # Tenant/project identification
+      tenant_label: "strix.io/tenant"
+      project_label: "strix.io/project"
+      priority_label: "strix.io/priority-tier"
+---
+# Deployment for Cost Exporter
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "strix.name" . }}
+      app.kubernetes.io/component: cost-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "strix.name" . }}
+        app.kubernetes.io/component: cost-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "strix.fullname" . }}-cost-exporter
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: cost-exporter
+          image: {{ .Values.monitoringExtras.cost.exporter.image.repository | default "ghcr.io/your-org/strix-cost-exporter" }}:{{ .Values.monitoringExtras.cost.exporter.image.tag | default "v1.0.0" }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+          env:
+            - name: CONFIG_PATH
+              value: "/etc/cost-exporter/config.yaml"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_NAME
+              value: {{ .Values.monitoringExtras.cost.exporter.clusterName | default "primary" }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cost-exporter
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "strix.fullname" . }}-cost-exporter-config
+---
+# Service for Cost Exporter
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9090
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/name: {{ include "strix.name" . }}
+    app.kubernetes.io/component: cost-exporter
+---
+# ServiceAccount and RBAC for Cost Exporter
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+      - nodes/metrics
+      - pods
+      - namespaces
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - nodes
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - "kubevirt.io"
+    resources:
+      - virtualmachines
+      - virtualmachineinstances
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "strix.fullname" . }}-cost-exporter
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cost-exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "strix.fullname" . }}-cost-exporter
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "strix.fullname" . }}-cost-exporter
+    namespace: {{ .Release.Namespace }}
+{{- end }}

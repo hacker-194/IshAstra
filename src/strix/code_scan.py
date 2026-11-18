@@ -158,10 +158,7 @@ class CodeScanReport:
             "no requested scanner tools",
             "stopped at deadline",
         )
-        if any(
-            any(marker in note.lower() for marker in incomplete_markers)
-            for note in self.notes
-        ):
+        if any(any(marker in note.lower() for marker in incomplete_markers) for note in self.notes):
             return "partial"
         return "completed"
 
@@ -217,21 +214,14 @@ def _source_snapshot(source: Path, destination: Path) -> tuple[int, int, list[st
             if path.is_symlink() or not path.is_file():
                 skipped += 1
                 continue
-            if (
-                path.suffix.lower() not in SOURCE_SUFFIXES
-                and name not in MANIFEST_NAMES
-            ):
+            if path.suffix.lower() not in SOURCE_SUFFIXES and name not in MANIFEST_NAMES:
                 continue
             try:
                 size = path.stat().st_size
             except OSError:
                 skipped += 1
                 continue
-            if (
-                size > MAX_FILE_BYTES
-                or copied >= MAX_FILES
-                or total + size > MAX_TOTAL_BYTES
-            ):
+            if size > MAX_FILE_BYTES or copied >= MAX_FILES or total + size > MAX_TOTAL_BYTES:
                 skipped += 1
                 continue
             target = target_dir / name
@@ -244,9 +234,7 @@ def _source_snapshot(source: Path, destination: Path) -> tuple[int, int, list[st
             copied += 1
             total += size
     if skipped:
-        notes.append(
-            f"snapshot omitted {skipped} symlink, excluded, oversized, or over-limit item(s)"
-        )
+        notes.append(f"snapshot omitted {skipped} symlink, excluded, oversized, or over-limit item(s)")
     notes.append(f"analysis snapshot contains {copied} file(s), {total} bytes")
     return copied, skipped, notes
 
@@ -305,13 +293,9 @@ def _finding(
     )
 
 
-def _parse_bandit(
-    payload: dict[str, Any], snapshot: Path, source: Path, root_name: str
-) -> list[Finding]:
+def _parse_bandit(payload: dict[str, Any], snapshot: Path, source: Path, root_name: str) -> list[Finding]:
     findings: list[Finding] = []
-    for item in (
-        payload.get("results", []) if isinstance(payload.get("results"), list) else []
-    ):
+    for item in payload.get("results", []) if isinstance(payload.get("results"), list) else []:
         if not isinstance(item, dict):
             continue
         rel = _relative_path(item.get("filename", ""), snapshot, source)
@@ -343,13 +327,9 @@ def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _parse_semgrep(
-    payload: dict[str, Any], snapshot: Path, source: Path, root_name: str
-) -> list[Finding]:
+def _parse_semgrep(payload: dict[str, Any], snapshot: Path, source: Path, root_name: str) -> list[Finding]:
     findings: list[Finding] = []
-    for item in (
-        payload.get("results", []) if isinstance(payload.get("results"), list) else []
-    ):
+    for item in payload.get("results", []) if isinstance(payload.get("results"), list) else []:
         if not isinstance(item, dict):
             continue
         extra = _mapping(item.get("extra"))
@@ -373,9 +353,7 @@ def _parse_semgrep(
                 location=f"{rel}:{line}" if line else rel,
                 cwe=cwe,
                 confidence=confidence,
-                remediation=str(
-                    metadata.get("fix") or "Review the matched code and rule guidance."
-                ),
+                remediation=str(metadata.get("fix") or "Review the matched code and rule guidance."),
                 description=str(
                     metadata.get("references")
                     or "Static-analysis result; validate reachability and runtime context."
@@ -385,13 +363,9 @@ def _parse_semgrep(
     return findings
 
 
-def _parse_trivy(
-    payload: dict[str, Any], snapshot: Path, source: Path, root_name: str
-) -> list[Finding]:
+def _parse_trivy(payload: dict[str, Any], snapshot: Path, source: Path, root_name: str) -> list[Finding]:
     findings: list[Finding] = []
-    for result in (
-        payload.get("Results", []) if isinstance(payload.get("Results"), list) else []
-    ):
+    for result in payload.get("Results", []) if isinstance(payload.get("Results"), list) else []:
         if not isinstance(result, dict):
             continue
         target = str(result.get("Target") or "")
@@ -437,13 +411,10 @@ def _parse_trivy(
                     title=title,
                     severity=str(item.get("Severity") or "unknown"),
                     detector="trivy-fs",
-                    evidence=str(
-                        item.get("Message") or item.get("Description") or title
-                    ),
+                    evidence=str(item.get("Message") or item.get("Description") or title),
                     location=f"{rel}:{line}" if line else rel,
                     remediation=str(
-                        item.get("Resolution")
-                        or "Apply the tool's recommended configuration fix."
+                        item.get("Resolution") or "Apply the tool's recommended configuration fix."
                     ),
                     description=str(item.get("Description") or ""),
                     confidence="medium",
@@ -501,14 +472,10 @@ def scan_codebase(
     with tempfile.TemporaryDirectory(prefix="strix-code-scan-") as temp:
         snapshot = Path(temp) / "source"
         snapshot.mkdir()
-        copied_count, report.skipped_items, snapshot_notes = _source_snapshot(
-            source, snapshot
-        )
+        copied_count, report.skipped_items, snapshot_notes = _source_snapshot(source, snapshot)
         report.notes.extend(snapshot_notes)
         if copied_count == 0:
-            report.notes.append(
-                "snapshot is empty; no supported source/manifests were copied"
-            )
+            report.notes.append("snapshot is empty; no supported source/manifests were copied")
             return report
 
         tools: list[tuple[str, list[str], Any, set[int]]] = []
@@ -534,9 +501,7 @@ def scan_codebase(
                     )
                 )
             else:
-                report.notes.append(
-                    "Semgrep unavailable; SAST coverage is partial (install semgrep)"
-                )
+                report.notes.append("Semgrep unavailable; SAST coverage is partial (install semgrep)")
         if enable_bandit:
             binary = shutil.which("bandit")
             if binary:
@@ -549,9 +514,7 @@ def scan_codebase(
                     )
                 )
             else:
-                report.notes.append(
-                    "Bandit unavailable; Python SAST coverage is partial (install bandit)"
-                )
+                report.notes.append("Bandit unavailable; Python SAST coverage is partial (install bandit)")
         if enable_trivy:
             binary = shutil.which("trivy")
             if binary:
@@ -584,9 +547,7 @@ def scan_codebase(
                     "no requested scanner tools are installed; no security verdict is possible"
                 )
             else:
-                report.notes.append(
-                    "no scanners were selected; no security verdict is possible"
-                )
+                report.notes.append("no scanners were selected; no security verdict is possible")
             return report
 
         started = time.monotonic()
@@ -594,9 +555,7 @@ def scan_codebase(
         for name, argv, parser, accepted_codes in tools:
             remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
-                report.notes.append(
-                    f"{name} skipped because the overall code-scan deadline expired"
-                )
+                report.notes.append(f"{name} skipped because the overall code-scan deadline expired")
                 continue
             try:
                 code, stdout, stderr = _run_tool(argv, timeout=remaining, cancel=cancel)
@@ -604,9 +563,7 @@ def scan_codebase(
                 report.notes.append(f"{name} failed or was incomplete: {exc}")
                 continue
             if code not in accepted_codes:
-                report.notes.append(
-                    f"{name} exited {code}: {stderr.strip()[:250] or 'no diagnostic'}"
-                )
+                report.notes.append(f"{name} exited {code}: {stderr.strip()[:250] or 'no diagnostic'}")
                 continue
             try:
                 payload = json.loads(stdout)
@@ -619,17 +576,13 @@ def scan_codebase(
                 report.findings.extend(parser(payload, snapshot, source, source.name))
                 report.tools_run.append(name)
             except (TypeError, ValueError, KeyError) as exc:
-                report.notes.append(
-                    f"{name} output could not be normalized: {type(exc).__name__}"
-                )
+                report.notes.append(f"{name} output could not be normalized: {type(exc).__name__}")
         # Findings are redacted at serialization and SARIF boundaries. Dedupe is
         # intentionally by repository location + rule category, not message text.
         unique: dict[str, Finding] = {}
         for finding in report.findings:
             unique.setdefault(finding.fingerprint, finding)
-        report.findings = sorted(
-            unique.values(), key=lambda f: (f.location, f.category)
-        )
+        report.findings = sorted(unique.values(), key=lambda f: (f.location, f.category))
     return report
 
 
@@ -646,18 +599,10 @@ def main(argv: list[str] | None = None) -> int:
         default=180.0,
         help="overall deadline in seconds (max 3600)",
     )
-    parser.add_argument(
-        "--output", help="write JSON report to this path (default: stdout)"
-    )
-    parser.add_argument(
-        "--sarif", action="store_true", help="emit SARIF 2.1.0 instead of Strix JSON"
-    )
-    parser.add_argument(
-        "--no-semgrep", action="store_true", help="skip the Semgrep ruleset"
-    )
-    parser.add_argument(
-        "--no-bandit", action="store_true", help="skip Bandit Python analysis"
-    )
+    parser.add_argument("--output", help="write JSON report to this path (default: stdout)")
+    parser.add_argument("--sarif", action="store_true", help="emit SARIF 2.1.0 instead of Strix JSON")
+    parser.add_argument("--no-semgrep", action="store_true", help="skip the Semgrep ruleset")
+    parser.add_argument("--no-bandit", action="store_true", help="skip Bandit Python analysis")
     parser.add_argument(
         "--no-trivy",
         action="store_true",

@@ -1,0 +1,403 @@
+# Strix SLI/SLO Definitions
+# Service Level Indicators and Objectives for Production Monitoring
+# Based on Google SRE Workbook methodology
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: strix-sli-slo
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+spec:
+  groups:
+    - name: strix.sli.slo
+      interval: 30s
+      rules:
+        # ============================================================
+        # SLI: API Availability
+        # ============================================================
+        # SLI: Proportion of successful HTTP requests (non-5xx)
+        - record: strix:sli:api_availability:ratio_rate5m
+          expr: |
+            sum(rate(strix_http_requests_total{status!~"5.."}[5m]))
+            /
+            sum(rate(strix_http_requests_total[5m]))
+
+        # SLO: API Availability >= 99.9% over 30-day rolling window
+        - record: strix:slo:api_availability:target
+          expr: 0.999
+
+        # Error Budget Remaining (30-day window)
+        - record: strix:slo:api_availability:error_budget_remaining
+          expr: |
+            (
+              1 - (0.999 - strix:sli:api_availability:ratio_rate5m)
+            ) / (1 - 0.999)
+
+        # Burn Rate Alert: 2% budget consumed in 1h (fast burn)
+        - alert: StrixSLOApiAvailabilityFastBurn
+          expr: |
+            (1 - strix:sli:api_availability:ratio_rate1h) / (1 - 0.999) > 0.02
+          for: 5m
+          labels:
+            severity: critical
+            component: slo
+            slo: api_availability
+          annotations:
+            summary: "API Availability SLO fast burn rate detected"
+            description: |
+              API availability error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+              At this rate, the 30-day error budget will be exhausted in {{ 1 / $value | printf "%.1f" }} hours.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-api-availability.md"
+
+        # Burn Rate Alert: 10% budget consumed in 6h (slow burn)
+        - alert: StrixSLOApiAvailabilitySlowBurn
+          expr: |
+            (1 - strix:sli:api_availability:ratio_rate6h) / (1 - 0.999) > 0.10
+          for: 30m
+          labels:
+            severity: warning
+            component: slo
+            slo: api_availability
+          annotations:
+            summary: "API Availability SLO slow burn rate detected"
+            description: |
+              API availability error budget is burning at {{ $value | printf "%.2f" }}% per 6 hours.
+              At this rate, the 30-day error budget will be exhausted in {{ 6 / $value | printf "%.1f" }} hours.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-api-availability.md"
+
+        # ============================================================
+        # SLI: API Latency (p99)
+        # ============================================================
+        # SLI: Proportion of requests with latency <= 5s
+        - record: strix:sli:api_latency_p99:ratio_rate5m
+          expr: |
+            sum(rate(strix_http_request_duration_seconds_bucket{le="5.0"}[5m]))
+            /
+            sum(rate(strix_http_request_duration_seconds_count[5m]))
+
+        # SLO: p99 Latency <= 5s for 99% of requests over 30-day window
+        - record: strix:slo:api_latency_p99:target
+          expr: 0.99
+
+        - record: strix:slo:api_latency_p99:error_budget_remaining
+          expr: |
+            (
+              1 - (0.99 - strix:sli:api_latency_p99:ratio_rate5m)
+            ) / (1 - 0.99)
+
+        - alert: StrixSLOApiLatencyFastBurn
+          expr: |
+            (1 - strix:sli:api_latency_p99:ratio_rate1h) / (1 - 0.99) > 0.02
+          for: 5m
+          labels:
+            severity: critical
+            component: slo
+            slo: api_latency_p99
+          annotations:
+            summary: "API Latency SLO fast burn rate detected"
+            description: |
+              API p99 latency error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+              Current p99 ratio: {{ strix:sli:api_latency_p99:ratio_rate1h | printf "%.4f" }}
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-api-latency.md"
+
+        - alert: StrixSLOApiLatencySlowBurn
+          expr: |
+            (1 - strix:sli:api_latency_p99:ratio_rate6h) / (1 - 0.99) > 0.10
+          for: 30m
+          labels:
+            severity: warning
+            component: slo
+            slo: api_latency_p99
+          annotations:
+            summary: "API Latency SLO slow burn rate detected"
+            description: |
+              API p99 latency error budget is burning at {{ $value | printf "%.2f" }}% per 6 hours.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-api-latency.md"
+
+        # ============================================================
+        # SLI: Job Completion Rate
+        # ============================================================
+        # SLI: Proportion of jobs that complete successfully (vs failed)
+        - record: strix:sli:job_completion:ratio_rate5m
+          expr: |
+            sum(rate(strix_jobs_total{state="completed"}[5m]))
+            /
+            sum(rate(strix_jobs_total{state=~"completed|failed"}[5m]))
+
+        # SLO: Job Completion Rate >= 95% over 30-day window
+        - record: strix:slo:job_completion:target
+          expr: 0.95
+
+        - record: strix:slo:job_completion:error_budget_remaining
+          expr: |
+            (
+              1 - (0.95 - strix:sli:job_completion:ratio_rate5m)
+            ) / (1 - 0.95)
+
+        - alert: StrixSLOJobCompletionFastBurn
+          expr: |
+            (1 - strix:sli:job_completion:ratio_rate1h) / (1 - 0.95) > 0.02
+          for: 5m
+          labels:
+            severity: critical
+            component: slo
+            slo: job_completion
+          annotations:
+            summary: "Job Completion SLO fast burn rate detected"
+            description: |
+              Job completion error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+              Current completion ratio: {{ strix:sli:job_completion:ratio_rate1h | printf "%.4f" }}
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-job-completion.md"
+
+        - alert: StrixSLOJobCompletionSlowBurn
+          expr: |
+            (1 - strix:sli:job_completion:ratio_rate6h) / (1 - 0.95) > 0.10
+          for: 30m
+          labels:
+            severity: warning
+            component: slo
+            slo: job_completion
+          annotations:
+            summary: "Job Completion SLO slow burn rate detected"
+            description: |
+              Job completion error budget is burning at {{ $value | printf "%.2f" }}% per 6 hours.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-job-completion.md"
+
+        # ============================================================
+        # SLI: Job Queue Latency (time from submission to start)
+        # ============================================================
+        # SLI: Proportion of jobs starting within 60s of submission
+        - record: strix:sli:job_queue_latency:ratio_rate5m
+          expr: |
+            sum(rate(strix_job_queue_duration_seconds_bucket{le="60.0"}[5m]))
+            /
+            sum(rate(strix_job_queue_duration_seconds_count[5m]))
+
+        # SLO: 95% of jobs start within 60s over 30-day window
+        - record: strix:slo:job_queue_latency:target
+          expr: 0.95
+
+        - record: strix:slo:job_queue_latency:error_budget_remaining
+          expr: |
+            (
+              1 - (0.95 - strix:sli:job_queue_latency:ratio_rate5m)
+            ) / (1 - 0.95)
+
+        - alert: StrixSLOJobQueueLatencyFastBurn
+          expr: |
+            (1 - strix:sli:job_queue_latency:ratio_rate1h) / (1 - 0.95) > 0.02
+          for: 5m
+          labels:
+            severity: warning
+            component: slo
+            slo: job_queue_latency
+          annotations:
+            summary: "Job Queue Latency SLO fast burn rate detected"
+            description: |
+              Job queue latency error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-job-queue-latency.md"
+
+        # ============================================================
+        # SLI: Adapter Success Rate
+        # ============================================================
+        # SLI: Proportion of adapter executions that succeed
+        - record: strix:sli:adapter_success:ratio_rate5m
+          expr: |
+            1 - (
+              sum(rate(strix_adapter_errors_total[5m]))
+              /
+              sum(rate(strix_adapter_errors_total[5m] + strix_adapter_duration_seconds_count[5m]))
+            )
+
+        # SLO: Adapter Success Rate >= 99% over 30-day window
+        - record: strix:slo:adapter_success:target
+          expr: 0.99
+
+        - record: strix:slo:adapter_success:error_budget_remaining
+          expr: |
+            (
+              1 - (0.99 - strix:sli:adapter_success:ratio_rate5m)
+            ) / (1 - 0.99)
+
+        - alert: StrixSLOAdapterSuccessFastBurn
+          expr: |
+            (1 - strix:sli:adapter_success:ratio_rate1h) / (1 - 0.99) > 0.02
+          for: 5m
+          labels:
+            severity: warning
+            component: slo
+            slo: adapter_success
+          annotations:
+            summary: "Adapter Success SLO fast burn rate detected"
+            description: |
+              Adapter success error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-adapter-success.md"
+
+        # ============================================================
+        # SLI: Findings Processing Latency
+        # ============================================================
+        # SLI: Proportion of findings processed within 300s
+        - record: strix:sli:findings_latency:ratio_rate5m
+          expr: |
+            sum(rate(strix_job_duration_seconds_bucket{le="300.0"}[5m]))
+            /
+            sum(rate(strix_job_duration_seconds_count[5m]))
+
+        # SLO: 99% of assessments complete within 300s over 30-day window
+        - record: strix:slo:findings_latency:target
+          expr: 0.99
+
+        - record: strix:slo:findings_latency:error_budget_remaining
+          expr: |
+            (
+              1 - (0.99 - strix:sli:findings_latency:ratio_rate5m)
+            ) / (1 - 0.99)
+
+        # ============================================================
+        # SLI: Webhook Delivery Success
+        # ============================================================
+        # SLI: Proportion of webhook deliveries that succeed
+        - record: strix:sli:webhook_delivery:ratio_rate5m
+          expr: |
+            sum(rate(strix_webhook_deliveries_total{status="success"}[5m]))
+            /
+            sum(rate(strix_webhook_deliveries_total[5m]))
+
+        # SLO: Webhook Delivery Success >= 99.5% over 30-day window
+        - record: strix:slo:webhook_delivery:target
+          expr: 0.995
+
+        - record: strix:slo:webhook_delivery:error_budget_remaining
+          expr: |
+            (
+              1 - (0.995 - strix:sli:webhook_delivery:ratio_rate5m)
+            ) / (1 - 0.995)
+
+        - alert: StrixSLOWebhookDeliveryFastBurn
+          expr: |
+            (1 - strix:sli:webhook_delivery:ratio_rate1h) / (1 - 0.995) > 0.02
+          for: 5m
+          labels:
+            severity: warning
+            component: slo
+            slo: webhook_delivery
+          annotations:
+            summary: "Webhook Delivery SLO fast burn rate detected"
+            description: |
+              Webhook delivery error budget is burning at {{ $value | printf "%.2f" }}% per hour.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-webhook-delivery.md"
+
+        # ============================================================
+        # SLI: Authentication Success Rate
+        # ============================================================
+        # SLI: Proportion of successful authentications
+        - record: strix:sli:auth_success:ratio_rate5m
+          expr: |
+            sum(rate(strix_auth_success_total[5m]))
+            /
+            (sum(rate(strix_auth_success_total[5m])) + sum(rate(strix_auth_failures_total[5m])))
+
+        # SLO: Auth Success Rate >= 99.9% over 30-day window (excluding brute-force)
+        - record: strix:slo:auth_success:target
+          expr: 0.999
+
+        - record: strix:slo:auth_success:error_budget_remaining
+          expr: |
+            (
+              1 - (0.999 - strix:sli:auth_success:ratio_rate5m)
+            ) / (1 - 0.999)
+
+        # ============================================================
+        # Composite SLO: Overall Service Health
+        # ============================================================
+        # All critical SLOs must be met
+        - record: strix:slo:overall:healthy
+          expr: |
+            min(
+              strix:sli:api_availability:ratio_rate5m / 0.999,
+              strix:sli:api_latency_p99:ratio_rate5m / 0.99,
+              strix:sli:job_completion:ratio_rate5m / 0.95,
+              strix:sli:adapter_success:ratio_rate5m / 0.99
+            )
+
+        - alert: StrixSLOOverallDegraded
+          expr: |
+            strix:slo:overall:healthy < 1
+          for: 5m
+          labels:
+            severity: critical
+            component: slo
+            slo: overall
+          annotations:
+            summary: "Overall service health SLO degraded"
+            description: |
+              One or more critical SLOs are below target.
+              Overall health score: {{ $value | printf "%.2f" }}
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/slo-overall.md"
+
+        # ============================================================
+        # Error Budget Burn Rate Summary (for dashboarding)
+        # ============================================================
+        - record: strix:slo:error_budget:api_availability:burn_rate_1h
+          expr: |
+            (1 - strix:sli:api_availability:ratio_rate1h) / (1 - 0.999)
+
+        - record: strix:slo:error_budget:api_availability:burn_rate_6h
+          expr: |
+            (1 - strix:sli:api_availability:ratio_rate6h) / (1 - 0.999)
+
+        - record: strix:slo:error_budget:api_latency_p99:burn_rate_1h
+          expr: |
+            (1 - strix:sli:api_latency_p99:ratio_rate1h) / (1 - 0.99)
+
+        - record: strix:slo:error_budget:api_latency_p99:burn_rate_6h
+          expr: |
+            (1 - strix:sli:api_latency_p99:ratio_rate6h) / (1 - 0.99)
+
+        - record: strix:slo:error_budget:job_completion:burn_rate_1h
+          expr: |
+            (1 - strix:sli:job_completion:ratio_rate1h) / (1 - 0.95)
+
+        - record: strix:slo:error_budget:job_completion:burn_rate_6h
+          expr: |
+            (1 - strix:sli:job_completion:ratio_rate6h) / (1 - 0.95)
+
+        - record: strix:slo:error_budget:adapter_success:burn_rate_1h
+          expr: |
+            (1 - strix:sli:adapter_success:ratio_rate1h) / (1 - 0.99)
+
+        - record: strix:slo:error_budget:adapter_success:burn_rate_6h
+          expr: |
+            (1 - strix:sli:adapter_success:ratio_rate6h) / (1 - 0.99)
+
+        # ============================================================
+        # SLO Compliance (30-day rolling)
+        # ============================================================
+        - record: strix:slo:compliance:api_availability:30d
+          expr: |
+            avg_over_time(strix:sli:api_availability:ratio_rate5m[30d]) >= 0.999
+
+        - record: strix:slo:compliance:api_latency_p99:30d
+          expr: |
+            avg_over_time(strix:sli:api_latency_p99:ratio_rate5m[30d]) >= 0.99
+
+        - record: strix:slo:compliance:job_completion:30d
+          expr: |
+            avg_over_time(strix:sli:job_completion:ratio_rate5m[30d]) >= 0.95
+
+        - record: strix:slo:compliance:adapter_success:30d
+          expr: |
+            avg_over_time(strix:sli:adapter_success:ratio_rate5m[30d]) >= 0.99
+
+        # Overall compliance - all SLOs met
+        - record: strix:slo:compliance:overall:30d
+          expr: |
+            min(
+              strix:slo:compliance:api_availability:30d,
+              strix:slo:compliance:api_latency_p99:30d,
+              strix:slo:compliance:job_completion:30d,
+              strix:slo:compliance:adapter_success:30d
+            )

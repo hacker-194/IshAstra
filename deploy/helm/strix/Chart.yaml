@@ -1,0 +1,61 @@
+apiVersion: v2
+name: strix
+description: Authorized security assessment platform - Kubernetes Helm Chart
+type: application
+version: 3.5.0
+appVersion: "3.5.0"
+home: https://github.com/your-org/strix
+maintainers:
+  - name: Strix Team
+    email: strix@example.com
+keywords:
+  - security
+  - assessment
+  - vulnerability
+  - compliance
+  - fastapi
+  - redis
+  - postgresql
+sources:
+  - https://github.com/your-org/strix
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial Helm chart release
+    - kind: added
+      description: Production-grade deployment with HPA, NetworkPolicy, PodSecurityContext
+    - kind: added
+      description: Multi-environment values (dev, staging, prod)
+    - kind: added
+      description: Optional PostgreSQL and Prometheus dependencies
+kubeVersion: ">=1.25.0-0"
+dependencies:
+  - name: redis
+    version: "28.3.12"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+    tags:
+      - cache
+      - rate-limiting
+      - distributed-locks
+  - name: postgresql
+    version: "18.12.19"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+    tags:
+      - database
+      - multi-tenant
+  - name: prometheus
+    version: "29.47.2"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: monitoring.prometheus.enabled
+    tags:
+      - monitoring
+      - observability
+  - name: grafana
+    version: "10.5.15"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: monitoring.grafana.enabled
+    tags:
+      - monitoring
+      - observability

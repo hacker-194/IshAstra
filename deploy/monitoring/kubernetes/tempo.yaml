@@ -1,0 +1,1063 @@
+# Tempo for Distributed Tracing
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f tempo.yaml
+
+---
+# ServiceAccount for Tempo
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: tempo
+
+---
+# ServiceAccount for OpenTelemetry Collector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: otel-collector
+
+---
+# ClusterRole for OpenTelemetry Collector (for k8s attributes)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - namespaces
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: otel-collector
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Secret for Tempo configuration (from tempo-config.yaml)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tempo-config
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+      grpc_listen_port: 9095
+      log_level: info
+
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+        jaeger:
+          protocols:
+            thrift_http:
+              endpoint: 0.0.0.0:14268
+        zipkin:
+          endpoint: 0.0.0.0:9411
+
+    ingester:
+      max_block_duration: 5m
+      max_block_bytes: 1_048_576
+      complete_block_timeout: 15m
+      lifecycler:
+        ring:
+          replication_factor: 1
+        final_sleep: 0s
+
+    compactor:
+      compaction:
+        block_retention: 336h  # 14 days
+        compacted_block_retention: 1h
+      compaction_window: 1h
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tempo/traces
+        pool:
+          max_workers: 100
+          queue_depth: 10000
+        wal:
+          path: /tempo/wal
+          encoding: snappy
+
+    # Blocklist for traces we don't want to store
+    blocklist:
+      poll_interval: 5m
+
+    # Limits for multi-tenancy
+    limits:
+      ingestion_rate_limit: 10MB
+      ingestion_burst_limit: 20MB
+      max_spans_per_trace: 10000
+      max_trace_idle_time: 5m
+
+    # Query frontend
+    query_frontend:
+      search:
+        duration_slo: 5s
+        throughput_bytes_slo: 1.073741824e+09
+      max_outstanding_requests_per_tenant: 100
+
+    metrics_generator:
+      registry:
+        external_labels:
+          source: tempo
+          cluster: strix-production
+      storage:
+        path: /tempo/metrics-generator
+        remote_write:
+          - url: https://prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+            send_exemplars: true
+            tls_config:
+              ca_file: /etc/tempo/certs/prometheus-ca.crt
+              cert_file: /etc/tempo/certs/tempo-client.crt
+              key_file: /etc/tempo/certs/tempo-client.key
+              server_name: prometheus.monitoring.svc.cluster.local
+      processor:
+        service_graphs:
+          dimensions:
+            - service.name
+            - service.namespace
+        span_metrics:
+          dimensions:
+            - service.name
+            - span.name
+            - span.kind
+            - status.code
+
+    # Reporting
+    reporting:
+      enabled: false
+
+    # Logging
+    log_level: info
+
+    # TLS Configuration for inter-component communication
+    tls:
+      cert_file: /etc/tempo/certs/tls.crt
+      key_file: /etc/tempo/certs/tls.key
+      client_ca_file: /etc/tempo/certs/ca.crt
+      min_version: TLS1.2
+      cipher_suites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+
+---
+# Secret for OpenTelemetry Collector configuration (from otel-collector-config.yaml)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+            tls:
+              cert_file: /etc/otel-collector/certs/tls.crt
+              key_file: /etc/otel-collector/certs/tls.key
+              client_ca_file: /etc/otel-collector/certs/ca.crt
+          http:
+            endpoint: 0.0.0.0:4318
+            tls:
+              cert_file: /etc/otel-collector/certs/tls.crt
+              key_file: /etc/otel-collector/certs/tls.key
+              client_ca_file: /etc/otel-collector/certs/ca.crt
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'strix'
+              static_configs:
+                - targets: ['strix.strix.svc.cluster.local:8000']
+              metrics_path: '/api/metrics'
+              scheme: https
+              tls_config:
+                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              authorization:
+                type: Bearer
+                credentials: ${STRIX_API_KEY}
+
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1000
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 512
+        spike_limit_mib: 128
+      resource:
+        attributes:
+          - key: service.name
+            value: "strix"
+            action: insert
+          - key: service.namespace
+            value: "strix-production"
+            action: insert
+          - key: deployment.environment
+            value: "production"
+            action: insert
+      k8sattributes:
+        auth_type: "service_account"
+        pod_association:
+          - from: resource_attribute
+            name: k8s.pod.ip
+        namespace: "strix"
+        filter:
+          node_from_env_var: KUBE_NODE_NAME
+      tail_sampling:
+        decision_wait: 30s
+        num_traces: 50000
+        expected_new_traces_per_sec: 1000
+        policy:
+          - name: errors
+            type: string_attribute
+            string_attribute:
+              key: status.code
+              values: ["ERROR", "error", "5xx"]
+          - name: slow
+            type: latency
+            latency:
+              threshold_ms: 5000
+          - name: critical-ops
+            type: string_attribute
+            string_attribute:
+              key: http.route
+              values: ["/api/v1/assessments", "/api/v1/jobs"]
+          - name: default
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: 10
+
+    exporters:
+      otlp:
+        endpoint: tempo.monitoring.svc.cluster.local:4317
+        tls:
+          ca_file: /etc/otel-collector/certs/tempo-ca.crt
+          cert_file: /etc/otel-collector/certs/otel-client.crt
+          key_file: /etc/otel-collector/certs/otel-client.key
+          server_name: tempo.monitoring.svc.cluster.local
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+      prometheus:
+        endpoint: 0.0.0.0:8888
+        namespace: strix
+        send_timestamps: true
+      logging:
+        loglevel: debug
+        sampling_initial: 5
+        sampling_thereafter: 100
+
+    service:
+      extensions: [health_check, zpages]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch, resource, k8sattributes, tail_sampling]
+          exporters: [otlp, logging]
+        metrics:
+          receivers: [prometheus]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+      telemetry:
+        logs:
+          level: info
+        metrics:
+          level: detailed
+        address: 0.0.0.0:8888
+
+---
+# TLS Secret for Tempo
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tempo-tls
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# CA Secret for Tempo client verification
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tempo-ca
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+data:
+  ca.crt: ""  # Base64 encoded CA cert
+
+---
+# Client cert for OTel Collector to talk to Tempo
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-client-certs
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded client cert
+  tls.key: ""  # Base64 encoded client key
+
+---
+# TLS Secret for OpenTelemetry Collector
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-collector-tls
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# CA Secret for OTel Collector client verification
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-collector-ca
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+data:
+  ca.crt: ""  # Base64 encoded CA cert
+
+---
+# Tempo Deployment (Single binary mode)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: tempo
+spec:
+  serviceName: tempo
+  replicas: 1  # Single instance for simplicity; for HA use multiple with different ring configs
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+        app.kubernetes.io/name: tempo
+        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/component: tempo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3200"
+        prometheus.io/path: /metrics
+        prometheus.io/scheme: https
+    spec:
+      serviceAccountName: tempo
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.4.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+            - -target=all
+          ports:
+            - containerPort: 3200
+              name: http
+              protocol: TCP
+            - containerPort: 9095
+              name: grpc
+              protocol: TCP
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 14268
+              name: jaeger
+              protocol: TCP
+            - containerPort: 9411
+              name: zipkin
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tempo-config
+              mountPath: /etc/tempo
+              readOnly: true
+            - name: tempo-tls
+              mountPath: /etc/tempo/certs
+              readOnly: true
+            - name: tempo-data
+              mountPath: /tempo
+      volumes:
+        - name: tempo-config
+          secret:
+            secretName: tempo-config
+        - name: tempo-tls
+          secret:
+            secretName: tempo-tls
+  volumeClaimTemplates:
+    - metadata:
+        name: tempo-data
+        labels:
+          app: tempo
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 50Gi
+        storageClassName: fast-ssd
+
+---
+# Service for Tempo
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: tempo
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 9095
+      targetPort: grpc
+      protocol: TCP
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: jaeger
+      port: 14268
+      targetPort: jaeger
+      protocol: TCP
+    - name: zipkin
+      port: 9411
+      targetPort: zipkin
+      protocol: TCP
+  selector:
+    app: tempo
+
+---
+# ServiceMonitor for Tempo self-monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: tempo
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /etc/prometheus/certs/tempo-ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: tempo.monitoring.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodDisruptionBudget for Tempo
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: tempo
+
+---
+# HorizontalPodAutoscaler for Tempo
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: tempo
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+
+---
+# OpenTelemetry Collector Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: otel-collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+        app.kubernetes.io/name: otel-collector
+        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/component: otel-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: otel-collector
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.103.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/etc/otel-collector/otel-collector-config.yaml
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 8888
+              name: prometheus
+              protocol: TCP
+            - containerPort: 13133
+              name: health
+              protocol: TCP
+            - containerPort: 55679
+              name: zpages
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: STRIX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: strix-api-key
+                  key: api-key
+                  optional: true
+          volumeMounts:
+            - name: otel-collector-config
+              mountPath: /etc/otel-collector
+              readOnly: true
+            - name: otel-collector-tls
+              mountPath: /etc/otel-collector/certs
+              readOnly: true
+            - name: tempo-ca
+              mountPath: /etc/otel-collector/certs/tempo-ca.crt
+              subPath: ca.crt
+              readOnly: true
+            - name: otel-client-certs
+              mountPath: /etc/otel-collector/certs/otel-client.crt
+              subPath: tls.crt
+              readOnly: true
+            - name: otel-client-certs
+              mountPath: /etc/otel-collector/certs/otel-client.key
+              subPath: tls.key
+              readOnly: true
+      volumes:
+        - name: otel-collector-config
+          secret:
+            secretName: otel-collector-config
+        - name: otel-collector-tls
+          secret:
+            secretName: otel-collector-tls
+        - name: tempo-ca
+          secret:
+            secretName: tempo-ca
+        - name: otel-client-certs
+          secret:
+            secretName: otel-client-certs
+
+---
+# Service for OpenTelemetry Collector
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: otel-collector
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: prometheus
+      port: 8888
+      targetPort: prometheus
+      protocol: TCP
+    - name: health
+      port: 13133
+      targetPort: health
+      protocol: TCP
+  selector:
+    app: otel-collector
+
+---
+# ServiceMonitor for OpenTelemetry Collector
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodDisruptionBudget for OTel Collector
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+
+---
+# HorizontalPodAutoscaler for OTel Collector
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: otel-collector
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+
+---
+# NetworkPolicy for Tempo
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+    app.kubernetes.io/name: tempo
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: tempo
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow OTel Collector to send traces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+        - protocol: TCP
+          port: 14268
+        - protocol: TCP
+          port: 9411
+    # Allow Grafana to query traces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 3200
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 3200
+  egress:
+    # Allow Tempo to send metrics to Prometheus
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# NetworkPolicy for OTel Collector
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: otel-collector
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Strix pods to send traces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: strix
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 8888
+  egress:
+    # Allow OTel Collector to send traces to Tempo
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: tempo
+      ports:
+        - protocol: TCP
+          port: 4317
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow OTel Collector to query Strix metrics
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: strix
+          podSelector:
+            matchLabels:
+              app: strix
+      ports:
+        - protocol: TCP
+          port: 8000

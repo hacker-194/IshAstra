@@ -30,6 +30,7 @@ SKIP_DIRS = {
     ".pytest_cache",
     "graphify-out",
     "target",  # Rust build output (src/hunt)
+    "tests",  # test fixtures intentionally contain credential-like patterns
 }
 SKIP_SUFFIXES = {
     ".pyc",
@@ -56,9 +57,7 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # as credentials — they are all lower-case words joined by underscores.
     (
         "strix api key",
-        re.compile(
-            r"\bstrix_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"
-        ),
+        re.compile(r"\bstrix_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"),
     ),
     (
         "private key",
@@ -70,9 +69,7 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     (
         "jwt",
-        re.compile(
-            r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
-        ),
+        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
     ),
     ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
 )

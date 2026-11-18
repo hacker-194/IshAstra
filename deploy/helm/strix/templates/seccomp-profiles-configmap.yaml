@@ -1,0 +1,21 @@
+{{- if and .Values.k8sJobs.enabled .Values.seccompProfiles.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.seccompProfiles.configMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seccomp-profiles
+data:
+  strix-seccomp-default.json: |
+{{ include "strix.seccomp.default" . | indent 4 }}
+  nmap.json: |
+{{ include "strix.seccomp.nmap" . | indent 4 }}
+  nuclei.json: |
+{{ include "strix.seccomp.nuclei" . | indent 4 }}
+  nikto.json: |
+{{ include "strix.seccomp.nikto" . | indent 4 }}
+  sqlmap.json: |
+{{ include "strix.seccomp.sqlmap" . | indent 4 }}
+{{- end }}

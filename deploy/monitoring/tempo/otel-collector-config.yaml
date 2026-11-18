@@ -1,0 +1,109 @@
+# OpenTelemetry Collector Configuration for Strix
+# Receives traces from Strix via OTLP and forwards to Tempo
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'strix'
+          static_configs:
+            - targets: ['strix:8000']
+          metrics_path: '/api/metrics'
+          scheme: http
+          authorization:
+            type: Bearer
+            credentials: ${STRIX_API_KEY}
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1000
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  resource:
+    attributes:
+      - key: service.name
+        value: "strix"
+        action: insert
+      - key: service.namespace
+        value: "strix-production"
+        action: insert
+      - key: deployment.environment
+        value: "production"
+        action: insert
+  k8sattributes:
+    auth_type: "service_account"
+    pod_association:
+      - from: resource_attribute
+        name: k8s.pod.ip
+    namespace: "strix"
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+  tail_sampling:
+    decision_wait: 30s
+    num_traces: 50000
+    expected_new_traces_per_sec: 1000
+    policy:
+      - name: errors
+        type: string_attribute
+        string_attribute:
+          key: status.code
+          values: ["ERROR", "error", "5xx"]
+      - name: slow
+        type: latency
+        latency:
+          threshold_ms: 5000
+      - name: critical-ops
+        type: string_attribute
+        string_attribute:
+          key: http.route
+          values: ["/api/v1/assessments", "/api/v1/jobs"]
+      - name: default
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  otlp:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  prometheus:
+    endpoint: 0.0.0.0:8888
+    namespace: strix
+    send_timestamps: true
+  logging:
+    loglevel: debug
+    sampling_initial: 5
+    sampling_thereafter: 100
+
+service:
+  extensions: [health_check, zpages]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, k8sattributes, tail_sampling]
+      exporters: [otlp, logging]
+    metrics:
+      receivers: [prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888

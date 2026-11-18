@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from strix.core.adapter_base import Adapter, AdapterResult, checked_destination
+from strix.core.authz import Principal
 from strix.core.probe import EndpointProbe
 from strix.core.scope import check as scope_check
 from strix.core.scope import destination as scope_destination
@@ -136,7 +137,12 @@ class WebCrawler:
         self.timeout = timeout
 
     def crawl(
-        self, start_url: str, *, deadline: float, cancel: threading.Event | None = None
+        self,
+        start_url: str,
+        *,
+        deadline: float,
+        cancel: threading.Event | None = None,
+        auth: Principal | None = None,
     ) -> CrawlResult:
         """Crawl from start_url until deadline or budget exhausted."""
         result = CrawlResult()
@@ -144,9 +150,7 @@ class WebCrawler:
         # Scope check the seed
         denial, reason, destination = scope_destination(start_url)
         if denial or destination is None:
-            raise ValueError(
-                f"scope refused {start_url}: {reason or 'destination unavailable'}"
-            )
+            raise ValueError(f"scope refused {start_url}: {reason or 'destination unavailable'}")
 
         seed_origin = f"{destination.scheme}://{destination.host}"
         if destination.port not in (80, 443):
@@ -173,9 +177,9 @@ class WebCrawler:
             if depth > self.max_depth:
                 continue
 
-            # Fetch the page
+            # Fetch the page with auth if provided
             try:
-                response = probe._fetch(url, deadline=deadline)
+                response = probe._fetch(url, deadline=deadline, auth=auth)
             except Exception as exc:
                 result.notes.append(f"fetch failed for {url}: {exc}")
                 continue
@@ -187,15 +191,11 @@ class WebCrawler:
                 fetched.add(url)
 
                 # Extract links if HTML (even at max_depth for discovery, but don't queue beyond max_depth)
-                content_type = (
-                    response.get("headers", {}).get("content-type", "").lower()
-                )
+                content_type = response.get("headers", {}).get("content-type", "").lower()
                 if "text/html" in content_type and depth <= self.max_depth:
                     extractor = _LinkExtractor(url)
                     with contextlib.suppress(Exception):
-                        extractor.feed(
-                            body
-                        )  # Malformed HTML - just skip link extraction
+                        extractor.feed(body)  # Malformed HTML - just skip link extraction
 
                     for raw_link in extractor.urls[: self.max_links_per_page]:
                         if link_count >= self.max_total_links:
@@ -211,9 +211,7 @@ class WebCrawler:
                         # Same-origin check
                         try:
                             link_parsed = urlparse(normalized)
-                            link_origin = (
-                                f"{link_parsed.scheme}://{link_parsed.hostname}"
-                            )
+                            link_origin = f"{link_parsed.scheme}://{link_parsed.hostname}"
                             if link_parsed.port not in (80, 443, None):
                                 link_origin += f":{link_parsed.port}"
                         except Exception:
@@ -271,12 +269,17 @@ class CrawlerAdapter(Adapter):
         crawler = WebCrawler(timeout=min(10.0, timeout / 2))
         # Destination has no url attribute; construct it
         start_url = f"{destination.scheme}://{destination.host}:{destination.port}"
-        crawl_result = crawler.crawl(start_url, deadline=deadline)
+
+        # Get authenticated principal from context
+        auth_principal = None
+        if context and "auth_principal" in context:
+            auth_principal = context["auth_principal"]
+
+        crawl_result = crawler.crawl(start_url, deadline=deadline, cancel=cancel, auth=auth_principal)
 
         if crawl_result.pages:
             result.notes.append(
-                f"crawled {len(crawl_result.pages)} pages, "
-                f"discovered {len(crawl_result.discovered)} URLs"
+                f"crawled {len(crawl_result.pages)} pages, discovered {len(crawl_result.discovered)} URLs"
             )
         else:
             result.notes.append("no pages crawled")
@@ -285,8 +288,7 @@ class CrawlerAdapter(Adapter):
         if context is not None:
             context["discovered_urls"] = crawl_result.discovered
             context["crawl_pages"] = [
-                {"url": p.url, "status": p.status, "depth": p.depth}
-                for p in crawl_result.pages
+                {"url": p.url, "status": p.status, "depth": p.depth} for p in crawl_result.pages
             ]
 
         return result

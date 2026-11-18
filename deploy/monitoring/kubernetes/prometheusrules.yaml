@@ -1,0 +1,797 @@
+# PrometheusRules from alerting.yml
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f prometheusrules.yaml
+
+---
+# Namespace for monitoring stack
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: strix-observability
+
+---
+# PrometheusRule for Strix Alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: strix-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-alerts
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: prometheus-rule
+spec:
+  groups:
+    - name: strix.rules
+      interval: 30s
+      rules:
+        # Queue backlog alerts
+        - alert: StrixQueueBacklogHigh
+          expr: |
+            (
+              sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+              -
+              sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            ) > 50
+          for: 5m
+          labels:
+            severity: warning
+            component: queue
+          annotations:
+            summary: "High queue backlog for tenant {{ $labels.tenant }}"
+            description: |
+              Tenant {{ $labels.tenant }} has {{ $value | printf "%%.0f' }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
+              This indicates the assessment workers cannot keep up with the submission rate.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+
+        - alert: StrixQueueBacklogCritical
+          expr: |
+            (
+              sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+              -
+              sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            ) > 200
+          for: 2m
+          labels:
+            severity: critical
+            component: queue
+          annotations:
+            summary: "Critical queue backlog for tenant {{ $labels.tenant }}"
+            description: |
+              Tenant {{ $labels.tenant }} has {{ $value | printf "%%.0f' }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
+              Immediate action required: scale workers or investigate worker failures.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+
+        # Job latency alerts
+        - alert: StrixJobLatencyHigh
+          expr: |
+            histogram_quantile(0.95, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 300
+          for: 5m
+          labels:
+            severity: warning
+            component: jobs
+          annotations:
+            summary: "High job latency for tenant {{ $labels.tenant }}"
+            description: |
+              95th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%%.0f' }} seconds.
+              Jobs are taking too long to complete. Check adapter timeouts and worker resources.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+
+        - alert: StrixJobLatencyCritical
+          expr: |
+            histogram_quantile(0.99, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 1800
+          for: 2m
+          labels:
+            severity: critical
+            component: jobs
+          annotations:
+            summary: "Critical job latency for tenant {{ $labels.tenant }}"
+            description: |
+              99th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%%.0f' }} seconds.
+              Jobs are hitting the hard timeout. Investigate immediately.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+
+        # Adapter success rate alerts
+        - alert: StrixAdapterSuccessRateLow
+          expr: |
+            1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+            component: adapters
+          annotations:
+            summary: "Low adapter success rate for {{ $labels.adapter }}"
+            description: |
+              Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%%.2f' }} (below 95%).
+              Check adapter logs for errors and external tool availability.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+
+        - alert: StrixAdapterSuccessRateCritical
+          expr: |
+            1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.90
+          for: 2m
+          labels:
+            severity: critical
+            component: adapters
+          annotations:
+            summary: "Critical adapter success rate for {{ $labels.adapter }}"
+            description: |
+              Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%%.2f' }} (below 90%).
+              Immediate investigation required.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+
+        # Authentication failure alerts
+        - alert: StrixAuthFailureRateHigh
+          expr: |
+            sum(rate(strix_auth_failures_total[5m])) by (reason) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: auth
+          annotations:
+            summary: "High authentication failure rate ({{ $labels.reason }})"
+            description: |
+              Authentication failures for reason '{{ $labels.reason }}' at {{ $value | printf "%%.2f' }}/s.
+              Possible brute-force attack or misconfigured clients.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+
+        - alert: StrixAuthFailureBurst
+          expr: |
+            sum(increase(strix_auth_failures_total[1m])) > 50
+          for: 1m
+          labels:
+            severity: critical
+            component: auth
+          annotations:
+            summary: "Authentication failure burst detected"
+            description: |
+              {{ $value | printf "%%.0f' }} authentication failures in the last minute.
+              Likely brute-force attack or credential stuffing.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+
+        # Audit chain alerts
+        - alert: StrixAuditChainVerificationFailed
+          expr: |
+            strix_audit_chain_verified == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: audit
+          annotations:
+            summary: "Audit chain verification failed"
+            description: |
+              The audit chain verification check failed at startup or during runtime.
+              This indicates potential tampering with the audit log.
+              Investigate immediately - this is a security incident.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+
+        - alert: StrixAuditChainLengthAnomaly
+          expr: |
+            rate(strix_audit_chain_length[5m]) < 0
+          for: 5m
+          labels:
+            severity: warning
+            component: audit
+          annotations:
+            summary: "Audit chain length decreased"
+            description: |
+              The audit chain length has decreased, which should never happen.
+              This indicates potential data loss or tampering.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+
+        # HTTP error rate alerts
+        - alert: StrixHTTP5xxRateHigh
+          expr: |
+            sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: "High 5xx error rate on endpoint {{ $labels.endpoint }}"
+            description: |
+              Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%%.2f' }} (above 5%).
+              Check application logs for internal server errors.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+
+        - alert: StrixHTTP5xxRateCritical
+          expr: |
+            sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.20
+          for: 2m
+          labels:
+            severity: critical
+            component: api
+          annotations:
+            summary: "Critical 5xx error rate on endpoint {{ $labels.endpoint }}"
+            description: |
+              Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%%.2f' }} (above 20%).
+              Service degradation likely. Immediate investigation required.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+
+        # Rate limit alerts
+        - alert: StrixRateLimitExceededHigh
+          expr: |
+            sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier) > 100
+          for: 5m
+          labels:
+            severity: warning
+            component: ratelimit
+          annotations:
+            summary: "High rate limit exceeded rate for {{ $labels.route_class }} ({{ $labels.tier }})"
+            description: |
+              Rate limit exceeded {{ $value | printf "%%.2f' }}/s for route class {{ $labels.route_class }} tier {{ $labels.tier }}.
+              Consider adjusting rate limits or investigating abusive clients.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/rate-limiting.md"
+
+        # Database pool alerts
+        - alert: StrixDBPoolExhausted
+          expr: |
+            strix_db_pool_available / strix_db_pool_size < 0.1
+          for: 5m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "Database connection pool nearly exhausted"
+            description: |
+              Database pool has only {{ $value | printf "%%.0f' }}% available connections.
+              Check for connection leaks or increase pool size.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+
+        - alert: StrixDBPoolAcquireSlow
+          expr: |
+            histogram_quantile(0.95, sum(rate(strix_db_pool_acquire_seconds_bucket[5m])) by (le)) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "Slow database pool acquire time"
+            description: |
+              95th percentile database pool acquire time is {{ $value | printf "%%.2f' }} seconds.
+              Pool may be undersized or database is overloaded.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+
+        # Disk pressure alerts (via node_exporter)
+        - alert: StrixDiskSpaceCritical
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+          for: 5m
+          labels:
+            severity: critical
+            component: disk
+          annotations:
+            summary: "Critical disk space on Strix host"
+            description: |
+              Root filesystem has less than 5% free space ({{ $value | printf "%%.1f' }}%).
+              Immediate cleanup or volume expansion required.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+
+        - alert: StrixDiskSpaceWarning
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+          for: 10m
+          labels:
+            severity: warning
+            component: disk
+          annotations:
+            summary: "Low disk space on Strix host"
+            description: |
+              Root filesystem has less than 15% free space ({{ $value | printf "%%.1f' }}%).
+              Plan for cleanup or volume expansion.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+
+        # Webhook failure alerts
+        - alert: StrixWebhookFailureRateHigh
+          expr: |
+            sum(rate(strix_webhook_failures_total[5m])) by (error_type) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: webhooks
+          annotations:
+            summary: "High webhook failure rate ({{ $labels.error_type }})"
+            description: |
+              Webhook delivery failures for error type '{{ $labels.error_type }}' at {{ $value | printf "%%.2f' }}/s.
+              Check webhook endpoint availability and network connectivity.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/webhook-failures.md"
+
+        # Findings volume alerts
+        - alert: StrixFindingsVolumeAnomaly
+          expr: |
+            sum(rate(strix_findings_total[5m])) by (tenant) > 100
+          for: 5m
+          labels:
+            severity: info
+            component: findings
+          annotations:
+            summary: "Unusual findings volume for tenant {{ $labels.tenant }}"
+            description: |
+              Tenant {{ $labels.tenant }} is generating {{ $value | printf "%%.2f' }} findings/s.
+              This may indicate a misconfigured scan or a target with many issues.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/findings-volume.md"
+
+        # Service health alerts
+        - alert: StrixServiceDown
+          expr: |
+            up{job="strix"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: service
+          annotations:
+            summary: "Strix API service is down"
+            description: |
+              The Strix API service has been down for more than 1 minute.
+              Check service logs and container health.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/service-down.md"
+
+        - alert: StrixPrometheusDown
+          expr: |
+            up{job="prometheus"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: monitoring
+          annotations:
+            summary: "Prometheus is down"
+            description: |
+              Prometheus has been down for more than 1 minute.
+              Metrics collection and alerting will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/prometheus-down.md"
+
+        - alert: StrixRedisDown
+          expr: |
+            up{job="redis"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: infrastructure
+          annotations:
+            summary: "Redis is down"
+            description: |
+              Redis has been down for more than 1 minute.
+              Rate limiting, Celery queue, and caching will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/redis-down.md"
+
+        # New: API availability SLI alerts
+        - alert: StrixAPIAvailabilityLow
+          expr: |
+            sum(rate(strix_http_requests_total{status!~"5.."}[5m])) / sum(rate(strix_http_requests_total[5m])) < 0.999
+          for: 5m
+          labels:
+            severity: critical
+            component: sli
+          annotations:
+            summary: "API availability below 99.9% (SLI breach)"
+            description: |
+              API availability is {{ $value | printf "%%.4f' }} (below 99.9% SLO).
+              This breaches the availability SLI.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/api-availability.md"
+
+        # New: Job completion SLI alerts
+        - alert: StrixJobCompletionRateLow
+          expr: |
+            sum(rate(strix_jobs_total{state="completed"}[5m])) / sum(rate(strix_jobs_total{state=~"completed|failed"}[5m])) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+            component: sli
+          annotations:
+            summary: "Job completion rate below 95% (SLI breach)"
+            description: |
+              Job completion rate is {{ $value | printf "%%.4f' }} (below 95% SLO).
+              This breaches the job completion SLI.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-completion.md"
+
+        # New: p99 latency SLI alert
+        - alert: StrixP99LatencyHigh
+          expr: |
+            histogram_quantile(0.99, sum(rate(strix_http_request_duration_seconds_bucket[5m])) by (le)) > 5
+          for: 5m
+          labels:
+            severity: warning
+            component: sli
+          annotations:
+            summary: "API p99 latency above 5s (SLI breach)"
+            description: |
+              API p99 latency is {{ $value | printf "%%.2f' }}s (above 5s SLO).
+              This breaches the latency SLI.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/latency.md"
+
+        # New: Critical findings alert
+        - alert: StrixCriticalFindingsNew
+          expr: |
+            increase(strix_findings_total{severity="critical"}[1h]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            component: findings
+          annotations:
+            summary: "New critical findings detected"
+            description: |
+              {{ $value | printf "%%.0f' }} new critical severity findings in the last hour.
+              Review findings immediately.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/critical-findings.md"
+
+        # New: Compliance score drop
+        - alert: StrixAlertmanagerDown
+          expr: |
+            up{job="alertmanager"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: monitoring
+          annotations:
+            summary: "Alertmanager is down"
+            description: |
+              Alertmanager has been down for more than 1 minute.
+              Alert routing and notification will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/alertmanager-down.md"
+
+        - alert: StrixGrafanaDown
+          expr: |
+            up{job="grafana"} == 0
+          for: 1m
+          labels:
+            severity: warning
+            component: monitoring
+          annotations:
+            summary: "Grafana is down"
+            description: |
+              Grafana has been down for more than 1 minute.
+              Dashboards and visualizations will not be available.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/grafana-down.md"
+
+        - alert: StrixLokiDown
+          expr: |
+            up{job="loki"} == 0
+          for: 1m
+          labels:
+            severity: warning
+            component: monitoring
+          annotations:
+            summary: "Loki is down"
+            description: |
+              Loki has been down for more than 1 minute.
+              Log aggregation and querying will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/loki-down.md"
+
+        - alert: StrixTempoDown
+          expr: |
+            up{job="tempo"} == 0
+          for: 1m
+          labels:
+            severity: warning
+            component: monitoring
+          annotations:
+            summary: "Tempo is down"
+            description: |
+              Tempo has been down for more than 1 minute.
+              Distributed tracing will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/tempo-down.md"
+
+        - alert: StrixOTelCollectorDown
+          expr: |
+            up{job="otel-collector"} == 0
+          for: 1m
+          labels:
+            severity: warning
+            component: monitoring
+          annotations:
+            summary: "OpenTelemetry Collector is down"
+            description: |
+              OTel Collector has been down for more than 1 minute.
+              Trace collection and processing will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/otel-collector-down.md"
+
+        # Kubernetes infrastructure alerts
+        - alert: StrixKubePodNotReady
+          expr: |
+            sum by (namespace, pod) (kube_pod_status_phase{phase="Running"} == 0) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} not ready"
+            description: |
+              Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been not ready for more than 5 minutes.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-pod-not-ready.md"
+
+        - alert: StrixKubeNodeNotReady
+          expr: |
+            kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Node {{ $labels.node }} is not ready"
+            description: |
+              Node {{ $labels.node }} has been not ready for more than 5 minutes.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-node-not-ready.md"
+
+        - alert: StrixKubeCPUOvercommit
+          expr: |
+            sum(namespace_cpu:kube_pod_container_resource_requests:sum) / sum(kube_node_status_allocatable_cpu_cores) > 1.5
+          for: 10m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "'CPU overcommitted ({{ $value | printf \"%%%%.2f' }}x)"
+            description: |
+              Total CPU requests exceed allocatable CPU by {{ $value | printf "%%.2f' }}x.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-cpu-overcommit.md"
+
+        - alert: StrixKubeMemoryOvercommit
+          expr: |
+            sum(namespace_memory:kube_pod_container_resource_requests:sum) / sum(kube_node_status_allocatable_memory_bytes) > 1.5
+          for: 10m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "'Memory overcommitted ({{ $value | printf \"%%.2f\" }}x)"
+            description: |
+              Total memory requests exceed allocatable memory by {{ $value | printf "%%.2f' }}x.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-memory-overcommit.md"
+
+---
+# PrometheusRule for Kubernetes Infrastructure Alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubernetes-infrastructure-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: kubernetes-infrastructure
+    app.kubernetes.io/name: kubernetes-infrastructure-alerts
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: prometheus-rule
+spec:
+  groups:
+    - name: kubernetes.infrastructure
+      interval: 30s
+      rules:
+        - alert: KubeAPIDown
+          expr: |
+            up{job="kubernetes-apiservers"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Kubernetes API server is down"
+            description: |
+              The Kubernetes API server has been down for more than 1 minute.
+              Cluster operations will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-api-down.md"
+
+        - alert: KubeControllerManagerDown
+          expr: |
+            up{job="kube-controller-manager"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Kube Controller Manager is down"
+            description: |
+              The Kube Controller Manager has been down for more than 1 minute.
+              Controller operations will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-controller-manager-down.md"
+
+        - alert: KubeSchedulerDown
+          expr: |
+            up{job="kube-scheduler"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Kube Scheduler is down"
+            description: |
+              The Kube Scheduler has been down for more than 1 minute.
+              Pod scheduling will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-scheduler-down.md"
+
+        - alert: KubeletDown
+          expr: |
+            up{job="kubelet"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Kubelet is down on {{ $labels.instance }}"
+            description: |
+              Kubelet has been down for more than 5 minutes on {{ $labels.instance }}.
+              Pod management on this node will not work.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kubelet-down.md"
+
+        - alert: KubePodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping"
+            description: |
+              Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently ({{ $value | printf "%%.2f' }} restarts/minute).
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-pod-crash-looping.md"
+
+        - alert: KubePodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+          for: 1m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} was OOM killed"
+            description: |
+              Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} was killed due to out of memory.
+              Check memory limits and requests.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-pod-oom-killed.md"
+
+        - alert: KubeNodeDiskPressure
+          expr: |
+            kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Node {{ $labels.node }} has disk pressure"
+            description: |
+              Node {{ $labels.node }} is experiencing disk pressure.
+              Cleanup or add more disk space.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-node-disk-pressure.md"
+
+        - alert: KubeNodeMemoryPressure
+          expr: |
+            kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Node {{ $labels.node }} has memory pressure"
+            description: |
+              Node {{ $labels.node }} is experiencing memory pressure.
+              Check memory usage and consider scaling.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-node-memory-pressure.md"
+
+        - alert: KubeNodePIDPressure
+          expr: |
+            kube_node_status_condition{condition="PIDPressure",status="true"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Node {{ $labels.node }} has PID pressure"
+            description: |
+              Node {{ $labels.node }} is experiencing PID pressure.
+              Too many processes running on the node.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-node-pid-pressure.md"
+
+        - alert: KubeDeploymentReplicasMismatch
+          expr: |
+            kube_deployment_status_replicas_available != kube_deployment_spec_replicas
+          for: 10m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has replica mismatch"
+            description: |
+              Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} available replicas but {{ kube_deployment_spec_replicas{deployment="$labels.deployment",namespace="$labels.namespace"} | printf "%.0f" }} desired replicas.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-deployment-replicas-mismatch.md"
+
+        - alert: KubeStatefulSetReplicasMismatch
+          expr: |
+            kube_statefulset_status_replicas_ready != kube_statefulset_status_replicas
+          for: 10m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "StatefulSet {{ $labels.statefulset }} in namespace {{ $labels.namespace }} has replica mismatch"
+            description: |
+              StatefulSet {{ $labels.statefulset }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} ready replicas but {{ kube_statefulset_status_replicas{statefulset="$labels.statefulset",namespace="$labels.namespace"} | printf "%.0f" }} desired replicas.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-statefulset-replicas-mismatch.md"
+
+        - alert: KubeDaemonSetRolloutStuck
+          expr: |
+            kube_daemonset_status_number_ready < kube_daemonset_status_desired_number_scheduled
+          for: 15m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "DaemonSet {{ $labels.daemonset }} in namespace {{ $labels.namespace }} rollout stuck"
+            description: |
+              DaemonSet {{ $labels.daemonset }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} ready pods but {{ kube_daemonset_status_desired_number_scheduled{daemonset="$labels.daemonset",namespace="$labels.namespace"} | printf "%.0f" }} desired pods.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-daemonset-rollout-stuck.md"
+
+        - alert: KubePersistentVolumeUsageHigh
+          expr: |
+            (kube_persistentvolume_capacity_bytes - kube_persistentvolume_available_bytes) / kube_persistentvolume_capacity_bytes > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "PersistentVolume {{ $labels.persistentvolume }} usage above 85%"
+            description: |
+              PersistentVolume {{ $labels.persistentvolume }} is at {{ $value | printf "%%.1f' }}% capacity.
+              Consider expanding the volume or cleaning up data.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-pv-usage-high.md"
+
+        - alert: KubePersistentVolumeUsageCritical
+          expr: |
+            (kube_persistentvolume_capacity_bytes - kube_persistentvolume_available_bytes) / kube_persistentvolume_capacity_bytes > 0.95
+          for: 5m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "PersistentVolume {{ $labels.persistentvolume }} usage above 95%"
+            description: |
+              PersistentVolume {{ $labels.persistentvolume }} is at {{ $value | printf "%%.1f' }}% capacity.
+              Immediate action required to prevent data loss.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-pv-usage-critical.md"
+
+        - alert: KubeHPAReplicasAtLimit
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas
+          for: 15m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} at max replicas"
+            description: |
+              HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} has reached max replicas ({{ $value | printf "%%.0f' }}).
+              Consider increasing max replicas or investigating load.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-hpa-at-limit.md"
+
+        - alert: KubeCertificateExpiring
+          expr: |
+            kube_certmanager_certificate_expiration_timestamp_seconds - time() < 604800
+          for: 1h
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} expiring in 7 days"
+            description: |
+              Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} expires in less than 7 days.
+              Ensure cert-manager is renewing it.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-cert-expiring.md"
+
+        - alert: KubeCertificateExpired
+          expr: |
+            kube_certmanager_certificate_expiration_timestamp_seconds - time() < 0
+          for: 1m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} has expired"
+            description: |
+              Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} has expired.
+              This may cause TLS failures.
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/kube-cert-expired.md"

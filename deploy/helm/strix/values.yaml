@@ -1,0 +1,1320 @@
+# Strix Helm Chart - Default Values
+# Production-grade Kubernetes deployment for Strix Security Assessment Platform
+#
+# Environments:
+#   - dev:        Lightweight development deployment
+#   - staging:    Pre-production with production-like settings
+#   - production: Full production hardening
+
+global:
+  # Default image (can be overridden per environment)
+  image:
+    repository: ghcr.io/your-org/strix
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  # Common labels applied to all resources
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: security-assessment
+  # Pod security standards
+  podSecurityStandard: restricted
+
+# ============================================================================
+# Strix API Deployment
+# ============================================================================
+api:
+  enabled: true
+  replicaCount: 2
+  # Strategy for rolling updates
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+    supplementalGroups: []
+    sysctls: []
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+    successThreshold: 1
+  readinessProbe:
+    httpGet:
+      path: /api/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+    successThreshold: 1
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8000"
+      prometheus.io/path: "/api/metrics"
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      external-dns.alpha.kubernetes.io/hostname: "strix.example.com"
+    hosts:
+      - host: strix.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: strix-tls
+        hosts:
+          - strix.example.com
+  # Environment variables (non-sensitive)
+  env:
+    STRIX_SCOPE_FILE: "/etc/strix/scope.json"
+    STRIX_DB: "/var/lib/strix/strix.db"
+    STRIX_REDIS_URL: "redis://redis-master:6379/0"
+    STRIX_REDIS_REQUIRED: "1"
+    STRIX_WORKERS: "1"
+    STRIX_QUEUE_MODE: "inprocess"
+    STRIX_SCOPE_MODE: "auto"
+    STRIX_LOG_FORMAT: "json"
+    STRIX_LOG_LEVEL: "INFO"
+    STRIX_MAX_BODY_BYTES: "1048576"
+    STRIX_MAX_NESTING_DEPTH: "10"
+    STRIX_AUDIT_MAX_ENTRIES: "10000"
+    STRIX_WORKER_MEMORY_MB: "1024"
+    STRIX_TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+    # OTEL
+    OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    OTEL_SERVICE_NAME: "strix"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=production"
+  # Sensitive environment variables (populated from secrets)
+  envFromSecrets:
+    - name: strix-secrets
+      prefix: STRIX_
+  # Volume mounts
+  volumes:
+    - name: strix-data
+      persistentVolumeClaim:
+        claimName: strix-data-pvc
+    - name: strix-config
+      configMap:
+        name: strix-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: strix-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: strix-data
+      mountPath: /var/lib/strix
+      subPath: ""
+    - name: strix-config
+      mountPath: /etc/strix
+      readOnly: true
+    - name: strix-tmp
+      mountPath: /tmp
+  # Affinity and tolerations
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: kubernetes.io/hostname
+  tolerations: []
+  # Priority class for scheduling priority
+  priorityClass: ""
+  # Pod disruption budget
+  pdb:
+    enabled: true
+    minAvailable: 1
+  # Horizontal Pod Autoscaler
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 10
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 15
+          - type: Pods
+            value: 4
+            periodSeconds: 15
+        selectPolicy: Max
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+# ============================================================================
+# Strix Scheduler (APScheduler) - Separate Deployment
+# ============================================================================
+scheduler:
+  enabled: true
+  replicaCount: 1
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+  env:
+    STRIX_SCOPE_FILE: "/etc/strix/scope.json"
+    STRIX_DB: "/var/lib/strix/strix.db"
+    STRIX_REDIS_URL: "redis://redis-master:6379/0"
+    STRIX_REDIS_REQUIRED: "1"
+    STRIX_WORKERS: "1"
+    STRIX_QUEUE_MODE: "inprocess"
+    STRIX_SCOPE_MODE: "auto"
+    STRIX_LOG_FORMAT: "json"
+    STRIX_LOG_LEVEL: "INFO"
+    STRIX_MAX_BODY_BYTES: "1048576"
+    STRIX_MAX_NESTING_DEPTH: "10"
+    STRIX_AUDIT_MAX_ENTRIES: "10000"
+    STRIX_WORKER_MEMORY_MB: "1024"
+    STRIX_TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+    # Scheduler-specific
+    STRIX_SCHEDULER_ENABLED: "true"
+    STRIX_SCHEDULER_JOB_TIMEOUT: "300"
+  envFromSecrets:
+    - name: strix-secrets
+      prefix: STRIX_
+  volumes:
+    - name: strix-data
+      persistentVolumeClaim:
+        claimName: strix-data-pvc
+    - name: strix-config
+      configMap:
+        name: strix-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: strix-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: strix-data
+      mountPath: /var/lib/strix
+    - name: strix-config
+      mountPath: /etc/strix
+      readOnly: true
+    - name: strix-tmp
+      mountPath: /tmp
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: kubernetes.io/hostname
+  tolerations: []
+  # Priority class for scheduling priority
+  priorityClass: ""
+  pdb:
+    enabled: true
+    minAvailable: 1
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+# ============================================================================
+# Celery Workers (Optional - for distributed queue mode)
+# ============================================================================
+worker:
+  enabled: false
+  replicaCount: 2
+  service:
+    port: 8000
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  livenessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import redis; r=redis.from_url('redis://redis-master:6379/1'); r.ping()"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import redis; r=redis.from_url('redis://redis-master:6379/1'); r.ping()"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    STRIX_DB: "/var/lib/strix/strix.db"
+    STRIX_REDIS_URL: "redis://redis-master:6379/0"
+    STRIX_REDIS_REQUIRED: "1"
+    STRIX_QUEUE_MODE: "celery"
+    STRIX_CELERY_BROKER_URL: "redis://redis-master:6379/1"
+    STRIX_CELERY_RESULT_BACKEND: "redis://redis-master:6379/2"
+    STRIX_SCOPE_FILE: "/etc/strix/scope.json"
+    STRIX_LOG_FORMAT: "json"
+    STRIX_LOG_LEVEL: "INFO"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+  envFromSecrets:
+    - name: strix-secrets
+      prefix: STRIX_
+  volumes:
+    - name: strix-data
+      persistentVolumeClaim:
+        claimName: strix-data-pvc
+    - name: strix-config
+      configMap:
+        name: strix-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: strix-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: strix-data
+      mountPath: /var/lib/strix
+    - name: strix-config
+      mountPath: /etc/strix
+      readOnly: true
+    - name: strix-tmp
+      mountPath: /tmp
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: kubernetes.io/hostname
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+# ============================================================================
+# Redis (Bitnami) - Caching, Rate Limiting, Distributed Locks
+# ============================================================================
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: strix-redis-secret
+    existingSecretPasswordKey: redis-password
+  master:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: ""
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 6
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+# ============================================================================
+# PostgreSQL (Optional - for production multi-tenant)
+# ============================================================================
+postgresql:
+  enabled: false
+  auth:
+    enabled: true
+    existingSecret: strix-postgresql-secret
+    existingSecretPasswordKey: postgresql-password
+    database: strix
+    username: strix
+  primary:
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 6
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+# ============================================================================
+# Monitoring Stack (Prometheus + Grafana)
+# ============================================================================
+monitoring:
+  prometheus:
+    enabled: false
+    # When enabled, deploys Prometheus Operator and Prometheus via prometheus-community chart
+    # Requires Prometheus Operator CRDs pre-installed in cluster (ServiceMonitor, PrometheusRule, PodMonitor)
+    prometheus:
+      prometheusSpec:
+        retention: 15d
+        retentionSize: 10Gi
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        serviceMonitorSelector:
+          matchLabels:
+            release: strix
+        podMonitorSelector:
+          matchLabels:
+            release: strix
+        # Additional service monitors can be added here
+        additionalServiceMonitors: []
+        # Enable scraping of Strix PrometheusRules
+        ruleSelector:
+          matchLabels:
+            release: strix
+  grafana:
+    enabled: false
+    grafana:
+      enabled: true
+      admin:
+        existingSecret: strix-grafana-secret
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        size: 5Gi
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://strix-prometheus-server.monitoring.svc.cluster.local
+              access: proxy
+              isDefault: true
+              uid: prometheus
+      dashboardProviders:
+        dashboardproviders.yaml:
+          apiVersion: 1
+          providers:
+            - name: 'Strix'
+              orgId: 1
+              folder: 'Strix'
+              type: file
+              disableDeletion: false
+              updateIntervalSeconds: 10
+              allowUiUpdates: true
+              options:
+                path: /var/lib/grafana/dashboards/strix
+      dashboards:
+        # Dashboards are now provided via ConfigMaps in templates/grafana-dashboard.yaml
+        # with label grafana_dashboard: "1"
+        strix:
+          strix-overview:
+            json: |
+              {
+                "dashboard": {
+                  "title": "Strix Overview",
+                  "uid": "strix-overview",
+                  "tags": ["strix"],
+                  "timezone": "browser",
+                  "panels": [],
+                  "schemaVersion": 38,
+                  "version": 1
+                }
+              }
+  # Additional monitoring configuration for Helm-managed ServiceMonitors and PrometheusRules
+  servicemonitor:
+    enabled: true
+    # Interval for scraping metrics
+    interval: 30s
+    # Timeout for scraping
+    scrapeTimeout: 10s
+    # Scheme (http/https)
+    scheme: https
+  prometheusrule:
+    enabled: true
+    # Evaluation interval for rules
+    interval: 30s
+  grafanaDashboard:
+    enabled: true
+    # Folder name in Grafana
+    folder: "Strix"
+
+# ============================================================================
+# ConfigMap - Application Configuration
+# ============================================================================
+configMap:
+  enabled: true
+  # Scope configuration template (populated from secret or external source)
+  scopeJson: |
+    {
+      "program": "REPLACE_WITH_PROGRAM_NAME",
+      "authorized_by": "REPLACE_WITH_AUTHORIZER",
+      "authorization_ref": "REPLACE_WITH_AUTH_REF",
+      "include": ["*.example.com"],
+      "exclude": ["test.example.com", "dev.example.com"],
+      "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+      "allowed_ports": [80, 443, 8443, 9443],
+      "allow_broad_networks": false,
+      "auth": {
+        "users": []
+      }
+    }
+  # Additional config files can be added here
+  additionalConfigs: {}
+
+# ============================================================================
+# Secrets - API Keys, Encryption Keys, HMAC Keys
+# ============================================================================
+secrets:
+  enabled: true
+  # These should be populated via External Secrets Operator, Vault Agent, or manual creation
+  # Values below are placeholders - REPLACE IN PRODUCTION
+  createSecrets: true
+  strixSecrets:
+    # Bootstrap admin API key (16+ chars, no placeholders)
+    STRIX_API_KEY: ""
+    # HMAC key for audit chain integrity (32+ bytes base64)
+    STRIX_AUDIT_HMAC_KEY: ""
+    # HMAC key for webhook signatures (32+ bytes base64)
+    STRIX_WEBHOOK_SECRET: ""
+    # Encryption key for webhook secrets at rest (32 bytes base64, AES-GCM)
+    STRIX_ENCRYPTION_KEY: ""
+    # Database URL for PostgreSQL (if enabled)
+    STRIX_DATABASE_URL: ""
+  redisSecret:
+    # Redis password (generated if not provided)
+    redis-password: ""
+  postgresqlSecret:
+    # PostgreSQL password (generated if not provided)
+    postgresql-password: ""
+  grafanaSecret:
+    # Grafana admin credentials
+    admin-user: "admin"
+    admin-password: ""
+  # Annotations for external-secrets / vault-agent
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "strix-secrets"
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "strix"
+    vault.hashicorp.com/secret-path: "secret/data/strix"
+
+# ============================================================================
+# Persistent Volume Claims
+# ============================================================================
+pvc:
+  # SQLite WAL persistence
+  strixData:
+    enabled: true
+    name: strix-data-pvc
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: ""
+    volumeMode: Filesystem
+  # Redis persistence (managed by Redis chart when enabled)
+  redis:
+    enabled: true
+
+# ============================================================================
+# ServiceAccount, RBAC, NetworkPolicy
+# ============================================================================
+serviceAccount:
+  enabled: true
+  name: strix
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+    vault.hashicorp.com/role: "strix"
+  automountServiceAccountToken: true
+
+rbac:
+  enabled: true
+  # ClusterRole for metrics scraping
+  createClusterRole: true
+  clusterRoleRules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/metrics", "pods", "pods/metrics"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["nodes", "pods"]
+      verbs: ["get", "list", "watch"]
+  # Role for namespace-scoped resources
+  roleRules:
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets", "pods", "services", "endpoints"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses", "networkpolicies"]
+      verbs: ["get", "list", "watch"]
+
+networkPolicy:
+  enabled: true
+  # Ingress rules for Strix API
+  apiIngress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: strix
+      ports:
+        - protocol: TCP
+          port: 8000
+  # Egress rules
+  apiEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# ============================================================================
+# Pod Security Policy / Pod Security Context (Non-root, Read-only rootfs)
+# ============================================================================
+podSecurityPolicy:
+  enabled: true
+  # These settings enforce restricted Pod Security Standard
+  restricted:
+    # Prevents running as root
+    runAsNonRoot: true
+    # Prevents privilege escalation
+    allowPrivilegeEscalation: false
+    # Drops all capabilities
+    requiredDropCapabilities:
+      - ALL
+    # Read-only root filesystem
+    readOnlyRootFilesystem: true
+    # Run as specific non-root user
+    runAsUser:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    runAsGroup:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    fsGroup:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+# ============================================================================
+# Environment-specific overrides
+# ============================================================================
+environments:
+  dev:
+    api:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+      hpa:
+        enabled: false
+    scheduler:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+    redis:
+      master:
+        persistence:
+          size: 1Gi
+        resources:
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+    pvc:
+      strixData:
+        resources:
+          requests:
+            storage: 5Gi
+    ingress:
+      enabled: false
+    monitoring:
+      prometheus:
+        enabled: false
+      grafana:
+        enabled: false
+    worker:
+      enabled: false
+    postgresql:
+      enabled: false
+
+  staging:
+    api:
+      replicaCount: 2
+      resources:
+        limits:
+          cpu: "2000m"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      hpa:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 5
+    scheduler:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+    redis:
+      master:
+        persistence:
+          size: 2Gi
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+    pvc:
+      strixData:
+        resources:
+          requests:
+            storage: 10Gi
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-staging"
+      tls:
+        - secretName: strix-tls-staging
+          hosts:
+            - strix-staging.example.com
+    monitoring:
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+    worker:
+      enabled: true
+      replicaCount: 1
+    postgresql:
+      enabled: false
+
+  production:
+    api:
+      replicaCount: 3
+      resources:
+        limits:
+          cpu: "4000m"
+          memory: "4Gi"
+        requests:
+          cpu: "2000m"
+          memory: "2Gi"
+      hpa:
+        enabled: true
+        minReplicas: 3
+        maxReplicas: 20
+    scheduler:
+      replicaCount: 2
+      resources:
+        limits:
+          cpu: "2000m"
+          memory: "2Gi"
+        requests:
+          cpu: "1000m"
+          memory: "1Gi"
+    redis:
+      architecture: replication
+      master:
+        persistence:
+          size: 5Gi
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+      replica:
+        replicaCount: 2
+        persistence:
+          size: 5Gi
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+    pvc:
+      strixData:
+        resources:
+          requests:
+            storage: 50Gi
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+        nginx.ingress.kubernetes.io/rate-limit: "1000"
+      tls:
+        - secretName: strix-tls-prod
+          hosts:
+            - strix.example.com
+            - api.strix.example.com
+    monitoring:
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+    worker:
+      enabled: true
+      replicaCount: 4
+      hpa:
+        enabled: true
+        minReplicas: 4
+        maxReplicas: 50
+    postgresql:
+      enabled: true
+      primary:
+        persistence:
+          size: 100Gi
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+
+# ============================================================================
+# Image Pull Secrets (for private registries)
+# ============================================================================
+imagePullSecrets: []
+
+# ============================================================================
+# Additional Labels and Annotations
+# ============================================================================
+additionalLabels: {}
+additionalAnnotations: {}
+
+# ============================================================================
+# Priority Class (for production workloads)
+# ============================================================================
+priorityClassName: ""
+
+# ============================================================================
+# Topology Spread Constraints
+# ============================================================================
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: strix
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: strix
+
+# ============================================================================
+# Helm Tests
+# ============================================================================
+test:
+  enabled: true
+  image:
+    repository: curlimages/curl
+    tag: "8.10.1"
+    pullPolicy: IfNotPresent
+
+# ============================================================================
+# Cost Optimization & FinOps (NEW)
+# ============================================================================
+# KEDA-based Event-driven Autoscaling for Assessment Workers
+workerCostOptimization:
+  keda:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    pollingInterval: 15
+    cooldownPeriod: 300
+    minReplicas: 0
+    maxReplicas: 50
+    restoreToOriginalReplicaCount: false
+    fallback:
+      failureThreshold: 3
+      replicas: 2
+    horizontalPodAutoscalerConfig: {}
+    redis:
+      address: ""
+      listName: "celery"
+      listLength: "10"
+      enableTLS: "false"
+      secretName: ""
+      secretKey: "redis-password"
+    prometheus:
+      enabled: true
+      serverAddress: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+      metricName: "strix_assessment_queue_pending"
+      threshold: "5"
+      query: "strix_assessment_queue_pending"
+      authModes: "none"
+      authRef: ""
+    cpu:
+      threshold: "70"
+      metricType: "Utilization"
+    memory:
+      threshold: "80"
+      metricType: "Utilization"
+
+  # Graceful Preemption Handling for Spot Instances
+  gracefulPreemption:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    preStopEnabled: true
+    terminationGracePeriodSeconds: 330
+    gracePeriod: 300
+    minAvailable: "50%"
+    checkpointing:
+      enabled: true
+      interval: "30s"
+      directory: "/var/lib/strix/checkpoints"
+
+  # Priority class for worker pods (batch/standard/critical)
+  priorityClass: "strix-batch"
+
+# Global Cost Optimization Settings
+costOptimization:
+  # Priority Classes for workload prioritization
+  priorityClasses:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    system:
+      name: "strix-system"
+      value: 2000000
+      preemptionPolicy: "PreemptLowerPriority"
+    critical:
+      name: "strix-critical"
+      value: 1000000
+      preemptionPolicy: "PreemptLowerPriority"
+    standard:
+      name: "strix-standard"
+      value: 500000
+      preemptionPolicy: "PreemptLowerPriority"
+    batch:
+      name: "strix-batch"
+      value: 100000
+      preemptionPolicy: "PreemptLowerPriority"
+
+  # Resource Quota per Tenant Namespace
+  resourceQuota:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    name: "strix-tenant-quota"
+    tenantId: ""
+    projectId: ""
+    budgetMonthlyUSD: "1000"
+    limits:
+      requestsCpu: "32"
+      requestsMemory: "64Gi"
+      limitsCpu: "64"
+      limitsMemory: "128Gi"
+      pods: "100"
+      services: "20"
+      servicesLoadBalancers: "5"
+      servicesNodePorts: "0"
+      persistentVolumeClaims: "20"
+      requestsStorage: "500Gi"
+      configMaps: "50"
+      secrets: "50"
+      requestsEphemeralStorage: "100Gi"
+      limitsEphemeralStorage: "200Gi"
+    defaultLimits:
+      cpu: "1000m"
+      memory: "1Gi"
+    defaultRequests:
+      cpu: "250m"
+      memory: "512Mi"
+    maxLimits:
+      cpu: "8000m"
+      memory: "16Gi"
+      podCpu: "16000m"
+      podMemory: "32Gi"
+      pvcStorage: "100Gi"
+    minLimits:
+      cpu: "50m"
+      memory: "128Mi"
+      pvcStorage: "1Gi"
+    maxLimitRequestRatio:
+      cpu: "10"
+      memory: "10"
+
+  # Spot/Preemptible Instance Configuration
+  spot:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    aws:
+      clusterName: "strix-cluster"
+      region: "us-east-1"
+      critical:
+        instanceType: "m6i.xlarge"
+        desiredCapacity: 3
+        minSize: 2
+        maxSize: 10
+        volumeSize: 50
+      batch:
+        instanceType: "m6i.2xlarge"
+        desiredCapacity: 0
+        minSize: 0
+        maxSize: 50
+        volumeSize: 100
+
+# Monitoring Cost & FinOps
+monitoringExtras:
+  finops:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    clusterId: "strix-primary"
+    pricing:
+      cpuPerHour: 0.034
+      ramPerGibHour: 0.0045
+      gpuPerHour: 2.50
+      spotCpuPerHour: 0.0068
+      spotRamPerGibHour: 0.0009
+  cost:
+    enabled: false  # Enable via values-cost-optimization.yaml
+    exporter:
+      image:
+        repository: "ghcr.io/your-org/strix-cost-exporter"
+        tag: "v1.0.0"
+      clusterName: "primary"
+    alertInterval: "1m"
+    recordingInterval: "1m"
+    budgetAlertFor: "5m"
+    budgetExceededFor: "1m"
+    spikeFor: "10m"
+    spotTerminationFor: "2m"
+    queueDepthFor: "5m"
+    idleWorkerFor: "30m"
+# ----------------------------------------------------------------------------
+# K8s Jobs assessment runner (opt-in; values-k8s-jobs.yaml enables it)
+# ----------------------------------------------------------------------------
+k8sJobs:
+  enabled: false
+  allowScopeNetworks: false
+  authorizedNetworks: []
+  allowedPorts: []
+  scopeConfigMapName: strix-scope
+  scopeConfigMapKey: scope.json
+  dbSecretName: strix-secrets
+  dbSecretKey: database-url
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  activeDeadlineSeconds: 7200
+
+seccompProfiles:
+  enabled: false
+  configMapName: strix-seccomp-profiles

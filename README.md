@@ -1,9 +1,9 @@
 # Strix
 
-Authorized security assessment platform. You describe what you are *permitted* to
-test; Strix refuses everything else, runs real tools against what remains, and
-records the results as normalized findings you can export (SARIF) or file
-(evidence report).
+Authorized security assessment platform, fully open source under the MIT License.
+You describe what you are *permitted* to test; Strix refuses everything else,
+runs real tools against what remains, and records the results as normalized
+findings you can export (SARIF) or file (evidence report).
 
 ## What it does
 
@@ -12,6 +12,12 @@ records the results as normalized findings you can export (SARIF) or file
   `allowed_ports`). Private, loopback and metadata addresses are denied unless
   the document authorizes them. Built-in HTTP, Nmap and Nuclei connections use
   the validated destination IP; external redirects are disabled or never followed.
+  Documents may be Ed25519-signed with a JWKS key set and a signed issue time, so
+  a revoked or replayed copy is refused, and `strix scope-sign` stamps an expiry.
+  Optional `allowed_asns` / `allowed_countries` enforce network intelligence when
+  a lookup is configured, `STRIX_SCOPE_JIT_URL` adds a fail-closed just-in-time
+  check, and decisions are counted in
+  `strix_scope_gate_decisions_total{decision,reason,tenant}`.
 - **Assessments** – `web`, `web-deep`, `api`, `api-deep` and `network` profiles
   run the appropriate adapters as background jobs. `web-deep` adds bounded,
   non-destructive GET validation for redirect handling and database error
@@ -31,6 +37,24 @@ records the results as normalized findings you can export (SARIF) or file
   exportable as SARIF 2.1.0. Findings have an enforced client lifecycle
   (`new → triaged → in_progress → fix_verified → closed`, plus deferred/reopened)
   with audited, tenant-scoped status changes.
+- **Asset inventory and remediation** – assets are derived from persisted
+  assessments with owner, criticality, first/last seen and open/total finding
+  counts. Each finding keeps an immutable timeline (`created`, `status_changed`)
+  plus remediation owner, deadline and time-boxed risk-acceptance fields.
+  Fingerprints (asset + category + location) are stable across jobs, and
+  `GET /api/findings` aggregates them into tenant finding records with
+  first/last seen and per-job occurrence history. Tenant-level remediation
+  survives future jobs, `/api/findings/trends` reports daily/weekly/monthly
+  observations and resolutions, and `/resolve` records resolution only when a
+  later clean job covered every detector that observed the finding. Risk
+  exceptions use an audited request/administrator-decision workflow with a
+  computed expiry state.
+- **Tenant users and roles** – a tenant admin can issue separate `admin`,
+  `analyst` or `viewer` member keys. Viewers are read-only, analysts can assess,
+  and admins manage members and risk-exception decisions. The legacy tenant key
+  remains. Organizations and teams (`/api/v2/orgs`), OIDC and SAML SSO
+  (`/auth/oidc/*`, `/auth/saml/*`) and SCIM 2.0 (`/scim/v2`) are implemented.
+  Phase 1 is free: see [docs/commercialization.md](docs/commercialization.md).
 - **Strix Proof** – a signed authorization *grant*, a hash-chained receipt for
   every gate decision taken under it, and a portable proof pack anyone can
   verify offline. See [Strix Proof](#strix-proof).
@@ -38,13 +62,15 @@ records the results as normalized findings you can export (SARIF) or file
   *newly appeared* high-severity findings.
 - **Multi-tenant API** – bearer keys (hashed, persisted), per-tenant data
   isolation, rate limiting by tier, persistent audit trail.
-- **Web UI** – served at `/`.
+- **Web UI** – served at `/`; includes the assessment, audit, scope and asset
+  inventory/remediation views.
 
 ## Quick start
 
 ```bash
-pip install -e ".[dev]"
-cp scope.example.json scope.json            # edit: what you are authorized to test
+pip install -c constraints.txt .
+strix scope-wizard                          # interactive scope.json creator
+# OR manually: cp scope.example.json scope.json  # edit: what you are authorized to test
 export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 strix serve --host 0.0.0.0 --port 8000      # UI at http://127.0.0.1:8000
 # `strix --host 0.0.0.0 --port 8000` also works as the default serve mode.
@@ -149,19 +175,39 @@ same grant through the scope gate, which pins the resolved address it
 validated, so a scan cannot drift outside the grant between DNS lookup and
 connect.
 
+## Release gate
+
+Prove a deployment end to end with one command:
+
+```bash
+python scripts/readiness_check.py
+```
+
+It starts production mode against a throwaway database, runs a real assessment
+on loopback, and checks fail-closed startup, scope refusal, coverage honesty,
+SARIF, audit verification, backup/restore and the Strix Proof chain (including
+rejecting a tampered pack). See [docs/release-gate.md](docs/release-gate.md) for
+the checks, the publish checklist and the pilot contract language.
+
 ## Configuration
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `STRIX_API_KEY` | – | Bootstrap admin key (≥16 chars). Required to use the API. |
+| `STRIX_ENV` | `development` | `production` fails closed without the bootstrap key and audit HMAC key, and forces API docs off. |
+| `STRIX_API_KEY` | – | Bootstrap admin key (≥16 chars). Required to use the API and required in production. |
 | `STRIX_SCOPE_FILE` | `scope.json` | Authorization document (global mode). |
 | `STRIX_SCOPE_MODE` | `auto` | `global` (single scope document), `managed` (per-tenant engagement policies), or `auto` (managed as soon as a policy exists in the database, global before that). |
-| `STRIX_DB` | `strix.db` | SQLite file (jobs, findings, policies). |
+| `STRIX_DB` | `strix.db` | SQLite file (jobs, findings, assets, policies). |
+| `STRIX_DATABASE_URL` | – | PostgreSQL DSN. Experimental: tested single-host API+worker, no HA or multi-node support. |
+| `STRIX_QUEUE_MODE` | `inprocess` | `celery` enables the distributed queue (extra install; experimental). |
+| `STRIX_CELERY_BROKER_URL` | `redis://localhost:6379/1` | Celery broker when `STRIX_QUEUE_MODE=celery`. |
+| `STRIX_REDIS_URL` | `redis://localhost:6379/0` | Shared rate limiting and cache. |
 | `STRIX_WORKERS` / `STRIX_QUEUE_MAX` | `1` / `32` | Concurrent jobs / queue depth. |
 | `STRIX_CORS_ORIGINS` | none | Comma-separated origins. The bundled UI needs none. |
+| `STRIX_DISABLE_DOCS` | – | `1` disables `/docs`, `/redoc` and `/openapi.json`. |
 | `STRIX_TRUSTED_PROXIES` | none | Peers whose `X-Forwarded-For` is honored. |
 | `STRIX_AUDIT_MAX_ENTRIES` | `10000` | Audit entries kept in memory (all are also stored in SQLite). |
-| `STRIX_AUDIT_HMAC_KEY` | – | Secret that keys the audit hash chain (see Security notes). Set it in production. |
+| `STRIX_AUDIT_HMAC_KEY` | – | Secret that keys the audit hash chain. Required when `STRIX_ENV=production`. |
 | `STRIX_WEBHOOK_SECRET` | – | HMAC key that signs alert webhook deliveries. Set it when webhooks are configured. |
 | `STRIX_RETENTION_DAYS` | `0` | `0` keeps everything forever. A positive value prunes finished jobs/findings and plain audit entries older than that many days; the sealed audit chain is never pruned. |
 | `STRIX_MAX_BODY_BYTES` | `1048576` | Hard cap on request bodies (413 above it). |
@@ -188,9 +234,9 @@ python -m strix.lab.target --port 8765       # serve the lab for inspection
 The lab binds to `127.0.0.1` only and serves static bait; no request content is
 executed or persisted. Exit status is `0` only when the configured
 `--min-precision` / `--min-recall` thresholds (default 1.0) are met and no
-verification-level violation remains. `DETECTION_BENCHMARK.md` records the
+verification-level violation remains. [`docs/detection-benchmark.md`](docs/detection-benchmark.md) records the
 measured results (per-case provenance, the honesty contract the oracle
-enforces, and a real-world run) and `DETECTION_READINESS.md` what those numbers
+enforces, and a real-world run) and [`docs/detection-readiness.md`](docs/detection-readiness.md) what those numbers
 do and do not prove.
 
 ### Local code and dependency scan
@@ -221,18 +267,45 @@ not proof that code paths are exploitable; review and validate findings.
 | `POST /api/assess` · `GET /api/assess[/{id}]` · `POST /api/assess/{id}/cancel` | jobs (`wait=true` runs inline, max 120 s) |
 | `GET /api/assess/{id}/sarif` | SARIF export |
 | `PATCH /api/assess/{id}/findings/{fingerprint}` | triage a finding; invalid transitions return 409 |
+| `GET /api/assess/{id}/findings/{fingerprint}/history` | immutable finding timeline |
+| `PATCH /api/assess/{id}/findings/{fingerprint}/remediation` | owner/deadline metadata |
+| `GET /api/assets`, `GET/PATCH /api/assets/{key}` | tenant-scoped asset inventory and ownership |
+| `GET /api/findings`, `GET /api/findings/{fingerprint}` | cross-job finding records and occurrence history |
+| `GET /api/findings/trends` | observation/new/resolved counts by day, week or month |
+| `PATCH /api/findings/{fingerprint}/remediation` | tenant-level owner/deadline/exception metadata |
+| `POST /api/findings/{fingerprint}/exception`, `POST .../exception/decision` | audited risk-exception request and administrator decision |
+| `POST /api/findings/{fingerprint}/resolve` | coverage-checked resolution against a later job |
 | `POST /api/report` | evidence report for a target's latest finished job |
 | `POST /api/probe` | one request, graded on security headers |
 | `GET /api/scope`, `/api/adapters`, `/api/overview` | context |
 | `GET /api/audit`, `/api/audit/verify` | audit trail, chain verification |
-| `GET /api/tenants`, `POST /api/keys/create`, `POST /api/keys/rotate/{tenant}` (optional `ttl_days`), `POST /api/keys/revoke/{tenant}` | keys |
+| `GET /api/tenants`, `POST /api/keys/create`, `POST /api/keys/rotate/{tenant}` (optional `ttl_days`), `POST /api/keys/revoke/{tenant}` | tenant keys |
+| `GET/POST /api/users`, `POST /api/users/{id}/revoke` | tenant members with `admin`, `analyst` or `viewer` roles |
 | `GET /api/policies`, `POST /api/policies`, `PATCH /api/policies/{id}`, `POST /api/policies/{id}/revoke` | versioned engagement policies (admin) |
 | `GET /api/monitor/status`, `POST /api/monitor/configure` (`replace` to remove targets), `POST /api/alerts/webhook` | monitoring (admin; targets and webhook sinks persist across restarts) |
+
+## License
+
+Strix is **fully open source under the [MIT License](LICENSE)**. Every feature
+in this repository is available under MIT: there is no open-core split, paid
+edition, proprietary add-on, billing system or feature gated behind a
+commercial plan. The `free`, `pro` and `enterprise` API tiers are technical
+rate-limit profiles, not prices or paid plans. MIT permits anyone to
+use, modify, distribute or sell the software; the Strix project itself does not
+sell a hosted or paid edition.
+
+## Community
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
 ## Development
 
 ```bash
-ruff check .
+ruff check src tests scripts
+ruff format --check src tests scripts
 mypy
 python scripts/check_secrets.py .
 pytest
@@ -244,15 +317,15 @@ security middleware, static UI), `src/strix/lab` (detection lab, oracle,
 evaluation runner), `src/strix/rules` (bundled Semgrep ruleset), the modules
 sitting directly under `src/strix` (`cli.py`, `config.py`, `code_scan.py`,
 `analyst.py`, `monitor.py`, `audit.py`, `metrics.py`, `report_html.py`,
-`retention.py`) and `tests/`, which mirrors that layout.
+`retention.py`).
 
 ## Deploying
 
 `DEPLOYMENT.md` is the full operator runbook: container/systemd install, reverse
 proxy and TLS, first-run checklist, backups, key rotation, retention, scaling
 limits and troubleshooting. For a Nepal-focused pilot (NRB/NTA/NCSP evidence,
-in-country hosting, legal and commercial gates), see
-[`NEPAL_LAUNCH_READINESS.md`](NEPAL_LAUNCH_READINESS.md).
+in-country hosting, legal and regulatory gates), see
+[`docs/nepal-launch-readiness.md`](docs/nepal-launch-readiness.md).
 
 - Put Strix behind a TLS-terminating reverse proxy; it speaks plain HTTP and binds
   to `127.0.0.1` unless told otherwise. List the proxy in `STRIX_TRUSTED_PROXIES`
@@ -261,9 +334,10 @@ in-country hosting, legal and commercial gates), see
 - Set `STRIX_API_KEY` (bootstrap admin) and a separate random `STRIX_AUDIT_HMAC_KEY`;
   do not use the example placeholders. Known placeholders and API keys shorter than 16
   characters are rejected. Generate secrets with `python -c 'import secrets; print(secrets.token_urlsafe(32))'`
-  and keep both out of the repository and database host's reach. A startup without
-  `STRIX_AUDIT_HMAC_KEY` still serves, but logs a warning: the audit chain then only
-  detects accidental or naive tampering.
+  and keep both out of the repository and database host's reach. With
+  `STRIX_ENV=production`, startup refuses to continue without both; in
+  development, a missing `STRIX_AUDIT_HMAC_KEY` serves with a warning and the
+  chain only detects accidental or naive tampering.
 - If you restore a SQLite database created under a different HMAC key, startup will
   fail closed until the operator explicitly clears the stale chain. Use
   `strix serve --reset-audit-chain` only after a deliberate recovery decision; this
@@ -341,16 +415,53 @@ in-country hosting, legal and commercial gates), see
   exhaustion through `StaticFiles` (CVE-2025-62727) and trust the `Host` header
   when rebuilding `request.url`.
 
+## Deployment topology: Single-host by design, HA via warm standby
+
+Strix is deliberately single-host, single-writer per database. This eliminates
+split-brain and simplifies operations. High availability is achieved by
+**promoting a warm standby**, not by clustering:
+
+```bash
+# On the standby host (with backups synced from primary):
+strix standby-promote \
+  --backup-dir /backups \
+  --db-path /var/lib/strix/strix.db \
+  --scope-file /etc/strix/scope.json
+```
+
+The promotion workflow (verified by integration tests) takes < 5 s RTO on modern
+hardware: verify backup → restore via SQLite backup API → take exclusive worker
+lease → run readiness checks (audit chain HMAC-SHA256, scope/policy, schema,
+admin keys). RPO equals your backup interval (default hourly via cron).
+
+See `DEPLOYMENT.md` §9 for the full failover procedure and RTO/RPO details.
+Redis can share rate limits across API processes. Celery mode has a distributed
+queue and durable cooperative cancellation (validated for running and queued jobs
+on one host), and PostgreSQL has a tested single-host API+worker path. None of
+these paths has HA, multi-node scheduling, exactly-once execution or a production
+support commitment. Jobs left running by a dead process are marked `failed` at
+startup, never "success".
+
 ## Known limitations
 
-- **Single process.** The job queue and rate-limit buckets live in memory; run one
-  process. Jobs left running by a dead process are marked `failed` at startup,
-  never "success". Scaling out needs a shared queue and limiter.
-- **SQLite.** Fine for one node and moderate volume; not for a multi-node setup.
-  PostgreSQL is not a supported backend yet: the worker runs threaded adapters
-  on separate event loops and asyncpg pools are loop-bound.
-- **Per-key scopes are not modeled.** A tenant has one key and one tier; expiry
-  (`ttl_days`) and rotation exist, but fine-grained scopes do not.
+See [`docs/production-readiness.md`](docs/production-readiness.md) for the
+current gap table. The headline limits are no independent security audit, no
+HA/multi-node failover, only read/write key scopes (no per-project scopes) and
+no representative soak.
+- **Assets are derived, not registered.** The inventory learns assets from
+  persisted assessments and lets you set owner/criticality. There is no separate
+  asset onboarding/lifecycle record. Finding fingerprints are stable across jobs;
+  `/api/findings` aggregates identity, remediation and coverage-checked
+  resolution, and `/api/findings/trends` provides bounded date-range counts.
+  There is no long-term compliance dashboard. Risk exceptions have an audited
+  request/decision workflow and computed expiry; there are no notifications or
+  background expiry worker.
+- **Access is tenant-scoped, with optional organizations.** A tenant can have
+  its legacy key plus multiple member keys. Roles are `admin`, `analyst` and
+  `viewer`; viewers are read-only, analysts can assess, and tenant admins manage
+  members and risk-exception decisions. Organizations (`/api/v2/orgs`) add OIDC
+  and SAML SSO plus SCIM 2.0 provisioning. Per-project/per-endpoint scopes do
+  not exist.
 - **URL-signature findings are inferences**, labelled as such. The additional
   dynamic checks can observe redirect behavior or database error leakage, but do
   not perform destructive exploitation or data extraction. OpenAPI coverage is
@@ -359,12 +470,9 @@ in-country hosting, legal and commercial gates), see
 - `strix-code-scan` relies on optional tools. A missing tool or Trivy DB causes a
   partial result. Local Semgrep rules are deliberately small and need organization-
   specific rules; do not interpret a successful scan as proof that code is secure.
-- The `nmap`/`nuclei` adapters are covered by stubbed tests, not by running the
-  real binaries in CI. The stub writes real upstream-shaped artifacts, so finding
-  ingestion is schema- and fixture-verified only; a live engine-filed finding has
-  not been demonstrated. A remote Git repository is not an authorized asset in
-  this platform's scope model; use `strix-code-scan` for local checkouts.
-- **`src/hunt` is a design scaffold**, not a second product. The Rust crates
-  (`mesh`, `killchain`, `chain`, `zk_scope`, `zk_fingerprint`) compile and expose
-  types, but the CLI refuses every subcommand because no engine, prover or mesh
-  loop is wired up yet, and there are no tests. Do not present it as working.
+- The `nmap`/`nuclei` adapters are exercised in CI against a loopback lab with
+  real binaries (pinned Nuclei v3.11.1 and official templates), in addition to
+  deterministic fixture tests. This proves the live adapter path, not detection
+  coverage of an arbitrary target environment. A remote Git repository is not an
+  authorized asset in this platform's scope model; use `strix-code-scan` for
+  local checkouts.

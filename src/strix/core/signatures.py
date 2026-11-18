@@ -15,9 +15,7 @@ from strix.core.urls import parse_url
 _PATTERNS: dict[str, re.Pattern[str]] = {
     "xss": re.compile(r"<!--|-->|<\s*script", re.IGNORECASE),
     "sqli": re.compile(r"\b(?:OR|AND|UNION|SELECT|DROP)\b", re.IGNORECASE),
-    "secret": re.compile(
-        r"(?:api[_-]?key|secret|password|token)\s*[:=]\s*\S+", re.IGNORECASE
-    ),
+    "secret": re.compile(r"(?:api[_-]?key|secret|password|token)\s*[:=]\s*\S+", re.IGNORECASE),
     "open_redirect": re.compile(r"(?:redirect|url)\s*=\s*https?://", re.IGNORECASE),
     "path_traversal": re.compile(r"(?:\.\./)+|(?:\.\.\\)+"),
     # The internal host must be the parameter's value, not a substring of a domain.

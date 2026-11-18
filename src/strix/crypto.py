@@ -65,7 +65,7 @@ def decrypt(ciphertext_b64: str, key_b64: str) -> str:
     except Exception as e:
         raise EncryptionError(f"Invalid base64 ciphertext: {e}") from e
 
-    if len(encrypted) < 12 + 16:  # nonce (12) + tag (16) minimum
+    if len(encrypted) <= 12 + 16:  # nonce (12) + tag (16) minimum; 28 bytes = no ciphertext
         raise EncryptionError("Ciphertext too short")
 
     nonce = encrypted[:12]
@@ -80,12 +80,3 @@ def decrypt(ciphertext_b64: str, key_b64: str) -> str:
         raise EncryptionError(f"Decryption failed: {e}") from e
 
     return plaintext.decode()
-
-
-def rotate_key(old_ciphertext_b64: str, old_key_b64: str, new_key_b64: str) -> str:
-    """Re-encrypt data with a new key (key rotation).
-
-    Decrypts with old key, encrypts with new key.
-    """
-    plaintext = decrypt(old_ciphertext_b64, old_key_b64)
-    return encrypt(plaintext, new_key_b64)

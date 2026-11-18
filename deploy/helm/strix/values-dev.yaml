@@ -1,0 +1,122 @@
+# Strix Helm Chart - Development Environment Values
+# Lightweight deployment for local development and testing
+
+global:
+  image:
+    repository: ghcr.io/your-org/strix
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: security-assessment
+  podSecurityStandard: restricted
+
+# API Deployment - Single replica, minimal resources
+api:
+  enabled: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+  hpa:
+    enabled: false
+  ingress:
+    enabled: false
+  env:
+    STRIX_LOG_LEVEL: "DEBUG"
+    STRIX_LOG_FORMAT: "text"
+    STRIX_DEBUG: "1"
+    STRIX_RATE_LIMIT_DISABLED: "true"
+
+# Scheduler - Single replica, minimal resources
+scheduler:
+  enabled: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+
+# Worker - Disabled in dev
+worker:
+  enabled: false
+
+# Redis - Minimal persistence
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ""
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      limits:
+        cpu: "250m"
+        memory: "256Mi"
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+
+# PostgreSQL - Disabled in dev
+postgresql:
+  enabled: false
+
+# Monitoring - Disabled in dev
+monitoring:
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+# PVC - Small storage
+pvc:
+  strixData:
+    enabled: true
+    resources:
+      requests:
+        storage: 5Gi
+
+# NetworkPolicy - Disabled in dev for easier debugging
+networkPolicy:
+  enabled: false
+
+# Secrets - Create with generated values for dev
+secrets:
+  enabled: true
+  createSecrets: true
+  strixSecrets:
+    STRIX_API_KEY: "dev-api-key-change-me-12345678901234567890"
+    STRIX_AUDIT_HMAC_KEY: "dev-audit-hmac-key-change-me-12345678901234567890123456789012"
+    STRIX_WEBHOOK_SECRET: "dev-webhook-secret-change-me-12345678901234567890123456789012"
+    STRIX_ENCRYPTION_KEY: "ZGV2LWVuY3J5cHRpb24ta2V5LWNoYW5nZS1tZS0xMjM0NTY3ODkwMTIzNDU2Nzg5MDEy"
+    STRIX_DATABASE_URL: ""
+
+# ConfigMap - Dev scope
+configMap:
+  enabled: true
+  scopeJson: |
+    {
+      "program": "Development Testing",
+      "authorized_by": "Developer",
+      "authorization_ref": "DEV-001",
+      "include": ["localhost", "127.0.0.1", "*.local"],
+      "exclude": [],
+      "authorized_networks": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+      "allowed_ports": [80, 443, 8000, 8080, 8443],
+      "allow_broad_networks": true,
+      "auth": {
+        "users": []
+      }
+    }

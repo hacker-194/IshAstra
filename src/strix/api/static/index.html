@@ -52,11 +52,28 @@
     </div>
 
     <!-- API Key Auth Bar -->
-    <div class="auth-bar">
+    <div class="auth-bar" id="auth-bar-api">
       <label for="api-key-input" class="auth-label">API KEY:</label>
       <input type="password" id="api-key-input" class="strix-input auth-input" placeholder="API key" autocomplete="off" />
       <button id="btn-save-api-key" class="strix-btn ghost tiny">Save Key</button>
       <button id="btn-clear-api-key" class="strix-btn ghost tiny">Clear</button>
+    </div>
+
+    <!-- OIDC Auth Bar (shown when OIDC is configured) -->
+    <div class="auth-bar" id="auth-bar-oidc" style="display: none;">
+      <span id="oidc-user-info" class="auth-user-info"></span>
+      <button id="btn-oidc-login" class="strix-btn primary tiny">
+        <svg class="btn-icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 3h-5v5H5v5h5v5h5v-5h5V8h-5V3z"/>
+        </svg>
+        <span class="btn-label">Sign in with SSO</span>
+      </button>
+      <button id="btn-oidc-logout" class="strix-btn ghost tiny" style="display: none;">
+        <svg class="btn-icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 9v4a2 2 0 0 1-2 2H7M9 15l-5-5 5-5M9 5h10a2 2 0 0 1 2 2v4"/>
+        </svg>
+        <span class="btn-label">Sign out</span>
+      </button>
     </div>
   </header>
 
@@ -80,6 +97,12 @@
           <path d="M7 7h10M7 7L3 13m4 6l4-4 4 4 4-4M13 13L7 19M7 13l6 6"/>
         </svg>
         <span class="tab-label">Audit & Compliance</span>
+      </button>
+      <button class="nav-tab" data-tab="assets">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 5h14v12H3zM3 9h14M7 5V3h6v2"/>
+        </svg>
+        <span class="tab-label">Assets &amp; Remediation</span>
       </button>
       <button class="nav-tab" data-tab="evidence">
         <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -343,6 +366,95 @@
             <div class="empty-desc">Run a scan, then generate the bundle here (or use "Build Evidence Report" from the scanner tab).</div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 8: ASSET INVENTORY & REMEDIATION -->
+    <!-- ===================================================================== -->
+    <section id="tab-assets" class="view-panel">
+      <div class="panel-hero">
+        <div class="hero-content">
+          <h1>Assets &amp; Remediation</h1>
+          <p class="hero-desc">Assets derived from this tenant's assessments, with ownership, deadlines and an immutable finding timeline.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="btn-refresh-assets" class="strix-btn ghost">Refresh Assets</button>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h3>Finding Trends (30 days)</h3>
+            <span class="card-subtitle">observations · new · verified resolved</span>
+          </div>
+        </div>
+        <div id="trends-container" class="findings-container">
+          <div class="empty-desc">Loading trends...</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h3>Cross-Job Findings</h3>
+            <span id="cross-findings-count" class="card-subtitle">Loading...</span>
+          </div>
+        </div>
+        <div class="audit-table-wrap">
+          <table class="strix-table">
+            <thead>
+              <tr>
+                <th scope="col">FINDING</th>
+                <th scope="col">SEVERITY</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">OCCURRENCES</th>
+                <th scope="col">FIRST / LAST SEEN</th>
+                <th scope="col">RESOLUTION</th>
+              </tr>
+            </thead>
+            <tbody id="cross-findings-body">
+              <tr><td colspan="6" class="table-empty">Loading cross-job findings...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <h3>Asset Inventory</h3>
+            <span id="assets-count" class="card-subtitle">Loading...</span>
+          </div>
+        </div>
+        <div class="audit-table-wrap">
+          <table class="strix-table">
+            <thead>
+              <tr>
+                <th scope="col">ASSET</th>
+                <th scope="col">TYPE</th>
+                <th scope="col">OWNER</th>
+                <th scope="col">CRITICALITY</th>
+                <th scope="col">OPEN / TOTAL</th>
+                <th scope="col">LAST SEEN</th>
+              </tr>
+            </thead>
+            <tbody id="assets-table-body">
+              <tr><td colspan="6" class="table-empty">Loading asset inventory...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-card" id="asset-detail-card" hidden>
+        <div class="card-header">
+          <div class="card-title-group">
+            <h3 id="asset-detail-title">Asset detail</h3>
+            <span id="asset-detail-meta" class="card-subtitle"></span>
+          </div>
+        </div>
+        <div id="asset-detail-container" class="findings-container"></div>
       </div>
     </section>
 

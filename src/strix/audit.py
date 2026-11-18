@@ -108,6 +108,21 @@ class AuditChain:
         self._cached: tuple[float, tuple[bool, str | None]] | None = None
         self._async_lock: _ReentrantAsyncLock | None = None
 
+    def __getstate__(self):
+        """Exclude non-picklable locks for APScheduler job serialization."""
+        state = self.__dict__.copy()
+        state["_lock"] = None
+        state["_cache_lock"] = None
+        state["_async_lock"] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Recreate locks on unpickle
+        self._lock = threading.Lock()
+        self._cache_lock = threading.Lock()
+        self._async_lock = None
+
     def _get_async_lock(self) -> _ReentrantAsyncLock:
         """Get or create the async lock in the current event loop."""
         # Double-checked locking: fast path for already initialized.
@@ -125,6 +140,15 @@ class AuditChain:
         if self._key:
             return hmac.new(self._key, payload, hashlib.sha256).hexdigest()
         return hashlib.sha256(payload).hexdigest()
+
+    def _note_append(self, sequence: int, body: dict[str, Any]) -> None:
+        """Export one sealed entry: the event counter and the chain length."""
+        from strix import metrics
+
+        metrics.record_audit_event(
+            str(body.get("type") or body.get("event") or "unknown"), body.get("tenant")
+        )
+        metrics.set_audit_chain_length(sequence)
 
     # -- append ------------------------------------------------------------
     def append(self, entry: dict[str, Any]) -> str:
@@ -149,6 +173,7 @@ class AuditChain:
                 asyncio.run(store.chain_insert(sequence, previous, digest, body))
             else:
                 self._entries.append({**body, "hash": digest})
+            self._note_append(sequence, body)
             return digest
 
     @async_locked
@@ -172,6 +197,7 @@ class AuditChain:
             await store.chain_insert(sequence, previous, digest, body)
         else:
             self._entries.append({**body, "hash": digest})
+        self._note_append(sequence, body)
         return digest
 
     # -- verify ------------------------------------------------------------
@@ -214,9 +240,7 @@ class AuditChain:
                     )
                 return
             async for row in store.chain_rows():
-                yield row["sequence"], row["previous_hash"], row["hash"], json.loads(
-                    row["data"]
-                )
+                yield row["sequence"], row["previous_hash"], row["hash"], json.loads(row["data"])
 
     def verify(self) -> tuple[bool, str | None]:
         expected_previous, expected_sequence = GENESIS_HASH, 1
@@ -226,10 +250,7 @@ class AuditChain:
                     False,
                     f"Chain broken: expected sequence {expected_sequence}, found {sequence}",
                 )
-            if (
-                previous != expected_previous
-                or body.get("previous_hash") != expected_previous
-            ):
+            if previous != expected_previous or body.get("previous_hash") != expected_previous:
                 return (
                     False,
                     f"Chain broken at sequence {sequence} (prev hash mismatch)",
@@ -249,10 +270,7 @@ class AuditChain:
                     False,
                     f"Chain broken: expected sequence {expected_sequence}, found {sequence}",
                 )
-            if (
-                previous != expected_previous
-                or body.get("previous_hash") != expected_previous
-            ):
+            if previous != expected_previous or body.get("previous_hash") != expected_previous:
                 return (
                     False,
                     f"Chain broken at sequence {sequence} (prev hash mismatch)",
@@ -280,9 +298,7 @@ class AuditChain:
         return result
 
     @async_locked
-    async def verify_cached_async(
-        self, max_age: float = 30.0
-    ) -> tuple[bool, str | None]:
+    async def verify_cached_async(self, max_age: float = 30.0) -> tuple[bool, str | None]:
         """Async version of verify_cached (for async callers).
 
         Only caches successful verifications. Failed verifications are never cached
@@ -301,9 +317,7 @@ class AuditChain:
 
     # -- introspection -----------------------------------------------------
     def __len__(self) -> int:
-        return (
-            asyncio.run(store.chain_count()) if self._persistent else len(self._entries)
-        )
+        return asyncio.run(store.chain_count()) if self._persistent else len(self._entries)
 
     @async_locked
     async def len_async(self) -> int:

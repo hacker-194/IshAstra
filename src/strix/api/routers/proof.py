@@ -26,12 +26,8 @@ MAX_ERROR_CHARS = 500
 
 class VerifyRequest(BaseModel):
     proof: dict[str, Any] = Field(..., description="The proof pack JSON")
-    trusted_issuer: str = Field(
-        default="", max_length=128, description="Pin the issuer public key"
-    )
-    trusted_gate: str = Field(
-        default="", max_length=128, description="Pin the gate public key"
-    )
+    trusted_issuer: str = Field(default="", max_length=128, description="Pin the issuer public key")
+    trusted_gate: str = Field(default="", max_length=128, description="Pin the gate public key")
 
 
 @router.post("/proof/verify")
@@ -45,8 +41,7 @@ def verify_proof(req: VerifyRequest) -> dict[str, Any]:
     return {
         **report,
         "errors": [
-            redact_text(str(error))[:MAX_ERROR_CHARS]
-            for error in report["errors"][:MAX_REPORTED_ERRORS]
+            redact_text(str(error))[:MAX_ERROR_CHARS] for error in report["errors"][:MAX_REPORTED_ERRORS]
         ],
         "verified_at": time.time(),
     }

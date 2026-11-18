@@ -1,118 +1,65 @@
-"""Shared async lock implementations.
+"""Shared async locks and the ``@async_locked`` decorator.
 
-Provides reentrant and simple async locks to avoid duplicate implementations
-across modules.
-
-Files that will use this:
-- src/strix/core/policies.py (PolicyRegistry._get_async_lock, line 229-233)
-- src/strix/audit.py (AuditLog._get_async_lock line 122-126, AuditChain._get_async_lock line 191-195)
-- src/strix/monitor.py (Monitor._get_async_lock line 214-218)
-
-No existing file serves this purpose - each module has its own duplicate implementation.
-
-User instruction: "fix all the audit findings" - Should Fix #6: Consolidate duplicate
-_ReentrantAsyncLock/_SimpleAsyncLock implementations into shared module
+A process can run the API loop and several worker-thread loops. The locks are
+therefore loop-independent: waiting happens in a thread while a plain
+``threading.Lock`` provides mutual exclusion across every loop in the process.
+Reentrancy is tracked by (loop, task), not by a task object that belongs to one
+loop.
 """
 
 from __future__ import annotations
 
 import asyncio
+import threading
 from functools import wraps
 from typing import Any
 
 
 class _SimpleAsyncLock:
-    """A simple asyncio lock without ownership tracking.
-
-    Recreates the lock if the event loop changes (e.g., in tests), but only
-    if the lock is not currently held to avoid orphaning a locked lock.
-    """
+    """A process-wide asynchronous lock usable from any event loop."""
 
     def __init__(self) -> None:
-        self._lock = asyncio.Lock()
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._acquired = False
-
-    def _check_loop(self) -> None:
-        try:
-            current_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        if self._loop is not current_loop:
-            # Only replace the lock if it's not currently held.
-            # Try to acquire with zero timeout to test if it's free.
-            if self._lock.locked():
-                # Lock is held (likely by a task from the old loop that crashed).
-                # Don't replace - the old task can't release it anymore, but
-                # replacing would orphan the held lock. Keep using the old lock
-                # for this loop; it will be released when the old task's
-                # __aexit__ runs (which won't happen, but this avoids corruption).
-                # Update loop reference so we don't keep checking.
-                self._loop = current_loop
-                return
-            # Lock is free, safe to replace
-            self._lock = asyncio.Lock()
-            self._loop = current_loop
+        self._lock = threading.Lock()
 
     async def __aenter__(self):
-        self._check_loop()
-        await self._lock.acquire()
-        self._acquired = True
+        await asyncio.to_thread(self._lock.acquire)
         return self
 
     async def __aexit__(self, *exc: Any):
-        if self._acquired:
-            self._lock.release()
-            self._acquired = False
+        self._lock.release()
         return False
 
 
 class _ReentrantAsyncLock:
-    """A reentrant asyncio lock - same task can acquire multiple times.
+    """A process-wide reentrant async lock usable from any event loop.
 
-    Recreates the lock if the event loop changes (e.g., in tests), but only
-    if the lock is not currently held to avoid orphaning a locked lock.
+    The same task may re-enter; different tasks wait for the owner to leave the
+    outermost ``async with`` block.
     """
 
     def __init__(self) -> None:
-        self._lock = asyncio.Lock()
-        self._owner: asyncio.Task | None = None
+        self._lock = threading.Lock()
+        self._owner: tuple[int, int] | None = None
         self._count = 0
-        self._loop: asyncio.AbstractEventLoop | None = None
 
-    def _check_loop(self) -> None:
-        try:
-            current_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        if self._loop is not current_loop:
-            # Only replace the lock if it's not currently held.
-            if self._count > 0:
-                # Lock is held by a task from the old loop.
-                # Don't replace - the old task can't release it anymore.
-                # Update loop reference so we don't keep checking.
-                self._loop = current_loop
-                return
-            # Lock is free, safe to replace
-            self._lock = asyncio.Lock()
-            self._owner = None
-            self._count = 0
-            self._loop = current_loop
+    @staticmethod
+    def _current_owner() -> tuple[int, int]:
+        task = asyncio.current_task()
+        return (id(asyncio.get_running_loop()), id(task) if task is not None else 0)
 
     async def __aenter__(self):
-        self._check_loop()
-        task = asyncio.current_task()
-        if self._owner is task:
+        owner = self._current_owner()
+        if self._owner == owner:
             self._count += 1
             return self
-        await self._lock.acquire()
-        self._owner = task
+        await asyncio.to_thread(self._lock.acquire)
+        self._owner = owner
         self._count = 1
         return self
 
     async def __aexit__(self, *exc: Any):
-        task = asyncio.current_task()
-        if self._owner is not task:
+        owner = self._current_owner()
+        if self._owner != owner:
             raise RuntimeError("Lock released by non-owner")
         self._count -= 1
         if self._count == 0:

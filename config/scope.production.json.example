@@ -1,0 +1,37 @@
+{
+  "program": "REPLACE_WITH_PROGRAM_NAME",
+  "authorized_by": "REPLACE_WITH_AUTHORIZER_NAME_AND_TITLE",
+  "authorization_ref": "REPLACE_WITH_ENGAGEMENT_REFERENCE_OR_POLICY_VERSION",
+  "include": [
+    "REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "*.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "api.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "app.REPLACE_WITH_PRIMARY_DOMAIN.com"
+  ],
+  "exclude": [
+    "billing.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "*.internal.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "dev.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "staging.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "test.REPLACE_WITH_PRIMARY_DOMAIN.com",
+    "localhost",
+    "127.0.0.1",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16"
+  ],
+  "authorized_networks": [
+    "REPLACE_WITH_OFFICE_CIDR (e.g., 203.0.113.0/24)",
+    "REPLACE_WITH_VPN_CIDR (e.g., 198.51.100.0/24)"
+  ],
+  "allowed_ports": [
+    80,
+    443,
+    8443,
+    9443
+  ],
+  "allow_broad_networks": false,
+  "auth": {
+    "users": []
+  }
+}

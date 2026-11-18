@@ -1,0 +1,198 @@
+# Promtail Configuration for Strix Log Collection
+# Runs as a DaemonSet in Kubernetes or as a sidecar in Docker
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 102400
+    timeout: 10s
+    backoff_config:
+      min_period: 1s
+      max_period: 5m
+      max_retries: 10
+
+scrape_configs:
+  # Strix API application logs (stdout/stderr from container)
+  - job_name: strix-api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: strix-api
+          component: api
+          __path__: /var/log/strix/api/*.log
+    pipeline_stages:
+      - docker: {}
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # Strix Scheduler logs
+  - job_name: strix-scheduler
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: strix-scheduler
+          component: scheduler
+          __path__: /var/log/strix/scheduler/*.log
+    pipeline_stages:
+      - docker: {}
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # Strix Worker logs (Celery workers)
+  - job_name: strix-worker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: strix-worker
+          component: worker
+          __path__: /var/log/strix/worker/*.log
+    pipeline_stages:
+      - docker: {}
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # Nginx access logs
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          component: proxy
+          log_type: access
+          __path__: /var/log/nginx/access.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<remote_addr>\S+)\s+(?P<remote_user>\S+)\s+(?P<time_local>[^\]]+)\s+"(?P<request>[^"]+)"\s+(?P<status>\d+)\s+(?P<body_bytes_sent>\d+)\s+"(?P<http_referer>[^"]*)"\s+"(?P<http_user_agent>[^"]*)"'
+      - labels:
+          status:
+      - metrics:
+          status:
+            type: Counter
+            description: "Nginx HTTP status codes"
+            source: status
+            config:
+              action: inc
+
+  # Nginx error logs
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          component: proxy
+          log_type: error
+          __path__: /var/log/nginx/error.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?P<level>\w+)\]\s+(?P<pid>\d+)#(?P<tid>\d+):\s+(?P<message>.*)$'
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: "2006/01/02 15:04:05"
+
+  # Redis logs
+  - job_name: redis
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: redis
+          component: cache
+          __path__: /var/log/redis/*.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<message>.*)$'
+      - labels:
+          level:
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+
+  # System logs (if running on host)
+  - job_name: systemd-journal
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: systemd
+          component: system
+          __path__: /var/log/journal/*.journal
+    pipeline_stages:
+      - json:
+          expressions:
+            MESSAGE: message
+            PRIORITY: level
+            _SYSTEMD_UNIT: unit
+      - labels:
+          level:
+          unit:
+      - timestamp:
+          source: __REALTIME_TIMESTAMP
+          format: unix_ms
+
+# For Kubernetes DaemonSet deployment, use this instead:
+# scrape_configs:
+#   - job_name: kubernetes-pods
+#     kubernetes_sd_configs:
+#       - role: pod
+#     relabel_configs:
+#       - source_labels: [__meta_kubernetes_pod_annotation_promtail_io_scrape]
+#         action: keep
+#         regex: true
+#       - source_labels: [__meta_kubernetes_pod_annotation_promtail_io_path]
+#         action: replace
+#         target_label: __path__
+#         regex: (.+)
+#       - source_labels: [__meta_kubernetes_pod_label_app]
+#         action: replace
+#         target_label: app
+#       - source_labels: [__meta_kubernetes_pod_label_component]
+#         action: replace
+#         target_label: component
+#       - source_labels: [__meta_kubernetes_namespace]
+#         action: replace
+#         target_label: namespace
+#       - source_labels: [__meta_kubernetes_pod_name]
+#         action: replace
+#         target_label: pod
+#     pipeline_stages:
+#       - docker: {}
+#       - regex:
+#           expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+#       - labels:
+#           level:
+#           logger:
+#       - timestamp:
+#           source: timestamp
+#           format: RFC3339Nano

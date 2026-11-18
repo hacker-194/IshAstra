@@ -7,22 +7,58 @@
 const state = {
   apiKey: null,
   auditLogs: [],
+  csrfToken: null,
+  oidcConfigured: false,
+  user: null,
 };
 
 // -----------------------------------------------------------------------------
-// Auth Helpers
+// CSRF Token Helpers
 // -----------------------------------------------------------------------------
+function getCsrfToken() {
+  // Try to get from cookie first
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'strix_csrf') {
+      state.csrfToken = value;
+      return value;
+    }
+  }
+  // Fallback to stored token
+  return state.csrfToken;
+}
+
+function setCsrfToken(token) {
+  state.csrfToken = token;
+}
+
 function getAuthHeaders() {
-  return state.apiKey ? { 'Authorization': `Bearer ${state.apiKey}` } : {};
+  const headers = state.apiKey ? { 'Authorization': `Bearer ${state.apiKey}` } : {};
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+  return headers;
+}
+
+function getAuthHeadersWithCsrf() {
+  // For form submissions that need CSRF in body
+  const headers = getAuthHeaders();
+  return headers;
 }
 
 // DOM Content Loaded Initializer
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize CSRF token from cookie
+  getCsrfToken();
   initAuth();
+  checkAuthStatus();
   initNavigation();
   initOverview();
   initScanner();
   initAudit();
+  initAssets();
   initEvidence();
   initAssessment();
 });
@@ -34,6 +70,9 @@ function initAuth() {
   const input = document.getElementById('api-key-input');
   const saveBtn = document.getElementById('btn-save-api-key');
   const clearBtn = document.getElementById('btn-clear-api-key');
+  const loginBtn = document.getElementById('btn-oidc-login');
+  const logoutBtn = document.getElementById('btn-oidc-logout');
+  const userInfo = document.getElementById('oidc-user-info');
 
   if (!input || !saveBtn) return;
 
@@ -63,6 +102,78 @@ function initAuth() {
       sessionStorage.removeItem('strix_api_key');
       showToast('API key cleared', 'info');
     });
+  }
+
+  // OIDC Login button
+  if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+      window.location.href = '/auth/login';
+    });
+  }
+
+  // OIDC Logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+      } catch (e) {
+        console.warn('Logout request failed:', e);
+      }
+      state.user = null;
+      state.apiKey = null;
+      sessionStorage.removeItem('strix_api_key');
+      input.value = '';
+      updateAuthUI();
+      showToast('Logged out', 'info');
+      window.location.href = '/';
+    });
+  }
+}
+
+async function checkAuthStatus() {
+  try {
+    const res = await fetch('/auth/status', { credentials: 'include' });
+    const data = await res.json();
+    state.oidcConfigured = data.oidc_configured !== false; // Assume true if not explicitly false
+    if (data.authenticated) {
+      state.user = data;
+      state.apiKey = null; // Clear API key when OIDC session exists
+      sessionStorage.removeItem('strix_api_key');
+    }
+    updateAuthUI();
+  } catch (err) {
+    console.warn('Auth status check failed:', err);
+  }
+}
+
+function updateAuthUI() {
+  const loginBtn = document.getElementById('btn-oidc-login');
+  const logoutBtn = document.getElementById('btn-oidc-logout');
+  const userInfo = document.getElementById('oidc-user-info');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyLabel = document.querySelector('.auth-label');
+
+  if (state.user) {
+    // User is authenticated via OIDC
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+    if (userInfo) {
+      userInfo.textContent = `${state.user.tenant_id} (${state.user.role})`;
+      userInfo.style.display = 'inline';
+    }
+    if (apiKeyInput) apiKeyInput.style.display = 'none';
+    if (apiKeyLabel) apiKeyLabel.style.display = 'none';
+    document.getElementById('btn-save-api-key')?.style.setProperty('display', 'none');
+    document.getElementById('btn-clear-api-key')?.style.setProperty('display', 'none');
+  } else {
+    // Not authenticated via OIDC
+    if (loginBtn) loginBtn.style.display = state.oidcConfigured ? 'inline-flex' : 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (userInfo) userInfo.style.display = 'none';
+    if (apiKeyInput) apiKeyInput.style.display = 'inline-block';
+    if (apiKeyLabel) apiKeyLabel.style.display = 'inline';
+    document.getElementById('btn-save-api-key')?.style.setProperty('display', 'inline-flex');
+    document.getElementById('btn-clear-api-key')?.style.setProperty('display', 'inline-flex');
   }
 }
 
@@ -105,6 +216,11 @@ function switchTab(tabId) {
   // Lazy refresh based on active tab
   if (tabId === 'overview') loadOverview();
   if (tabId === 'audit') loadAudit();
+  if (tabId === 'assets') {
+    loadAssets();
+    loadFindingTrends();
+    loadCrossJobFindings();
+  }
   if (tabId === 'evidence') {
     loadScope();
     loadAssessmentProfiles();
@@ -653,6 +769,186 @@ async function openJob(jobId) {
   } catch (err) {
     container.innerHTML = `<div class="empty-desc" style="color: var(--crimson);">${escapeHtml(err.message)}</div>`;
     showToast(err.message, 'error');
+  }
+}
+
+// -----------------------------------------------------------------------------
+// ASSET INVENTORY & REMEDIATION
+// -----------------------------------------------------------------------------
+function initAssets() {
+  document.getElementById('btn-refresh-assets')?.addEventListener('click', loadAssets);
+}
+
+async function loadFindingTrends() {
+  const container = document.getElementById('trends-container');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/findings/trends?bucket=day', { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Trends unavailable');
+    const max = Math.max(1, ...data.buckets.map(item => item.observations));
+    container.innerHTML = data.buckets.map(item => `
+      <div class="trend-row" style="display:flex;align-items:center;gap:10px;margin:4px 0;">
+        <span style="width:92px;font-variant-numeric:tabular-nums;">${escapeHtml(item.bucket)}</span>
+        <span style="flex:1;height:8px;background:var(--surface-3,#1e293b);border-radius:4px;overflow:hidden;">
+          <span style="display:block;height:100%;width:${Math.round((item.observations / max) * 100)}%;background:var(--accent,#38bdf8);"></span>
+        </span>
+        <span style="width:150px;text-align:right;color:var(--muted,#94a3b8);">${item.observations} obs · ${item.new_findings} new · ${item.resolved_findings} resolved</span>
+      </div>
+    `).join('');
+  } catch (err) {
+    container.innerHTML = `<div class="empty-desc" style="color: var(--crimson);">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function loadCrossJobFindings() {
+  const body = document.getElementById('cross-findings-body');
+  const count = document.getElementById('cross-findings-count');
+  if (!body) return;
+  try {
+    const res = await fetch('/api/findings?page_size=100', { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Cross-job findings unavailable');
+    count.textContent = `${data.total} finding(s)`;
+    if (!data.items.length) {
+      body.innerHTML = '<tr><td colspan="6" class="table-empty">No findings yet — run an assessment first.</td></tr>';
+      return;
+    }
+    body.innerHTML = data.items.map(finding => `
+      <tr>
+        <td>${escapeHtml(finding.title)}<br><span class="card-subtitle">${escapeHtml(finding.asset)}</span></td>
+        <td>${escapeHtml(finding.severity)}</td>
+        <td>${escapeHtml(finding.status)}</td>
+        <td>${finding.occurrence_count}</td>
+        <td>${escapeHtml(formatEpoch(finding.first_seen))}<br>${escapeHtml(formatEpoch(finding.last_seen))}</td>
+        <td>${escapeHtml(finding.resolution?.state || 'open')}</td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: var(--crimson);">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function formatEpoch(value) {
+  if (!value) return '—';
+  const date = new Date(Number(value) * 1000);
+  return Number.isNaN(date.valueOf()) ? '—' : date.toLocaleString();
+}
+
+function dateInputValue(value) {
+  return value ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : '';
+}
+
+async function loadAssets() {
+  const body = document.getElementById('assets-table-body');
+  const count = document.getElementById('assets-count');
+  if (!body) return;
+  try {
+    const res = await fetch('/api/assets?page_size=100', { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Asset inventory unavailable');
+    count.textContent = `${data.total} asset(s)`;
+    if (!data.items.length) {
+      body.innerHTML = '<tr><td colspan="6" class="table-empty">No assets yet — run an assessment first.</td></tr>';
+      return;
+    }
+    body.innerHTML = data.items.map(asset => `
+      <tr>
+        <td><button class="strix-btn ghost tiny" data-asset-key="${escapeHtml(asset.asset_key)}">${escapeHtml(asset.asset)}</button></td>
+        <td>${escapeHtml(asset.asset_type)}</td>
+        <td>${escapeHtml(asset.owner || '—')}</td>
+        <td>${escapeHtml(asset.criticality)}</td>
+        <td>${asset.open_finding_count} / ${asset.finding_count}</td>
+        <td>${escapeHtml(formatEpoch(asset.last_seen))}</td>
+      </tr>
+    `).join('');
+    body.querySelectorAll('[data-asset-key]').forEach(button => {
+      button.addEventListener('click', () => openAsset(button.dataset.assetKey));
+    });
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="6" class="table-empty" style="color: var(--crimson);">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function openAsset(assetKey) {
+  const card = document.getElementById('asset-detail-card');
+  const container = document.getElementById('asset-detail-container');
+  const title = document.getElementById('asset-detail-title');
+  const meta = document.getElementById('asset-detail-meta');
+  if (!card || !container) return;
+  try {
+    const res = await fetch(`/api/assets/${encodeURIComponent(assetKey)}`, { headers: getAuthHeaders() });
+    const asset = await res.json();
+    if (!res.ok) throw new Error(asset.detail || 'Asset unavailable');
+    card.hidden = false;
+    title.textContent = asset.asset;
+    meta.textContent = `${asset.asset_type} · ${asset.criticality} · owner ${asset.owner || 'unassigned'} · first seen ${formatEpoch(asset.first_seen)}`;
+    if (!asset.findings.length) {
+      container.innerHTML = '<div class="empty-desc">No findings recorded for this asset.</div>';
+      return;
+    }
+    container.innerHTML = asset.findings.map(finding => `
+      <div class="finding-card ${finding.severity === 'critical' || finding.severity === 'high' ? 'severity-high' : (finding.severity === 'medium' ? 'severity-med' : 'severity-low')}">
+        <div class="finding-hdr">
+          <span class="finding-id">${escapeHtml(finding.severity.toUpperCase())} · ${escapeHtml(finding.category)}</span>
+          <span class="finding-weight">${escapeHtml(finding.status)} · job ${escapeHtml(finding.job_state)}</span>
+        </div>
+        <div class="finding-details">
+          <div><strong>${escapeHtml(finding.title)}</strong></div>
+          <div class="evidence-block">${escapeHtml(finding.evidence)}</div>
+          <div class="input-row" style="margin-top: 10px;">
+            <input class="strix-input" data-owner="${escapeHtml(finding.fingerprint)}" placeholder="Owner" value="${escapeHtml(finding.owner || '')}" />
+            <input class="strix-input" type="date" data-due="${escapeHtml(finding.fingerprint)}" value="${escapeHtml(dateInputValue(finding.due_at))}" aria-label="Remediation deadline" />
+            <button class="strix-btn secondary action-btn" data-save-remediation="${escapeHtml(finding.fingerprint)}" data-job="${escapeHtml(finding.job_id)}">Save</button>
+            <button class="strix-btn ghost action-btn" data-history="${escapeHtml(finding.fingerprint)}" data-job="${escapeHtml(finding.job_id)}">Timeline</button>
+          </div>
+          <div class="assess-history-meta" data-history-output="${escapeHtml(finding.fingerprint)}"></div>
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('[data-save-remediation]').forEach(button => {
+      button.addEventListener('click', () => saveRemediation(button.dataset.job, button.dataset.saveRemediation, container));
+    });
+    container.querySelectorAll('[data-history]').forEach(button => {
+      button.addEventListener('click', () => loadFindingTimeline(button.dataset.job, button.dataset.history, container));
+    });
+  } catch (err) {
+    card.hidden = false;
+    container.innerHTML = `<div class="empty-desc" style="color: var(--crimson);">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function saveRemediation(jobId, fingerprint, container) {
+  const owner = container.querySelector(`[data-owner="${fingerprint}"]`)?.value || '';
+  const dueInput = container.querySelector(`[data-due="${fingerprint}"]`)?.value;
+  const due_at = dueInput ? new Date(`${dueInput}T00:00:00Z`).valueOf() / 1000 : null;
+  try {
+    const res = await fetch(`/api/assess/${encodeURIComponent(jobId)}/findings/${encodeURIComponent(fingerprint)}/remediation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ owner, due_at }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Remediation update failed');
+    showToast('Remediation metadata saved', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function loadFindingTimeline(jobId, fingerprint, container) {
+  const output = container.querySelector(`[data-history-output="${fingerprint}"]`);
+  if (!output) return;
+  try {
+    const res = await fetch(`/api/assess/${encodeURIComponent(jobId)}/findings/${encodeURIComponent(fingerprint)}/history`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Timeline unavailable');
+    output.innerHTML = data.events.map(event => `
+      <div>${escapeHtml(formatEpoch(event.created_at))} · ${escapeHtml(event.event)}${event.from_status ? ` (${escapeHtml(event.from_status)} → ${escapeHtml(event.to_status)})` : ''}${event.note ? ` · ${escapeHtml(event.note)}` : ''}</div>
+    `).join('');
+  } catch (err) {
+    output.textContent = err.message;
   }
 }
 

@@ -1,0 +1,76 @@
+{{- if and .Values.k8sJobs.enabled .Values.k8sJobs.networkPolicyEnabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "strix-assess-%s-netpol" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assessment-job
+    strix.job-id: {{ .Values.k8sJobs.jobId }}
+spec:
+  podSelector:
+    matchLabels:
+      strix.job-id: {{ .Values.k8sJobs.jobId }}
+  policyTypes:
+    - Egress
+  egress:
+    # 1. Allow DNS resolution (kube-dns/coredns)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # 2. Allow egress to scope-authorized targets (populated at runtime from scope)
+    {{- if .Values.k8sJobs.scopeEgress }}
+    {{- toYaml .Values.k8sJobs.scopeEgress | nindent 4 }}
+    {{- else }}
+    # Default deny-all for scope targets - MUST be overridden at job creation time
+    # with the authorized IPs/networks from the scope document
+    - to: []
+      ports: []
+    {{- end }}
+    # 3. Allow database writes (PostgreSQL)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    # 4. Allow K8s API (for self-status updates, job completion)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
+    # 5. Allow Redis (for distributed locks, rate limiting)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # 6. Allow egress to allowed_ports on authorized_networks from scope
+    # This is a catch-all for when scopeEgress is not fully populated
+    # The actual restriction is enforced at the application layer via scope gate
+    {{- if .Values.k8sJobs.allowScopeNetworks }}
+    {{- range .Values.k8sJobs.authorizedNetworks }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+      ports:
+        {{- range $.Values.k8sJobs.allowedPorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}

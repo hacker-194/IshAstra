@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 from urllib.request import urlopen
 
 from strix.core.redaction import redact_text
+from strix.core.urls import parse_url
 
 TOKEN_PATTERN = re.compile(r"^[0-9a-f]{16,64}$")
 MAX_CALLBACKS = 10_000
@@ -57,11 +58,7 @@ class CollabConfig:
         if not host or len(host) > 253:
             raise ValueError("collab.host must be a usable host name or address")
         port = data.get("port", 0)
-        if (
-            not isinstance(port, int)
-            or isinstance(port, bool)
-            or not 0 <= port <= 65535
-        ):
+        if not isinstance(port, int) or isinstance(port, bool) or not 0 <= port <= 65535:
             raise ValueError("collab.port must be an integer from 0 to 65535")
         return cls(host=host, port=port)
 
@@ -79,9 +76,7 @@ class CollabLog:
 
     def poll(self, token: str) -> list[dict[str, Any]]:
         with self._lock:
-            return [
-                dict(entry) for entry in self._entries if entry.get("token") == token
-            ]
+            return [dict(entry) for entry in self._entries if entry.get("token") == token]
 
     def count(self) -> int:
         with self._lock:
@@ -125,9 +120,7 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             key = name.lower()[:64]
             clipped = value[:budget]
             budget -= len(clipped)
-            headers[key] = (
-                "[REDACTED]" if key in sensitive_headers else redact_text(clipped)
-            )
+            headers[key] = "[REDACTED]" if key in sensitive_headers else redact_text(clipped)
         self.log_store.record(
             {
                 "token": token,
@@ -146,9 +139,7 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             if not TOKEN_PATTERN.fullmatch(token):
                 self._respond(400, b'{"error": "invalid token"}', "application/json")
                 return
-            payload = json.dumps(
-                {"token": token, "callbacks": self.log_store.poll(token)}
-            ).encode()
+            payload = json.dumps({"token": token, "callbacks": self.log_store.poll(token)}).encode()
             self._respond(200, payload, "application/json")
             return
         if self._record() is not None:
@@ -163,21 +154,15 @@ class _CanaryHandler(BaseHTTPRequestHandler):
             length = int(raw_length)
         except (TypeError, ValueError):
             self.close_connection = True
-            self._respond(
-                400, b'{"error":"invalid content length"}', "application/json"
-            )
+            self._respond(400, b'{"error":"invalid content length"}', "application/json")
             return
         if length < 0:
             self.close_connection = True
-            self._respond(
-                400, b'{"error":"invalid content length"}', "application/json"
-            )
+            self._respond(400, b'{"error":"invalid content length"}', "application/json")
             return
         if length > 4096:
             self.close_connection = True
-            self._respond(
-                413, b'{"error":"callback body too large"}', "application/json"
-            )
+            self._respond(413, b'{"error":"callback body too large"}', "application/json")
             return
         if length:
             self.rfile.read(length)
@@ -193,9 +178,7 @@ class _CanaryHandler(BaseHTTPRequestHandler):
 class CollabServer:
     """Runnable canary listener. Binds to ``host:port`` (port 0 = ephemeral)."""
 
-    def __init__(
-        self, host: str = "127.0.0.1", port: int = 0, log: CollabLog | None = None
-    ) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 0, log: CollabLog | None = None) -> None:
         self.host = host
         self.port = port
         self.log = log or CollabLog()
@@ -215,9 +198,7 @@ class CollabServer:
         handler = type("_BoundHandler", (_CanaryHandler,), {"log_store": self.log})
         self._server = ThreadingHTTPServer((self.host, self.port), handler)
         self.port = self._server.server_address[1]  # resolved when port was 0
-        thread = threading.Thread(
-            target=self._server.serve_forever, name="strix-collab", daemon=True
-        )
+        thread = threading.Thread(target=self._server.serve_forever, name="strix-collab", daemon=True)
         thread.start()
 
     def stop(self) -> None:
@@ -251,6 +232,9 @@ class CollabClient:
 
     def poll(self, token: str) -> list[dict[str, Any]]:
         url = f"http://{self.host}:{self.port}/poll/{token}"
+        parsed = parse_url(url)
+        if not parsed or parsed.scheme not in ("http", "https"):
+            raise ValueError("Invalid collab poll URL scheme")
         with urlopen(url, timeout=self.timeout) as response:
             payload = json.loads(response.read(65536).decode("utf-8", errors="replace"))
         callbacks = payload.get("callbacks", []) if isinstance(payload, dict) else []
@@ -264,23 +248,18 @@ def main(argv: list[str] | None = None) -> None:
     """``strix-collab --host 0.0.0.0 --port 8765`` — run the canary listener."""
     parser = argparse.ArgumentParser(
         prog="strix-collab",
-        description="Strix out-of-band canary listener; callbacks are recorded "
-        "and served at /poll/<token>",
+        description="Strix out-of-band canary listener; callbacks are recorded and served at /poll/<token>",
     )
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="interface to bind (default: 127.0.0.1; engagements "
-        "need an address the target can reach)",
+        help="interface to bind (default: 127.0.0.1; engagements need an address the target can reach)",
     )
     parser.add_argument("--port", type=int, default=8765, help="port to bind")
     args = parser.parse_args(argv)
     server = CollabServer(host=args.host, port=args.port)
     server.start()
-    print(
-        f"strix-collab listening on {server.base_url} "
-        f"(poll API: {server.base_url}/poll/<token>)"
-    )
+    print(f"strix-collab listening on {server.base_url} (poll API: {server.base_url}/poll/<token>)")
     try:
         while True:
             time.sleep(3600)

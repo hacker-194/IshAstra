@@ -25,34 +25,6 @@ from strix.core.findings import Finding
 from strix.core.scope import current as current_scope
 from strix.core.urls import parse_url
 
-
-def port_finding(
-    *,
-    host: str,
-    ip: str,
-    port: int,
-    detector: str,
-    detector_version: str,
-    evidence_prefix: str,
-) -> Finding:
-    """Create a Finding for an open TCP port (used by tests and composite adapters)."""
-    severity, remediation = RISKY_PORTS.get(port, ("info", ""))
-    return Finding(
-        asset=f"http://{host}:{port}/",
-        category="open_tcp_port",
-        title=f"Open TCP Port {port}",
-        severity=severity,
-        confidence="high",
-        detector=detector,
-        detector_version=detector_version,
-        evidence=f"{evidence_prefix} open port {port} on {ip}",
-        location=f"{host}:{port}/tcp",
-        description=f"Port {port} is open on {host}.",
-        remediation=remediation,
-        verification="observed",
-    )
-
-
 # Static table of conventionally risky ports, not a vulnerability feed. Drive
 # severity from an exposure policy per asset if that ever matters.
 RISKY_PORTS: dict[int, tuple[str, str]] = {

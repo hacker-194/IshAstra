@@ -1542,6 +1542,47 @@ class PostgreSQLDatabase(Database):
                     raise
                 version = target
 
+        await self._migrate_pg_mssp(conn)
+        await self._migrate_pg_rls(conn)
+
+    async def _migrate_pg_mssp(self, conn: asyncpg.Connection) -> None:
+        """Create the MSSP tables on PostgreSQL (SQLite gets them elsewhere)."""
+        from strix.core.mssp import MIGRATIONS_MSSP_PG
+
+        row = await conn.fetchrow("SELECT value FROM settings WHERE key = 'mssp_version'")
+        applied = int(row["value"]) if row else 0
+        for target, script in MIGRATIONS_MSSP_PG:
+            if target <= applied:
+                continue
+            async with conn.transaction():
+                for statement in script.split(";"):
+                    stmt = "\n".join(
+                        line for line in statement.splitlines() if not line.strip().startswith("--")
+                    ).strip()
+                    if stmt:
+                        await conn.execute(stmt)
+            await conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('mssp_version', $1) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                str(target),
+            )
+
+    async def _migrate_pg_rls(self, conn: asyncpg.Connection) -> None:
+        """Apply the row-level-security step once the schema is current."""
+        from strix.core.pg_rls import RLS_SCHEMA_VERSION, apply_rls
+
+        # schema_version belongs to the table chain, which already runs past 28;
+        # the RLS step therefore tracks itself under its own key.
+        row = await conn.fetchrow("SELECT value FROM settings WHERE key = 'rls_applied'")
+        if row and row["value"] == str(RLS_SCHEMA_VERSION):
+            return
+        await apply_rls(conn)
+        await conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('rls_applied', $1) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            str(RLS_SCHEMA_VERSION),
+        )
+
     async def schema_version(self) -> int:
         pool = await self._ensure_pool()
         async with pool.acquire() as conn:

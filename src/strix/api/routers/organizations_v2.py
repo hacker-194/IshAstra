@@ -33,6 +33,8 @@ from strix.api.schemas import (
     TeamResponse,
     TeamUpdateRequest,
 )
+from strix.config import get_settings
+from strix.core import invitations
 from strix.core.organizations import (
     ORG_TIER_ORDER,
     VALID_ROLES,
@@ -622,7 +624,7 @@ async def get_my_team_role(
 
 
 # ---------------------------------------------------------------------------
-# Invitation endpoint (placeholder for email-based invites)
+# Invitations: signed token by email, accepted by the invited tenant
 # ---------------------------------------------------------------------------
 
 
@@ -639,20 +641,91 @@ async def invite_member(
 ) -> dict[str, Any]:
     """Invite a user to the organization by email.
 
-    This creates a pending membership. The user must accept the invitation
-    (implementation depends on auth system).
+    Sends a signed, expiring token. The invited tenant accepts it with
+    POST /api/v2/orgs/invitations/accept, which creates the membership.
     """
     if role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {sorted(VALID_ROLES)}")
 
-    # No message is sent and no acceptance token exists, so returning a pending
-    # membership would report success for an invitation nobody can accept.
-    # Fail explicitly until the email/acceptance flow exists.
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "Email invitations are not implemented: no message is sent and no "
-            "acceptance token exists. Add the member directly with "
-            "POST /api/v2/orgs/{org_id}/members."
-        ),
+    org = await get_org(org_id)
+    if org is None:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    settings = get_settings()
+    if not settings.audit_hmac_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Invitations are signed; set STRIX_AUDIT_HMAC_KEY to enable them",
+        )
+
+    token = invitations.create_invite_token(
+        org_id=org_id,
+        email=email,
+        role=role,
+        secret=settings.audit_hmac_key,
+        team_id=team_id,
     )
+    try:
+        invitations.send_invite_email(
+            settings,
+            to=email,
+            org_name=getattr(org, "name", org_id),
+            role=role,
+            token=token,
+        )
+    except invitations.SMTPNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Invitation delivery failed: {exc}") from exc
+
+    await audit_async(
+        caller,
+        {"event": "invitation_sent", "org_id": org_id, "email": email, "role": role},
+    )
+    return {
+        "status": "sent",
+        "email": email,
+        "role": role,
+        "team_id": team_id,
+        "expires_in": invitations.INVITE_TTL_SECONDS,
+    }
+
+
+@router.post("/invitations/accept")
+async def accept_invitation(
+    token: str = Query(..., min_length=10, description="Signed invitation token"),
+    caller: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
+) -> dict[str, Any]:
+    """Accept an invitation: creates the membership for the calling tenant."""
+    settings = get_settings()
+    try:
+        claims = invitations.verify_invite_token(token, settings.audit_hmac_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    tenant_id = str(caller.get("tenant_id") or "")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Caller is not bound to a tenant")
+
+    try:
+        membership = await add_member(
+            org_id=claims["org_id"],
+            user_id=tenant_id,
+            role=claims["role"],
+            team_id=claims.get("team_id"),
+            status="active",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    await audit_async(
+        caller,
+        {
+            "event": "invitation_accepted",
+            "org_id": claims["org_id"],
+            "tenant_id": tenant_id,
+            "role": claims["role"],
+        },
+    )
+    return _membership_to_response(membership)

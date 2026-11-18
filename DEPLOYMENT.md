@@ -273,7 +273,46 @@ See [`docs/nepal-launch-readiness.md`](docs/nepal-launch-readiness.md) for the
 in-country deployment profile, NRB/NTA/NCSP evidence mapping, and the
 legal/business prerequisites that are outside this repository's control.
 
-## 12. Troubleshooting
+## 12. Database migrations and row-level security
+
+There is no separate migration step to forget: the store applies its schema
+chain on every connection.
+
+- SQLite and PostgreSQL each carry an ordered statement list in
+  `src/strix/core/store.py` (`MIGRATIONS`, `MIGRATIONS_PG`), keyed by a
+  `schema_version` row in `settings`. Starting the service upgrades an existing
+  database to the current schema.
+- On PostgreSQL the MSSP tables are created from `MIGRATIONS_MSSP_PG`, and the
+  RLS step (`src/strix/core/pg_rls.py`, tracked as `rls_applied`) creates the
+  tenant helper functions, the policies and their indexes.
+- `migrations/028_rls_enable.py` remains as the historical entry point and
+  applies whatever is still pending.
+
+Connect the application with a **non-superuser role**. PostgreSQL lets a
+superuser bypass row-level security entirely, so a superuser connection
+silently disables the tenant isolation you think you have.
+
+```sql
+CREATE ROLE strix_app LOGIN PASSWORD '...';
+GRANT USAGE ON SCHEMA public TO strix_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO strix_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO strix_app;
+```
+
+## 13. Email invitations for organizations
+
+Invitations are signed with `STRIX_AUDIT_HMAC_KEY` and expire after 7 days; no
+invitation state is stored.
+
+1. Configure `STRIX_SMTP_HOST`, `STRIX_SMTP_FROM` and optionally credentials and
+   `STRIX_PUBLIC_BASE_URL` (used for the acceptance link).
+2. `POST /api/v2/orgs/{org_id}/invite?email=...&role=...` sends the message.
+   Without SMTP the API answers 503 rather than claiming success.
+3. The invited tenant accepts with
+   `POST /api/v2/orgs/invitations/accept?token=...`, which creates the
+   membership for the calling API key's tenant.
+
+## 14. Troubleshooting
 
 - **`another Strix worker process already owns …worker-lock`** — a second
   process was pointed at the same `STRIX_DB`, or a stale lock survived an

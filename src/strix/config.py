@@ -138,30 +138,6 @@ class Settings:
     oidc_scopes: str = "openid email profile"
     oidc_auto_provision: bool = True
 
-    # K8s Jobs Queue Mode Configuration
-    k8s_image_repository: str = "ghcr.io/your-org/strix"
-    k8s_image_tag: str = "3.5.0"
-
-    @property
-    def k8s_image(self) -> str:
-        """Full image reference for K8s Jobs."""
-        return f"{self.k8s_image_repository}:{self.k8s_image_tag}"
-
-    k8s_namespace: str = "strix-assessments"
-    k8s_service_account: str = "strix"
-    k8s_runtime_class: str = "gvisor"
-    k8s_priority_class: str = "strix-spot-priority"
-    k8s_ttl_seconds: int = 3600
-    k8s_backoff_limit: int = 2
-    k8s_active_deadline_seconds: int = 7200
-    k8s_cpu_limit: str = "2000m"
-    k8s_memory_limit: str = "2Gi"
-    k8s_cpu_request: str = "1000m"
-    k8s_memory_request: str = "1Gi"
-    k8s_db_secret: str = "strix-secrets"
-    k8s_scope_configmap: str = "strix-scope"
-    k8s_network_policy: bool = True
-
     # SAML Configuration (for enterprise SSO)
     saml_entity_id: str = ""
     saml_acs_url: str = ""
@@ -276,26 +252,6 @@ class Settings:
             oidc_redirect_uri=os.environ.get("STRIX_OIDC_REDIRECT_URI", "").strip(),
             oidc_scopes=os.environ.get("STRIX_OIDC_SCOPES", "openid email profile").strip(),
             oidc_auto_provision=os.environ.get("STRIX_OIDC_AUTO_PROVISION", "true").strip().lower()
-            in {"1", "true", "yes"},
-            # K8s Jobs Queue Mode Configuration
-            k8s_image_repository=os.environ.get(
-                "STRIX_K8S_IMAGE_REPOSITORY", "ghcr.io/your-org/strix"
-            ).strip(),
-            k8s_image_tag=os.environ.get("STRIX_K8S_IMAGE_TAG", "3.5.0").strip(),
-            k8s_namespace=os.environ.get("STRIX_K8S_NAMESPACE", "strix-assessments").strip(),
-            k8s_service_account=os.environ.get("STRIX_K8S_SERVICE_ACCOUNT", "strix").strip(),
-            k8s_runtime_class=os.environ.get("STRIX_K8S_RUNTIME_CLASS", "gvisor").strip(),
-            k8s_priority_class=os.environ.get("STRIX_K8S_PRIORITY_CLASS", "strix-spot-priority").strip(),
-            k8s_ttl_seconds=_int("STRIX_K8S_TTL", 3600),
-            k8s_backoff_limit=_int("STRIX_K8S_BACKOFF_LIMIT", 2),
-            k8s_active_deadline_seconds=_int("STRIX_K8S_ACTIVE_DEADLINE", 7200),
-            k8s_cpu_limit=os.environ.get("STRIX_K8S_CPU_LIMIT", "2000m").strip(),
-            k8s_memory_limit=os.environ.get("STRIX_K8S_MEMORY_LIMIT", "2Gi").strip(),
-            k8s_cpu_request=os.environ.get("STRIX_K8S_CPU_REQUEST", "1000m").strip(),
-            k8s_memory_request=os.environ.get("STRIX_K8S_MEMORY_REQUEST", "1Gi").strip(),
-            k8s_db_secret=os.environ.get("STRIX_K8S_DB_SECRET", "strix-secrets").strip(),
-            k8s_scope_configmap=os.environ.get("STRIX_K8S_SCOPE_CM", "strix-scope").strip(),
-            k8s_network_policy=os.environ.get("STRIX_K8S_NETPOL", "true").strip().lower()
             in {"1", "true", "yes"},
             # SAML Configuration
             saml_entity_id=os.environ.get("STRIX_SAML_ENTITY_ID", "").strip(),

@@ -1,0 +1,267 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Benchmark scenario to run'
+        type: choice
+        required: true
+        default: 'smoke'
+        options:
+          - smoke
+          - load
+          - stress
+          - soak
+          - spike
+          - all
+      base_url:
+        description: 'Target API base URL (default: deployed staging)'
+        type: string
+        required: false
+        default: ''
+      api_key:
+        description: 'API key for authenticated endpoints (use secret in production)'
+        type: string
+        required: false
+        default: ''
+      tenant_id:
+        description: 'Tenant ID for multi-tenant testing'
+        type: string
+        required: false
+        default: 'benchmark-tenant'
+      artifact_retention_days:
+        description: 'Days to retain benchmark artifacts'
+        type: string
+        required: false
+        default: '30'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: benchmark-${{ github.ref }}-${{ github.event.inputs.scenario }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  benchmark:
+    name: Run Benchmark (${{ github.event.inputs.scenario }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            constraints.txt
+            pyproject.toml
+
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg2 curl
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
+
+      - name: Install Strix dependencies
+        run: |
+          pip install -e ".[dev]" -c constraints.txt
+
+      - name: Start Strix API (if no external URL provided)
+        if: ${{ github.event.inputs.base_url == '' }}
+        id: strix
+        run: |
+          API_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+          AUDIT_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+
+          DB_DIR=$(mktemp -d)
+          DB_PATH="$DB_DIR/strix.db"
+
+          STRIX_API_KEY="$API_KEY" \
+          STRIX_AUDIT_HMAC_KEY="$AUDIT_KEY" \
+          STRIX_DB="$DB_PATH" \
+          STRIX_SCOPE_FILE="${{ github.workspace }}/scope.example.json" \
+          STRIX_LOG_LEVEL="WARNING" \
+          STRIX_REDIS_REQUIRED="0" \
+          STRIX_WORKERS="1" \
+          python -m uvicorn strix.api.app:create_app --factory --host 127.0.0.1 --port 8000 --log-level warning &
+
+          STRIX_PID=$!
+          echo "strix_pid=$STRIX_PID" >> $GITHUB_OUTPUT
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
+          echo "db_dir=$DB_DIR" >> $GITHUB_OUTPUT
+
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8000/api/health > /dev/null; then
+              echo "Strix API is healthy"
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -sf http://127.0.0.1:8000/api/ready | grep -q '"ready":true'; then
+            echo "Strix API not ready"
+            kill $STRIX_PID
+            exit 1
+          fi
+
+          echo "BASE_URL=http://127.0.0.1:8000" >> $GITHUB_ENV
+          echo "STRIX_API_KEY=$API_KEY" >> $GITHUB_ENV
+
+      - name: Use provided base URL
+        if: ${{ github.event.inputs.base_url != '' }}
+        run: |
+          echo "BASE_URL=${{ github.event.inputs.base_url }}" >> $GITHUB_ENV
+          echo "STRIX_API_KEY=${{ github.event.inputs.api_key }}" >> $GITHUB_ENV
+
+      - name: Run benchmark
+        id: benchmark
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+          STRIX_API_KEY: ${{ env.STRIX_API_KEY }}
+          TENANT_ID: ${{ github.event.inputs.tenant_id }}
+        run: |
+          python scripts/benchmark.py \
+            --scenario "${{ github.event.inputs.scenario }}" \
+            --base-url "$BASE_URL" \
+            --api-key "$STRIX_API_KEY" \
+            --tenant-id "$TENANT_ID" \
+            --output benchmark-results.json \
+            --k6-script scripts/benchmark.js
+
+      - name: Upload benchmark results (JSON)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-${{ github.event.inputs.scenario }}
+          path: |
+            benchmark-results.json
+            benchmark-results.md
+          retention-days: ${{ github.event.inputs.artifact_retention_days }}
+
+      - name: Upload k6 raw output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-raw-output-${{ github.event.inputs.scenario }}
+          path: |
+            *.summary.json
+          retention-days: ${{ github.event.inputs.artifact_retention_days }}
+
+      - name: Stop Strix API (if started locally)
+        if: ${{ github.event.inputs.base_url == '' && steps.strix.outputs.strix_pid != '' }}
+        run: |
+          kill ${{ steps.strix.outputs.strix_pid }} 2>/dev/null || true
+          rm -rf ${{ steps.strix.outputs.db_dir }}
+
+      - name: Check thresholds and fail if needed
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+
+          with open('benchmark-results.json') as f:
+              data = json.load(f)
+
+          thresholds = {
+              'smoke': {'p95': 500, 'p99': 1000, 'error_rate': 0.01},
+              'load': {'p95': 2000, 'p99': 5000, 'error_rate': 0.01},
+              'stress': {'p95': 5000, 'p99': 10000, 'error_rate': 0.01},
+              'soak': {'p95': 2000, 'p99': 5000, 'error_rate': 0.01},
+              'spike': {'p95': 10000, 'p99': 15000, 'error_rate': 0.01},
+          }
+
+          # A skipped scenario is not a pass; it must be explicit in the log.
+          failed = False
+          for scenario, result in data.get('scenarios', {}).items():
+              if 'error' in result:
+                  print(f"{scenario}: SKIPPED ({result['error']})")
+                  continue
+
+              limit = thresholds.get(scenario, {})
+              p95 = result.get('p95_duration', float('inf'))
+              p99 = result.get('p99_duration', float('inf'))
+              error_rate = result.get('error_rate', 1.0)
+
+              passed = (
+                  p95 <= limit.get('p95', float('inf'))
+                  and p99 <= limit.get('p99', float('inf'))
+                  and error_rate <= limit.get('error_rate', 0.0)
+              )
+              print(f"{scenario}: {'PASS' if passed else 'FAIL'} (p95={p95:.0f}ms, p99={p99:.0f}ms, error_rate={error_rate*100:.2f}%)")
+              failed = failed or not passed
+
+          if failed:
+              print('::error::One or more scenarios failed threshold checks')
+              sys.exit(1)
+          print('All scenarios passed threshold checks')
+          sys.exit(0)
+          PY
+
+      - name: Comment on PR with results
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.scenario != 'all'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('benchmark-results.json', 'utf8'));
+
+            let body = '## 📊 Benchmark Results\n\n';
+            body += `**Scenario**: ${{ github.event.inputs.scenario }}\n`;
+            body += `**Base URL**: ${{ env.BASE_URL }}\n\n`;
+
+            for (const [scenario, data] of Object.entries(results.scenarios)) {
+              if ('error' in data) {
+                body += `### ${scenario.toUpperCase()}\n`;
+                body += `❌ **SKIPPED**: ${data.error}\n\n`;
+                continue;
+              }
+
+              body += `### ${scenario.toUpperCase()}\n`;
+              body += `- **VUs (max)**: ${data.vus || 'N/A'}\n`;
+              body += `- **Iterations**: ${data.iterations || 'N/A'}\n`;
+              body += `- **Avg Duration**: ${(data.avg_duration || 0).toFixed(2)} ms\n`;
+              body += `- **P95 Duration**: ${(data.p95_duration || 0).toFixed(2)} ms\n`;
+              body += `- **P99 Duration**: ${(data.p99_duration || 0).toFixed(2)} ms\n`;
+              body += `- **Error Rate**: ${((data.error_rate || 0) * 100).toFixed(2)}%\n\n`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c => c.user.type === 'Bot' && c.body.includes('Benchmark Results'));
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

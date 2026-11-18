@@ -34,9 +34,7 @@ def checked_destination(target: str) -> Destination:
         # If target doesn't match, fall through to normal resolution
     denial, reason, destination = scope_destination(target)
     if denial or destination is None:
-        raise AdapterError(
-            f"scope refused {target}: {reason or 'destination unavailable'}"
-        )
+        raise AdapterError(f"scope refused {target}: {reason or 'destination unavailable'}")
     return destination
 
 

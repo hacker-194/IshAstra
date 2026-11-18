@@ -1,0 +1,343 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "strix.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-rule
+    release: {{ .Release.Name }}
+  annotations:
+    {{- include "strix.annotations" . | nindent 4 }}
+spec:
+  groups:
+    - name: strix.rules
+      interval: 30s
+      rules:
+        # Queue backlog alerts
+        - alert: StrixQueueBacklogHigh
+          expr: |
+            (
+              sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+              -
+              sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            ) > 50
+          for: 5m
+          labels:
+            severity: warning
+            component: queue
+          annotations:
+            summary: '{{ printf "High queue backlog for tenant %s" "{{ $labels.tenant }}" }}'
+            description: '{{ printf "Tenant %s has %s jobs queued but not completed/failed/cancelled in the last 5 minutes.\nThis indicates the assessment workers cannot keep up with the submission rate." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+
+        - alert: StrixQueueBacklogCritical
+          expr: |
+            (
+              sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+              -
+              sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            ) > 200
+          for: 2m
+          labels:
+            severity: critical
+            component: queue
+          annotations:
+            summary: '{{ printf "Critical queue backlog for tenant %s" "{{ $labels.tenant }}" }}'
+            description: '{{ printf "Tenant %s has %s jobs queued but not completed/failed/cancelled in the last 5 minutes.\nImmediate action required: scale workers or investigate worker failures." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+
+        # Job latency alerts
+        - alert: StrixJobLatencyHigh
+          expr: |
+            histogram_quantile(0.95, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 300
+          for: 5m
+          labels:
+            severity: warning
+            component: jobs
+          annotations:
+            summary: '{{ printf "High job latency for tenant %s" "{{ $labels.tenant }}" }}'
+            description: '{{ printf "95th percentile job duration for tenant %s is %s seconds.\nJobs are taking too long to complete. Check adapter timeouts and worker resources." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+
+        - alert: StrixJobLatencyCritical
+          expr: |
+            histogram_quantile(0.99, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 1800
+          for: 2m
+          labels:
+            severity: critical
+            component: jobs
+          annotations:
+            summary: '{{ printf "Critical job latency for tenant %s" "{{ $labels.tenant }}" }}'
+            description: '{{ printf "99th percentile job duration for tenant %s is %s seconds.\nJobs are hitting the hard timeout. Investigate immediately." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+
+        # Adapter success rate alerts
+        - alert: StrixAdapterSuccessRateLow
+          expr: |
+            1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+            component: adapters
+          annotations:
+            summary: '{{ printf "Low adapter success rate for %s" "{{ $labels.adapter }}" }}'
+            description: '{{ printf "Adapter %s success rate is %s (below 95%%).\nCheck adapter logs for errors and external tool availability." "{{ $labels.adapter }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+
+        - alert: StrixAdapterSuccessRateCritical
+          expr: |
+            1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.90
+          for: 2m
+          labels:
+            severity: critical
+            component: adapters
+          annotations:
+            summary: '{{ printf "Critical adapter success rate for %s" "{{ $labels.adapter }}" }}'
+            description: '{{ printf "Adapter %s success rate is %s (below 90%%).\nImmediate investigation required." "{{ $labels.adapter }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+
+        # Authentication failure alerts
+        - alert: StrixAuthFailureRateHigh
+          expr: |
+            sum(rate(strix_auth_failures_total[5m])) by (reason) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: auth
+          annotations:
+            summary: '{{ printf "High authentication failure rate (%s)" "{{ $labels.reason }}" }}'
+            description: '{{ printf "Authentication failures for reason %s at %s/s.\nPossible brute-force attack or misconfigured clients." "{{ $labels.reason }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+
+        - alert: StrixAuthFailureBurst
+          expr: |
+            sum(increase(strix_auth_failures_total[1m])) > 50
+          for: 1m
+          labels:
+            severity: critical
+            component: auth
+          annotations:
+            summary: "Authentication failure burst detected"
+            description: '{{ printf "%s authentication failures in the last minute.\nLikely brute-force attack or credential stuffing." "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+
+        # Audit chain alerts
+        - alert: StrixAuditChainVerificationFailed
+          expr: |
+            strix_audit_chain_verified == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: audit
+          annotations:
+            summary: "Audit chain verification failed"
+            description: '{{ printf "The audit chain verification check failed at startup or during runtime.\nThis indicates potential tampering with the audit log.\nInvestigate immediately - this is a security incident." }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+
+        - alert: StrixAuditChainLengthAnomaly
+          expr: |
+            rate(strix_audit_chain_length[5m]) < 0
+          for: 5m
+          labels:
+            severity: warning
+            component: audit
+          annotations:
+            summary: "Audit chain length decreased"
+            description: '{{ printf "The audit chain length has decreased, which should never happen.\nThis indicates potential data loss or tampering." }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+
+        # HTTP error rate alerts
+        - alert: StrixHTTP5xxRateHigh
+          expr: |
+            sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            component: api
+          annotations:
+            summary: '{{ printf "High 5xx error rate on endpoint %s" "{{ $labels.endpoint }}" }}'
+            description: '{{ printf "Endpoint %s has a 5xx error rate of %s (above 5%%).\nCheck application logs for internal server errors." "{{ $labels.endpoint }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+
+        - alert: StrixHTTP5xxRateCritical
+          expr: |
+            sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.20
+          for: 2m
+          labels:
+            severity: critical
+            component: api
+          annotations:
+            summary: '{{ printf "Critical 5xx error rate on endpoint %s" "{{ $labels.endpoint }}" }}'
+            description: '{{ printf "Endpoint %s has a 5xx error rate of %s (above 20%%).\nService degradation likely. Immediate investigation required." "{{ $labels.endpoint }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+
+        # Rate limit alerts
+        - alert: StrixRateLimitExceededHigh
+          expr: |
+            sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier) > 100
+          for: 5m
+          labels:
+            severity: warning
+            component: ratelimit
+          annotations:
+            summary: '{{ printf "High rate limit exceeded rate for %s (%s)" "{{ $labels.route_class }}" "{{ $labels.tier }}" }}'
+            description: '{{ printf "Rate limit exceeded %s/s for route class %s tier %s.\nConsider adjusting rate limits or investigating abusive clients." "{{ $value | printf \"%.2f\" }}" "{{ $labels.route_class }}" "{{ $labels.tier }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/rate-limiting.md"
+
+        # Database pool alerts
+        - alert: StrixDBPoolExhausted
+          expr: |
+            strix_db_pool_available / strix_db_pool_size < 0.1
+          for: 5m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "Database connection pool nearly exhausted"
+            description: '{{ printf "Database pool has only %s%% available connections.\nCheck for connection leaks or increase pool size." "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+
+        - alert: StrixDBPoolAcquireSlow
+          expr: |
+            histogram_quantile(0.95, sum(rate(strix_db_pool_acquire_seconds_bucket[5m])) by (le)) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            component: database
+          annotations:
+            summary: "Slow database pool acquire time"
+            description: '{{ printf "95th percentile database pool acquire time is %s seconds.\nPool may be undersized or database is overloaded." "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+
+        # Disk pressure alerts (via node_exporter)
+        - alert: StrixDiskSpaceCritical
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+          for: 5m
+          labels:
+            severity: critical
+            component: disk
+          annotations:
+            summary: "Critical disk space on Strix host"
+            description: '{{ printf "Root filesystem has less than 5%% free space (%s%%).\nImmediate cleanup or volume expansion required." "{{ $value | printf \"%.1f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+
+        - alert: StrixDiskSpaceWarning
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+          for: 10m
+          labels:
+            severity: warning
+            component: disk
+          annotations:
+            summary: "Low disk space on Strix host"
+            description: '{{ printf "Root filesystem has less than 15%% free space (%s%%).\nPlan for cleanup or volume expansion." "{{ $value | printf \"%.1f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+
+        # Webhook failure alerts
+        - alert: StrixWebhookFailureRateHigh
+          expr: |
+            sum(rate(strix_webhook_failures_total[5m])) by (error_type) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: webhooks
+          annotations:
+            summary: '{{ printf "High webhook failure rate (%s)" "{{ $labels.error_type }}" }}'
+            description: '{{ printf "Webhook delivery failures for error type %s at %s/s.\nCheck webhook endpoint availability and network connectivity." "{{ $labels.error_type }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/webhook-failures.md"
+
+        # Findings volume alerts
+        - alert: StrixFindingsVolumeAnomaly
+          expr: |
+            sum(rate(strix_findings_total[5m])) by (tenant) > 100
+          for: 5m
+          labels:
+            severity: info
+            component: findings
+          annotations:
+            summary: '{{ printf "Unusual findings volume for tenant %s" "{{ $labels.tenant }}" }}'
+            description: '{{ printf "Tenant %s is generating %s findings/s.\nThis may indicate a misconfigured scan or a target with many issues." "{{ $labels.tenant }}" "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/findings-volume.md"
+
+        {{- $fullname := include "strix.fullname" . -}}
+        # Service health alerts
+        - alert: StrixServiceDown
+          expr: |
+            up{job="{{ $fullname }}-api"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: service
+          annotations:
+            summary: "Strix API service is down"
+            description: '{{ printf "The Strix API service has been down for more than 1 minute.\nCheck service logs and container health." }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/service-down.md"
+
+        # New: API availability SLI alerts
+        - alert: StrixAPIAvailabilityLow
+          expr: |
+            sum(rate(strix_http_requests_total{status!~"5.."}[5m])) / sum(rate(strix_http_requests_total[5m])) < 0.999
+          for: 5m
+          labels:
+            severity: critical
+            component: sli
+          annotations:
+            summary: "API availability below 99.9% (SLI breach)"
+            description: '{{ printf "API availability is %s (below 99.9%% SLO).\nThis breaches the availability SLI." "{{ $value | printf \"%.4f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/api-availability.md"
+
+        # New: Job completion SLI alerts
+        - alert: StrixJobCompletionRateLow
+          expr: |
+            sum(rate(strix_jobs_total{state="completed"}[5m])) / sum(rate(strix_jobs_total{state=~"completed|failed"}[5m])) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+            component: sli
+          annotations:
+            summary: "Job completion rate below 95% (SLI breach)"
+            description: '{{ printf "Job completion rate is %s (below 95%% SLO).\nThis breaches the job completion SLI." "{{ $value | printf \"%.4f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-completion.md"
+
+        # New: p99 latency SLI alert
+        - alert: StrixP99LatencyHigh
+          expr: |
+            histogram_quantile(0.99, sum(rate(strix_http_request_duration_seconds_bucket[5m])) by (le)) > 5
+          for: 5m
+          labels:
+            severity: warning
+            component: sli
+          annotations:
+            summary: "API p99 latency above 5s (SLI breach)"
+            description: '{{ printf "API p99 latency is %ss (above 5s SLO).\nThis breaches the latency SLI." "{{ $value | printf \"%.2f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/latency.md"
+
+        # New: Critical findings alert
+        - alert: StrixCriticalFindingsNew
+          expr: |
+            increase(strix_findings_total{severity="critical"}[1h]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            component: findings
+          annotations:
+            summary: "New critical findings detected"
+            description: '{{ printf "%s new critical severity findings in the last hour.\nReview findings immediately." "{{ $value | printf \"%.0f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/critical-findings.md"
+
+        # New: Compliance score drop
+        - alert: StrixComplianceScoreDrop
+          expr: |
+            (strix_compliance_score / strix_compliance_max_score) < 0.8
+          for: 15m
+          labels:
+            severity: warning
+            component: compliance
+          annotations:
+            summary: "Compliance score dropped below 80%"
+            description: '{{ printf "Compliance score is %s%% (below 80%% threshold).\nReview recent assessments and findings." "{{ $value | printf \"%.1f\" }}" }}'
+            runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/compliance-score.md"
+{{- end }}

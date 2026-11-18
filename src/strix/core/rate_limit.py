@@ -54,6 +54,7 @@ return {allowed, rate, retry_after}
 
 # Lua script for getting current bucket state without consuming
 
+
 class RedisTokenBucket:
     """Redis-backed token bucket rate limiter for multi-worker deployments.
 
@@ -146,10 +147,34 @@ class RedisTokenBucket:
 
 
 # One source of truth for both the Redis and in-memory test limiter.
-TIER_RATE_LIMITS = {"free": (5, 60.0), "pro": (60, 60.0), "enterprise": (300, 60.0)}
-ASSESS_RATE_LIMITS = {"free": (5, 60.0), "pro": (20, 60.0), "enterprise": (60, 60.0)}
+# Keys must cover both vocabularies: API keys use free/pro/enterprise
+# (strix.api.security.TIER_ORDER), while organizations use
+# standard/elevated/unlimited. A tier missing here previously raised KeyError
+# on every authenticated request from a fresh install (bootstrap key = free).
+TIER_RATE_LIMITS = {
+    "free": (5, 60.0),
+    "pro": (60, 60.0),
+    "enterprise": (300, 60.0),
+    "standard": (5, 60.0),
+    "elevated": (60, 60.0),
+    "unlimited": (300, 60.0),
+}
+ASSESS_RATE_LIMITS = {
+    "free": (5, 60.0),
+    "pro": (20, 60.0),
+    "enterprise": (60, 60.0),
+    "standard": (5, 60.0),
+    "elevated": (20, 60.0),
+    "unlimited": (60, 60.0),
+}
 AUTH_RATE_LIMIT = (10, 60.0)
 ANONYMOUS_RATE_LIMIT = (120, 60.0)
+
+# Dedicated stricter rate limits for sensitive operations
+# These are per-IP and more restrictive than general auth limits
+KEY_CREATE_RATE_LIMIT = (5, 300.0)  # 5 requests per 5 minutes per IP
+KEY_ROTATE_RATE_LIMIT = (3, 300.0)  # 3 requests per 5 minutes per IP
+USER_CREATE_RATE_LIMIT = (10, 300.0)  # 10 requests per 5 minutes per IP
 
 
 class DistributedRateLimiter:
@@ -164,8 +189,8 @@ class DistributedRateLimiter:
         if route_class == "auth":
             return AUTH_RATE_LIMIT
         if route_class == "assessment":
-            return ASSESS_RATE_LIMITS.get(tier, ASSESS_RATE_LIMITS["free"])
-        return TIER_RATE_LIMITS.get(tier, TIER_RATE_LIMITS["free"])
+            return ASSESS_RATE_LIMITS.get(tier, ASSESS_RATE_LIMITS["standard"])
+        return TIER_RATE_LIMITS.get(tier, TIER_RATE_LIMITS["standard"])
 
     async def allow(
         self,
@@ -191,5 +216,3 @@ async def get_distributed_rate_limiter() -> DistributedRateLimiter:
         redis_client = await get_redis()
         _rate_limiter = DistributedRateLimiter(redis_client)
     return _rate_limiter
-
-

@@ -87,9 +87,7 @@ def _unb64(text: str) -> bytes:
 
 def canonical(value: Any) -> bytes:
     """The exact bytes that get signed: sorted keys, no whitespace."""
-    return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode()
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def digest(value: Any) -> str:
@@ -128,9 +126,7 @@ def sign(payload: Any, private_key: str) -> str:
 
 def verify_signature(payload: Any, signature: str, public: str) -> bool:
     try:
-        Ed25519PublicKey.from_public_bytes(_unb64(public)).verify(
-            _unb64(signature), canonical(payload)
-        )
+        Ed25519PublicKey.from_public_bytes(_unb64(public)).verify(_unb64(signature), canonical(payload))
         return True
     except (InvalidSignature, ValueError, TypeError):
         return False
@@ -155,9 +151,7 @@ def load_private_key(path: str | Path) -> str:
 def load_public_key(path: str | Path) -> str:
     text = Path(path).expanduser().read_text().strip()
     if text.startswith(PRIVATE_KEY_PREFIX):
-        raise ProofError(
-            f"{path} holds a private key; pass the matching public key instead "
-        )
+        raise ProofError(f"{path} holds a private key; pass the matching public key instead ")
     try:
         Ed25519PublicKey.from_public_bytes(_unb64(text))
     except (ValueError, TypeError) as exc:
@@ -247,9 +241,7 @@ class Grant:
                 f"are: {', '.join(sorted(_GRANT_FIELDS))}, signature"
             )
         if data.get("version") != VERSION:
-            raise ProofError(
-                f"unsupported grant version {data.get('version')!r} (expected {VERSION})"
-            )
+            raise ProofError(f"unsupported grant version {data.get('version')!r} (expected {VERSION})")
         try:
             signature = data["signature"]
             include = data["include"]
@@ -265,9 +257,7 @@ class Grant:
                 authorization_ref=str(data["authorization_ref"]),
                 include=tuple(str(host) for host in include),
                 exclude=tuple(str(host) for host in data.get("exclude", [])),
-                authorized_networks=tuple(
-                    str(net) for net in data.get("authorized_networks", [])
-                ),
+                authorized_networks=tuple(str(net) for net in data.get("authorized_networks", [])),
                 allowed_ports=tuple(int(port) for port in data.get("allowed_ports", [])),
                 allow_broad_networks=bool(data.get("allow_broad_networks", False)),
                 not_before=float(data["not_before"]),
@@ -282,13 +272,9 @@ class Grant:
         """Sign the grant, making this key the issuer. Validates scope first."""
         self.to_scope()
         body = replace(self, issuer=public_key(private_key)).body()
-        return replace(
-            self, issuer=body["issuer"], signature=sign(body, private_key)
-        )
+        return replace(self, issuer=body["issuer"], signature=sign(body, private_key))
 
-    def verify(
-        self, *, trusted_issuer: str | None = None, now: float | None = None
-    ) -> tuple[bool, str]:
+    def verify(self, *, trusted_issuer: str | None = None, now: float | None = None) -> tuple[bool, str]:
         """(True, '') when the grant is intact, in scope shape and current."""
         if not self.signature:
             return False, "grant is not signed"
@@ -459,10 +445,7 @@ def _verify_chain(receipts: list[Receipt], gate_public_key: str) -> str:
     expected_previous, expected_seq = GENESIS, 1
     for receipt in receipts:
         if receipt.seq != expected_seq:
-            return (
-                f"receipt sequence broken: expected {expected_seq}, "
-                f"found {receipt.seq}"
-            )
+            return f"receipt sequence broken: expected {expected_seq}, found {receipt.seq}"
         if receipt.previous != expected_previous:
             return f"receipt {receipt.seq} does not commit to the previous receipt"
         if digest(receipt.body()) != receipt.hash:
@@ -476,9 +459,7 @@ def _verify_chain(receipts: list[Receipt], gate_public_key: str) -> str:
 class Ledger:
     """The gate's receipt log: in memory, optionally appended to JSONL."""
 
-    def __init__(
-        self, *, signing_key: str = "", actor: str = "", path: str | Path | None = None
-    ) -> None:
+    def __init__(self, *, signing_key: str = "", actor: str = "", path: str | Path | None = None) -> None:
         self._key = signing_key
         self.actor = actor
         self.path = Path(path).expanduser() if path else None
@@ -509,11 +490,7 @@ class Ledger:
     def _load(self) -> None:
         assert self.path is not None
         try:
-            rows = [
-                json.loads(line)
-                for line in self.path.read_text().splitlines()
-                if line.strip()
-            ]
+            rows = [json.loads(line) for line in self.path.read_text().splitlines() if line.strip()]
         except json.JSONDecodeError as exc:
             raise ProofError(f"{self.path} is not valid JSONL: {exc}") from None
         if not rows or rows[0].get("type") != LEDGER_TYPE:
@@ -530,8 +507,7 @@ class Ledger:
                 or self.header.get("grant_digest") != grant_digest
             ):
                 raise ProofError(
-                    f"ledger {self.path} belongs to grant "
-                    f"{self.header.get('grant_id')}, not {grant.grant_id}"
+                    f"ledger {self.path} belongs to grant {self.header.get('grant_id')}, not {grant.grant_id}"
                 )
             if self.gate_public_key != self.header.get("gate_public_key"):
                 raise ProofError(
@@ -635,9 +611,7 @@ class Gate:
     def ledger(self) -> Ledger:
         return self._ledger
 
-    def authorize(
-        self, url: str, method: str = "GET", *, now: float | None = None
-    ) -> Receipt:
+    def authorize(self, url: str, method: str = "GET", *, now: float | None = None) -> Receipt:
         """Decide one action and receipt it. Never raises for a denied action."""
         active, reason = self.grant.is_active(now)
         if not active:
@@ -738,9 +712,7 @@ def verify_pack(
             "summary": summary,
         }
     if pack.get("version") != VERSION:
-        errors.append(
-            f"unsupported proof version {pack.get('version')!r} (expected {VERSION})"
-        )
+        errors.append(f"unsupported proof version {pack.get('version')!r} (expected {VERSION})")
     try:
         grant = Grant.from_dict(pack.get("grant"))
     except ProofError as exc:
@@ -770,9 +742,7 @@ def verify_pack(
     # 2. The gate that took the decisions.
     gate = pack.get("gate") or {}
     gate_key = str(gate.get("public_key", ""))
-    checks["gate_key"] = bool(gate_key) and (
-        not trusted_gate or gate_key == trusted_gate
-    )
+    checks["gate_key"] = bool(gate_key) and (not trusted_gate or gate_key == trusted_gate)
     if trusted_gate and gate_key != trusted_gate:
         errors.append(
             f"proof gate key {fingerprint(gate_key) if gate_key else '(missing)'} "
@@ -801,9 +771,7 @@ def verify_pack(
     scope_errors = 0
     for receipt in receipts:
         if receipt.grant_id != grant.grant_id:
-            errors.append(
-                f"receipt {receipt.seq} cites grant {receipt.grant_id}, not {grant.grant_id}"
-            )
+            errors.append(f"receipt {receipt.seq} cites grant {receipt.grant_id}, not {grant.grant_id}")
             scope_errors += 1
         if receipt.grant_digest != grant_digest:
             errors.append(f"receipt {receipt.seq} cites a different grant document")
@@ -813,8 +781,7 @@ def verify_pack(
             denial, why = scope.gate(receipt.url)
             if denial:
                 errors.append(
-                    f"receipt {receipt.seq} allowed {receipt.url!r}, which the grant "
-                    f"does not cover: {why}"
+                    f"receipt {receipt.seq} allowed {receipt.url!r}, which the grant does not cover: {why}"
                 )
                 scope_errors += 1
             if not grant.not_before <= receipt.timestamp < grant.not_after:
@@ -827,10 +794,7 @@ def verify_pack(
         elif receipt.decision == "deny":
             denied += 1
         else:
-            errors.append(
-                f"receipt {receipt.seq} has decision {receipt.decision!r} "
-                "(expected allow or deny)"
-            )
+            errors.append(f"receipt {receipt.seq} has decision {receipt.decision!r} (expected allow or deny)")
             scope_errors += 1
     checks["scope_compliance"] = scope_errors == 0
 
@@ -919,9 +883,7 @@ def serve(
             if self.path == "/v1/grant":
                 return self._send(200, grant.to_dict())
             if self.path == "/v1/receipts":
-                return self._send(
-                    200, {"receipts": [r.to_dict() for r in gate.ledger.receipts]}
-                )
+                return self._send(200, {"receipts": [r.to_dict() for r in gate.ledger.receipts]})
             if self.path == "/v1/proof":
                 return self._send(200, build_pack(grant, gate.ledger))
             return self._send(404, {"error": "not found"})
@@ -940,9 +902,7 @@ def serve(
                 return self._send(400, {"error": "body must be JSON"})
             if not isinstance(payload, dict) or not isinstance(payload.get("url"), str):
                 return self._send(400, {"error": 'body must be {"url": "https://..."}'})
-            receipt = gate.authorize(
-                payload["url"], str(payload.get("method") or "GET").upper()
-            )
+            receipt = gate.authorize(payload["url"], str(payload.get("method") or "GET").upper())
             return self._send(
                 200 if receipt.decision == "allow" else 403,
                 {

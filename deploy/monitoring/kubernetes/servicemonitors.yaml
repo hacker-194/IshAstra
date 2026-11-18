@@ -1,0 +1,482 @@
+# Kubernetes ServiceMonitors for Prometheus Operator
+# Apply with: kubectl apply -f servicemonitors.yaml
+# Requires Prometheus Operator CRDs installed
+
+---
+# Namespace for monitoring stack
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: strix-observability
+
+---
+# ServiceMonitor for Strix API
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: strix-api
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-api
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: api
+  endpoints:
+    - port: http
+      path: /api/metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-api.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# ServiceMonitor for Strix Scheduler
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: strix-scheduler
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-scheduler
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: scheduler
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-scheduler.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# ServiceMonitor for Strix Worker
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: strix-worker
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-worker
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: worker
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-worker.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# ServiceMonitor for Redis (requires redis_exporter sidecar or Redis 7.2+ with metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  endpoints:
+    - port: redis
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# ServiceMonitor for Nginx (if using nginx-prometheus-exporter sidecar)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nginx
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: nginx
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+      component: proxy
+  endpoints:
+    - port: metrics
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# ServiceMonitor for Node Exporter (if deployed as DaemonSet in monitoring namespace)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: node-exporter
+    app.kubernetes.io/name: node-exporter
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# ServiceMonitor for Kube-State-Metrics (if deployed)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: kube-state-metrics
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: kube-state-metrics
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# ServiceMonitor for cAdvisor (if deployed as DaemonSet)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cadvisor
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: cadvisor
+    app.kubernetes.io/name: cadvisor
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: service-monitor
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodMonitor for Strix API (alternative to ServiceMonitor if not using Service)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: strix-api-pod
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-api
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: pod-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: api
+  podMetricsEndpoints:
+    - port: http
+      path: /api/metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-api.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# PodMonitor for Strix Scheduler
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: strix-scheduler-pod
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-scheduler
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: pod-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: scheduler
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-scheduler.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# PodMonitor for Strix Worker
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: strix-worker-pod
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: strix
+    app.kubernetes.io/name: strix-worker
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: pod-monitor
+spec:
+  selector:
+    matchLabels:
+      app: strix
+      component: worker
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: strix-worker.strix.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# PodMonitor for Nginx (if metrics exposed on pod directly)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: nginx-pod
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: nginx
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: pod-monitor
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+      component: proxy
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+  namespaceSelector:
+    matchNames:
+      - strix
+
+---
+# PodMonitor for Redis Exporter (if deployed as sidecar)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: redis-exporter-pod
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: redis
+    app.kubernetes.io/name: redis-exporter
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: pod-monitor
+spec:
+  selector:
+    matchLabels:
+      app: redis
+      component: exporter
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+  namespaceSelector:
+    matchNames:
+      - strix

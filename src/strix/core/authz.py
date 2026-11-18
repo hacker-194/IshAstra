@@ -17,7 +17,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl
 
 from strix.core.urls import parse_url
 
@@ -65,9 +65,7 @@ class Principal:
 
     def __post_init__(self) -> None:
         if not _PRINCIPAL_ID.fullmatch(self.id):
-            raise ValueError(
-                f"principal id {self.id!r} must match {_PRINCIPAL_ID.pattern}"
-            )
+            raise ValueError(f"principal id {self.id!r} must match {_PRINCIPAL_ID.pattern}")
         for name, value in self.cookies:
             if not _COOKIE_NAME.fullmatch(name):
                 raise ValueError(f"cookie name {name!r} is not a valid cookie name")
@@ -133,9 +131,7 @@ class AuthConfig:
         return tuple(user.id for user in self.users)
 
 
-def candidate_endpoints(
-    urls: list[str], *, max_endpoints: int = _MAX_ENDPOINTS
-) -> list[str]:
+def candidate_endpoints(urls: list[str], *, max_endpoints: int = _MAX_ENDPOINTS) -> list[str]:
     """URLs that look like object references worth testing for authorization.
 
     A candidate has a numeric path segment (``/api/orders/1001``) or an
@@ -154,11 +150,7 @@ def candidate_endpoints(
                 break
         if not is_candidate and parsed.query:
             for name, value in parse_qsl(parsed.query, keep_blank_values=True):
-                if (
-                    _ID_PARAM.fullmatch(name)
-                    and value.isdigit()
-                    and name.lower() not in _NON_OBJECT_PARAMS
-                ):
+                if _ID_PARAM.fullmatch(name) and value.isdigit() and name.lower() not in _NON_OBJECT_PARAMS:
                     is_candidate = True
                     break
         if is_candidate:
@@ -173,36 +165,6 @@ def body_digest(body: str) -> str:
     return hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()[:16]
 
 
-def vary_id(url: str, replacement: str) -> str | None:
-    """The same endpoint with its object identifier replaced (canary probing)."""
-    parsed = parse_url(url)
-    if parsed is None:
-        return None
-    new_path = parsed.path
-    replaced = False
-    segments = parsed.path.split("/")
-    for index, segment in enumerate(segments):
-        if segment.isdigit() and len(segment) <= 12:
-            segments[index] = replacement.strip("/")
-            replaced = True
-            break
-    if replaced:
-        new_path = "/".join(segments)
-    params = parse_qsl(parsed.query, keep_blank_values=True)
-    new_params: list[tuple[str, str]] = []
-    replaced_param = False
-    for name, value in params:
-        if not replaced_param and _ID_PARAM.fullmatch(name) and value.isdigit():
-            new_params.append((name, replacement))
-            replaced_param = True
-        else:
-            new_params.append((name, value))
-    if not replaced and not replaced_param:
-        return None
-    query = urlencode(new_params) if replaced_param else parsed.query
-    return parsed._replace(path=new_path, query=query).geturl()
-
-
 @dataclass(frozen=True)
 class DifferentialResult:
     endpoint: str
@@ -211,10 +173,7 @@ class DifferentialResult:
     principals_identical: bool = False
 
     def evidence_line(self) -> str:
-        parts = [
-            f"{pid}: HTTP {status} body={digest}"
-            for pid, status, digest in self.responses
-        ]
+        parts = [f"{pid}: HTTP {status} body={digest}" for pid, status, digest in self.responses]
         return "; ".join(parts)
 
 

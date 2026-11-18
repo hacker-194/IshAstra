@@ -1,0 +1,29 @@
+{{- if .Values.scheduler.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "strix.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+  {{- if or .Values.additionalAnnotations .Values.scheduler.service.annotations }}
+  annotations:
+    {{- if .Values.additionalAnnotations }}
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.scheduler.service.annotations }}
+    {{- toYaml .Values.scheduler.service.annotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.scheduler.service.type }}
+  ports:
+    - port: {{ .Values.scheduler.service.port }}
+      targetPort: {{ .Values.scheduler.service.targetPort }}
+      protocol: TCP
+      name: {{ .Values.scheduler.service.name }}
+  selector:
+    {{- include "strix.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+{{- end }}

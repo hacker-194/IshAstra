@@ -1,0 +1,952 @@
+# Loki Stack (Loki, Promtail) for Log Aggregation
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f loki.yaml
+
+---
+# ServiceAccount for Loki
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: loki
+
+---
+# ServiceAccount for Promtail
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: promtail
+
+---
+# ClusterRole for Promtail (needs to read pods across namespaces)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: promtail
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - namespaces
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: promtail
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+subjects:
+  - kind: ServiceAccount
+    name: promtail
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: promtail
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Secret for Loki configuration (from loki-config.yaml)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loki-config
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  loki.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+      log_level: info
+
+    common:
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: inmemory
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      ingestion_rate_mb: 20
+      ingestion_burst_size_mb: 40
+      per_stream_rate_limit: 10MB
+      per_stream_rate_limit_burst: 20MB
+      max_entries_limit_per_query: 5000
+      max_global_series_per_user: 10000
+      retention_period: 336h  # 14 days
+      # Multi-tenancy limits (if needed)
+      max_streams_per_user: 0
+      max_global_streams_per_user: 0
+
+    compactor:
+      working_directory: /loki/compactor
+      shared_store: filesystem
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+
+    chunk_store_config:
+      max_look_back_period: 336h
+
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 336h
+
+    query_range:
+      results_cache:
+        cache:
+          enable_fifocache: true
+          fifocache:
+            max_size_items: 1024
+            validity: 24h
+
+    ruler:
+      storage:
+        type: local
+        local:
+          directory: /loki/rules
+      rule_path: /loki/rules-temp
+      alertmanager_url: https://alertmanager.monitoring.svc.cluster.local:9093
+      ring:
+        kvstore:
+          store: inmemory
+      enable_api: true
+
+    # Logging
+    log_level: info
+
+    # TLS Configuration for inter-component communication
+    tls:
+      cert_file: /etc/loki/certs/tls.crt
+      key_file: /etc/loki/certs/tls.key
+      client_ca_file: /etc/loki/certs/ca.crt
+      min_version: TLS1.2
+      cipher_suites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+
+---
+# Secret for Promtail configuration (from promtail-config.yaml)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: promtail-config
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+      log_level: info
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: https://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+        batchwait: 1s
+        batchsize: 102400
+        timeout: 10s
+        backoff_config:
+          min_period: 1s
+          max_period: 5m
+          max_retries: 10
+        tls_config:
+          ca_file: /etc/promtail/certs/ca.crt
+          cert_file: /etc/promtail/certs/tls.crt
+          key_file: /etc/promtail/certs/tls.key
+          server_name: loki.monitoring.svc.cluster.local
+
+    scrape_configs:
+      # Strix API application logs
+      - job_name: strix-api
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: strix
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: replace
+            target_label: component
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - docker: {}
+          - regex:
+              expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+          - labels:
+              level:
+              logger:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+
+      # Strix Scheduler logs
+      - job_name: strix-scheduler
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: strix
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: scheduler
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - docker: {}
+          - regex:
+              expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+          - labels:
+              level:
+              logger:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+
+      # Strix Worker logs (Celery workers)
+      - job_name: strix-worker
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: strix
+          - source_labels: [__meta_kubernetes_pod_label_component]
+            action: keep
+            regex: worker
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - docker: {}
+          - regex:
+              expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
+          - labels:
+              level:
+              logger:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+
+      # Nginx access logs
+      - job_name: nginx-access
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: nginx
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<remote_addr>\S+)\s+(?P<remote_user>\S+)\s+(?P<time_local>[^\]]+)\s+"(?P<request>[^"]+)"\s+(?P<status>\d+)\s+(?P<body_bytes_sent>\d+)\s+"(?P<http_referer>[^"]*)"\s+"(?P<http_user_agent>[^"]*)"'
+          - labels:
+              status:
+          - metrics:
+              status:
+                type: Counter
+                description: "Nginx HTTP status codes"
+                source: status
+                config:
+                  action: inc
+
+      # Nginx error logs
+      - job_name: nginx-error
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: nginx
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<timestamp>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?P<level>\w+)\]\s+(?P<pid>\d+)#(?P<tid>\d+):\s+(?P<message>.*)$'
+          - labels:
+              level:
+          - timestamp:
+              source: timestamp
+              format: "2006/01/02 15:04:05"
+
+      # Redis logs
+      - job_name: redis
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - strix
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: redis
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<message>.*)$'
+          - labels:
+              level:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+
+      # System logs (if running on host with systemd)
+      - job_name: systemd-journal
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_name]
+            action: replace
+            target_label: node
+        pipeline_stages:
+          - json:
+              expressions:
+                MESSAGE: message
+                PRIORITY: level
+                _SYSTEMD_UNIT: unit
+          - labels:
+              level:
+              unit:
+          - timestamp:
+              source: __REALTIME_TIMESTAMP
+              format: unix_ms
+
+---
+# TLS Secret for Loki
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loki-tls
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# CA Secret for Loki client verification
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loki-ca
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+data:
+  ca.crt: ""  # Base64 encoded CA cert
+
+---
+# TLS Secret for Promtail
+apiVersion: v1
+kind: Secret
+metadata:
+  name: promtail-tls
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# Loki Deployment (Single binary mode for simplicity, can be split into microservices)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: loki
+spec:
+  serviceName: loki
+  replicas: 1  # Single instance for simplicity; for HA use multiple with different ring configs
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/component: loki
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3100"
+        prometheus.io/path: /metrics
+        prometheus.io/scheme: https
+    spec:
+      serviceAccountName: loki
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: loki
+          image: grafana/loki:2.9.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/loki/loki.yaml
+            - -target=all
+          ports:
+            - containerPort: 3100
+              name: http
+              protocol: TCP
+            - containerPort: 9096
+              name: grpc
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: loki-config
+              mountPath: /etc/loki
+              readOnly: true
+            - name: loki-tls
+              mountPath: /etc/loki/certs
+              readOnly: true
+            - name: loki-data
+              mountPath: /loki
+      volumes:
+        - name: loki-config
+          secret:
+            secretName: loki-config
+        - name: loki-tls
+          secret:
+            secretName: loki-tls
+  volumeClaimTemplates:
+    - metadata:
+        name: loki-data
+        labels:
+          app: loki
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 50Gi
+        storageClassName: fast-ssd
+
+---
+# Service for Loki
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: loki
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 9096
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app: loki
+
+---
+# ServiceMonitor for Loki self-monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: loki
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /etc/prometheus/certs/loki-ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: loki.monitoring.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodDisruptionBudget for Loki
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: loki
+
+---
+# HorizontalPodAutoscaler for Loki
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: loki
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+
+---
+# Promtail DaemonSet (runs on each node to collect logs)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: promtail
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+        app.kubernetes.io/name: promtail
+        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/component: promtail
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9080"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: promtail
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: promtail
+          image: grafana/promtail:2.9.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+            - -client.external-labels=cluster=strix-production
+          ports:
+            - containerPort: 9080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: promtail-config
+              mountPath: /etc/promtail
+              readOnly: true
+            - name: promtail-tls
+              mountPath: /etc/promtail/certs
+              readOnly: true
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: positions
+              mountPath: /tmp
+            - name: run-log-journal
+              mountPath: /run/log/journal
+              readOnly: true
+              subPath: journal
+            - name: var-log-journal
+              mountPath: /var/log/journal
+              readOnly: true
+              subPath: journal
+      volumes:
+        - name: promtail-config
+          secret:
+            secretName: promtail-config
+        - name: promtail-tls
+          secret:
+            secretName: promtail-tls
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: positions
+          emptyDir: {}
+        - name: run-log-journal
+          hostPath:
+            path: /run/log/journal
+        - name: var-log-journal
+          hostPath:
+            path: /var/log/journal
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - operator: "Exists"
+          effect: "NoExecute"
+        - operator: "Exists"
+          effect: "NoSchedule"
+
+---
+# Service for Promtail (for metrics scraping)
+apiVersion: v1
+kind: Service
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: promtail
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: promtail
+
+---
+# ServiceMonitor for Promtail self-monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# NetworkPolicy for Loki
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app: loki
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: loki
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Promtail to push logs
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: promtail
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Allow Grafana to query logs
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: grafana
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 3100
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# NetworkPolicy for Promtail
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app: promtail
+    app.kubernetes.io/name: promtail
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: promtail
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 9080
+  egress:
+    # Allow Promtail to push logs to Loki
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: loki
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

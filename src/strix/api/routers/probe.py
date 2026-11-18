@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import time
-from typing import Any
+from typing import Any, cast
+from urllib.parse import ParseResult
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from strix.api.csrf import validate_csrf_token
 from strix.api.deps import Tenant, require_auth, tenant_scope_async
 from strix.api.schemas import ProbeRequest
 from strix.core import scope
@@ -25,11 +27,43 @@ router = APIRouter(prefix="/api")
 
 @router.post("/probe")
 async def probe_endpoint(
-    req: ProbeRequest, tenant: Tenant = Depends(require_auth)
+    req: ProbeRequest,
+    tenant: Tenant = Depends(require_auth),
+    _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL cannot be empty")
+
+    # Enforce API key's include_hosts restriction (per-project key scope)
+    include_hosts = tenant.get("include_hosts")
+    if include_hosts:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        target_host = parsed.hostname or ""
+        if target_host:
+            target_host = target_host.lower().strip(".")
+            allowed = [h.strip().lower().strip(".") for h in include_hosts.split(",") if h.strip()]
+            # Support wildcard subdomain matching (e.g., "*.example.com")
+            matched = False
+            for pattern in allowed:
+                if pattern.startswith("*."):
+                    # *.example.com covers subdomains only, never the apex
+                    suffix = pattern[1:]
+                    if target_host.endswith(suffix) and target_host != pattern[2:]:
+                        matched = True
+                        break
+                elif target_host == pattern:
+                    matched = True
+                    break
+            if not matched:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Target {target_host} is not within this API key's allowed hosts: {include_hosts}"
+                    ),
+                )
 
     # Managed mode: this probe is judged against the caller's engagement
     # policy, so a tenant cannot probe through someone else's authorization.
@@ -37,9 +71,7 @@ async def probe_endpoint(
     gate = scope.bound(snapshot) if snapshot is not None else contextlib.nullcontext()
     started = time.monotonic()
     with gate:
-        result = EndpointProbe(timeout=req.timeout).probe(
-            url, deadline=started + req.timeout
-        )
+        result = EndpointProbe(timeout=req.timeout).probe(url, deadline=started + req.timeout)
     latency_ms = round((time.monotonic() - started) * 1000, 2)
 
     headers = result.get("headers", {})
@@ -49,9 +81,7 @@ async def probe_endpoint(
     # crossing the API boundary is sanitized, including values nested in
     # response headers/body and error strings which may echo the requested URL.
     score_headers = headers if isinstance(headers, dict) else {}
-    score_security_headers = (
-        security_headers if isinstance(security_headers, dict) else {}
-    )
+    score_security_headers = security_headers if isinstance(security_headers, dict) else {}
     safe_headers = dict(score_headers)
     if "set-cookie" in safe_headers:
         value = safe_headers["set-cookie"]
@@ -73,11 +103,7 @@ async def probe_endpoint(
 
     # Never grade an endpoint that did not return an HTTP response: no response, no score.
     if not isinstance(result.get("status"), int):
-        reason = (
-            result.get("reason")
-            or result.get("error")
-            or "No HTTP response was received"
-        )
+        reason = result.get("reason") or result.get("error") or "No HTTP response was received"
         return {
             **body,
             "security_score": None,
@@ -87,7 +113,9 @@ async def probe_endpoint(
             "reason": redact_text(str(reason)),
         }
 
-    parsed = parse_url(url)
+    parsed = cast("ParseResult", parse_url(url))
+    if parsed is None:
+        parsed = cast("ParseResult", urlparse(url))
     score, grade, deductions = grade_security_headers(
         score_headers,
         score_security_headers,

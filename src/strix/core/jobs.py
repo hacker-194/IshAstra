@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any
 
 import strix.core.adapters as adapter_module
+from strix import metrics
 from strix.core.adapters import (
     AdapterCancelled,
     AdapterError,
@@ -87,6 +88,7 @@ class Job:
     policy: dict[str, Any]
     id: str = field(default_factory=lambda: f"job_{secrets.token_hex(6)}")
     state: JobState = JobState.QUEUED
+    created_at: float = field(default_factory=time.time)
     started_at: float | None = None
     finished_at: float | None = None
     runs: list[AdapterRun] = field(default_factory=list)
@@ -125,18 +127,14 @@ class Job:
         """What the job is allowed to claim."""
         if self.state is JobState.COMPLETED:
             return (
-                "no findings (complete coverage)"
-                if not self.findings
-                else f"{len(self.findings)} finding(s)"
+                "no findings (complete coverage)" if not self.findings else f"{len(self.findings)} finding(s)"
             )
         if self.state is JobState.PARTIAL:
             if not self.findings:
                 return "inconclusive: no findings (partial coverage)"
             return f"{len(self.findings)} finding(s) (partial coverage, inconclusive)"
         if self.state is JobState.FAILED:
-            if not self.runs or all(
-                r.state in (RunState.UNAVAILABLE, RunState.REJECTED) for r in self.runs
-            ):
+            if not self.runs or all(r.state in (RunState.UNAVAILABLE, RunState.REJECTED) for r in self.runs):
                 return "no usable coverage"
             return f"failed: {self.error}"
         if self.state is JobState.CANCELLED:
@@ -215,7 +213,31 @@ def prepare(
     return job
 
 
+def _set_state(job: Job, state: JobState) -> None:
+    """Move the job to ``state`` and record the transition.
+
+    Every state change in ``_execute`` goes through here, so the exported
+    lifecycle (jobs_total, transitions, active) cannot drift from the job.
+    """
+    previous = job.state.value
+    job.state = state
+    tenant = job.scope_snapshot.tenant_id if job.scope_snapshot else None
+    metrics.record_job_state(previous, state.value, tenant)
+
+
 def execute(job: Job) -> None:
+    """Run a prepared job and record its wall-clock duration."""
+    started = time.monotonic()
+    try:
+        _execute(job)
+    finally:
+        tenant = job.scope_snapshot.tenant_id if job.scope_snapshot else None
+        metrics.observe_job_duration(job.profile, tenant or "", time.monotonic() - started)
+        for finding in job.findings:
+            metrics.record_finding(finding.severity, finding.detector, tenant)
+
+
+def _execute(job: Job) -> None:
     """Run a prepared job against its bound scope snapshot.
 
     Re-validates the authorization before any adapter runs. If the bound
@@ -227,12 +249,12 @@ def execute(job: Job) -> None:
     from strix.core.scope import reset_pinned_destination, set_pinned_destination
 
     if job.scope_snapshot is None:
-        job.state = JobState.FAILED
+        _set_state(job, JobState.FAILED)
         job.error = "job has no scope snapshot"
         job.finished_at = time.time()
         return
 
-    job.state = JobState.RUNNING
+    _set_state(job, JobState.RUNNING)
     job.started_at = time.time()
 
     # Bind the job's scope snapshot for this thread
@@ -240,7 +262,7 @@ def execute(job: Job) -> None:
         # Re-validate the target against the bound scope
         denial, reason = job.scope_snapshot.check(job.target)
         if denial:
-            job.state = JobState.FAILED
+            _set_state(job, JobState.FAILED)
             job.error = f"out_of_scope: {reason}"
             job.finished_at = time.time()
             return
@@ -264,14 +286,14 @@ def execute(job: Job) -> None:
 
                 policy = policies_module.registry.get(policy_id)
                 if policy is None:
-                    job.state = JobState.FAILED
+                    _set_state(job, JobState.FAILED)
                     job.error = f"authorization policy {policy_id} not found"
                     job.finished_at = time.time()
                     _reset_pin()
                     return
                 valid, why = policy.is_valid()
                 if not valid:
-                    job.state = JobState.FAILED
+                    _set_state(job, JobState.FAILED)
                     job.error = redact(why)
                     job.finished_at = time.time()
                     _reset_pin()
@@ -279,7 +301,7 @@ def execute(job: Job) -> None:
                 # Check version matches (policy was updated after job was prepared)
                 job_version = job.policy.get("policy_version")
                 if job_version is not None and policy.version != job_version:
-                    job.state = JobState.FAILED
+                    _set_state(job, JobState.FAILED)
                     job.error = (
                         f"authorization policy {policy_id} changed after this job was "
                         f"queued (job bound to v{job_version}, current v{policy.version})"
@@ -289,12 +311,8 @@ def execute(job: Job) -> None:
                     return
 
             # Check actor matches the bound scope's tenant (prevents impersonation)
-            if (
-                job.actor
-                and job.scope_snapshot.tenant_id
-                and job.actor != job.scope_snapshot.tenant_id
-            ):
-                job.state = JobState.FAILED
+            if job.actor and job.scope_snapshot.tenant_id and job.actor != job.scope_snapshot.tenant_id:
+                _set_state(job, JobState.FAILED)
                 job.error = (
                     f"actor {job.actor!r} does not belong to this authorization "
                     f"(bound to {job.scope_snapshot.tenant_id!r})"
@@ -305,16 +323,56 @@ def execute(job: Job) -> None:
 
             adapters = adapter_module.select(job.profile)
             if not adapters:
-                job.state = JobState.FAILED
+                _set_state(job, JobState.FAILED)
                 job.error = f"no adapters for profile {job.profile!r}"
                 job.finished_at = time.time()
                 _reset_pin()
                 return
 
+            # Set up authentication from scope if available
+            auth_principal = None
+            if job.scope_snapshot.auth and job.scope_snapshot.auth.users:
+                # Use the first principal for authenticated scanning
+                auth_principal = job.scope_snapshot.auth.users[0]
+
+            # Set up per-assessment encrypted authentication if configured
+            encrypted_auth = job.policy.get("encrypted_auth_config")
+            if encrypted_auth:
+                try:
+                    from strix.config import get_settings
+                    from strix.core.auth import AuthManager, EncryptedAuthConfig
+
+                    settings = get_settings()
+                    if not settings.encryption_key:
+                        raise ValueError("encryption key not configured")
+
+                    # Reconstruct EncryptedAuthConfig from stored data
+                    auth_config = EncryptedAuthConfig(
+                        authenticator_type=encrypted_auth["authenticator_type"],
+                        encrypted_config=encrypted_auth["encrypted_config"],
+                        principal_id=encrypted_auth["principal_id"],
+                        created_at=encrypted_auth.get("created_at", 0),
+                    )
+
+                    auth_manager = AuthManager(encryption_key=settings.encryption_key)
+                    auth_manager.add_auth_config(auth_config)
+
+                    # Authenticate against the target
+                    auth_result = auth_manager.authenticate(job.target, encrypted_auth["principal_id"])
+                    if auth_result.success and auth_result.principal:
+                        # Use the authenticated principal (overrides scope principal for actual scanning)
+                        auth_principal = auth_result.principal
+                    else:
+                        log.warning("Per-assessment authentication failed: %s", auth_result.error)
+                except Exception:
+                    log.exception("Failed to set up per-assessment authentication")
+                    # Continue without per-assessment auth; scope principal may still be used
+
             all_findings: list[Finding] = []
             partial = False
             any_adapter_ran = False
 
+            tenant_for_metrics = job.scope_snapshot.tenant_id if job.scope_snapshot else None
             for adapter in adapters:
                 if job.cancelled:
                     job.runs.append(
@@ -324,7 +382,7 @@ def execute(job: Job) -> None:
                             detail="cancelled before execution",
                         )
                     )
-                    job.state = JobState.CANCELLED
+                    _set_state(job, JobState.CANCELLED)
                     job.finished_at = time.time()
                     _reset_pin()
                     return
@@ -343,13 +401,15 @@ def execute(job: Job) -> None:
                 any_adapter_ran = True
                 start = time.monotonic()
                 try:
+                    context = {"auth_principal": auth_principal} if auth_principal else {}
                     result = adapter.assess(
                         job.target,
                         timeout=job.policy.get("timeout", 300.0),
                         cancel=job._cancel,
-                        context={},
+                        context=context,
                     )
                 except AdapterCancelled:
+                    metrics.record_adapter_error(adapter.id, "cancelled", tenant_for_metrics)
                     job.runs.append(
                         AdapterRun(
                             adapter=adapter.id,
@@ -358,11 +418,12 @@ def execute(job: Job) -> None:
                             elapsed_ms=(time.monotonic() - start) * 1000,
                         )
                     )
-                    job.state = JobState.CANCELLED
+                    _set_state(job, JobState.CANCELLED)
                     job.finished_at = time.time()
                     _reset_pin()
                     return
                 except AdapterTimeout:
+                    metrics.record_adapter_error(adapter.id, "timeout", tenant_for_metrics, timeout=True)
                     job.runs.append(
                         AdapterRun(
                             adapter=adapter.id,
@@ -374,6 +435,7 @@ def execute(job: Job) -> None:
                     partial = True
                     continue
                 except AdapterNotApplicable as exc:
+                    metrics.record_adapter_error(adapter.id, "rejected", tenant_for_metrics)
                     any_adapter_ran = True
                     job.runs.append(
                         AdapterRun(
@@ -386,6 +448,7 @@ def execute(job: Job) -> None:
                     partial = True
                     continue
                 except AdapterError as exc:
+                    metrics.record_adapter_error(adapter.id, "failed", tenant_for_metrics)
                     job.runs.append(
                         AdapterRun(
                             adapter=adapter.id,
@@ -397,6 +460,7 @@ def execute(job: Job) -> None:
                     partial = True
                     continue
                 except Exception as exc:
+                    metrics.record_adapter_error(adapter.id, "crashed", tenant_for_metrics)
                     log.exception("adapter %s crashed", adapter.id)
                     job.runs.append(
                         AdapterRun(
@@ -406,12 +470,13 @@ def execute(job: Job) -> None:
                             elapsed_ms=(time.monotonic() - start) * 1000,
                         )
                     )
-                    job.state = JobState.FAILED
+                    _set_state(job, JobState.FAILED)
                     job.finished_at = time.time()
                     _reset_pin()
                     return
 
                 elapsed = (time.monotonic() - start) * 1000
+                metrics.observe_adapter(adapter.id, tenant_for_metrics, elapsed / 1000)
                 run_state = RunState.PARTIAL if result.partial else RunState.OK
                 if result.partial:
                     partial = True
@@ -430,7 +495,7 @@ def execute(job: Job) -> None:
             job.finished_at = time.time()
             if job.state is JobState.RUNNING:
                 if not any_adapter_ran:
-                    job.state = JobState.FAILED
+                    _set_state(job, JobState.FAILED)
                     job.error = "no adapter was able to run"
                 else:
                     # Check if all adapters that ran were REJECTED or UNAVAILABLE
@@ -441,13 +506,9 @@ def execute(job: Job) -> None:
                         if run.state not in (RunState.UNAVAILABLE, RunState.REJECTED)
                     }
                     if not ran_states:
-                        job.state = JobState.FAILED
+                        _set_state(job, JobState.FAILED)
                         # Use REJECTED adapter details for error if available
-                        rejected_details = [
-                            run.detail
-                            for run in job.runs
-                            if run.state is RunState.REJECTED
-                        ]
+                        rejected_details = [run.detail for run in job.runs if run.state is RunState.REJECTED]
                         if rejected_details:
                             job.error = redact("; ".join(rejected_details))
                         else:
@@ -457,21 +518,20 @@ def execute(job: Job) -> None:
                         for state in ran_states
                     ):
                         # All adapters that ran failed/timed out/cancelled - job failed
-                        job.state = JobState.FAILED
+                        _set_state(job, JobState.FAILED)
                         failed_details = [
                             run.detail
                             for run in job.runs
-                            if run.state
-                            in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)
+                            if run.state in (RunState.FAILED, RunState.TIMEOUT, RunState.CANCELLED)
                         ]
                         if failed_details:
                             job.error = redact("; ".join(failed_details))
                         else:
                             job.error = "all adapters failed"
                     elif partial:
-                        job.state = JobState.PARTIAL
+                        _set_state(job, JobState.PARTIAL)
                     else:
-                        job.state = JobState.COMPLETED
+                        _set_state(job, JobState.COMPLETED)
         finally:
             _reset_pin()
 
@@ -507,3 +567,20 @@ def run_assessment(
     if wait:
         execute(job)
     return job
+
+
+# --- Exception expiration job -------------------------------------------------
+
+
+async def run_exception_expiration_job() -> int:
+    """Run one iteration of the exception expiration job.
+
+    Finds all pending/approved exceptions whose until timestamp has passed
+    and flips them to 'expired'. Returns the count of expired exceptions.
+
+    This is designed to be called periodically by a scheduler (APScheduler,
+    cron, etc.) or run as a background task.
+    """
+    from strix.core.exceptions import expire_exceptions
+
+    return await expire_exceptions()

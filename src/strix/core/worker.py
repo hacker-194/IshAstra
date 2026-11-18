@@ -25,7 +25,7 @@ from collections.abc import Callable
 from typing import Any
 
 import strix.core.jobs as jobs_module
-from strix.config import Settings
+from strix.config import Settings, get_settings
 from strix.core import store
 from strix.core.jobs import Job
 
@@ -39,20 +39,12 @@ PROCESS_STARTED_AT = time.time()
 _MEMORY_CHECK_INTERVAL = 25
 _jobs_since_mem_check = 0
 
-# Lazy settings accessor - avoids module-level import-time evaluation
-def _get_worker_settings() -> Settings:
-    from strix.config import Settings
-    return Settings.from_env()
 
+def _worker_settings() -> Settings:
+    # The shared process settings: a restart (new process) re-reads the env, and
+    # tests call reset_settings() after changing it.
+    return get_settings()
 
-def _get_concurrency() -> int:
-    return _get_worker_settings().workers
-
-def _get_queue_max() -> int:
-    return _get_worker_settings().queue_max
-
-def _get_worker_memory_limit_mb() -> int:
-    return getattr(_get_worker_settings(), "worker_memory_mb", 1024)
 
 class AssessmentQueueFull(RuntimeError):
     """The bounded queue refused the job — nothing was enqueued."""
@@ -184,6 +176,10 @@ def _release_worker_lease_sync(path: str | None = None) -> None:
     except (OSError, ImportError):
         pass  # Best effort
     handle.close()
+    # Delete the lock file on graceful release so a subsequent start
+    # doesn't see a stale PID file and log a false positive.
+    with contextlib.suppress(OSError):
+        os.remove(resolved)
 
 
 async def acquire_worker_lease(path: str | None = None) -> str:
@@ -203,12 +199,10 @@ async def release_worker_lease(path: str | None = None) -> None:
 
 
 class AssessmentWorker:
-    def __init__(
-        self, *, concurrency: int | None = None, queue_max: int | None = None
-    ) -> None:
-        self.concurrency = concurrency if concurrency is not None else _get_concurrency()
+    def __init__(self, *, concurrency: int | None = None, queue_max: int | None = None) -> None:
+        self.concurrency = concurrency if concurrency is not None else _worker_settings().workers
         self._queue: queue.Queue[Job] = queue.Queue(
-            maxsize=queue_max if queue_max is not None else _get_queue_max()
+            maxsize=queue_max if queue_max is not None else _worker_settings().queue_max
         )
         self._active: dict[str, Job] = {}
         self._on_finish: dict[str, Callable[[Job], None]] = {}
@@ -219,6 +213,16 @@ class AssessmentWorker:
         self._stopping = threading.Event()
         self.name = f"strix-worker-{os.getpid()}-{id(self) & 0xFFFF:x}"
         self._lease: str | None = None
+
+    def _publish_occupancy(self) -> None:
+        """Publish queue depth and worker occupancy for this process."""
+        from strix import metrics
+
+        with self._lock:
+            active = len(self._active)
+        depth = self._queue.qsize()
+        metrics.record_queue_depth(depth, "inprocess")
+        metrics.record_worker_occupancy(self.concurrency, max(0, active - depth), "inprocess")
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -243,6 +247,7 @@ class AssessmentWorker:
                 )
                 thread.start()
                 self._threads.append(thread)
+            self._publish_occupancy()
 
     # ------------------------------------------------------------------
     # Public operations
@@ -259,9 +264,8 @@ class AssessmentWorker:
             with self._lock:
                 self._active.pop(job.id, None)
                 self._on_finish.pop(job.id, None)
-            raise AssessmentQueueFull(
-                f"assessment queue is full ({self._queue.maxsize} waiting)"
-            ) from None
+            raise AssessmentQueueFull(f"assessment queue is full ({self._queue.maxsize} waiting)") from None
+        self._publish_occupancy()
 
     def cancel(self, job_id: str) -> bool:
         """Signal a queued or running job to stop. False if it is not ours."""
@@ -282,9 +286,7 @@ class AssessmentWorker:
         """
         with self._lock:
             targets = [
-                job
-                for job in self._active.values()
-                if (job.policy or {}).get("policy_id") == policy_id
+                job for job in self._active.values() if (job.policy or {}).get("policy_id") == policy_id
             ]
         for job in targets:
             job.cancel()
@@ -322,9 +324,7 @@ class AssessmentWorker:
                 thread.join(remaining)
                 log.debug("Thread %d joined, alive=%s", i + 1, thread.is_alive())
             if any(thread.is_alive() for thread in self._threads):
-                log.warning(
-                    "worker threads still running after %.0fs shutdown", timeout
-                )
+                log.warning("worker threads still running after %.0fs shutdown", timeout)
             self._threads.clear()
             # Give aiosqlite worker threads time to fully shut down before
             # the main thread uses the database
@@ -345,6 +345,7 @@ class AssessmentWorker:
             with self._lock:
                 self._active.clear()
                 self._on_finish.clear()
+            self._publish_occupancy()
             self._stopping.clear()
             self._started = False
             if self._lease is not None:
@@ -382,11 +383,12 @@ class AssessmentWorker:
                 rss_mb = rusage.ru_maxrss / (1024 * 1024)
             else:
                 rss_mb = rusage.ru_maxrss / 1024
-            if rss_mb > _get_worker_memory_limit_mb():
+            limit_mb = _worker_settings().worker_memory_mb
+            if rss_mb > limit_mb:
                 log.warning(
                     "Worker RSS %.1f MB exceeds limit %d MB; forcing GC",
                     rss_mb,
-                    _get_worker_memory_limit_mb(),
+                    limit_mb,
                 )
                 gc.collect()
         except Exception:
@@ -396,9 +398,7 @@ class AssessmentWorker:
         with self._lock:
             on_finish = self._on_finish.get(job.id)
 
-        claimed = loop.run_until_complete(
-            store.claim_job(job.id, tenant=job.actor, worker=self.name)
-        )
+        claimed = loop.run_until_complete(store.claim_job(job.id, tenant=job.actor, worker=self.name))
 
         if not claimed:
             log.warning("job %s was already claimed; not executing it again", job.id)
@@ -408,6 +408,9 @@ class AssessmentWorker:
         else:
             job.attempts += 1
             job.worker_id = self.name
+            from strix import metrics
+
+            metrics.observe_job_queue(job.profile, time.time() - job.created_at)
             try:
                 jobs_module.execute(job)
             except Exception as exc:
@@ -439,12 +442,9 @@ class AssessmentWorker:
                     self._active.pop(job.id, None)
                     self._on_finish.pop(job.id, None)
                 self._queue.task_done()
+                self._publish_occupancy()
         log.debug(
             "Worker thread %s exiting loop (stopping=%s)",
             threading.get_ident(),
             self._stopping.is_set(),
         )
-
-
-# One worker for the process: FastAPI startup and the first submit both use it.
-assessment_worker = AssessmentWorker()

@@ -40,7 +40,7 @@ jobs:
       - name: Install (pinned)
         run: |
           python -m pip install --upgrade pip
-          pip install -c constraints.txt -e ".[dev]"
+          pip install -c constraints.txt -e ".[dev,otel]"
 
       - name: Test the tagged commit
         run: pytest -q

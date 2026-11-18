@@ -22,13 +22,13 @@ VERIFICATIONS = ("observed", "inferred", "unverified")
 
 # Defensive security finding states (Week 1-2 foundation for vulnerability management)
 FINDING_STATES = (
-    "new",           # Just discovered, not yet analyzed
-    "triaged",       # Analyzed, severity and risk assigned
-    "in_progress",   # Remediation work has begun
+    "new",  # Just discovered, not yet analyzed
+    "triaged",  # Analyzed, severity and risk assigned
+    "in_progress",  # Remediation work has begun
     "fix_verified",  # Fix confirmed via re-scan or client evidence
-    "closed",        # Remediated, no further action needed
-    "reopened",      # Fix inadequate, requires re-work
-    "deferred",      # Low priority, scheduled for future sprint
+    "closed",  # Remediated, no further action needed
+    "reopened",  # Fix inadequate, requires re-work
+    "deferred",  # Low priority, scheduled for future sprint
 )
 # Allowed transitions form a proper lifecycle
 _VALID_TRANSITIONS = {
@@ -39,14 +39,6 @@ _VALID_TRANSITIONS = {
     "closed": set(),  # terminal state
     "reopened": {"in_progress", "fix_verified"},
     "deferred": {"triaged", "in_progress"},
-}
-
-# CVSS v3 base score ranges for severity mapping
-_CVSS_LEVELS = {
-    "critical": (9.0, 10.0),
-    "high": (7.0, 8.9),
-    "medium": (4.0, 6.9),
-    "low": (0.1, 3.9),
 }
 
 _SARIF_LEVEL = {
@@ -124,40 +116,8 @@ class Finding:
         Deliberately excludes severity/confidence so the same issue reported by
         two tools merges, while the same category on a different location does not.
         """
-        basis = "\x1f".join(
-            (self.asset.strip().lower(), self.category, self.location.strip().lower())
-        )
+        basis = "\x1f".join((self.asset.strip().lower(), self.category, self.location.strip().lower()))
         return hashlib.sha256(basis.encode()).hexdigest()[:32]
-
-    def calculate_risk_rating(self) -> str:
-        """Calculate prioritized risk rating from severity, criticality, and exploitability.
-
-        Risk = Severity × Criticality × Exploitability
-
-        Scoring:
-        - Severity weight: critical=10, high=7, medium=4, low=1
-        - Criticality weight: critical=10, high=7, medium=4, low=1
-        - Exploit weight: 1.5 if exploit_available else 1.0
-
-        Result thresholds: >=50 = critical, >=25 = high, >=10 = medium, <10 = low
-        """
-        severity_weight = {"critical": 10, "high": 7, "medium": 4, "low": 1}.get(
-            self.severity, 1
-        )
-        criticality_weight = {
-            "critical": 10, "high": 7, "medium": 4, "low": 1
-        }.get(self.asset_criticality, 1)
-        exploit_weight = 1.5 if self.exploit_available else 1.0
-
-        raw_score = severity_weight * criticality_weight * exploit_weight
-
-        if raw_score >= 50:
-            return "critical"
-        if raw_score >= 25:
-            return "high"
-        if raw_score >= 10:
-            return "medium"
-        return "low"
 
     def to_dict(self) -> dict[str, Any]:
         data = {
@@ -208,8 +168,7 @@ def validate_transition(from_status: str, to_status: str) -> None:
         raise ValueError(f"Unknown from-status: {from_status}")
     if to_status not in allowed:
         raise ValueError(
-            f"Invalid transition: {from_status!r} → {to_status!r}. "
-            f"Allowed from {from_status}: {allowed}"
+            f"Invalid transition: {from_status!r} → {to_status!r}. Allowed from {from_status}: {allowed}"
         )
 
 
@@ -221,25 +180,17 @@ def dedupe(findings: Iterable[Finding]) -> list[Finding]:
         if current is None:
             merged[item.fingerprint] = item
             continue
-        more_severe = SEVERITIES.index(item.severity) < SEVERITIES.index(
-            current.severity
-        )
+        more_severe = SEVERITIES.index(item.severity) < SEVERITIES.index(current.severity)
         winner = item if more_severe else current
         merged_sources = (
             *(current.sources or (current.detector,)),
             *(item.sources or (item.detector,)),
         )
-        merged[item.fingerprint] = replace(
-            winner, sources=tuple(dict.fromkeys(merged_sources))
-        )
-    return sorted(
-        merged.values(), key=lambda f: (SEVERITIES.index(f.severity), f.fingerprint)
-    )
+        merged[item.fingerprint] = replace(winner, sources=tuple(dict.fromkeys(merged_sources)))
+    return sorted(merged.values(), key=lambda f: (SEVERITIES.index(f.severity), f.fingerprint))
 
 
-def to_sarif(
-    findings: Iterable[Finding], *, tool_version: str = __version__
-) -> dict[str, Any]:
+def to_sarif(findings: Iterable[Finding], *, tool_version: str = __version__) -> dict[str, Any]:
     """SARIF 2.1.0 document (https://docs.oasis-open.org/sarif/sarif/v2.1.0/)."""
     items = list(findings)
     rules: dict[str, dict[str, Any]] = {}
@@ -252,10 +203,7 @@ def to_sarif(
                 "id": rule_id,
                 "name": rule_id,
                 "shortDescription": {"text": finding.title},
-                "help": {
-                    "text": finding.remediation
-                    or "Review the evidence for this finding."
-                },
+                "help": {"text": finding.remediation or "Review the evidence for this finding."},
                 "properties": {
                     "tags": ["security", finding.cwe] if finding.cwe else ["security"],
                     "security-severity": _SARIF_SCORE[finding.severity],
@@ -310,13 +258,12 @@ def to_sarif(
                 },
                 "results": results,
                 "properties": {
-                    "severityCounts": {
-                        s: sum(1 for f in items if f.severity == s) for s in SEVERITIES
-                    },
+                    "severityCounts": {s: sum(1 for f in items if f.severity == s) for s in SEVERITIES},
                 },
             }
         ],
     }
+
 
 # Compliance framework weight mapping
 # Higher weight = more stringent requirement / higher priority for remediation
@@ -344,7 +291,7 @@ def compliance_weight(self) -> int:
         Defaults to 1 if no compliance refs are set.
     """
     total = 0
-    for ref in (self.compliance_refs or ()):
+    for ref in self.compliance_refs or ():
         total += _COMPLIANCE_WEIGHTS.get(ref, 1)
     return total if total > 0 else 1
 
@@ -369,9 +316,7 @@ def compliance_gap_analysis(self) -> dict[str, Any]:
         }
 
     # Determine gap severity based on finding severity and criticality
-    severity_weight = {"critical": 10, "high": 7, "medium": 4, "low": 1}.get(
-        self.severity, 1
-    )
+    severity_weight = {"critical": 10, "high": 7, "medium": 4, "low": 1}.get(self.severity, 1)
     criticality_weight = {
         "critical": 10,
         "high": 7,
@@ -423,7 +368,7 @@ def regulatory_summary(findings: list[Finding]) -> dict[str, Any]:
     """
     framework_findings: dict[str, list[Finding]] = {}
     for f in findings:
-        for ref in (f.compliance_refs or ()):
+        for ref in f.compliance_refs or ():
             framework_findings.setdefault(ref, []).append(f)
 
     # Count findings per framework
@@ -444,10 +389,7 @@ def regulatory_summary(findings: list[Finding]) -> dict[str, Any]:
 
     # High-priority findings (high risk + compliance)
     high_priority = [
-        f.title
-        for f in findings
-        if f.risk_rating in ("high", "critical")
-        and compliance_weight(f) > 5
+        f.title for f in findings if f.risk_rating in ("high", "critical") and compliance_weight(f) > 5
     ]
 
     return {

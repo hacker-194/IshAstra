@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "program": "Default Strix Scope",
+  "authorized_by": "Security Team",
+  "authorization_ref": "DEFAULT-001",
+  "include": [
+    "example.com",
+    "*.example.com",
+    "httpbin.org",
+    "*.httpbin.org"
+  ],
+  "exclude": [
+    "admin.example.com",
+    "internal.example.com"
+  ],
+  "authorized_networks": [
+    "0.0.0.0/0",
+    "::/0"
+  ],
+  "allowed_ports": [80, 443],
+  "allow_broad_networks": true,
+  "expires_at": "2099-12-31T23:59:59Z",
+  "metadata": {
+    "environment": "development",
+    "description": "Default permissive scope for development"
+  }
+}

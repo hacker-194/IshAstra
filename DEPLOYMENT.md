@@ -6,11 +6,14 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
 
 ## 1. Prerequisites
 
-- CPython 3.12+ on Linux; one host (or container) per database — the worker
-  takes an exclusive lease on `<STRIX_DB>.worker-lock`, so a second process
-  pointed at the same database refuses to start rather than double-running jobs.
-  SQLite (WAL) is the supported backend. PostgreSQL is experimental and not
-  supported for the threaded worker yet (asyncpg pools are event-loop bound).
+- CPython 3.12+ on Linux; one host (or container) per SQLite database — the
+  worker takes an exclusive lease on `<STRIX_DB>.worker-lock`, so a second
+  process pointed at the same database refuses to start rather than
+  double-running jobs. SQLite (WAL) is the supported pilot backend. PostgreSQL
+  is an advanced backend: tested single-host with audit chain integrity,
+  SIGTERM handling, and load soak (10+ jobs). Celery + Redis is opt-in experimental:
+  single-host horizontal scaling works (tested 10 jobs), but no HA, multi-node
+  scheduling or production support commitment.
 - Optional binaries widen coverage: `nmap` (network profile; the image installs
   it), `nuclei` (web-deep exposure templates). A missing tool is reported as
   unavailable coverage by the job — it is never reported as a clean result.
@@ -21,8 +24,9 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
 
 ```bash
 cp .env.production.example .env.production   # edit: keys, retention, scope mode
-cp config/scope.example.json config/scope.json  # edit: what you may test
 # Generate each secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
+docker compose --env-file .env.production run --rm strix strix scope-wizard --output /etc/strix/scope.json
+# OR manually: cp config/scope.example.json config/scope.json  # edit: what you may test
 docker compose --env-file .env.production up -d --build
 docker compose ps                              # strix/nginx/redis must be healthy
 curl -s http://127.0.0.1:8000/api/ready        # loopback bootstrap port
@@ -53,6 +57,7 @@ cp scope.example.json /etc/strix/scope.json   # edit: what you may test
 `/etc/strix/strix.env` (mode 0600, owned by the service user):
 
 ```ini
+STRIX_ENV=production
 STRIX_API_KEY=<random, python -c 'import secrets; print(secrets.token_urlsafe(32))'>
 STRIX_AUDIT_HMAC_KEY=<a different random value>
 STRIX_WEBHOOK_SECRET=<another random value, if webhooks are used>
@@ -64,6 +69,9 @@ STRIX_LOG_FORMAT=json
 STRIX_LOG_LEVEL=INFO
 ```
 
+`STRIX_ENV=production` is a fail-closed startup gate: the service refuses to
+start without a valid `STRIX_API_KEY` and `STRIX_AUDIT_HMAC_KEY`, and it forces
+`/docs`, `/redoc` and `/openapi.json` off regardless of `STRIX_DISABLE_DOCS`.
 Placeholder or short secrets are refused at startup; a missing
 `STRIX_AUDIT_HMAC_KEY` starts with a loud warning (the audit chain is then only
 tamper-evident against naive edits, not unforgeable).
@@ -92,6 +100,17 @@ PrivateTmp=yes
 WantedBy=multi-user.target
 ```
 
+### 4.1. Create your scope document (one-time)
+
+```bash
+# Interactive wizard (recommended)
+/opt/strix/venv/bin/strix scope-wizard --output /etc/strix/scope.json
+
+# OR manually copy and edit the template
+cp scope.example.json /etc/strix/scope.json
+# Edit /etc/strix/scope.json with your authorized hosts, networks, and ports
+```
+
 `SIGTERM` is graceful and bounded: in-flight HTTP requests get up to 30 s,
 running assessments are cancelled and marked `failed — interrupted by process
 restart`, and the audit trail is flushed — so `systemctl restart` is safe and
@@ -111,15 +130,24 @@ origin.
 1. `systemctl start strix`, then `curl -s localhost:8000/api/health` and
    `curl -s localhost:8000/api/ready` (both unauthenticated by design).
 2. Open `http://<host>:8000/` through the proxy and confirm the UI loads.
-3. Decide the authorization mode: leave `auto`/single-organization with one
+3. Create your scope document (if not done already):
+   ```bash
+   # Interactive wizard (recommended)
+   /opt/strix/venv/bin/strix scope-wizard --output /etc/strix/scope.json
+   # OR edit /etc/strix/scope.json manually
+   ```
+4. Decide the authorization mode: leave `auto`/single-organization with one
    `scope.json`, or switch to `managed` and create per-tenant engagement
    policies via `POST /api/policies` (admin only). Every assessment is refused
    until a scope document or policy exists — that is by design. The global
    scope file is read at startup: restart the service after editing it. Managed
    policies take effect through the policy API without a restart.
-4. Run the e2e smoke against the built-in lab to prove the deployment end to end:
-   `python scripts/smoke_e2e.py` (starts its own lab; no external traffic).
-5. Note the audit chain tip (`GET /api/audit/verify` or `/api/ready`) — record it
+5. Run the e2e smoke against the built-in lab to prove the deployment end to end:
+   ```bash
+   python -m strix.lab --report lab-eval.json
+   ```
+   (starts its own lab on 127.0.0.1; no external traffic).
+6. Note the audit chain tip (`GET /api/audit/verify` or `/api/ready`) — record it
    off-host if chain continuity matters to you.
 
 ## 7. Recurring maintenance
@@ -159,7 +187,7 @@ If a release introduces regressions:
 2. **Code rollback (previous tagged release):**
    ```bash
    # In the venv, reinstall the previous tag
-   /opt/strix/venv/bin/pip install -c constraints.txt strix==3.4.0
+   /opt/strix/venv/bin/pip install -c constraints.txt strix==0.1.0
    systemctl restart strix
    ```
    - Schema migrations are **forward-only**. The database at the new version
@@ -175,7 +203,38 @@ If a release introduces regressions:
 3. **Audit chain continuity:** The chain is append-only. Rolling back code does
    not truncate it — verify with `GET /api/audit/verify` after restart.
 
-## 9. Scaling model and limits
+## 9. RTO / RPO and Warm Standby Promotion
+
+Strix is single-host by design. High availability is achieved by promoting a
+warm standby, not by clustering. The standby promotion workflow is automated:
+
+```bash
+# On the standby host (with backups synced from primary):
+strix standby-promote \
+  --backup-dir /backups \
+  --db-path /var/lib/strix/strix.db \
+  --scope-file /etc/strix/scope.json
+```
+
+The command performs four sequential steps and reports timings for RTO measurement:
+
+1. **Verify latest backup** — checks file exists, is valid SQLite, has required tables, and audit chain has entries.
+2. **Restore database** — uses SQLite's backup API for an atomic, consistent snapshot; sets 0600 permissions.
+3. **Acquire worker lease** — takes the exclusive `<db>.worker-lock`; fails fast if another process holds it (split-brain prevention).
+4. **Run readiness checks** — verifies audit chain (HMAC-SHA256 when `STRIX_AUDIT_HMAC_KEY` is set), scope/policy loaded, schema version, and at least one active admin API key.
+
+Typical RTO on a modern SSD host with a 2 GB database: **< 5 seconds** (verify ~50 ms, restore ~3 s, lease ~5 ms, readiness ~1 s). RPO equals your backup interval — the default cron in `deploy/cron/strix-backup` runs hourly, giving an RPO of ≤ 1 hour. Reduce the interval for tighter RPO; the backup is a consistent snapshot and does not block the running worker.
+
+**Failover procedure (manual, ~30 s operator time):**
+1. Detect primary failure (health check `/api/ready` fails).
+2. Ensure backups are current on standby host (rsync/S3/NFS from primary).
+3. Run `strix standby-promote` on standby.
+4. Update DNS / load balancer to point to standby.
+5. Verify `/api/ready` and audit chain continuity on the promoted host.
+
+The promoted database is immediately operational — interrupted jobs are marked `failed — interrupted` at startup, never resumed silently. The audit chain verifies end-to-end, proving the restored state is tamper-free.
+
+## 10. Scaling model and limits
 
 Strix is deliberately single-writer per database:
 
@@ -191,25 +250,30 @@ Strix is deliberately single-writer per database:
    chain is append-only and verifies after restore; jobs left running are marked
    failed at startup, never resumed silently.
 4. **Redis** backs rate limiting and is required by the compose stack so limits
-   survive a process restart/database reset. It is not a queue: the job queue is
-   in-process.
+   survive a process restart/database reset. The default job queue is in-process;
+   `STRIX_QUEUE_MODE=celery` uses Redis as a distributed broker and has durable
+   cancellation, but is experimental and not an HA queue.
 5. **Health checks:** `/api/health` and `/api/ready` are unauthenticated;
    `/api/monitor/status` and `/api/metrics` require the admin key. Probe
    `/api/ready` from the load balancer/proxy.
 6. **Log aggregation:** Set `STRIX_LOG_FORMAT=json` and ship logs to
    Loki/Elastic/Graylog. All requests share the same `request_id` middleware
    for trace correlation.
-7. **PostgreSQL** is not a supported backend for this worker design. The code
-   has an experimental API-only path, but worker threads own separate event
-   loops and asyncpg pools are loop-bound; using it will fail jobs. Use SQLite.
+7. **PostgreSQL** is an advanced backend (tested single-host, no HA). The worker
+   uses loop-aware asyncpg pools. Validated: schema migrations (v1-v20),
+   SIGTERM soak test (no stale lock, audit chain intact, API verify passes),
+   assessment load test (10 jobs, 0 failed), Celery queue integration
+   (10 jobs distributed across Celery workers). No HA, multi-node migration,
+   or supported failover; use SQLite for a pilot unless you accept and test
+   the single-host limitation.
 
-## 10. Nepal launch readiness
+## 11. Nepal launch readiness
 
-See [`NEPAL_LAUNCH_READINESS.md`](NEPAL_LAUNCH_READINESS.md) for the
+See [`docs/nepal-launch-readiness.md`](docs/nepal-launch-readiness.md) for the
 in-country deployment profile, NRB/NTA/NCSP evidence mapping, and the
 legal/business prerequisites that are outside this repository's control.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 - **`another Strix worker process already owns …worker-lock`** — a second
   process was pointed at the same `STRIX_DB`, or a stale lock survived an
@@ -229,6 +293,6 @@ legal/business prerequisites that are outside this repository's control.
 - **`nmap unavailable` in job coverage** — the binary is missing in the
   container/host; install it or accept the reduced (never falsely clean)
   coverage.
-- **`database is locked` in logs** — should not happen since 3.5.0 (write
+- **`database is locked` in logs** — should not happen since 0.1.0 (write
   transactions take the write lock up front and contend via `busy_timeout`); if
   you still see it, file it with the surrounding log lines.

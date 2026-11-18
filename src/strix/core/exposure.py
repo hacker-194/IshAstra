@@ -77,9 +77,7 @@ class GitExposureAdapter(Adapter):
             if status != 200:
                 if status == "error" or status == "timeout":
                     result.partial = True
-                    result.notes.append(
-                        "request failed; exposure could not be ruled out"
-                    )
+                    result.notes.append("request failed; exposure could not be ruled out")
                 else:
                     result.notes.append(f"no exposed git metadata ({status})")
                 return result
@@ -100,9 +98,7 @@ class GitExposureAdapter(Adapter):
             if head_status != 200:
                 if head_status in ("error", "timeout"):
                     result.partial = True
-                    result.notes.append(
-                        "request failed; exposure could not be ruled out"
-                    )
+                    result.notes.append("request failed; exposure could not be ruled out")
                 else:
                     result.notes.append("git config present but HEAD missing")
                     result.partial = True

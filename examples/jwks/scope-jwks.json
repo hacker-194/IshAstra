@@ -1,0 +1,20 @@
+{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "2026-01",
+      "x": "REPLACE_WITH_BASE64URL_ENCODED_PUBLIC_KEY",
+      "alg": "EdDSA",
+      "use": "sig"
+    },
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "2026-02",
+      "x": "REPLACE_WITH_BASE64URL_ENCODED_PUBLIC_KEY_2",
+      "alg": "EdDSA",
+      "use": "sig"
+    }
+  ]
+}

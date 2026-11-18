@@ -1,0 +1,375 @@
+# K8s Jobs Mode Configuration for Strix Helm Chart
+# Enable with: --set k8sJobs.enabled=true
+# Usage: helm upgrade --install strix ./deploy/helm/strix -f values.yaml -f values-k8s-jobs.yaml
+
+# ============================================================================
+# K8s Jobs Queue Mode
+# ============================================================================
+k8sJobs:
+  enabled: true
+  # Job identification (populated at runtime by API)
+  jobId: ""
+  jobNameSuffix: ""
+  tenantId: ""
+
+  # Kubernetes namespace for Jobs
+  namespace: "strix-assessments"
+
+  # Container image for assessment jobs
+  image: ""  # defaults to global.image.repository:global.image.tag
+
+  # Service account for Job pods (needs permissions to create Jobs, read ConfigMaps/Secrets)
+  serviceAccount: "strix"
+
+  # Runtime class for sandbox isolation (gvisor, kata, or "" for runc)
+  runtimeClassName: "gvisor"
+
+  # Priority class for spot/preemptible instances
+  priorityClassName: "strix-spot-priority"
+
+  # Job cleanup
+  ttlSecondsAfterFinished: 3600  # 1 hour
+  backoffLimit: 2
+  activeDeadlineSeconds: 7200  # 2 hours max
+
+  # Resource limits for assessment pods
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Database secret (contains DATABASE_URL)
+  dbSecretName: "strix-secrets"
+  dbSecretKey: "database-url"
+
+  # Scope ConfigMap (contains scope.json)
+  scopeConfigMapName: "strix-scope"
+  scopeConfigMapKey: "scope.json"
+
+  # Optional per-assessment auth secret
+  authSecretName: ""
+  authSecretKey: "auth-config"
+
+  # Network policy for egress restriction
+  networkPolicyEnabled: true
+
+  # Scope-based egress rules (populated at runtime per job from scope document)
+  # Example:
+  # scopeEgress:
+  #   - to:
+  #       - ipBlock:
+  #           cidr: 10.0.0.0/8
+  #     ports:
+  #       - protocol: TCP
+  #         port: 80
+  #       - protocol: TCP
+  #         port: 443
+  scopeEgress: []
+
+  # Allow egress to authorized_networks and allowed_ports from scope
+  # When true, the network policy will include rules for each authorized network/port
+  allowScopeNetworks: true
+  authorizedNetworks: []  # Populated from scope.authorized_networks at runtime
+  allowedPorts: []        # Populated from scope.allowed_ports at runtime
+
+  # Sandbox isolation settings
+  sandboxEnabled: true
+  # Seccomp profile type: "RuntimeDefault", "Localhost", or "Unconfined"
+  seccompProfileType: "RuntimeDefault"
+  # Seccomp profile name (when using Localhost type)
+  seccompProfile: "strix-seccomp-default"
+
+  # Additional labels/annotations for Job pods
+  labels:
+    app.kubernetes.io/part-of: strix
+    app.kubernetes.io/component: assessment-job
+  annotations: {}
+
+  # Pod security context (restricted by default)
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Affinity for spot instance scheduling
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: "node.kubernetes.io/instance-type"
+                operator: In
+                values:
+                  - "spot"
+                  - "preemptible"
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 50
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - assessment-job
+            topologyKey: kubernetes.io/hostname
+
+  # Tolerations for spot instances
+  tolerations:
+    - key: "spot"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "preemptible"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+  # Environment variables from secrets
+  envFromSecrets:
+    - name: strix-secrets
+      prefix: STRIX_
+
+  # Volumes
+  volumes:
+    - name: strix-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+
+  # Probes
+  livenessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import sys; sys.exit(0)"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import sys; sys.exit(0)"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+
+# ============================================================================
+# Seccomp Profiles ConfigMap (for Localhost profile type)
+# ============================================================================
+seccompProfiles:
+  enabled: true
+  # ConfigMap name for seccomp profiles
+  configMapName: "strix-seccomp-profiles"
+  # Profiles to include (created from templates/seccomp/*.yaml)
+  profiles:
+    - nmap
+    - nuclei
+    - nikto
+    - sqlmap
+
+
+# ============================================================================
+# API Configuration for K8s Jobs Mode
+# ============================================================================
+api:
+  env:
+    STRIX_QUEUE_MODE: "k8s-jobs"
+    STRIX_K8S_NAMESPACE: "strix-assessments"
+    STRIX_K8S_IMAGE: ""  # defaults to global.image
+    STRIX_K8S_SERVICE_ACCOUNT: "strix"
+    STRIX_K8S_RUNTIME_CLASS: "gvisor"
+    STRIX_K8S_PRIORITY_CLASS: "strix-spot-priority"
+    STRIX_K8S_TTL: "3600"
+    STRIX_K8S_BACKOFF_LIMIT: "2"
+    STRIX_K8S_ACTIVE_DEADLINE: "7200"
+    STRIX_K8S_CPU_LIMIT: "2000m"
+    STRIX_K8S_MEMORY_LIMIT: "2Gi"
+    STRIX_K8S_CPU_REQUEST: "1000m"
+    STRIX_K8S_MEMORY_REQUEST: "1Gi"
+    STRIX_K8S_DB_SECRET: "strix-secrets"
+    STRIX_K8S_SCOPE_CM: "strix-scope"
+    STRIX_K8S_SANDBOX_ENABLED: "true"
+    STRIX_K8S_SECCOMP_PROFILE: "runtime/default"
+    STRIX_K8S_SECCOMP_PROFILE_TYPE: "RuntimeDefault"
+
+
+# ============================================================================
+# RBAC for K8s Jobs Mode
+# API needs permissions to create Jobs, NetworkPolicies, read ConfigMaps/Secrets
+# ============================================================================
+rbac:
+  enabled: true
+  createClusterRole: true
+  clusterRoleRules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/metrics", "pods", "pods/metrics", "configmaps", "secrets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["networkpolicies", "ingresses"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["nodes", "pods"]
+      verbs: ["get", "list", "watch"]
+
+
+# ============================================================================
+# NetworkPolicy for API (allows creating Job NetworkPolicies)
+# ============================================================================
+networkPolicy:
+  enabled: true
+  apiEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kubernetes
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+
+# ============================================================================
+# Priority Classes (apply separately or via cluster admin)
+# ============================================================================
+# apiVersion: scheduling.k8s.io/v1
+# kind: PriorityClass
+# metadata:
+#   name: strix-spot-priority
+# value: 1000000
+# globalDefault: false
+# description: "Priority for Strix assessment jobs on spot instances"
+# ---
+# apiVersion: scheduling.k8s.io/v1
+# kind: PriorityClass
+# metadata:
+#   name: strix-low-priority
+# value: 0
+# globalDefault: false
+# description: "Low priority for preemptible assessment jobs"
+
+
+# ============================================================================
+# RuntimeClass for gVisor (apply separately)
+# ============================================================================
+# apiVersion: node.k8s.io/v1
+# kind: RuntimeClass
+# metadata:
+#   name: gvisor
+# handler: runsc
+# scheduling:
+#   podOverhead:
+#     podFixed:
+#       memory: "120Mi"
+#       cpu: "300m"
+
+
+# ============================================================================
+# RuntimeClass for Kata Containers (apply separately)
+# ============================================================================
+# apiVersion: node.k8s.io/v1
+# kind: RuntimeClass
+# metadata:
+#   name: kata
+# handler: kata
+# scheduling:
+#   podOverhead:
+#     podFixed:
+#       memory: "200Mi"
+#       cpu: "500m"
+
+
+# ============================================================================
+# ConfigMap for Scope (populated by operator or external-secrets)
+# ============================================================================
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: strix-scope
+#   namespace: strix-assessments
+# data:
+#   scope.json: |
+#     {
+#       "program": "Bug Bounty Program",
+#       "authorized_by": "security@example.com",
+#       "authorization_ref": "BB-2024-001",
+#       "include": ["*.example.com"],
+#       "exclude": ["test.example.com"],
+#       "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+#       "allowed_ports": [80, 443, 8443, 9443],
+#       "allow_broad_networks": false
+#     }
+
+
+# ============================================================================
+# Secret for Database URL (populated by external-secrets/vault)
+# ============================================================================
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: strix-secrets
+#   namespace: strix-assessments
+# type: Opaque
+# stringData:
+#   database-url: "postgresql://strix:password@postgresql:5432/strix"
+#   STRIX_ENCRYPTION_KEY: "base64-encoded-32-byte-key"
+#   STRIX_AUDIT_HMAC_KEY: "base64-encoded-32-byte-key"
+#   STRIX_API_KEY: "admin-api-key"

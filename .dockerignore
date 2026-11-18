@@ -1,18 +1,84 @@
+# Build artifacts and caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+coverage.json
+htmlcov/
+.tox/
+.nox/
 
-certs
-config/scope.json
-*.db*
+# Virtual environments
+.venv/
+venv/
+env/
+*.egg-info/
+*.egg
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git and version control
+.git/
+.github/
+.gitignore
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Configuration files (not needed in container)
 .env
-.env.production
-.git
-.github
-.mypy_cache
-**/__pycache__
-.pytest_cache
-.ruff_cache
-# Rust scaffold: not imported by the Python package, only adds build context
+.env.*
+!.env.production.example
+config/
+certbot/
+deploy/
+scripts/
+
+# Database files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+strix.db*
+
+# Documentation
+*.md
+!README.md
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+tmp/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Rust scaffold (not imported by Python package)
 scope.json
-secrets
-src/hunt
-tests
-.venv
+secrets/
+src/hunt/
+
+# CI/CD
+.claude-flow/
+
+# Worker lock files
+*.worker-lock
+
+# Coverage and profiling
+*.prof
+.profiler/

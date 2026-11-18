@@ -1,0 +1,536 @@
+# Strix Helm Chart - Production Environment Values
+# Full production hardening with high availability
+
+global:
+  image:
+    repository: ghcr.io/your-org/strix
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - name: ghcr-secret
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: security-assessment
+  podSecurityStandard: restricted
+  priorityClassName: "system-cluster-critical"
+
+# HA Configuration
+ha:
+  enabled: true
+  # Leader election uses PostgreSQL advisory locks
+  # Requires PostgreSQL backend (not SQLite)
+  leaderElection:
+    lockName: "strix_leader_election"
+    ttlSeconds: 30
+    retryIntervalSeconds: 5
+  # Graceful shutdown drain timeout
+  drainTimeoutSeconds: 30
+  # Health check interval
+  healthCheckIntervalSeconds: 10
+
+# API Deployment - 3+ replicas, full resources
+api:
+  enabled: true
+  pdb:
+    enabled: true
+    minAvailable: 2
+  replicaCount: 3
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "4Gi"
+    requests:
+      cpu: "2000m"
+      memory: "2Gi"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  # writable /tmp for readOnlyRootFilesystem
+  volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 10
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 15
+          - type: Pods
+            value: 4
+            periodSeconds: 15
+        selectPolicy: Max
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "1000"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      external-dns.alpha.kubernetes.io/hostname: "strix.example.com,api.strix.example.com"
+    hosts:
+      - host: strix.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+      - host: api.strix.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: strix-tls-prod
+        hosts:
+          - strix.example.com
+          - api.strix.example.com
+  env:
+    STRIX_LOG_LEVEL: "INFO"
+    STRIX_LOG_FORMAT: "json"
+    STRIX_DEBUG: "0"
+    STRIX_WORKER_MEMORY_MB: "2048"
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: kubernetes.io/hostname
+        - weight: 50
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: topology.kubernetes.io/zone
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: strix
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: strix
+
+# Scheduler - 2 replicas for HA (only leader runs scheduler)
+scheduler:
+  enabled: true
+  pdb:
+    enabled: true
+    minAvailable: 1
+  replicaCount: 2
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # HA: Only the leader pod runs the scheduler
+  # Standby pods run health checks but don't schedule assessments
+  ha:
+    leaderOnly: true
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  # writable /tmp for readOnlyRootFilesystem
+  volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 60
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 70
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - strix
+            topologyKey: kubernetes.io/hostname
+
+# Worker - Enabled with HPA for distributed processing
+worker:
+  enabled: true
+  pdb:
+    enabled: true
+    minAvailable: 2
+  replicaCount: 4
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # HA: Workers run on all nodes (distributed queue processing)
+  # They use cooperative cancellation via database flags
+  ha:
+    distributed: true
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "4Gi"
+    requests:
+      cpu: "2000m"
+      memory: "2Gi"
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  # writable /tmp for readOnlyRootFilesystem
+  volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  hpa:
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 50
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Percent
+            value: 10
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 8
+            periodSeconds: 30
+        selectPolicy: Max
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+# Redis - Replication mode for HA
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    enabled: true
+    existingSecret: "strix-redis-secret"
+    existingSecretPasswordKey: "redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+# PostgreSQL - Enabled for multi-tenant production
+postgresql:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: "strix-postgresql-secret"
+    existingSecretPasswordKey: "postgresql-password"
+    database: strix
+    username: strix
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+      requests:
+        cpu: "1000m"
+        memory: "2Gi"
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+# Monitoring - Full stack
+monitoring:
+  prometheus:
+    enabled: true
+    prometheus:
+      prometheusSpec:
+        retention: 30d
+        retentionSize: 50Gi
+        resources:
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+          requests:
+            cpu: "2000m"
+            memory: "4Gi"
+  grafana:
+    enabled: true
+    grafana:
+      persistence:
+        enabled: true
+        size: 10Gi
+
+# PVC - Large storage for evidence retention
+pvc:
+  strixData:
+    enabled: true
+    resources:
+      requests:
+        storage: 50Gi
+    storageClassName: "fast-ssd"
+
+# NetworkPolicy - Strict
+networkPolicy:
+  enabled: true
+
+# Secrets - External secrets / Vault
+secrets:
+  enabled: true
+  createSecrets: false
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "strix-secrets"
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "strix"
+    vault.hashicorp.com/secret-path: "secret/data/strix/production"
+  rotation:
+    enabled: true
+    schedule: "0 3 * * *"  # Daily at 3 AM UTC
+
+# ConfigMap - Production scope (to be replaced with actual signed scope)
+configMap:
+  enabled: true
+  scopeJson: |
+    {
+      "program": "Production Security Assessment",
+      "authorized_by": "Chief Information Security Officer",
+      "authorization_ref": "PROD-2024-001",
+      "include": ["*.example.com", "api.example.com"],
+      "exclude": ["test.example.com", "dev.example.com", "staging.example.com"],
+      "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+      "allowed_ports": [80, 443, 8443, 9443],
+      "allow_broad_networks": false,
+      "auth": {
+        "users": []
+      }
+    }
+

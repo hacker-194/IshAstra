@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "program": "Acme Corp PenTest Q1 2025",
+  "authorized_by": "CISO Jane Smith",
+  "authorization_ref": "CONTRACT-2025-PENTEST-001",
+  "include": [
+    "api.acmecorp.com",
+    "*.acmecorp.com",
+    "staging.acmecorp.com"
+  ],
+  "exclude": [
+    "admin.acmecorp.com",
+    "vault.acmecorp.com",
+    "*.internal.acmecorp.com",
+    "ci.acmecorp.com"
+  ],
+  "authorized_networks": [
+    "10.0.0.0/8",
+    "10.10.0.0/16",
+    "172.16.0.0/12",
+    "192.168.0.0/16"
+  ],
+  "allowed_ports": [80, 443, 8080, 8443, 3000, 4000, 5000, 8000, 9000],
+  "allow_broad_networks": false,
+  "expires_at": "2025-03-31T23:59:59Z",
+  "auth": {
+    "users": [
+      {
+        "id": "pentester-lead",
+        "cookies": [
+          {"name": "sessionid", "value": "prod-session-lead-abc123", "domain": ".acmecorp.com", "path": "/"}
+        ],
+        "headers": {
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9...",
+          "X-Pentest-Team": "red-team-alpha"
+        },
+        "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwZW50ZXN0ZXItbGVhZCIsInRlYW0iOiJyZWQtdGVhbS1hbHBoYSIsImV4cCI6MTc0MzAwMDAwMH0.signature"
+      },
+      {
+        "id": "pentester-junior",
+        "cookies": [
+          {"name": "sessionid", "value": "prod-session-junior-def456", "domain": ".acmecorp.com", "path": "/"}
+        ],
+        "headers": {
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9...",
+          "X-Pentest-Team": "red-team-alpha"
+        },
+        "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwZW50ZXN0ZXItanVuaW9yIiwidGVhbSI6InJlZC10ZWFtLWFscGhhIiwiZXhwIjoxNzQzMDAwMDAwfQ.signature"
+      }
+    ]
+  },
+  "collab": {
+    "host": "10.10.10.50",
+    "port": 8080
+  },
+  "metadata": {
+    "environment": "production",
+    "engagement_type": "penetration_test",
+    "scope_version": "1.2",
+    "reviewed_by": "security-team",
+    "review_date": "2025-01-15",
+    "compliance": "SOC2,ISO27001,PCI-DSS"
+  }
+}

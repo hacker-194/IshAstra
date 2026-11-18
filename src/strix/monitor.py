@@ -83,9 +83,7 @@ def _pin_webhook(url: str) -> tuple[Any, str] | str:
     addresses = scope.resolve_sync(parsed.hostname, parsed.port)
     if not addresses:
         return "webhook host did not resolve"
-    if any(
-        scope.is_special_use(ipaddress.ip_address(a.split("%")[0])) for a in addresses
-    ):
+    if any(scope.is_special_use(ipaddress.ip_address(a.split("%")[0])) for a in addresses):
         return "webhook host resolves to a non-public address"
     return parsed, addresses[0]
 
@@ -102,9 +100,7 @@ async def _pin_webhook_async(url: str) -> tuple[Any, str] | str:
     addresses = await scope.resolve(parsed.hostname, parsed.port)
     if not addresses:
         return "webhook host did not resolve"
-    if any(
-        scope.is_special_use(ipaddress.ip_address(a.split("%")[0])) for a in addresses
-    ):
+    if any(scope.is_special_use(ipaddress.ip_address(a.split("%")[0])) for a in addresses):
         return "webhook host resolves to a non-public address"
     return parsed, addresses[0]
 
@@ -164,14 +160,14 @@ class WebhookAlertSink(AlertSink):
         headers = self._headers(body)
         headers["Host"] = parsed.hostname  # Send original hostname for SNI/Host header
 
-        response = await client.post(
-            url, content=body, headers=headers, timeout=WEBHOOK_TIMEOUT
-        )
+        response = await client.post(url, content=body, headers=headers, timeout=WEBHOOK_TIMEOUT)
         response.read()
         if response.status_code >= 400:
             raise OSError(f"HTTP {response.status_code}")
 
     async def send(self, alert: dict[str, Any]) -> None:
+        from strix import metrics
+
         body = json.dumps(redact(alert)).encode()
         last: Exception | None = None
         for attempt in range(1, DELIVERY_ATTEMPTS + 1):
@@ -180,11 +176,14 @@ class WebhookAlertSink(AlertSink):
 
                 client = await get_http_client()
                 await self._post_async(client, body)
+                metrics.record_webhook_delivery("delivered", None)
                 return
             except ValueError as exc:
                 # The destination itself is no longer acceptable: retrying the
                 # same refused URL cannot help.
                 log.warning("webhook %s refused: %s", self.name, exc)
+                metrics.record_webhook_delivery("refused", None)
+                metrics.record_webhook_failure("refused", None)
                 return
             except (OSError, httpx.HTTPError) as exc:
                 last = exc
@@ -196,6 +195,9 @@ class WebhookAlertSink(AlertSink):
             DELIVERY_ATTEMPTS,
             last,
         )
+        error_type = "timeout" if isinstance(last, httpx.TimeoutException) else "network"
+        metrics.record_webhook_delivery("failed", None)
+        metrics.record_webhook_failure(error_type, None)
 
 
 # ---------------------------------------------------------------------------
@@ -248,12 +250,8 @@ class Monitor:
     def load(self) -> None:
         """Restore targets, interval and alert sinks saved by a previous run (sync)."""
         targets, interval = asyncio.run(store.load_monitor_config())
-        unsafe_targets = [
-            target for target in targets if has_sensitive_query_params(target)
-        ]
-        self.targets = [
-            target for target in targets if not has_sensitive_query_params(target)
-        ]
+        unsafe_targets = [target for target in targets if has_sensitive_query_params(target)]
+        self.targets = [target for target in targets if not has_sensitive_query_params(target)]
         if interval:
             self.interval = interval
         if unsafe_targets:
@@ -281,34 +279,21 @@ class Monitor:
                     log.warning("failed to decrypt webhook sink %s, skipping", row["name"])
                     continue
             parsed = parse_url(url)
-            if (
-                parsed is None
-                or parsed.username
-                or parsed.password
-                or has_sensitive_query_params(url)
-            ):
+            if parsed is None or parsed.username or parsed.password or has_sensitive_query_params(url):
                 log.warning("discarding unsafe persisted webhook sink %s", row["name"])
                 asyncio.run(store.delete_webhook_sink(row["name"]))
                 continue
             if row["name"] in existing:
                 continue
-            self.alert_sinks.append(
-                WebhookAlertSink(
-                    name=row["name"], url=url, secret=self.webhook_secret
-                )
-            )
+            self.alert_sinks.append(WebhookAlertSink(name=row["name"], url=url, secret=self.webhook_secret))
             existing.add(row["name"])
 
     @async_locked
     async def load_async(self) -> None:
         """Async version of load (for async callers)."""
         targets, interval = await store.load_monitor_config()
-        unsafe_targets = [
-            target for target in targets if has_sensitive_query_params(target)
-        ]
-        self.targets = [
-            target for target in targets if not has_sensitive_query_params(target)
-        ]
+        unsafe_targets = [target for target in targets if has_sensitive_query_params(target)]
+        self.targets = [target for target in targets if not has_sensitive_query_params(target)]
         if interval:
             self.interval = interval
         if unsafe_targets:
@@ -331,22 +316,13 @@ class Monitor:
                     log.warning("failed to decrypt webhook sink %s, skipping", row["name"])
                     continue
             parsed = parse_url(url)
-            if (
-                parsed is None
-                or parsed.username
-                or parsed.password
-                or has_sensitive_query_params(url)
-            ):
+            if parsed is None or parsed.username or parsed.password or has_sensitive_query_params(url):
                 log.warning("discarding unsafe persisted webhook sink %s", row["name"])
                 await store.delete_webhook_sink(row["name"])
                 continue
             if row["name"] in existing:
                 continue
-            self.alert_sinks.append(
-                WebhookAlertSink(
-                    name=row["name"], url=url, secret=self.webhook_secret
-                )
-            )
+            self.alert_sinks.append(WebhookAlertSink(name=row["name"], url=url, secret=self.webhook_secret))
             existing.add(row["name"])
 
     def save(self) -> None:
@@ -392,9 +368,7 @@ class Monitor:
     def set_targets(self, targets: list[str]) -> None:
         """Monitor exactly ``targets``; forget baselines of any that were removed (sync)."""
         if any(has_sensitive_query_params(target) for target in targets):
-            raise ValueError(
-                "monitored targets cannot contain credential-bearing query parameters"
-            )
+            raise ValueError("monitored targets cannot contain credential-bearing query parameters")
         with self._config_lock:
             self.targets = list(dict.fromkeys(targets))
             kept = {sanitize_target(target) for target in self.targets}
@@ -409,9 +383,7 @@ class Monitor:
     async def set_targets_async(self, targets: list[str]) -> None:
         """Async version of set_targets (for async callers)."""
         if any(has_sensitive_query_params(target) for target in targets):
-            raise ValueError(
-                "monitored targets cannot contain credential-bearing query parameters"
-            )
+            raise ValueError("monitored targets cannot contain credential-bearing query parameters")
         with self._config_lock:
             self.targets = list(dict.fromkeys(targets))
             kept = {sanitize_target(target) for target in self.targets}
@@ -424,9 +396,7 @@ class Monitor:
 
     def add_target(self, target: str) -> None:
         if has_sensitive_query_params(target):
-            raise ValueError(
-                "monitored targets cannot contain credential-bearing query parameters"
-            )
+            raise ValueError("monitored targets cannot contain credential-bearing query parameters")
         with self._config_lock:
             if target not in self.targets:
                 self.targets.append(target)
@@ -438,19 +408,13 @@ class Monitor:
         # the deployment is single-organization and the global scope applies.
         snapshot: scope.Scope | None = None
         mode = self.scope_mode
-        managed = mode == "managed" or (
-            mode == "auto" and bool(await policies.registry.list_async())
-        )
+        managed = mode == "managed" or (mode == "auto" and bool(await policies.registry.list_async()))
         if mode not in {"auto", "global", "managed"}:
             managed = True  # invalid mode fails closed rather than widening scope
         if managed:
-            snapshot, reason = await policies.tenant_scope_snapshot_async(
-                MONITOR_TENANT
-            )
+            snapshot, reason = await policies.tenant_scope_snapshot_async(MONITOR_TENANT)
             if snapshot is None:
-                job = jobs.Job(
-                    target=target, profile=self.profile, actor=MONITOR_TENANT, policy={}
-                )
+                job = jobs.Job(target=target, profile=self.profile, actor=MONITOR_TENANT, policy={})
                 job.state = jobs.JobState.FAILED
                 job.error = f"out_of_scope: {reason}"
                 job.finished_at = time.time()
@@ -533,20 +497,12 @@ class Monitor:
         await store.save_monitor_baseline(target, set(current))
         if previous is None:
             return  # first cycle: baseline only
-        new = [
-            f
-            for fp, f in current.items()
-            if fp not in previous and f.severity in ALERT_SEVERITIES
-        ]
+        new = [f for fp, f in current.items() if fp not in previous and f.severity in ALERT_SEVERITIES]
         if new:
             await self._emit(
                 {
                     "rule_name": "new_finding",
-                    "severity": (
-                        "critical"
-                        if any(f.severity == "critical" for f in new)
-                        else "high"
-                    ),
+                    "severity": ("critical" if any(f.severity == "critical" for f in new) else "high"),
                     "target": target,
                     "job": job.id,
                     "message": f"{len(new)} new high-severity finding(s)",

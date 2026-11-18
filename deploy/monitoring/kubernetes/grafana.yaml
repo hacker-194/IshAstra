@@ -1,0 +1,1156 @@
+# Grafana Deployment with Dashboards from ConfigMaps
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f grafana.yaml
+
+---
+# ServiceAccount for Grafana
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: grafana
+
+---
+# Secret for Grafana admin password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin-credentials
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  admin-user: admin
+  admin-password: ${GRAFANA_ADMIN_PASSWORD}  # Replace with actual password or use ExternalSecrets
+
+---
+# Secret for Grafana database (if using external DB)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-database
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  database-url: "postgres://grafana:${GRAFANA_DB_PASSWORD}@postgres.monitoring.svc.cluster.local:5432/grafana?sslmode=require"
+  # Or for SQLite (default, no external DB needed)
+  # database-url: "sqlite:///var/lib/grafana/grafana.db"
+
+---
+# TLS Secret for Grafana
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-tls
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# Grafana Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+data:
+  grafana.ini: |
+    [server]
+    domain = grafana.strix.example.com
+    root_url = https://grafana.strix.example.com/
+    serve_from_sub_path = false
+    router_logging = false
+    static_root_path = public
+    enable_gzip = true
+    cert_file = /etc/grafana/certs/tls.crt
+    cert_key = /etc/grafana/certs/tls.key
+    protocol = https
+    http_addr = ""
+    http_port = 3000
+
+    [database]
+    # Using SQLite by default, can be overridden by env var GF_DATABASE_URL
+    type = sqlite3
+    path = /var/lib/grafana/grafana.db
+    max_idle_conn = 2
+    max_open_conn = 0
+    conn_max_lifetime = 14400
+    log_queries = false
+    ssl_mode = disable
+
+    [session]
+    provider = file
+    provider_config = /var/lib/grafana/sessions
+    cookie_name = grafana_sess
+    cookie_secure = true
+    session_life_time = 86400
+    gc_interval_time = 86400
+
+    [analytics]
+    reporting_enabled = false
+    check_for_updates = false
+    google_analytics_ua_id =
+    google_tag_manager_id =
+
+    [security]
+    admin_user = admin
+    admin_password = ${GF_SECURITY_ADMIN_PASSWORD}
+    secret_key = ${GF_SECURITY_SECRET_KEY}
+    login_remember_days = 7
+    cookie_username = grafana_user
+    cookie_remember_name = grafana_remember
+    disable_gravatar = true
+    disable_brute_force_protection = false
+    cookie_secure = true
+    cookie_samesite = lax
+    strict_transport_security = true
+    strict_transport_security_max_age_seconds = 31536000
+    strict_transport_security_preload = true
+    strict_transport_security_subdomains = true
+    csrf_always_check = true
+    disable_initial_admin_creation = false
+
+    [snapshots]
+    external_enabled = false
+    external_snapshot_url = https://snapshots-origin.raintank.io
+    external_snapshot_name = Publish to snapshots.raintank.io
+    snapshot_remove_expired = true
+
+    [dashboards]
+    versions_to_keep = 20
+    min_refresh_interval = 5s
+    default_home_dashboard_path =
+
+    [users]
+    allow_sign_up = false
+    allow_org_create = false
+    auto_assign_org = true
+    auto_assign_org_role = Viewer
+    verify_email_enabled = false
+    login_hint = email or username
+    default_theme = dark
+    home_page = /d/strix-overview/strix-observability-overview
+
+    [auth]
+    disable_login_form = false
+    disable_signout_menu = false
+    signout_redirect_url =
+    oauth_auto_login = false
+    oauth_state_cookie_max_age = 600
+    oauth_skip_org_role_update_sync = false
+    oauth_allow_insecure_email_lookup = false
+    sigv4_auth_enabled = false
+    sigv4_verbose_logging = false
+
+    [auth.anonymous]
+    enabled = false
+    org_name = Main Org.
+    org_role = Viewer
+    hide_version = false
+
+    [auth.basic]
+    enabled = true
+
+    [auth.ldap]
+    enabled = false
+    config_file = /etc/grafana/ldap.toml
+    allow_sign_up = true
+
+    [auth.saml]
+    enabled = false
+    certificate_path =
+    private_key_path =
+    signature_algorithm = rsa-sha256
+    allow_idp_initiated = true
+    assertion_attribute_name = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name
+    assertion_attribute_login = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
+    assertion_attribute_email = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
+    assertion_attribute_groups = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/groups
+    assertion_attribute_org = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/org
+    assertion_attribute_role = http://schemas.xmlsoap.org/ws/2005/05/identity/claims/role
+
+    [auth.proxy]
+    enabled = false
+    header_name = X-WEBAUTH-USER
+    header_property = username
+    auto_sign_up = true
+    sync_ttl = 60
+    whitelist = 192.168.1.1, 192.168.2.1
+    headers = Email:X-WEBAUTH-EMAIL, Name:X-WEBAUTH-NAME
+
+    [auth.generic_oauth]
+    enabled = false
+    name = OAuth
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = user:email,read:org
+    auth_url = https://example.com/oauth/authorize
+    token_url = https://example.com/oauth/token
+    api_url = https://example.com/user
+    team_ids =
+    allowed_organizations =
+    allowed_domains =
+    role_attribute_path =
+    groups_attribute_path =
+    tls_skip_verify_insecure = false
+    tls_client_cert =
+    tls_client_key =
+    tls_client_ca =
+
+    [auth.github]
+    enabled = false
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = user:email,read:org
+    auth_url = https://github.com/login/oauth/authorize
+    token_url = https://github.com/login/oauth/access_token
+    api_url = https://api.github.com/user
+    team_ids =
+    allowed_organizations =
+    allowed_domains =
+
+    [auth.google]
+    enabled = false
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email
+    auth_url = https://accounts.google.com/o/oauth2/auth
+    token_url = https://accounts.google.com/o/oauth2/token
+    api_url = https://www.googleapis.com/oauth2/v1/userinfo
+    allowed_domains =
+    team_ids =
+    allowed_organizations =
+    role_attribute_path =
+    groups_attribute_path =
+    tls_skip_verify_insecure = false
+
+    [auth.generic_oauth]
+    enabled = false
+    name = OAuth
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = user:email,read:org
+    auth_url = https://example.com/oauth/authorize
+    token_url = https://example.com/oauth/token
+    api_url = https://example.com/user
+    team_ids =
+    allowed_organizations =
+    allowed_domains =
+    role_attribute_path =
+    groups_attribute_path =
+
+    [auth.azuread]
+    enabled = false
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = openid email profile
+    auth_url = https://login.microsoftonline.com/common/oauth2/v2.0/authorize
+    token_url = https://login.microsoftonline.com/common/oauth2/v2.0/token
+    api_url = https://graph.microsoft.com/v1.0/me
+    allowed_domains =
+    team_ids =
+    allowed_organizations =
+    role_attribute_path =
+    groups_attribute_path =
+    tls_skip_verify_insecure = false
+
+    [auth.okta]
+    enabled = false
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = openid email profile
+    auth_url = https://example.okta.com/oauth2/v1/authorize
+    token_url = https://example.okta.com/oauth2/v1/token
+    api_url = https://example.okta.com/oauth2/v1/userinfo
+    allowed_domains =
+    team_ids =
+    allowed_organizations =
+    role_attribute_path =
+    groups_attribute_path =
+    tls_skip_verify_insecure = false
+
+    [auth.gitlab]
+    enabled = false
+    allow_sign_up = true
+    client_id = some_id
+    client_secret = some_secret
+    scopes = read_user
+    auth_url = https://gitlab.com/oauth/authorize
+    token_url = https://gitlab.com/oauth/token
+    api_url = https://gitlab.com/api/v4/user
+    allowed_domains =
+    team_ids =
+    allowed_organizations =
+    role_attribute_path =
+    groups_attribute_path =
+    tls_skip_verify_insecure = false
+
+    [log]
+    mode = console
+    level = info
+    format = text
+
+    [log.frontend]
+    enabled = true
+    logger_name = frontend
+
+    [log.console]
+    level = info
+    format = text
+
+    [log.file]
+    level = info
+    format = text
+    log_rotate = true
+    max_lines = 1000000
+    max_size_shift = 28
+    daily_rotate = true
+    max_days = 7
+
+    [log.syslog]
+    network = udp
+    address = localhost:514
+    facility = daemon
+    tag = grafana
+
+    [event_publisher]
+    enabled = false
+    rabbitmq_url = amqp://localhost/
+    exchange = grafana_events
+    exchange_type = fanout
+
+    [metric]
+    enabled = true
+    interval_seconds = 10
+    disable_total_stats = false
+    basic_auth_username =
+    basic_auth_password =
+    statsd_address = :8125
+    statsd_prefix = grafana
+
+    [grafana_com]
+    url = https://grafana.com
+
+    [tracing.jaeger]
+    address = tempo.monitoring.svc.cluster.local:14268
+    always_included_tag = tag1:value1
+    sampler_type = const
+    sampler_param = 1
+    sampling_server_url =
+
+    [tracing.datadog]
+    address = localhost:8126
+    always_included_tag = tag1:value1
+
+    [tracing.zipkin]
+    address = localhost:9411
+    always_included_tag = tag1:value1
+
+    [tracing.opentelemetry]
+    address = localhost:4317
+    always_included_tag = tag1:value1
+
+    [unified_alerting]
+    enabled = true
+    admin_config_poll_interval = 60s
+    ha_redis_address = redis.monitoring.svc.cluster.local:6379
+    ha_redis_password =
+    ha_redis_db = 0
+    ha_redis_prefix = grafana
+    ha_listen_address = 0.0.0.0:9094
+    ha_peer_timeout = 15s
+    ha_gossip_interval = 200ms
+    ha_push_pull_interval = 60s
+    evaluation_timeout = 30s
+    max_attempts = 3
+    min_interval = 10s
+    search_max_results = 1000
+    alert_rule_config_cache_expiration = 5m
+    no_data_state = NoData
+    error_state = Error
+
+    [alerting]
+    enabled = true
+    execute_alerts = true
+    error_or_timeout = alerting
+    no_data_state = no_data
+    min_interval_seconds = 10
+    max_attempts = 3
+    min_interval = 10s
+    search_max_results = 1000
+
+    [alerting.notification]
+    send_email = true
+    webhook_retry = 3
+    webhook_timeout = 30s
+
+    [remote_cache]
+    type = database
+
+    [dataproxy]
+    timeout = 30
+    dial_timeout = 10
+    keep_alive_seconds = 30
+    tls_handshake_timeout_seconds = 10
+    tls_skip_verify_insecure = false
+    send_user_header = false
+
+    [plugins]
+    enable_alpha = false
+    allow_loading_unsigned_plugins =
+    plugin_admin_enabled = true
+    plugin_admin_external_manage = false
+    plugin_catalog_url = https://grafana.com/api/plugins
+    plugin_catalog_hidden =
+
+    [panels]
+    disable_sanitize_html = false
+
+    [dates]
+    default_timezone = UTC
+
+    [databricks]
+    enabled = false
+
+    [sentry]
+    enabled = false
+    dsn =
+    environment = production
+
+    [live]
+    enabled = true
+    max_connections = 100
+    ha_engine = ""
+    ha_engine_address = ""
+    ha_engine_max_connections = 100
+    ha_channel_prefix =
+
+    [feature_toggles]
+    enable =
+
+---
+# Grafana Datasources ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_datasource: "1"
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        url: https://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          httpMethod: POST
+          exemplarsTraceIdDestinations:
+            - name: TraceID
+              datasourceUid: tempo
+        secureJsonData:
+          httpHeaderValue1: ""
+      - name: Loki
+        type: loki
+        uid: loki
+        access: proxy
+        url: https://loki.monitoring.svc.cluster.local:3100
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          maxLines: 1000
+          derivedFields:
+            - name: traceID
+              matcherRegex: "traceID=(\\w+)"
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+        secureJsonData:
+          httpHeaderValue1: ""
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: https://tempo.monitoring.svc.cluster.local:3200
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          nodeGraph:
+            enabled: true
+          search:
+            hide: false
+          spans:
+            search:
+              hide: false
+          tracesToLogs:
+            datasourceUid: loki
+            tags:
+              - job
+              - component
+            spanStartTimeShift: "1h"
+            spanEndTimeShift: "-1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          lokiSearch:
+            datasourceUid: loki
+        secureJsonData:
+          httpHeaderValue1: ""
+      - name: Alertmanager
+        type: alertmanager
+        uid: alertmanager
+        access: proxy
+        url: https://alertmanager.monitoring.svc.cluster.local:9093
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          implementation: prometheus
+        secureJsonData:
+          httpHeaderValue1: ""
+
+---
+# Grafana Dashboards Provider ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-providers
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'Strix Dashboards'
+        orgId: 1
+        folder: 'Strix'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/strix
+      - name: 'Kubernetes Dashboards'
+        orgId: 1
+        folder: 'Kubernetes'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/kubernetes
+      - name: 'Infrastructure Dashboards'
+        orgId: 1
+        folder: 'Infrastructure'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/infrastructure
+
+---
+# Grafana Dashboards ConfigMaps (10 dashboards from deploy/monitoring/grafana/dashboards/)
+# These are created as separate ConfigMaps for each dashboard
+# Dashboard: Strix Overview
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-overview
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-overview.json: |
+{{- $overview := .Files.Get "deploy/monitoring/grafana/dashboards/strix-overview.json" }}
+{{ $overview | indent 4 }}
+
+---
+# Dashboard: Strix Queue Depth
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-queue-depth
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-queue-depth.json: |
+{{- $queueDepth := .Files.Get "deploy/monitoring/grafana/dashboards/strix-queue-depth.json" }}
+{{ $queueDepth | indent 4 }}
+
+---
+# Dashboard: Strix Job Latency
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-job-latency
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-job-latency.json: |
+{{- $jobLatency := .Files.Get "deploy/monitoring/grafana/dashboards/strix-job-latency.json" }}
+{{ $jobLatency | indent 4 }}
+
+---
+# Dashboard: Strix Adapter Success Rates
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-adapter-success-rates
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-adapter-success-rates.json: |
+{{- $adapterRates := .Files.Get "deploy/monitoring/grafana/dashboards/strix-adapter-success-rates.json" }}
+{{ $adapterRates | indent 4 }}
+
+---
+# Dashboard: Strix Error Rates
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-error-rates
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-error-rates.json: |
+{{- $errorRates := .Files.Get "deploy/monitoring/grafana/dashboards/strix-error-rates.json" }}
+{{ $errorRates | indent 4 }}
+
+---
+# Dashboard: Strix Findings Pipeline
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-findings-pipeline
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-findings-pipeline.json: |
+{{- $findingsPipeline := .Files.Get "deploy/monitoring/grafana/dashboards/strix-findings-pipeline.json" }}
+{{ $findingsPipeline | indent 4 }}
+
+---
+# Dashboard: Strix Security Events
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-security-events
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-security-events.json: |
+{{- $securityEvents := .Files.Get "deploy/monitoring/grafana/dashboards/strix-security-events.json" }}
+{{ $securityEvents | indent 4 }}
+
+---
+# Dashboard: Strix System Health
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-system-health
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-system-health.json: |
+{{- $systemHealth := .Files.Get "deploy/monitoring/grafana/dashboards/strix-system-health.json" }}
+{{ $systemHealth | indent 4 }}
+
+---
+# Dashboard: Strix Tenant Isolation
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-tenant-isolation
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-tenant-isolation.json: |
+{{- $tenantIsolation := .Files.Get "deploy/monitoring/grafana/dashboards/strix-tenant-isolation.json" }}
+{{ $tenantIsolation | indent 4 }}
+
+---
+# Dashboard: Strix Tenant Throughput
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-strix-tenant-throughput
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    grafana_dashboard: "1"
+    dashboard_folder: "Strix"
+data:
+  strix-tenant-throughput.json: |
+{{- $tenantThroughput := .Files.Get "deploy/monitoring/grafana/dashboards/strix-tenant-throughput.json" }}
+{{ $tenantThroughput | indent 4 }}
+
+---
+# Grafana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: grafana
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grafana
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: grafana
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/component: grafana
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: /metrics
+        prometheus.io/scheme: https
+    spec:
+      serviceAccountName: grafana
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-credentials
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-credentials
+                  key: admin-password
+            - name: GF_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-database
+                  key: database-url
+                  optional: true
+            - name: GF_SECURITY_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin-credentials
+                  key: admin-password
+                  optional: true
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.strix.example.com/"
+            - name: GF_SERVER_DOMAIN
+              value: "grafana.strix.example.com"
+            - name: GF_SERVER_PROTOCOL
+              value: "https"
+            - name: GF_SERVER_CERT_FILE
+              value: "/etc/grafana/certs/tls.crt"
+            - name: GF_SERVER_CERT_KEY
+              value: "/etc/grafana/certs/tls.key"
+            - name: GF_LOG_LEVEL
+              value: "info"
+            - name: GF_LOG_MODE
+              value: "console"
+            - name: GF_USERS_DEFAULT_THEME
+              value: "dark"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "false"
+            - name: GF_AUTH_DISABLE_SIGNOUT_MENU
+              value: "false"
+            - name: GF_UNIFIED_ALERTING_ENABLED
+              value: "true"
+            - name: GF_ALERTING_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: grafana-config
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+              readOnly: true
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            - name: grafana-dashboard-providers
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+              readOnly: true
+            - name: grafana-tls
+              mountPath: /etc/grafana/certs
+              readOnly: true
+            - name: grafana-dashboards-strix
+              mountPath: /var/lib/grafana/dashboards/strix
+              readOnly: true
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-config
+          configMap:
+            name: grafana-config
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboard-providers
+          configMap:
+            name: grafana-dashboard-providers
+        - name: grafana-tls
+          secret:
+            secretName: grafana-tls
+        - name: grafana-dashboards-strix
+          configMap:
+            name: grafana-dashboard-strix-overview
+        - name: grafana-data
+          emptyDir: {}
+
+---
+# Service for Grafana
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: grafana
+
+---
+# ServiceMonitor for Grafana self-monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /etc/prometheus/certs/grafana-ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: grafana.monitoring.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodDisruptionBudget for Grafana HA
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: grafana
+
+---
+# HorizontalPodAutoscaler for Grafana
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: grafana
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+
+---
+# NetworkPolicy for Grafana
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus to scrape Grafana metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow ingress controller (if using ingress)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # Allow Grafana to query Prometheus
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Allow Grafana to query Loki
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: loki
+      ports:
+        - protocol: TCP
+          port: 3100
+    # Allow Grafana to query Tempo
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: tempo
+      ports:
+        - protocol: TCP
+          port: 3200
+    # Allow Grafana to query Alertmanager
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: alertmanager
+              alertmanager: strix
+      ports:
+        - protocol: TCP
+          port: 9093
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Grafana to connect to external auth providers (if configured)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443

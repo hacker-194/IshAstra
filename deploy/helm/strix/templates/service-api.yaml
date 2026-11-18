@@ -1,0 +1,29 @@
+{{- if .Values.api.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "strix.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  {{- if or .Values.additionalAnnotations .Values.api.service.annotations }}
+  annotations:
+    {{- if .Values.additionalAnnotations }}
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.api.service.annotations }}
+    {{- toYaml .Values.api.service.annotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.api.service.type }}
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: {{ .Values.api.service.targetPort }}
+      protocol: TCP
+      name: {{ .Values.api.service.name }}
+  selector:
+    {{- include "strix.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+{{- end }}

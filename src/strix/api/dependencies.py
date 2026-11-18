@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 import httpx
 import redis.asyncio as redis
@@ -19,35 +18,34 @@ import redis.asyncio as redis
 from strix import __version__
 from strix.audit import AuditChain, AuditLog
 from strix.config import Settings
+from strix.config import get_settings as config_settings
+from strix.config import reset_settings as config_reset_settings
 from strix.monitor import Monitor
 
-_settings: Settings | None = None
 _audit_log: AuditLog | None = None
 _audit_chain: AuditChain | None = None
 _monitor: Monitor | None = None
 
 
 def get_settings() -> Settings:
-    """Lazy-initialized settings (allows test overrides via env vars before first access)."""
-    global _settings
-    if _settings is None:
-        _settings = Settings.from_env()
-    return _settings
+    """The process settings.
+
+    Delegates to ``strix.config`` so the API, the CLI and the core modules share
+    one object instead of each reading the environment for itself.
+    """
+    return config_settings()
 
 
 def reset_settings() -> None:
     """Reset the cached settings (for test isolation)."""
-    global _settings
-    _settings = None
+    config_reset_settings()
 
 
 def get_audit_log() -> AuditLog:
     """Lazy-initialized audit log."""
     global _audit_log
     if _audit_log is None:
-        _audit_log = AuditLog(
-            max_entries=get_settings().audit_max_entries, persistent=True
-        )
+        _audit_log = AuditLog(max_entries=get_settings().audit_max_entries, persistent=True)
     return _audit_log
 
 
@@ -55,9 +53,7 @@ def get_audit_chain() -> AuditChain:
     """Lazy-initialized audit chain."""
     global _audit_chain
     if _audit_chain is None:
-        _audit_chain = AuditChain(
-            persistent=True, hmac_key=get_settings().audit_hmac_key
-        )
+        _audit_chain = AuditChain(persistent=True, hmac_key=get_settings().audit_hmac_key)
     return _audit_chain
 
 
@@ -84,12 +80,7 @@ def __getattr__(name: str):
         return get_audit_chain()
     if name == "monitor":
         return get_monitor()
-    if name == "Tenant":
-        return dict[str, Any]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
-
-
-Tenant = dict[str, Any]
 
 
 # Global async resources (initialized on startup)

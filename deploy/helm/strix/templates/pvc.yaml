@@ -1,0 +1,35 @@
+{{- if .Values.pvc.strixData.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.pvc.strixData.name | default (include "strix.fullname" .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+  {{- if or .Values.additionalAnnotations .Values.pvc.strixData.annotations }}
+  annotations:
+    {{- if .Values.additionalAnnotations }}
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.pvc.strixData.annotations }}
+    {{- toYaml .Values.pvc.strixData.annotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.pvc.strixData.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.pvc.strixData.resources.requests.storage }}
+  {{- if .Values.pvc.strixData.storageClassName }}
+  storageClassName: {{ .Values.pvc.strixData.storageClassName }}
+  {{- end }}
+  {{- if .Values.pvc.strixData.volumeMode }}
+  volumeMode: {{ .Values.pvc.strixData.volumeMode }}
+  {{- end }}
+  {{- if .Values.pvc.strixData.selector }}
+  selector:
+    {{- toYaml .Values.pvc.strixData.selector | nindent 4 }}
+  {{- end }}
+{{- end }}

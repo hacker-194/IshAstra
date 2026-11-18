@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import csv
 import json
+import time
 from datetime import datetime
 from io import StringIO
 from typing import Any
 
 from strix.core.findings import Finding
+from strix.locale import LocaleCode, TemplateContext
 
 # ─── NRB (Nepal Rastra Bank) Directives Mappings ───
 NRB_MAPPINGS: dict[str, dict[str, Any]] = {
@@ -401,9 +403,7 @@ def match_findings_to_controls(
                             "location": finding.location,
                         }
                     )
-                    cr["gaps"].append(
-                        f"{finding.category}: {finding.evidence[:100]}"
-                    )
+                    cr["gaps"].append(f"{finding.category}: {finding.evidence[:100]}")
                     break
 
     return control_results
@@ -418,9 +418,7 @@ def build_evidence_pack(
     control_results = match_findings_to_controls(job.findings, mappings)
 
     if not include_passing:
-        control_results = {
-            k: v for k, v in control_results.items() if v["status"] != "pass"
-        }
+        control_results = {k: v for k, v in control_results.items() if v["status"] != "pass"}
 
     total_controls = len(mappings)
     failed_controls = len([c for c in control_results.values() if c["status"] == "fail"])
@@ -447,9 +445,7 @@ def build_evidence_pack(
         if result["status"] == "fail":
             by_category[cat]["failed"] += 1
 
-    compliance_score = round(
-        (passed_controls / total_controls * 100) if total_controls > 0 else 100, 1
-    )
+    compliance_score = round((passed_controls / total_controls * 100) if total_controls > 0 else 100, 1)
 
     pack = {
         "metadata": {
@@ -487,6 +483,7 @@ def build_evidence_pack(
 
 # ─── Output Formatters ───
 
+
 def to_csv(pack: dict[str, Any]) -> str:
     """Export evidence pack as CSV."""
     output = StringIO()
@@ -509,9 +506,7 @@ def to_csv(pack: dict[str, Any]) -> str:
 
     for control in pack.get("controls", []):
         framework = control["control_id"].split("-")[0].upper()
-        fw_name = {"nrb": "NRB", "nta": "NTA", "ncsp": "NCSP"}.get(
-            framework.lower(), framework
-        )
+        fw_name = {"nrb": "NRB", "nta": "NTA", "ncsp": "NCSP"}.get(framework.lower(), framework)
         writer.writerow(
             [
                 control["control_id"],
@@ -572,9 +567,7 @@ def to_oscal(pack: dict[str, Any]) -> str:
             "fail": "not-satisfied",
             "gap": "other",
         }
-        finding_refs = [
-            f"urn:uuid:{f['fingerprint']}" for f in control["matched_findings"]
-        ]
+        finding_refs = [f"urn:uuid:{f['fingerprint']}" for f in control["matched_findings"]]
 
         oscal["assessment-results"]["results"].append(
             {
@@ -588,9 +581,7 @@ def to_oscal(pack: dict[str, Any]) -> str:
                             "satisfied": control["status"] == "pass",
                             "finding-refs": finding_refs,
                             "remarks": (
-                                "; ".join(control["gaps"])
-                                if control["gaps"]
-                                else "Control satisfied"
+                                "; ".join(control["gaps"]) if control["gaps"] else "Control satisfied"
                             ),
                         }
                     ]
@@ -617,84 +608,246 @@ def to_oscal(pack: dict[str, Any]) -> str:
     return json.dumps(oscal, indent=2)
 
 
-def printable_html(pack: dict[str, Any]) -> str:
-    """Export a printable HTML report (open it and use Print to PDF)."""
+def printable_html(
+    pack: dict[str, Any],
+    locale_code: LocaleCode = "en_US",
+    context: TemplateContext | None = None,
+) -> str:
+    """Export a printable HTML report (open it and use Print to PDF).
+
+    Every interpolated value is escaped: evidence, titles and targets come from
+    scanned systems and end up in a document a human opens in a browser, so a
+    finding whose evidence contains markup must render as text, not execute.
+
+    Args:
+        pack: Evidence pack dictionary
+        locale_code: Locale to render in (default: en_US)
+        context: Optional template context with localized names
+    """
+    # Import locale functions lazily to avoid circular imports
+    from strix.locale import (
+        LOCALES,
+        esc,
+        format_date,
+        get_html_dir,
+        get_html_lang,
+        get_severity_label,
+    )
+
+    locale = LOCALES[locale_code]
+
+    def escape(v: Any) -> str:
+        return esc(v, locale_code)
+
     meta = pack["metadata"]
     summary = pack["summary"]
+    html_dir = get_html_dir(locale_code)
+    html_lang = get_html_lang(locale_code)
 
-    # Build controls by framework HTML (no f-strings with loops)
+    # Context values
+    if context is None:
+        context = TemplateContext(
+            locale_code=locale_code,
+            client_name=meta.get("scope_program", ""),
+            target=meta.get("target", ""),
+            generated_at=None,
+        )
+
+    # Framework name mapping for Nepali
+    fw_names = {
+        "nrb": "NRB" if locale_code == "en_US" else "एनआरबी",
+        "nta": "NTA" if locale_code == "en_US" else "एनटीए",
+        "ncsp": "NCSP" if locale_code == "en_US" else "एनसीएसपी",
+    }
+
+    # Status label mapping
+    status_labels = {
+        "en_US": {"fail": "FAIL", "pass": "PASS"},
+        "ne_NP": {"fail": "असफल", "pass": "सफल"},
+    }
+    status_map = status_labels.get(locale_code, status_labels["en_US"])
+
+    # Section labels
+    section_labels = {
+        "en_US": {
+            "title": "Compliance Evidence Pack",
+            "controls_by_framework": "Controls by Framework",
+            "findings_detail": "Findings Detail",
+            "audit_chain": "Audit Chain Verification",
+            "target": "Target",
+            "profile": "Assessment Profile",
+            "actor": "Actor",
+            "job_id": "Job ID",
+            "scope_program": "Scope Program",
+            "authorized_by": "Authorized By",
+            "authorization_ref": "Authorization Ref",
+            "generated": "Generated",
+            "tool_version": "Tool Version",
+            "total_controls": "Total Controls",
+            "controls_passing": "Controls Passing",
+            "controls_with_gaps": "Controls with Gaps",
+            "total_findings": "Total Findings",
+            "fingerprint": "Fingerprint",
+            "category": "Category",
+            "finding_title": "Title",
+            "severity": "Severity",
+            "confidence": "Confidence",
+            "location": "Location",
+            "evidence": "Evidence",
+            "audit_note": (
+                "This evidence pack is backed by Strix's tamper-evident audit chain "
+                "(HMAC-SHA256). To verify integrity, run: strix audit verify"
+            ),
+            "generator": "Generated by Strix Evidence Pack Generator v1.0",
+        },
+        "ne_NP": {
+            "title": "अनुपालन प्रमाण पैक",
+            "controls_by_framework": "फ्रेमवर्क अनुसार नियन्त्रणहरू",
+            "findings_detail": "पत्ता लगाएका विवरण",
+            "audit_chain": "अडिट चेन पुष्टिकरण",
+            "target": "लक्ष्य",
+            "profile": "मूल्यांकन प्रोफाइल",
+            "actor": "अभिनेता",
+            "job_id": "कार्य ID",
+            "scope_program": "दायरा कार्यक्रम",
+            "authorized_by": "अधिकृत गर्ने",
+            "authorization_ref": "अधिकरण सन्दर्भ",
+            "generated": "जनरेट भएको",
+            "tool_version": "टुल संस्करण",
+            "total_controls": "कुल नियन्त्रणहरू",
+            "controls_passing": "नियन्त्रणहरू सफल",
+            "controls_with_gaps": "खाँडसहित नियन्त्रणहरू",
+            "total_findings": "कुल पत्ता लगाएका",
+            "fingerprint": "फिंगरप्रिन्ट",
+            "category": "श्रेणी",
+            "finding_title": "शीर्षक",
+            "severity": "गम्भीरता",
+            "confidence": "आत्मविश्वास",
+            "location": "स्थान",
+            "evidence": "प्रमाण",
+            "audit_note": (
+                "यस प्रमाण पैक स्ट्रिक्सको छेड़छाड-स्पष्ट अडिट चेन "
+                "(HMAC-SHA256) बाट समर्थित छ। अखण्डता पुष्टि गर्नको "
+                "लागि चलाउनुहोस्: strix audit verify"
+            ),
+            "generator": "स्ट्रिक्स प्रमाण पैक जनरेटर v1.0 बाट जनरेटेड",
+        },
+    }
+    labels = section_labels.get(locale_code, section_labels["en_US"])
+
+    # Build controls by framework HTML
     fw_tables = []
     for fw_key, fw_data in pack.get("by_framework", {}).items():
-        fw_name = fw_key.upper()
+        fw_name = fw_names.get(fw_key, fw_key.upper())
         rows = []
         for control in fw_data["controls"]:
             status_class = "fail" if control["status"] == "fail" else "pass"
             sev_class = f"severity-{control['severity']}"
-            gaps = "; ".join(control["gaps"]) if control["gaps"] else "—"
+            gaps = escape("; ".join(control["gaps"])) if control["gaps"] else "—"
             rows.append(
-                f"            <tr class=\"{status_class}\">"
-                f"                <td>{control['control_id']}</td>"
-                f"                <td>{control['title']}</td>"
-                f"                <td>{control['category']}</td>"
-                f"                <td class=\"{sev_class}\">{control['severity'].upper()}</td>"
-                f"                <td class=\"status-{control['status']}\">{control['status'].upper()}</td>"
+                '            <tr class="'
+                f'{status_class}">'
+                f"                <td>{escape(control['control_id'])}</td>"
+                f"                <td>{escape(control['title'])}</td>"
+                f"                <td>{escape(control['category'])}</td>"
+                f'                <td class="{sev_class}">'
+                f"{escape(get_severity_label(control['severity'].upper(), locale_code))}</td>"
+                f'                <td class="status-{escape(control["status"])}">'
+                f"{escape(status_map.get(control['status'], control['status'].upper()))}</td>"
                 f"                <td>{gaps}</td>"
                 f"            </tr>"
             )
         rows_str = "\n".join(rows)
-        fw_table = f"""    <h3><span class="framework-badge framework-{fw_key}">{fw_name}</span>
-        {fw_data['failed']}/{fw_data['total']} Controls with Gaps</h3>
-    <table>
+        label = "Controls with Gaps" if locale_code == "en_US" else "नियन्त्रणहरूमा खाँड"
+        fw_table = (
+            f"""    <h3><span class="framework-badge framework-{fw_key}">{fw_name}</span>"""
+            f"{fw_data['failed']}/{fw_data['total']} "
+            f"{escape(label)}</h3>"
+            """    <table>
         <thead>
             <tr>
-                <th>Control ID</th>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Severity</th>
-                <th>Status</th>
-                <th>Gaps</th>
-            </tr>
+                <th>"""
+            f"{escape('Control ID')}</th>"
+            f"                <th>{escape('Title')}</th>"
+            f"                <th>{escape('Category')}</th>"
+            f"                <th>{escape('Severity')}</th>"
+            f"                <th>{escape('Status')}</th>"
+            f"                <th>{escape('Gaps')}</th>"
+            """            </tr>
         </thead>
         <tbody>
-{rows_str}
-        </tbody>
+"""
+            f"{rows_str}"
+            """        </tbody>
     </table>"""
+        )
         fw_tables.append(fw_table)
 
     # Build findings detail HTML
     findings_rows = []
     for finding in pack.get("findings", []):
         sev_class = f"severity-{finding['severity']}"
+        evidence = finding["evidence"]
         findings_rows.append(
-            f"        <tr>"
-            f"            <td>{finding['fingerprint'][:16]}...</td>"
-            f"            <td>{finding['category']}</td>"
-            f"            <td>{finding['title']}</td>"
-            f"            <td class=\"{sev_class}\">{finding['severity'].upper()}</td>"
-            f"            <td>{finding['confidence'].upper()}</td>"
-            f"            <td>{finding['location']}</td>"
-            f"            <td><div class=\"finding-item\">"
-            f"{finding['evidence'][:200]}"
-            f"{'...' if len(finding['evidence']) > 200 else ''}</div></td>"
+            "        <tr>"
+            f"            <td>{escape(finding['fingerprint'][:16])}...</td>"
+            f"            <td>{escape(finding['category'])}</td>"
+            f"            <td>{escape(finding['title'])}</td>"
+            f'            <td class="{sev_class}">'
+            f"{escape(get_severity_label(finding['severity'].upper(), locale_code))}</td>"
+            f"            <td>{escape(finding['confidence'].upper())}</td>"
+            f"            <td>{escape(finding['location'])}</td>"
+            f'            <td><div class="finding-item">'
+            f"{escape(evidence[:200])}"
+            f"{'...' if len(evidence) > 200 else ''}</div></td>"
             f"        </tr>"
         )
     findings_str = "\n".join(findings_rows)
 
-    html = """<!DOCTYPE html>
-<html>
+    # Format date with locale
+    generated_at = meta["generated_at"]
+    try:
+        dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        generated_str = format_date(
+            dt, locale_code, include_bs=True, use_nepali_digits=(locale_code == "ne_NP")
+        )
+    except Exception:
+        generated_str = escape(generated_at)
+
+    target = escape(meta["target"])
+    profile = escape(meta["profile"])
+    actor = escape(meta["actor"])
+    job_id = escape(meta["job_id"])
+    scope_program = escape(meta["scope_program"])
+    scope_authorized_by = escape(meta["scope_authorized_by"])
+    authorization_ref = escape(meta["authorization_ref"])
+    total_controls_assessed = summary["total_controls_assessed"]
+    controls_passing = summary["controls_passing"]
+    controls_with_gaps = summary["controls_with_gaps"]
+    total_findings = summary["total_findings"]
+    compliance_score = summary["compliance_score"]
+    summary_class = "fail" if controls_with_gaps > controls_passing else "pass"
+    compliance_class = "pass" if compliance_score >= 80 else "fail"
+
+    # Font configuration
+    font_family = f"'{locale.font_family}', 'Noto Sans Devanagari', Arial, sans-serif"
+    text_align = "right" if html_dir == "rtl" else "left"
+
+    html = f"""<!DOCTYPE html>
+<html lang="{html_lang}" dir="{html_dir}">
 <head>
     <meta charset="utf-8">
-    <title>Compliance Evidence Pack - {target}</title>
+    <title>{labels["title"]} - {target}</title>
     <style>
-        body {{ font-family: 'DejaVu Sans', Arial, sans-serif; margin: 40px;
-                line-height: 1.6; background: #fff; }}
+        body {{ font-family: {font_family}; margin: 40px;
+                line-height: 1.6; background: #fff; direction: {html_dir}; }}
         h1 {{ color: #1a1a2e; border-bottom: 3px solid #16213e; padding-bottom: 10px;
                font-size: 24px; }}
         h2 {{ color: #16213e; border-bottom: 1px solid #0f3460; padding-bottom: 5px;
                margin-top: 30px; font-size: 18px; }}
         h3 {{ color: #0f3460; font-size: 14px; }}
         .metadata {{ background: #f5f5f5; padding: 20px; border-radius: 5px; margin-bottom: 30px; }}
-        .metadata table {{ width: 100%; border-collapse: collapse; }}
+        .metadata table {{ width: 100%; border-collapse: collapse; direction: {html_dir}; }}
         .metadata td {{ padding: 8px; border-bottom: 1px solid #ddd; }}
         .metadata td:first-child {{ font-weight: bold; width: 30%; }}
         .summary {{ display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }}
@@ -705,8 +858,8 @@ def printable_html(pack: dict[str, Any]) -> str:
         .stat-card.warn {{ background: #f39c12; }}
         .stat-value {{ font-size: 36px; font-weight: bold; }}
         .stat-label {{ font-size: 14px; opacity: 0.9; }}
-        table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+        table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; direction: {html_dir}; }}
+        th, td {{ padding: 12px; text-align: {text_align}; border-bottom: 1px solid #ddd; }}
         th {{ background: #1a1a2e; color: white; font-size: 12px; }}
         tr.fail {{ background: #fdf2f2; }}
         tr.pass {{ background: #f0fdf4; }}
@@ -726,87 +879,77 @@ def printable_html(pack: dict[str, Any]) -> str:
         .page-break {{ page-break-before: always; }}
         @media print {{ .no-print {{ display: none; }} }}
         .compliance-score {{ font-size: 48px; font-weight: bold; text-align: center; margin: 20px 0; }}
+
+        /* Font embedding hints for PDF */
+        @font-face {{
+          font-family: 'Noto Sans Devanagari';
+          src: local('Noto Sans Devanagari');
+          font-display: swap;
+        }}
+        @font-face {{
+          font-family: 'Noto Sans';
+          src: local('Noto Sans');
+          font-display: swap;
+        }}
     </style>
 </head>
 <body>
-    <h1>Compliance Evidence Pack</h1>        <div class="compliance-score {compliance_class}">
+    <h1>{labels["title"]}</h1>
+    <div class="compliance-score {compliance_class}">
         {compliance_score}%
     </div>
 
     <div class="metadata">
         <table>
-            <tr><td>Target</td><td>{target}</td></tr>
-            <tr><td>Assessment Profile</td><td>{profile}</td></tr>
-            <tr><td>Actor</td><td>{actor}</td></tr>
-            <tr><td>Job ID</td><td>{job_id}</td></tr>
-            <tr><td>Scope Program</td><td>{scope_program}</td></tr>
-            <tr><td>Authorized By</td><td>{scope_authorized_by}</td></tr>
-            <tr><td>Authorization Ref</td><td>{authorization_ref}</td></tr>
-            <tr><td>Generated</td><td>{generated_at}</td></tr>
-            <tr><td>Tool Version</td><td>{tool_version}</td></tr>
+            <tr><td>{labels["target"]}</td><td>{target}</td></tr>
+            <tr><td>{labels["profile"]}</td><td>{profile}</td></tr>
+            <tr><td>{labels["actor"]}</td><td>{actor}</td></tr>
+            <tr><td>{labels["job_id"]}</td><td>{job_id}</td></tr>
+            <tr><td>{labels["scope_program"]}</td><td>{scope_program}</td></tr>
+            <tr><td>{labels["authorized_by"]}</td><td>{scope_authorized_by}</td></tr>
+            <tr><td>{labels["authorization_ref"]}</td><td>{authorization_ref}</td></tr>
+            <tr><td>{labels["generated"]}</td><td>{generated_str}</td></tr>
+            <tr><td>{labels["tool_version"]}</td><td>strix-evidence/1.0</td></tr>
         </table>
     </div>
 
     <div class="summary">
         <div class="stat-card">
             <div class="stat-value">{total_controls_assessed}</div>
-            <div class="stat-label">Total Controls</div>
+            <div class="stat-label">{labels["total_controls"]}</div>
         </div>
         <div class="stat-card {summary_class}">
             <div class="stat-value">{controls_passing}</div>
-            <div class="stat-label">Controls Passing</div>
+            <div class="stat-label">{labels["controls_passing"]}</div>
         </div>
         <div class="stat-card fail">
             <div class="stat-value">{controls_with_gaps}</div>
-            <div class="stat-label">Controls with Gaps</div>
+            <div class="stat-label">{labels["controls_with_gaps"]}</div>
         </div>
         <div class="stat-card warn">
             <div class="stat-value">{total_findings}</div>
-            <div class="stat-label">Total Findings</div>
+            <div class="stat-label">{labels["total_findings"]}</div>
         </div>
-    </div>""".format(
-        target=meta["target"],
-        profile=meta["profile"],
-        actor=meta["actor"],
-        job_id=meta["job_id"],
-        scope_program=meta["scope_program"],
-        scope_authorized_by=meta["scope_authorized_by"],
-        authorization_ref=meta["authorization_ref"],
-        generated_at=meta["generated_at"],
-        tool_version="strix-evidence/1.0",
-        total_controls_assessed=summary["total_controls_assessed"],
-        controls_passing=summary["controls_passing"],
-        controls_with_gaps=summary["controls_with_gaps"],
-        total_findings=summary["total_findings"],
-        summary_class=(
-            "fail"
-            if summary["controls_with_gaps"] > summary["controls_passing"]
-            else "pass"
-        ),
-        compliance_class=(
-            "pass" if summary["compliance_score"] >= 80 else "fail"
-        ),
-        compliance_score=summary["compliance_score"],
-    )
+    </div>"""
 
     html += "<div class='page-break'></div>"
-    html += "<h2>Controls by Framework</h2>"
+    html += f"<h2>{labels['controls_by_framework']}</h2>"
 
     for fw_table in fw_tables:
         html += fw_table
 
     html += "<div class='page-break'></div>"
-    html += "<h2>Findings Detail</h2>"
+    html += f"<h2>{labels['findings_detail']}</h2>"
     html += "<table>"
     html += "<thead>"
     html += "<tr>"
-    html += "<th>Fingerprint</th>"
-    html += "<th>Category</th>"
-    html += "<th>Title</th>"
-    html += "<th>Severity</th>"
-    html += "<th>Confidence</th>"
-    html += "<th>Location</th>"
-    html += "<th>Evidence</th>"
+    html += f"<th>{labels['fingerprint']}</th>"
+    html += f"<th>{labels['category']}</th>"
+    html += f"<th>{labels['finding_title']}</th>"
+    html += f"<th>{labels['severity']}</th>"
+    html += f"<th>{labels['confidence']}</th>"
+    html += f"<th>{labels['location']}</th>"
+    html += f"<th>{labels['evidence']}</th>"
     html += "</tr>"
     html += "</thead>"
     html += "<tbody>"
@@ -815,16 +958,15 @@ def printable_html(pack: dict[str, Any]) -> str:
     html += "</table>"
 
     html += "<div class='page-break no-print'></div>"
-    html += "<h2>Audit Chain Verification</h2>"
-    html += "<p>This evidence pack is backed by Strix's tamper-evident audit chain (HMAC-SHA256)."
-    html += " To verify integrity, run: <code>strix audit verify</code></p>"
-    html += "<p class='no-print'><small>Generated by Strix Evidence Pack Generator v1.0 |"
-    html += " {generated_at}</small></p>".format(generated_at=meta["generated_at"])
+    html += f"<h2>{labels['audit_chain']}</h2>"
+    html += f"<p>{labels['audit_note']}</p>"
+    html += f"<p class='no-print'><small>{labels['generator']} | {generated_str}</small></p>"
 
     html += "</body>"
     html += "</html>"
 
     return html
+
 
 # ─── Scope Template Functions ───
 
@@ -901,4 +1043,168 @@ def get_scope_template(sector: str) -> dict | None:
             "allowed_ports": [443, 80],
             "allow_broad_networks": False,
         }
+    return None
+
+
+# ─── Scheduled Evidence Pack Generation ───
+
+
+async def generate_monthly_evidence_packs(
+    audit_chain: Any,
+    tenant: str | None = None,
+) -> list[dict[str, Any]]:
+    """Generate monthly evidence packs for all tenants (or a specific tenant).
+
+    Creates evidence packs for the previous month's completed assessments.
+    Returns list of generated pack metadata.
+    """
+    from datetime import datetime, timedelta
+
+    from strix.core import store
+
+    now = datetime.utcnow()
+    first_day_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    first_day_last_month = (first_day_this_month - timedelta(days=1)).replace(day=1)
+    last_day_last_month = first_day_this_month - timedelta(seconds=1)
+
+    start_ts = first_day_last_month.timestamp()
+    end_ts = last_day_last_month.timestamp()
+
+    # Get all tenants (or specific tenant)
+    if tenant:
+        tenants = [tenant]
+    else:
+        # Get all tenants from jobs table
+        db = await store.get_database()
+        async with db.transaction() as conn:
+            rows = await conn.fetchall(
+                "SELECT DISTINCT tenant FROM jobs "
+                "WHERE finished_at >= ? AND finished_at <= ? AND state = 'completed'",
+                start_ts,
+                end_ts,
+            )
+            tenants = [row["tenant"] for row in rows]
+
+    generated = []
+    for t in tenants:
+        # Get completed jobs for this tenant in the month
+        jobs_list = await store.list_jobs(tenant=t, limit=1000)
+        month_jobs = [
+            j
+            for j in jobs_list
+            if j.get("finished_at")
+            and start_ts <= j["finished_at"] <= end_ts
+            and j.get("state") == "completed"
+        ]
+
+        for job_data in month_jobs:
+            job = await store.get_job(job_data["id"], tenant=t)
+            if not job:
+                continue
+
+            # Build evidence pack with all three frameworks
+            mappings = load_mappings(["nrb", "nta", "ncsp"])
+            pack = build_evidence_pack(job, mappings, include_passing=False)
+
+            # Save pack metadata to database
+            pack_id = f"evidence_{t}_{job['id']}_{first_day_last_month.strftime('%Y%m')}"
+            await _save_evidence_pack(pack_id, t, job["id"], pack, first_day_last_month.timestamp())
+
+            # Audit
+            await audit_chain.append_async(
+                {
+                    "type": "evidence_pack_generated",
+                    "pack_id": pack_id,
+                    "tenant": t,
+                    "job_id": job["id"],
+                    "period_start": start_ts,
+                    "period_end": end_ts,
+                }
+            )
+
+            generated.append(
+                {
+                    "pack_id": pack_id,
+                    "tenant": t,
+                    "job_id": job["id"],
+                    "target": job["target"],
+                    "period": first_day_last_month.strftime("%Y-%m"),
+                    "generated_at": datetime.utcnow().isoformat() + "Z",
+                }
+            )
+
+    return generated
+
+
+async def _save_evidence_pack(
+    pack_id: str,
+    tenant: str,
+    job_id: str,
+    pack: dict[str, Any],
+    period_start: float,
+) -> None:
+    """Save evidence pack to database."""
+    import json
+
+    from strix.core import store
+
+    db = await store.get_database()
+    async with db.transaction() as conn:
+        await conn.execute(
+            """INSERT INTO evidence_packs
+                   (id, tenant, job_id, period_start, data, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                   data = excluded.data,
+                   created_at = excluded.created_at""",
+            pack_id,
+            tenant,
+            job_id,
+            period_start,
+            json.dumps(pack),
+            time.time(),
+        )
+
+
+async def list_evidence_packs(tenant: str, limit: int = 50) -> list[dict[str, Any]]:
+    """List available evidence packs for a tenant."""
+
+    from strix.core import store
+
+    db = await store.get_database()
+    async with db.transaction() as conn:
+        rows = await conn.fetchall(
+            "SELECT id, tenant, job_id, period_start, created_at "
+            "FROM evidence_packs WHERE tenant = ? "
+            "ORDER BY period_start DESC LIMIT ?",
+            tenant,
+            limit,
+        )
+        return [
+            {
+                "pack_id": row["id"],
+                "tenant": row["tenant"],
+                "job_id": row["job_id"],
+                "period_start": row["period_start"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+
+async def get_evidence_pack(pack_id: str, tenant: str) -> dict[str, Any] | None:
+    """Get an evidence pack by ID."""
+    import json
+
+    from strix.core import store
+
+    db = await store.get_database()
+    async with db.transaction() as conn:
+        row = await conn.fetchone(
+            "SELECT data FROM evidence_packs WHERE id = ? AND tenant = ?",
+            pack_id,
+            tenant,
+        )
+        if row:
+            return json.loads(row["data"])
     return None

@@ -70,9 +70,7 @@ async def check_ready(client: httpx.AsyncClient, base: str) -> HealthCheck:
         return HealthCheck("ready", False, f"HTTP {response.status_code}")
     body = response.json()
     problems = [
-        field
-        for field in ("ready", "database", "audit_chain", "scope_configured")
-        if not body.get(field)
+        field for field in ("ready", "database", "audit_chain", "scope_configured") if not body.get(field)
     ]
     return HealthCheck(
         "ready",
@@ -154,18 +152,14 @@ async def main() -> int:
     api_key = os.environ.get("STRIX_API_KEY", "")
     auth = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
-    async with httpx.AsyncClient(
-        follow_redirects=True, verify=tls_verify(), timeout=10.0
-    ) as client:
+    async with httpx.AsyncClient(follow_redirects=True, verify=tls_verify(), timeout=10.0) as client:
         checks = [
             await check_health(client, base),
             await check_ready(client, base),
             await check_authenticated(
                 client, "monitor", f"{base}/api/monitor/status", auth, validate_monitor
             ),
-            await check_authenticated(
-                client, "metrics", f"{base}/api/metrics", auth, validate_metrics
-            ),
+            await check_authenticated(client, "metrics", f"{base}/api/metrics", auth, validate_metrics),
             await check_redis(),
         ]
 

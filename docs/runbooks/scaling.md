@@ -1,0 +1,637 @@
+# Scaling Procedures Runbook
+
+> **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
+> is defined in `src/strix/metrics.py` and has a data source.
+> `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
+
+
+## Overview
+
+This runbook covers horizontal and vertical scaling procedures for Strix platform components.
+
+**Current Architecture:**
+- **Queue Mode:** In-process (default) or Celery+Redis (distributed)
+- **Database:** SQLite (single-writer) or PostgreSQL (multi-writer)
+- **Workers:** `STRIX_WORKERS` per API pod
+- **Rate Limiting:** In-memory (single) or Redis (distributed)
+
+---
+
+## Prerequisites
+
+- **Access:** Kubernetes cluster admin, cloud provider console
+- **Tools:** `kubectl`, `helm`, `aws/gcloud/az cli`, `redis-cli`
+- **Monitoring:** Prometheus/Grafana access for metrics
+- **Capacity:** Available node resources / cluster autoscaler enabled
+- **Configuration:** Environment variables for scaling mode
+
+---
+
+## Current Capacity Baseline
+
+| Component | Current | Max (In-Process) | Max (Celery) |
+|-----------|---------|------------------|--------------|
+| API Replicas | 3 | 3 (single-writer SQLite) | 10+ (with PostgreSQL) |
+| Workers per API | 1 | 4 | 4 per pod |
+| Queue Depth | 32 | 100 | 1000+ (Redis) |
+| Concurrent Jobs | 3 | 12 | 40+ |
+| Jobs/hour (web) | ~360 | ~1,440 | ~4,800+ |
+
+---
+
+## Vertical Scaling (Single Process)
+
+### When to Use
+- Queue depth consistently > 20
+- Job duration p95 > 300s
+- CPU/Memory utilization > 70%
+- Single-node deployment
+
+### Procedure
+
+```bash
+#!/bin/bash
+# vertical-scale.sh
+
+set -euo pipefail
+
+NAMESPACE="strix"
+
+# 1. Check current resource usage
+echo "=== Current Resource Usage ==="
+kubectl top pods -n $NAMESPACE -l app.kubernetes.io/name=strix
+kubectl top nodes
+
+# 2. Update resource requests/limits
+# For Deployment (API, Scheduler)
+kubectl patch deployment strix-api -n $NAMESPACE -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "strix-api",
+          "resources": {
+            "requests": {"cpu": "2000m", "memory": "4Gi"},
+            "limits": {"cpu": "4000m", "memory": "8Gi"}
+          }
+        }]
+      }
+    }
+  }
+}'
+
+kubectl patch deployment strix-scheduler -n $NAMESPACE -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "strix-scheduler",
+          "resources": {
+            "requests": {"cpu": "1000m", "memory": "2Gi"},
+            "limits": {"cpu": "2000m", "memory": "4Gi"}
+          }
+        }]
+      }
+    }
+  }
+}'
+
+# 3. Increase worker count per pod
+kubectl patch deployment strix-api -n $NAMESPACE -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "strix-api",
+          "env": [{"name": "STRIX_WORKERS", "value": "2"}]
+        }]
+      }
+    }
+  }
+}'
+
+# 4. Increase queue max
+kubectl patch deployment strix-api -n $NAMESPACE -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "strix-api",
+          "env": [{"name": "STRIX_QUEUE_MAX", "value": "64"}]
+        }]
+      }
+    }
+  }
+}'
+
+# 5. Rollout restart
+kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n $NAMESPACE
+kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=300s
+
+# 6. Verify
+echo "=== Post-Scale Verification ==="
+kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=strix -o wide
+kubectl exec -n $NAMESPACE strix-api-0 -- env | grep -E 'STRIX_(WORKERS|QUEUE_MAX)'
+```
+
+### Vertical Scaling Limits
+
+| Resource | Limit | Reason |
+|----------|-------|--------|
+| `STRIX_WORKERS` | 4 | SQLite write contention, GIL |
+| `STRIX_QUEUE_MAX` | 100 | Memory for job metadata |
+| CPU per pod | 4 cores | Diminishing returns |
+| RAM per pod | 8 GB | Tool output buffers, SQLite cache |
+
+---
+
+## Horizontal Scaling (Celery + Redis + PostgreSQL)
+
+### Prerequisites for Horizontal Scaling
+
+- [ ] **Redis Cluster** deployed and accessible
+- [ ] **PostgreSQL** deployed (HA recommended)
+- [ ] **Celery workers** can connect to Redis + PostgreSQL
+- [ ] **Shared storage** for SQLite not needed (PostgreSQL used)
+- [ ] **Idempotency keys** implemented for all jobs
+- [ ] **STRIX_QUEUE_MODE=celery** configured
+
+### Enable Celery Mode
+
+```bash
+#!/bin/bash
+# enable-celery-mode.sh
+
+set -euo pipefail
+
+NAMESPACE="strix"
+
+# 1. Deploy Redis (if not exists)
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install redis bitnami/redis -n $NAMESPACE --create-namespace \
+  --set architecture=replication \
+  --set auth.enabled=true \
+  --set auth.password="$REDIS_PASSWORD" \
+  --set master.persistence.enabled=true \
+  --set replica.persistence.enabled=true
+
+# 2. Deploy PostgreSQL (if not exists)
+helm install postgresql bitnami/postgresql -n $NAMESPACE \
+  --set auth.postgresPassword="$POSTGRES_PASSWORD" \
+  --set auth.database=strix \
+  --set primary.persistence.enabled=true
+
+# 3. Run migrations on PostgreSQL
+kubectl exec -n $NAMESPACE strix-api-0 -- /usr/local/bin/python -m strix.db.migrate --target postgresql
+
+# 4. Update ConfigMap for Celery mode
+kubectl patch configmap strix-config -n $NAMESPACE -p '{
+  "data": {
+    "STRIX_QUEUE_MODE": "celery",
+    "STRIX_CELERY_BROKER_URL": "redis://:password@redis-master:6379/1",
+    "STRIX_CELERY_RESULT_BACKEND": "redis://:password@redis-master:6379/2",
+    "STRIX_DATABASE_URL": "postgresql://postgres:password@postgresql:5432/strix"
+  }
+}'
+
+# 5. Restart API to pick up new config
+kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n $NAMESPACE
+
+# 6. Deploy Celery workers as separate deployment
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strix-celery-worker
+  namespace: $NAMESPACE
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: strix-celery-worker
+  template:
+    metadata:
+      labels:
+        app: strix-celery-worker
+    spec:
+      containers:
+      - name: worker
+        image: strix:3.5.0
+        command: ["celery", "-A", "strix.core.queue", "worker", "-Q", "strix_assessments", "-c", "1", "-l", "INFO"]
+        env:
+        - name: STRIX_CELERY_BROKER_URL
+          value: "redis://:password@redis-master:6379/1"
+        - name: STRIX_CELERY_RESULT_BACKEND
+          value: "redis://:password@redis-master:6379/2"
+        - name: STRIX_DATABASE_URL
+          value: "postgresql://postgres:password@postgresql:5432/strix"
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+EOF
+
+echo "Celery mode enabled. Workers deployed."
+```
+
+### Scale Celery Workers
+
+```bash
+#!/bin/bash
+# scale-celery-workers.sh
+
+set -euo pipefail
+
+NAMESPACE="strix"
+DESIRED_REPLICAS="${1:-5}"  # Default to 5 workers
+
+# Scale worker deployment
+kubectl scale deployment strix-celery-worker -n $NAMESPACE --replicas=$DESIRED_REPLICAS
+
+# Wait for scale
+kubectl rollout status deployment/strix-celery-worker -n $NAMESPACE --timeout=300s
+
+# Verify workers registered in Celery
+kubectl exec -n $NAMESPACE redis-master-0 -- redis-cli -a $REDIS_PASSWORD CLIENT LIST | grep -c "name=celery" || echo "Check Celery monitoring"
+
+echo "Scaled to $DESIRED_REPLICAS Celery workers"
+```
+
+### Auto-Scaling (HPA)
+
+```yaml
+# hpa-celery-workers.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: strix-celery-worker-hpa
+  namespace: strix
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: strix-celery-worker
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: strix_queue_depth
+      target:
+        type: AverageValue
+        averageValue: "10"  # 10 queued jobs per worker
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 4
+        periodSeconds: 30
+      selectPolicy: Max
+```
+
+```bash
+kubectl apply -f hpa-celery-workers.yaml
+```
+
+---
+
+## Database Scaling
+
+### SQLite → PostgreSQL Migration
+
+```bash
+#!/bin/bash
+# migrate-to-postgresql.sh
+
+set -euo pipefail
+
+NAMESPACE="strix"
+PG_HOST="postgresql"
+PG_DB="strix"
+PG_USER="postgres"
+PG_PASS="$POSTGRES_PASSWORD"
+
+# 1. Stop writers
+kubectl scale deployment strix-api -n $NAMESPACE --replicas=0
+kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=0
+
+# 2. Dump SQLite
+kubectl exec -n $NAMESPACE strix-api-0 -- sqlite3 /var/lib/strix/strix.db .dump > /tmp/strix-sqlite-dump.sql
+
+# 3. Convert for PostgreSQL (adjust types, sequences)
+# This is simplified - use proper migration tool in production
+sed -i 's/AUTOINCREMENT/SERIAL/g' /tmp/strix-sqlite-dump.sql
+sed -i 's/INTEGER PRIMARY KEY/BIGSERIAL PRIMARY KEY/g' /tmp/strix-sqlite-dump.sql
+
+# 4. Load into PostgreSQL
+kubectl cp /tmp/strix-sqlite-dump.sql $NAMESPACE/postgresql-0:/tmp/dump.sql
+kubectl exec -n $NAMESPACE postgresql-0 -- psql -U $PG_USER -d $PG_DB -f /tmp/dump.sql
+
+# 5. Verify row counts match
+SQLITE_JOBS=$(kubectl exec -n $NAMESPACE strix-api-0 -- sqlite3 /var/lib/strix/strix.db "SELECT COUNT(*) FROM jobs;")
+PG_JOBS=$(kubectl exec -n $NAMESPACE postgresql-0 -- psql -U $PG_USER -d $PG_DB -t -c "SELECT COUNT(*) FROM jobs;")
+echo "SQLite jobs: $SQLITE_JOBS, PostgreSQL jobs: $PG_JOBS"
+
+# 6. Update config to use PostgreSQL
+kubectl patch configmap strix-config -n $NAMESPACE -p '{
+  "data": {
+    "STRIX_DATABASE_URL": "postgresql://postgres:password@postgresql:5432/strix"
+  }
+}'
+
+# 7. Restart with PostgreSQL
+kubectl scale deployment strix-api -n $NAMESPACE --replicas=3
+kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=1
+kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=300s
+
+echo "Migration to PostgreSQL complete"
+```
+
+### PostgreSQL Read Replicas (For Read Scaling)
+
+```bash
+# Add read replica to Bitnami PostgreSQL
+helm upgrade postgresql bitnami/postgresql -n strix \
+  --set replication.enabled=true \
+  --set replication.replicaCount=2 \
+  --set primary.persistence.enabled=true
+
+# Update API to use read replica for SELECT queries (requires code change)
+# Or use PgBouncer with read/write split
+```
+
+---
+
+## Redis Scaling
+
+### Redis Cluster Mode
+
+```bash
+# Upgrade to Redis Cluster (6+ shards)
+helm upgrade redis bitnami/redis -n strix \
+  --set cluster.enabled=true \
+  --set cluster.slaveCount=1 \
+  --set cluster.nodes=6 \
+  --set auth.enabled=true \
+  --set auth.password="$REDIS_PASSWORD"
+```
+
+### Redis Sentinel (HA)
+
+```bash
+# For non-cluster HA
+helm upgrade redis bitnami/redis -n strix \
+  --set architecture=replication \
+  --set sentinel.enabled=true \
+  --set sentinel.replicaCount=3
+```
+
+---
+
+## Rate Limiter Scaling
+
+### Enable Redis Rate Limiter
+
+```bash
+# When scaling beyond single API pod
+kubectl patch configmap strix-config -n strix -p '{
+  "data": {
+    "STRIX_REDIS_URL": "redis://:password@redis-master:6379/0",
+    "STRIX_REDIS_REQUIRED": "true"
+  }
+}'
+
+kubectl rollout restart deployment/strix-api -n strix
+```
+
+### Rate Limit Tier Configuration
+
+```bash
+# Adjust tier limits via ConfigMap
+kubectl patch configmap strix-config -n strix -p '{
+  "data": {
+    "STRIX_RATE_LIMIT_FREE_RPM": "10",
+    "STRIX_RATE_LIMIT_FREE_ASSESSMENTS": "10",
+    "STRIX_RATE_LIMIT_PRO_RPM": "120",
+    "STRIX_RATE_LIMIT_PRO_ASSESSMENTS": "40",
+    "STRIX_RATE_LIMIT_ENTERPRISE_RPM": "600",
+    "STRIX_RATE_LIMIT_ENTERPRISE_ASSESSMENTS": "120"
+  }
+}'
+```
+
+---
+
+## Monitoring & Scaling Triggers
+
+### Key Metrics to Watch
+
+| Metric | Scale Up Trigger | Scale Down Trigger |
+|--------|------------------|-------------------|
+| `strix_queue_depth` | > 20 for 5 min | < 5 for 15 min |
+| `strix_job_duration_seconds` p95 | > 300s | < 60s |
+| `strix_active_jobs` | > 80% of max | < 30% of max |
+| `strix_worker_heartbeat_age` | > 60s (worker dead) | N/A |
+| `strix_rate_limit_exceeded_total` | > 10/min | < 1/min |
+| CPU utilization | > 70% | < 30% |
+| Memory utilization | > 80% | < 40% |
+
+### Prometheus Alert Rules
+
+```yaml
+# scaling-alerts.yaml
+groups:
+- name: strix-scaling
+  rules:
+  - alert: StrixQueueDepthHigh
+    expr: strix_queue_depth > 20
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Queue depth high ({{ $value }})"
+      description: "Consider scaling workers or increasing STRIX_WORKERS"
+
+  - alert: StrixJobDurationHigh
+    expr: histogram_quantile(0.95, rate(strix_job_duration_seconds_bucket[5m])) > 300
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Job duration p95 > 5 minutes"
+
+  - alert: StrixWorkerDown
+    expr: time() - strix_worker_heartbeat_timestamp > 120
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Worker {{ $labels.worker_id }} heartbeat lost"
+
+  - alert: StrixRateLimitExceeded
+    expr: rate(strix_rate_limit_exceeded_total[5m]) > 0.16
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Rate limit exceeded frequently"
+```
+
+---
+
+## Verification
+
+### Post-Scale Verification Checklist
+
+```bash
+#!/bin/bash
+# verify-scaling.sh
+
+set -euo pipefail
+
+API_URL="http://strix.example.com"
+ADMIN_KEY="${STRIX_API_KEY}"
+
+echo "=== Post-Scale Verification ==="
+
+# 1. Health checks
+curl -sf "$API_URL/api/health" | jq -e '.status == "healthy"'
+curl -sf "$API_URL/api/ready" | jq -e '.ready == true'
+
+# 2. Worker count
+WORKERS=$(curl -sf -H "Authorization: Bearer $ADMIN_KEY" "$API_URL/api/admin/workers" | jq '.workers | length')
+echo "Active workers: $WORKERS"
+
+# 3. Queue depth
+QUEUE_DEPTH=$(curl -sf -H "Authorization: Bearer $ADMIN_KEY" "$API_URL/api/admin/queue" | jq '.depth')
+echo "Queue depth: $QUEUE_DEPTH"
+
+# 4. Submit test jobs (concurrent)
+echo "Submitting 10 concurrent test jobs..."
+for i in {1..10}; do
+    curl -sf -X POST "$API_URL/api/assess" \
+      -H "Authorization: Bearer $ADMIN_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"target": "https://example.com", "profile": "web"}' &
+done
+wait
+
+# 5. Verify all completed
+sleep 10
+COMPLETED=$(curl -sf -H "Authorization: Bearer $ADMIN_KEY" "$API_URL/api/jobs?state=completed&limit=20" | jq 'length')
+echo "Completed jobs in last batch: $COMPLETED"
+
+# 6. Check metrics
+echo "Current metrics:"
+curl -sf "$API_URL/metrics" | grep -E 'strix_(queue_depth|active_jobs|worker_)'
+
+echo "=== Verification Complete ==="
+```
+
+---
+
+## Rollback
+
+### Rollback Vertical Scale
+
+```bash
+# Revert resource limits and worker count
+kubectl patch deployment strix-api -n strix -p '{
+  "spec": {
+    "template": {
+      "spec": {
+        "containers": [{
+          "name": "strix-api",
+          "resources": {
+            "requests": {"cpu": "1000m", "memory": "2Gi"},
+            "limits": {"cpu": "2000m", "memory": "4Gi"}
+          },
+          "env": [
+            {"name": "STRIX_WORKERS", "value": "1"},
+            {"name": "STRIX_QUEUE_MAX", "value": "32"}
+          ]
+        }]
+      }
+    }
+  }
+}'
+
+kubectl rollout restart deployment/strix-api -n strix
+```
+
+### Rollback Horizontal Scale
+
+```bash
+# Scale down Celery workers
+kubectl scale deployment strix-celery-worker -n strix --replicas=2
+
+# Disable Celery mode (back to in-process)
+kubectl patch configmap strix-config -n strix -p '{
+  "data": {
+    "STRIX_QUEUE_MODE": "inprocess"
+  }
+}'
+
+kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
+
+# Delete Celery worker deployment
+kubectl delete deployment strix-celery-worker -n strix
+```
+
+### Rollback Database Migration
+
+```bash
+# If PostgreSQL migration fails
+# 1. Revert ConfigMap to SQLite
+kubectl patch configmap strix-config -n strix -p '{
+  "data": {
+    "STRIX_DATABASE_URL": "sqlite:///var/lib/strix/strix.db"
+  }
+}'
+
+# 2. Restore from SQLite backup (see restore.md)
+# 3. Scale up API with SQLite
+kubectl scale deployment strix-api -n strix --replicas=3
+```
+
+---
+
+## Contacts
+
+| Role | Contact | Escalation |
+|------|---------|------------|
+| Platform On-Call | `platform-oncall@example.com` | Primary |
+| Platform Lead | `platform-lead@example.com` | Secondary |
+| Kubernetes Admin | `k8s-admin@example.com` | HPA/Cluster issues |
+| Database Admin | `dba@example.com` | PostgreSQL scaling |
+| Cloud Provider Support | AWS/GCP/Azure Enterprise Support | Node/Infrastructure scaling |
+
+---
+
+## Related Runbooks
+
+- [capacity-planning.md](./capacity-planning.md) - Capacity planning guidelines
+- [failover.md](./failover.md) - Warm standby (alternative to scaling for HA)
+- [disaster-recovery.md](./disaster-recovery.md) - Full DR scenarios
+- [queue-backlog.md](./queue-backlog.md) - Queue backlog troubleshooting
+- [redis-issues.md](./redis-issues.md) - Redis troubleshooting

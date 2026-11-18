@@ -33,9 +33,15 @@ from strix.core.rate_limit import (
     TIER_RATE_LIMITS,
     get_distributed_rate_limiter,
 )
-from strix.metrics import record_rate_limit_check, record_rate_limit_exceeded
+from strix.metrics import (
+    record_auth_failure,
+    record_auth_success,
+    record_rate_limit_check,
+    record_rate_limit_exceeded,
+)
 
 log = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # In-memory Rate Limiter (for single-worker test mode only)
@@ -61,9 +67,7 @@ class _TokenBucket:
 
     def _prune(self, now: float) -> None:
         idle_threshold = self.per * 2
-        for key in [
-            k for k, seen in self.last_access.items() if now - seen >= idle_threshold
-        ]:
+        for key in [k for k, seen in self.last_access.items() if now - seen >= idle_threshold]:
             self.tokens.pop(key, None)
             self.timestamps.pop(key, None)
             self.last_access.pop(key, None)
@@ -134,6 +138,7 @@ _test_rate_limiter = _RateLimiter()
 # Backward-compatible export for tests
 rate_limiter = _test_rate_limiter
 
+
 # ---------------------------------------------------------------------------
 # API Key Authentication
 # ---------------------------------------------------------------------------
@@ -170,19 +175,25 @@ class APIKeyStore:
                 "tier": row["tier"],
                 "admin": bool(row["admin"]),
                 "active": bool(row["active"]),
+                "scope": row.get("scope") or "write",
+                "scope_type": row.get("scope_type") or "tenant",
+                "project_id": row.get("project_id"),
+                "allowed_projects": row.get("allowed_projects"),
+                "resource_filters": row.get("resource_filters"),
                 "created_at": row["created_at"],
                 "last_used": row["last_used"],
                 "expires_at": row["expires_at"],
                 "rotated_at": row["rotated_at"],
+                "ai_enabled": row.get("ai_enabled", False),
+                "include_hosts": row.get("include_hosts"),
             }
             tenant_id = row["tenant_id"]
-            records[tenant_id] = record
+            if record["scope_type"] == "tenant" or tenant_id not in records:
+                records[tenant_id] = record
             if record["active"]:
                 owner = hashes.get(record["key_hash"])
                 if owner is not None and owner != tenant_id:
-                    raise RuntimeError(
-                        "database contains an API key hash assigned to multiple tenants"
-                    )
+                    raise RuntimeError("database contains an API key hash assigned to multiple tenants")
                 hashes[record["key_hash"]] = tenant_id
         return records, hashes
 
@@ -190,12 +201,7 @@ class APIKeyStore:
     def load(self) -> int:
         """Replace the in-memory registry with what the database holds (sync version)."""
         with self._lock:
-
-            rows = (
-                store._run_async(store.load_api_keys())
-                if self._persistent
-                else []
-            )
+            rows = store._run_async(store.load_api_keys()) if self._persistent else []
             self._keys, self._hash_to_tenant = self._records_from_rows(rows)
             return len(self._keys)
 
@@ -224,12 +230,16 @@ class APIKeyStore:
                 last_used=record.get("last_used"),
                 rotated_at=record.get("rotated_at"),
                 ai_enabled=record.get("ai_enabled", False),
+                scope=record.get("scope", "write"),
+                scope_type=record.get("scope_type", "tenant"),
+                project_id=record.get("project_id"),
+                allowed_projects=record.get("allowed_projects"),
+                resource_filters=record.get("resource_filters"),
+                include_hosts=record.get("include_hosts"),
             )
         )
 
-    async def _persist_record_async(
-        self, tenant_id: str, record: dict[str, Any]
-    ) -> None:
+    async def _persist_record_async(self, tenant_id: str, record: dict[str, Any]) -> None:
         if not self._persistent:
             return
         await store.save_api_key(
@@ -243,15 +253,13 @@ class APIKeyStore:
             last_used=record.get("last_used"),
             rotated_at=record.get("rotated_at"),
             ai_enabled=record.get("ai_enabled", False),
+            scope=record.get("scope", "write"),
+            scope_type=record.get("scope_type", "tenant"),
+            project_id=record.get("project_id"),
+            allowed_projects=record.get("allowed_projects"),
+            resource_filters=record.get("resource_filters"),
+            include_hosts=record.get("include_hosts"),
         )
-
-    def _persist(self, tenant_id: str) -> None:
-        record = self._keys[tenant_id]
-        self._persist_record(tenant_id, record)
-
-    async def _persist_async(self, tenant_id: str) -> None:
-        record = self._keys[tenant_id]
-        await self._persist_record_async(tenant_id, record)
 
     def _install(
         self,
@@ -261,6 +269,12 @@ class APIKeyStore:
         admin: bool,
         *,
         expires_at: float | None = None,
+        scope: str = "write",
+        scope_type: str = "tenant",
+        project_id: str | None = None,
+        allowed_projects: list[str] | None = None,
+        resource_filters: dict[str, Any] | None = None,
+        include_hosts: str | None = None,
     ) -> None:
         """Make ``raw_key`` the tenant's one valid key, retiring any previous one."""
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -279,6 +293,12 @@ class APIKeyStore:
             "expires_at": expires_at,
             "rotated_at": now if previous else None,
             "ai_enabled": False,
+            "scope": scope,
+            "scope_type": scope_type,
+            "project_id": project_id,
+            "allowed_projects": allowed_projects,
+            "resource_filters": resource_filters,
+            "include_hosts": include_hosts,
         }
         # Persist the replacement first. If SQLite fails, the old in-memory key
         # remains authoritative and usable instead of creating split-brain state.
@@ -296,6 +316,12 @@ class APIKeyStore:
         admin: bool,
         *,
         expires_at: float | None = None,
+        scope: str = "write",
+        scope_type: str = "tenant",
+        project_id: str | None = None,
+        allowed_projects: list[str] | None = None,
+        resource_filters: dict[str, Any] | None = None,
+        include_hosts: str | None = None,
     ) -> None:
         """Async version of _install."""
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -314,6 +340,12 @@ class APIKeyStore:
             "expires_at": expires_at,
             "rotated_at": now if previous else None,
             "ai_enabled": False,
+            "scope": scope,
+            "scope_type": scope_type,
+            "project_id": project_id,
+            "allowed_projects": allowed_projects,
+            "resource_filters": resource_filters,
+            "include_hosts": include_hosts,
         }
         await self._persist_record_async(tenant_id, record)
         self._keys[tenant_id] = record
@@ -329,16 +361,32 @@ class APIKeyStore:
         *,
         admin: bool = False,
         ttl_days: int | None = None,
+        scope: str = "write",
+        scope_type: str = "tenant",
+        project_id: str | None = None,
+        allowed_projects: list[str] | None = None,
+        resource_filters: dict[str, Any] | None = None,
+        include_hosts: str | None = None,
     ) -> str:
         """Issue a new key for a tenant (shown once). A positive TTL expires it."""
-        if ttl_days is not None and (
-            isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650
-        ):
+        if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
         raw_key = f"strix_{secrets.token_urlsafe(32)}"
         expires_at = time.time() + ttl_days * 86400.0 if ttl_days is not None else None
         with self._lock:
-            self._install(tenant_id, raw_key, tier, admin, expires_at=expires_at)
+            self._install(
+                tenant_id,
+                raw_key,
+                tier,
+                admin,
+                expires_at=expires_at,
+                scope=scope,
+                scope_type=scope_type,
+                project_id=project_id,
+                allowed_projects=allowed_projects,
+                resource_filters=resource_filters,
+                include_hosts=include_hosts,
+            )
         return raw_key
 
     async def register_async(
@@ -348,17 +396,31 @@ class APIKeyStore:
         *,
         admin: bool = False,
         ttl_days: int | None = None,
+        scope: str = "write",
+        scope_type: str = "tenant",
+        project_id: str | None = None,
+        allowed_projects: list[str] | None = None,
+        resource_filters: dict[str, Any] | None = None,
+        include_hosts: str | None = None,
     ) -> str:
         """Async version of register."""
-        if ttl_days is not None and (
-            isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650
-        ):
+        if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
         raw_key = f"strix_{secrets.token_urlsafe(32)}"
         expires_at = time.time() + ttl_days * 86400.0 if ttl_days is not None else None
         with self._lock:
             await self._install_async(
-                tenant_id, raw_key, tier, admin, expires_at=expires_at
+                tenant_id,
+                raw_key,
+                tier,
+                admin,
+                expires_at=expires_at,
+                scope=scope,
+                scope_type=scope_type,
+                project_id=project_id,
+                allowed_projects=allowed_projects,
+                resource_filters=resource_filters,
+                include_hosts=include_hosts,
             )
         return raw_key
 
@@ -368,9 +430,7 @@ class APIKeyStore:
         Unknown, revoked, or expired keys cannot be revived by the rotate
         endpoint; use an explicit key-create operation for deliberate reissue.
         """
-        if ttl_days is not None and (
-            isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650
-        ):
+        if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
         with self._lock:
             record = self._keys.get(tenant_id)
@@ -380,9 +440,7 @@ class APIKeyStore:
             expires_at = record.get("expires_at")
             if expires_at is not None and now >= float(expires_at):
                 return None
-            new_expiry = (
-                (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
-            )
+            new_expiry = (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
             raw_key = f"strix_{secrets.token_urlsafe(32)}"
             self._install(
                 tenant_id,
@@ -393,13 +451,9 @@ class APIKeyStore:
             )
             return raw_key
 
-    async def rotate_async(
-        self, tenant_id: str, *, ttl_days: int | None = None
-    ) -> str | None:
+    async def rotate_async(self, tenant_id: str, *, ttl_days: int | None = None) -> str | None:
         """Async version of rotate."""
-        if ttl_days is not None and (
-            isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650
-        ):
+        if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
         with self._lock:
             record = self._keys.get(tenant_id)
@@ -409,9 +463,7 @@ class APIKeyStore:
             expires_at = record.get("expires_at")
             if expires_at is not None and now >= float(expires_at):
                 return None
-            new_expiry = (
-                (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
-            )
+            new_expiry = (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
             raw_key = f"strix_{secrets.token_urlsafe(32)}"
             await self._install_async(
                 tenant_id,
@@ -422,18 +474,14 @@ class APIKeyStore:
             )
             return raw_key
 
-    def adopt(
-        self, tenant_id: str, tier: str, raw_key: str, *, admin: bool = True
-    ) -> None:
+    def adopt(self, tenant_id: str, tier: str, raw_key: str, *, admin: bool = True) -> None:
         """Register an operator-supplied key verbatim (STRIX_API_KEY cold start)."""
         if len(raw_key) < 16:
             raise ValueError("STRIX_API_KEY must be at least 16 characters")
         with self._lock:
             self._install(tenant_id, raw_key, tier, admin, expires_at=None)
 
-    async def adopt_async(
-        self, tenant_id: str, tier: str, raw_key: str, *, admin: bool = True
-    ) -> None:
+    async def adopt_async(self, tenant_id: str, tier: str, raw_key: str, *, admin: bool = True) -> None:
         """Async version of adopt."""
         if len(raw_key) < 16:
             raise ValueError("STRIX_API_KEY must be at least 16 characters")
@@ -473,30 +521,49 @@ class APIKeyStore:
             owner = self._hash_to_tenant.get(digest)
             record = self._keys.get(owner) if owner is not None else None
             if (
-                owner is None
-                or not record
-                or not record["active"]
-                or not secrets.compare_digest(digest, record["key_hash"])
+                owner is not None
+                and record
+                and record["active"]
+                and secrets.compare_digest(digest, record["key_hash"])
             ):
-                return None
-            tenant_id: str = owner
-            expires_at = record.get("expires_at")
-            if expires_at is not None and time.time() >= float(expires_at):
-                revoked = dict(record)
-                revoked["active"] = False
-                # Persist FIRST, then update in-memory state.
-                # If persistence fails, exception propagates and in-memory state is unchanged.
-                self._persist_record(tenant_id, revoked)
-                self._keys[tenant_id] = revoked
-                self._hash_to_tenant.pop(record["key_hash"], None)
-                return None
-            record["last_used"] = time.time()
-            return {
-                "tenant_id": tenant_id,
-                "tier": record["tier"],
-                "admin": bool(record["admin"]),
-                "record": dict(record),
-            }
+                tenant_id: str = owner
+                expires_at = record.get("expires_at")
+                if expires_at is not None and time.time() >= float(expires_at):
+                    revoked = dict(record)
+                    revoked["active"] = False
+                    self._persist_record(tenant_id, revoked)
+                    self._keys[tenant_id] = revoked
+                    self._hash_to_tenant.pop(record["key_hash"], None)
+                    return None
+                record["last_used"] = time.time()
+                return {
+                    "tenant_id": tenant_id,
+                    "tier": record["tier"],
+                    "admin": bool(record["admin"]),
+                    "scope": record.get("scope", "write"),
+                    "record": dict(record),
+                }
+
+        # Check tenant_users table for user-level API keys (sync version)
+        from strix.core import store
+
+        users = store._run_async(store.load_tenant_users())
+        for user in users:
+            if user.get("key_hash") == digest and user.get("active"):
+                expires_at = user.get("expires_at")
+                if expires_at is not None and time.time() >= float(expires_at):
+                    return None
+                return {
+                    "tenant_id": user["tenant_id"],
+                    "tier": "standard",
+                    "admin": False,
+                    "scope": user.get("scope", "write"),
+                    "role": user.get("role", "analyst"),
+                    "user_id": user["user_id"],
+                    "display_name": user.get("display_name"),
+                    "record": dict(user),
+                }
+        return None
 
     async def validate_async(self, api_key: str | None) -> dict[str, Any] | None:
         """Async version of validate."""
@@ -507,30 +574,49 @@ class APIKeyStore:
             owner = self._hash_to_tenant.get(digest)
             record = self._keys.get(owner) if owner is not None else None
             if (
-                owner is None
-                or not record
-                or not record["active"]
-                or not secrets.compare_digest(digest, record["key_hash"])
+                owner is not None
+                and record
+                and record["active"]
+                and secrets.compare_digest(digest, record["key_hash"])
             ):
-                return None
-            tenant_id: str = owner
-            expires_at = record.get("expires_at")
-            if expires_at is not None and time.time() >= float(expires_at):
-                revoked = dict(record)
-                revoked["active"] = False
-                # Persist FIRST, then update in-memory state.
-                # If persistence fails, exception propagates and in-memory state is unchanged.
-                await self._persist_record_async(tenant_id, revoked)
-                self._keys[tenant_id] = revoked
-                self._hash_to_tenant.pop(record["key_hash"], None)
-                return None
-            record["last_used"] = time.time()
-            return {
-                "tenant_id": tenant_id,
-                "tier": record["tier"],
-                "admin": bool(record["admin"]),
-                "record": dict(record),
-            }
+                tenant_id: str = owner
+                expires_at = record.get("expires_at")
+                if expires_at is not None and time.time() >= float(expires_at):
+                    revoked = dict(record)
+                    revoked["active"] = False
+                    await self._persist_record_async(tenant_id, revoked)
+                    self._keys[tenant_id] = revoked
+                    self._hash_to_tenant.pop(record["key_hash"], None)
+                    return None
+                record["last_used"] = time.time()
+                return {
+                    "tenant_id": tenant_id,
+                    "tier": record["tier"],
+                    "admin": bool(record["admin"]),
+                    "scope": record.get("scope", "write"),
+                    "record": dict(record),
+                }
+
+        # Check tenant_users table for user-level API keys
+        from strix.core import store
+
+        users = await store.load_tenant_users()
+        for user in users:
+            if user.get("key_hash") == digest and user.get("active"):
+                expires_at = user.get("expires_at")
+                if expires_at is not None and time.time() >= float(expires_at):
+                    return None
+                return {
+                    "tenant_id": user["tenant_id"],
+                    "tier": "standard",
+                    "admin": False,
+                    "scope": user.get("scope", "write"),
+                    "role": user.get("role", "analyst"),
+                    "user_id": user["user_id"],
+                    "display_name": user.get("display_name"),
+                    "record": dict(user),
+                }
+        return None
 
     def tenants(self) -> list[dict[str, Any]]:
         """Every tenant that holds a key."""
@@ -541,6 +627,7 @@ class APIKeyStore:
                     "tier": record["tier"],
                     "admin": bool(record["admin"]),
                     "active": bool(record["active"]),
+                    "scope": record.get("scope", "write"),
                 }
                 for tenant_id, record in self._keys.items()
             ]
@@ -566,14 +653,65 @@ class APIKeyStore:
                 "active": bool(record["active"]),
                 "admin": bool(record["admin"]),
                 "ai_enabled": bool(record.get("ai_enabled", False)),
+                "scope": record.get("scope", "write"),
                 "created_at": record["created_at"],
                 "expires_at": expires_at,
-                "days_remaining": (
-                    round(remaining / 86400.0, 2) if remaining is not None else None
-                ),
+                "days_remaining": (round(remaining / 86400.0, 2) if remaining is not None else None),
                 "last_used": record.get("last_used"),
                 "rotated_at": record.get("rotated_at"),
             }
+
+    # -- tenant user management ----------------------------------------------
+    def list_users(self, tenant_id: str) -> list[dict[str, Any]]:
+        """List all users for a tenant (sync version)."""
+        from strix.core import store
+
+        users = store._run_async(store.load_tenant_users())
+        return [u for u in users if u["tenant_id"] == tenant_id]
+
+    async def register_user_async(
+        self,
+        tenant_id: str,
+        display_name: str,
+        role: str,
+        *,
+        ttl_days: int | None = None,
+    ) -> tuple[str, str]:
+        """Create a new tenant user with an API key. Returns (user_id, raw_key)."""
+        import hashlib
+        import secrets
+        import time
+
+        from strix.core import store
+
+        # Map role to scope: viewer -> read, others -> write
+        scope = "read" if role == "viewer" else "write"
+
+        user_id = f"user_{secrets.token_urlsafe(16)}"
+        raw_key = f"strix_{secrets.token_urlsafe(32)}"
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        now = time.time()
+        expires_at = now + ttl_days * 86400.0 if ttl_days is not None else None
+
+        await store.save_tenant_user(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            display_name=display_name,
+            role=role,
+            key_hash=key_hash,
+            scope=scope,
+            active=True,
+            created_at=now,
+            expires_at=expires_at,
+            last_used=None,
+        )
+        return user_id, raw_key
+
+    async def revoke_user_async(self, tenant_id: str, user_id: str) -> bool:
+        """Revoke a tenant user's key."""
+        from strix.core import store
+
+        return await store.deactivate_tenant_user(tenant_id=tenant_id, user_id=user_id)
 
 
 api_keys = APIKeyStore(persistent=True)
@@ -586,6 +724,7 @@ async def get_current_tenant(
 ) -> dict[str, Any]:
     """Dependency: resolve and validate the caller's API key."""
     if credentials is None:
+        record_auth_failure("missing_key", None)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization: Bearer <api-key>",
@@ -593,11 +732,13 @@ async def get_current_tenant(
         )
     tenant = await api_keys.validate_async(credentials.credentials)
     if tenant is None:
+        record_auth_failure("invalid_key", None)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or revoked API key",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    record_auth_success(tenant.get("tenant_id"), str(tenant.get("tier") or "api_key"))
     return tenant
 
 
@@ -633,9 +774,9 @@ def route_class(path: str) -> str:
 
 def _get_settings() -> Settings:
     """Lazy settings accessor to avoid importing config at module load time."""
-    from strix.config import Settings
+    from strix.config import get_settings
 
-    return Settings.from_env()
+    return get_settings()
 
 
 def _get_limits_disabled() -> bool:
@@ -690,11 +831,7 @@ def client_address(request: Request) -> str:
     """Peer address to count unauthenticated requests against."""
     peer = request.client.host if request.client else ""
     if peer and _is_trusted_proxy(peer):
-        hops = [
-            hop.strip()
-            for hop in request.headers.get("X-Forwarded-For", "").split(",")
-            if hop.strip()
-        ]
+        hops = [hop.strip() for hop in request.headers.get("X-Forwarded-For", "").split(",") if hop.strip()]
         if hops:
             return hops[-1]  # appended by our trusted proxy: the peer it saw
     return peer or "unknown"
@@ -729,6 +866,7 @@ class TenantStateMiddleware(BaseHTTPMiddleware):
 # Rate limiter instance is now provided by strix.core.rate_limit.get_distributed_rate_limiter()
 # In-memory RateLimiter and TokenBucket classes removed - use Redis-backed DistributedRateLimiter
 
+
 # ---------------------------------------------------------------------------
 # Security Headers Middleware
 # ---------------------------------------------------------------------------
@@ -743,9 +881,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "geolocation=(), microphone=(), camera=(), payment=(), usb=(), "
             "accelerometer=(), gyroscope=(), magnetometer=()"
         )
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
@@ -813,6 +949,66 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------------------
+# Session Cookie Middleware (for OIDC session management)
+# ---------------------------------------------------------------------------
+class SessionCookieMiddleware(BaseHTTPMiddleware):
+    """Session cookie middleware for OIDC authentication.
+
+    Sets secure, HttpOnly, SameSite=Lax cookies for session management.
+    Used by OIDC authenticator to maintain authentication state.
+    """
+
+    def __init__(
+        self,
+        app,
+        *,
+        cookie_name: str = "strix_session",
+        max_age: int = 3600,
+        secure: bool = True,
+        httponly: bool = True,
+        samesite: str = "lax",
+        path: str = "/",
+    ) -> None:
+        super().__init__(app)
+        self.cookie_name = cookie_name
+        self.max_age = max_age
+        self.secure = secure
+        self.httponly = httponly
+        self.samesite = samesite.lower()
+        self.path = path
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Set session cookie if session data exists in request.state
+        session_data = getattr(request.state, "session_data", None)
+        if session_data:
+            cookie_value = session_data.get("session_token")
+            if cookie_value:
+                response.set_cookie(
+                    key=self.cookie_name,
+                    value=cookie_value,
+                    max_age=self.max_age,
+                    secure=self.secure,
+                    httponly=self.httponly,
+                    samesite=self.samesite,
+                    path=self.path,
+                )
+
+        # Clear session cookie on logout
+        if getattr(request.state, "clear_session", False):
+            response.delete_cookie(
+                key=self.cookie_name,
+                path=self.path,
+                secure=self.secure,
+                httponly=self.httponly,
+                samesite=self.samesite,
+            )
+
+        return response
+
+
+# ---------------------------------------------------------------------------
 # Request ID / correlation middleware
 # ---------------------------------------------------------------------------
 _REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
@@ -821,9 +1017,7 @@ _REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         supplied = request.headers.get("X-Request-ID", "")
-        request_id = (
-            supplied if _REQUEST_ID.fullmatch(supplied) else secrets.token_hex(8)
-        )
+        request_id = supplied if _REQUEST_ID.fullmatch(supplied) else secrets.token_hex(8)
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id

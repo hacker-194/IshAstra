@@ -1,0 +1,340 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master, "release/*"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master, "release/*"]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      severity:
+        description: 'Fail on severity threshold'
+        required: true
+        default: 'high'
+        type: choice
+        options:
+          - 'critical'
+          - 'high'
+          - 'medium'
+          - 'low'
+
+env:
+  PYTHON_VERSION: "3.12"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-scan:
+    name: Security Scan (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            constraints.txt
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" -c constraints.txt
+          pip install bandit[toml] semgrep safety pip-audit
+
+      - name: Run Bandit
+        id: bandit
+        run: |
+          bandit -r src/ -f json -o bandit-results.json || true
+          bandit -r src/ -f txt -o bandit-results.txt || true
+        continue-on-error: true
+
+      - name: Run Semgrep
+        id: semgrep
+        run: |
+          semgrep scan --config=auto --config=p/security-audit --config=p/owasp-top-ten --config=p/secrets \
+            --json=semgrep-results.json --sarif=semgrep-results.sarif src/ || true
+        continue-on-error: true
+
+      - name: Run Safety
+        id: safety
+        run: |
+          safety check --json --output safety-results.json || true
+        continue-on-error: true
+
+      - name: Run pip-audit
+        id: pip-audit
+        run: |
+          pip-audit --format=json --output=pip-audit-results.json -r constraints.txt || true
+        continue-on-error: true
+
+      - name: Upload Bandit SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('bandit-results.json') != ''
+        with:
+          sarif_file: bandit-results.json
+          category: bandit
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('semgrep-results.sarif') != ''
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep
+
+      - name: Run consolidated security audit script
+        id: audit-script
+        run: |
+          python scripts/security_audit.py \
+            --output-dir security-reports \
+            --fail-on ${{ github.event.inputs.severity || 'high' }} \
+            --format json \
+            --scanners all
+
+      - name: Upload security audit reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-reports
+          path: |
+            security-reports/
+            bandit-results.json
+            semgrep-results.json
+            semgrep-results.sarif
+            safety-results.json
+            pip-audit-results.json
+          retention-days: 30
+
+      - name: Check Bandit HIGH findings
+        if: always()
+        run: |
+          if [ -f bandit-results.json ]; then
+            HIGH=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-results.json)
+            echo "Bandit HIGH findings: $HIGH"
+            if [ "$HIGH" -gt 0 ]; then
+              echo "::error::Bandit found $HIGH HIGH severity issues"
+              exit 1
+            fi
+          fi
+
+      - name: Check Semgrep HIGH findings
+        if: always()
+        run: |
+          if [ -f semgrep-results.json ]; then
+            HIGH=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' semgrep-results.json)
+            echo "Semgrep HIGH findings: $HIGH"
+            if [ "$HIGH" -gt 0 ]; then
+              echo "::error::Semgrep found $HIGH HIGH severity issues"
+              exit 1
+            fi
+          fi
+
+      - name: Check Safety HIGH findings
+        if: always()
+        run: |
+          if [ -f safety-results.json ]; then
+            HIGH=$(jq '[.[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' safety-results.json)
+            echo "Safety HIGH/CRITICAL findings: $HIGH"
+            if [ "$HIGH" -gt 0 ]; then
+              echo "::error::Safety found $HIGH HIGH/CRITICAL vulnerabilities"
+              exit 1
+            fi
+          fi
+
+      - name: Check pip-audit HIGH findings
+        if: always()
+        run: |
+          if [ -f pip-audit-results.json ]; then
+            HIGH=$(jq '[.vulnerabilities[] | select(.severity == "HIGH" or .severity == "CRITICAL")] | length' pip-audit-results.json)
+            echo "pip-audit HIGH/CRITICAL findings: $HIGH"
+            if [ "$HIGH" -gt 0 ]; then
+              echo "::error::pip-audit found $HIGH HIGH/CRITICAL vulnerabilities"
+              exit 1
+            fi
+          fi
+
+  container-security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: security-scan
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: strix:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: strix:security-scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - name: Run Trivy config scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-config.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+
+      - name: Upload Trivy config results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+
+      - name: Run Hadolint (Dockerfile lint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          verbose: true
+          failure-threshold: error
+
+      - name: Validate docker-compose files
+        run: |
+          docker compose config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: 'high'
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha || github.sha }}
+          head: ${{ github.event.pull_request.head.sha || github.sha }}
+          extra_args: --json --fail
+
+  license-check:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            constraints.txt
+            pyproject.toml
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Check licenses
+        run: |
+          pip-licenses --format=json --with-urls --with-description --with-license-file > licenses.json
+          NON_MIT=$(jq -r '.[] | select(.License != "MIT" and .License != "Apache-2.0" and .License != "BSD-3-Clause" and .License != "BSD-2-Clause" and .License != "ISC" and .License != "Python-2.0" and .License != "PSF-2.0") | "\(.Name): \(.License)"' licenses.json)
+          if [ -n "$NON_MIT" ]; then
+            echo "::warning::Non-MIT-compatible licenses found:"
+            echo "$NON_MIT"
+          else
+            echo "All dependencies have MIT-compatible licenses"
+          fi
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [security-scan, container-security-scan, dependency-review, secret-scan, license-check]
+    if: always()
+    steps:
+      - name: Check security scan results
+        if: failure() && needs.security-scan.result == 'failure'
+        run: |
+          echo "Security scan failed - blocking"
+          exit 1
+
+      - name: Check container scan results
+        if: failure() && needs.container-security-scan.result == 'failure'
+        run: |
+          echo "Container security scan failed - blocking"
+          exit 1
+
+      - name: Check dependency review
+        if: failure() && needs.dependency-review.result == 'failure'
+        run: |
+          echo "Dependency review failed - blocking"
+          exit 1
+
+      - name: Check secret scan
+        if: failure() && needs.secret-scan.result == 'failure'
+        run: |
+          echo "Secret scan failed - blocking"
+          exit 1
+
+      - name: All security gates passed
+        if: success()
+        run: |
+          echo "All security gates passed"

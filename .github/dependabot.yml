@@ -1,0 +1,111 @@
+version: 2
+updates:
+  # Python dependencies (from pyproject.toml and constraints.txt)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps(pip)"
+      prefix-development: "deps-dev(pip)"
+    open-pull-requests-limit: 10
+    groups:
+      # Group development dependencies
+      dev-dependencies:
+        patterns:
+          - "ruff*"
+          - "mypy*"
+          - "pytest*"
+          - "httpx*"
+          - "pytest-asyncio*"
+          - "bandit*"
+          - "pip-audit*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group core runtime dependencies
+      runtime-dependencies:
+        patterns:
+          - "fastapi*"
+          - "starlette*"
+          - "uvicorn*"
+          - "pydantic*"
+          - "defusedxml*"
+          - "aiosqlite*"
+          - "redis*"
+          - "cryptography*"
+          - "prometheus-client*"
+          - "apscheduler*"
+          - "pytz*"
+          - "weasyprint*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group optional/extras dependencies
+      optional-dependencies:
+        patterns:
+          - "asyncpg*"
+          - "celery*"
+          - "kombu*"
+          - "fastmcp*"
+          - "aiohttp*"
+          - "beautifulsoup4*"
+          - "selenium*"
+          - "webdriver-manager*"
+          - "mitmproxy*"
+          - "pwntools*"
+          - "angr*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:30"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "deps(actions)"
+    open-pull-requests-limit: 5
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker)"
+    open-pull-requests-limit: 5
+
+  # npm dependencies (for semantic-release)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:30"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "deps(npm)"
+    open-pull-requests-limit: 5

@@ -1,0 +1,209 @@
+# Grafana Datasources ConfigMap
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f grafana-datasources.yaml
+
+---
+# Namespace for monitoring stack
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: strix-observability
+
+---
+# Grafana Datasources ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: grafana-datasources
+    grafana_datasource: "1"
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      # Prometheus Datasource
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        url: https://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          httpMethod: POST
+          exemplarsTraceIdDestinations:
+            - name: TraceID
+              datasourceUid: tempo
+          # For OAuth authentication (if needed)
+          # oauthPassThru: false
+        secureJsonData:
+          httpHeaderValue1: ""
+          # basicAuthUser: ""
+          # basicAuthPassword: ""
+          # oauthClientId: ""
+          # oauthClientSecret: ""
+          # oauthAccessToken: ""
+
+      # Loki Datasource
+      - name: Loki
+        type: loki
+        uid: loki
+        access: proxy
+        url: https://loki.monitoring.svc.cluster.local:3100
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          maxLines: 1000
+          derivedFields:
+            - name: traceID
+              matcherRegex: "traceID=(\\w+)"
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+          # For label-based correlation
+          # labels: {}
+        secureJsonData:
+          httpHeaderValue1: ""
+          # basicAuthUser: ""
+          # basicAuthPassword: ""
+
+      # Tempo Datasource
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: https://tempo.monitoring.svc.cluster.local:3200
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          timeInterval: "30s"
+          queryTimeout: "60s"
+          nodeGraph:
+            enabled: true
+          search:
+            hide: false
+          spans:
+            search:
+              hide: false
+          tracesToLogs:
+            datasourceUid: loki
+            tags:
+              - job
+              - component
+            spanStartTimeShift: "1h"
+            spanEndTimeShift: "-1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          lokiSearch:
+            datasourceUid: loki
+          # For Tempo query frontend
+          # queryFrontendUrl: ""
+        secureJsonData:
+          httpHeaderValue1: ""
+          # basicAuthUser: ""
+          # basicAuthPassword: ""
+
+      # Alertmanager Datasource
+      - name: Alertmanager
+        type: alertmanager
+        uid: alertmanager
+        access: proxy
+        url: https://alertmanager.monitoring.svc.cluster.local:9093
+        editable: false
+        jsonData:
+          tlsSkipVerify: false
+          implementation: prometheus
+          # alertmanagerVersion: "0.26.0"
+        secureJsonData:
+          httpHeaderValue1: ""
+          # basicAuthUser: ""
+          # basicAuthPassword: ""
+
+      # Optional: Pyroscope for continuous profiling (if deployed)
+      # - name: Pyroscope
+      #   type: pyroscope
+      #   uid: pyroscope
+      #   access: proxy
+      #   url: https://pyroscope.monitoring.svc.cluster.local:4040
+      #   editable: false
+      #   jsonData:
+      #     tlsSkipVerify: false
+      #   secureJsonData:
+      #     httpHeaderValue1: ""
+
+      # Optional: Elasticsearch for logs (if used instead of Loki)
+      # - name: Elasticsearch
+      #   type: elasticsearch
+      #   uid: elasticsearch
+      #   access: proxy
+      #   url: https://elasticsearch.monitoring.svc.cluster.local:9200
+      #   editable: false
+      #   jsonData:
+      #     tlsSkipVerify: false
+      #     timeField: "@timestamp"
+      #     interval: "Daily"
+      #     esVersion: "80.0"
+      #     logMessageField: "message"
+      #     logLevelField: "level"
+      #   secureJsonData:
+      #     basicAuthUser: ""
+      #     basicAuthPassword: ""
+
+      # Optional: InfluxDB for metrics (if used)
+      # - name: InfluxDB
+      #   type: influxdb
+      #   uid: influxdb
+      #   access: proxy
+      #   url: https://influxdb.monitoring.svc.cluster.local:8086
+      #   editable: false
+      #   jsonData:
+      #     tlsSkipVerify: false
+      #     defaultBucket: "strix"
+      #     organization: "strix"
+      #   secureJsonData:
+      #     token: ""
+
+---
+# Additional Grafana Datasource for Strix-specific metrics (if needed)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources-strix
+  namespace: monitoring
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: grafana-datasources
+    grafana_datasource: "1"
+data:
+  strix-datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      # Strix-specific Prometheus datasource (if using separate Prometheus for Strix)
+      # - name: Strix-Prometheus
+      #   type: prometheus
+      #   uid: strix-prometheus
+      #   access: proxy
+      #   url: https://prometheus-strix.monitoring.svc.cluster.local:9090
+      #   isDefault: false
+      #   editable: false
+      #   jsonData:
+      #     tlsSkipVerify: false
+      #     timeInterval: "30s"
+      #     queryTimeout: "60s"
+      #   secureJsonData:
+      #     httpHeaderValue1: ""

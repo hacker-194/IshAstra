@@ -1,0 +1,215 @@
+# Strix Helm Chart - Example Values File
+# Copy this file to values-custom.yaml and modify as needed
+# All values from values.yaml are available for override
+
+# Global settings
+global:
+  image:
+    repository: ghcr.io/your-org/strix
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  labels: {}
+  podSecurityStandard: restricted
+
+# Strix API
+api:
+  enabled: true
+  replicaCount: 2
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+  securityContext: {}
+  podSecurityContext: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  startupProbe: {}
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations: {}
+    hosts: []
+    tls: []
+  env: {}
+  envFromSecrets: []
+  volumes: []
+  volumeMounts: []
+  affinity: {}
+  tolerations: []
+  pdb:
+    enabled: true
+    minAvailable: 1
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    metrics: []
+
+# Strix Scheduler
+scheduler:
+  enabled: true
+  replicaCount: 1
+  updateStrategy:
+    type: RollingUpdate
+  resources: {}
+  securityContext: {}
+  podSecurityContext: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+  env: {}
+  envFromSecrets: []
+  volumes: []
+  volumeMounts: []
+  affinity: {}
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# Celery Workers
+worker:
+  enabled: false
+  replicaCount: 2
+  updateStrategy:
+    type: RollingUpdate
+  resources: {}
+  securityContext: {}
+  podSecurityContext: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  env: {}
+  envFromSecrets: []
+  volumes: []
+  volumeMounts: []
+  affinity: {}
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    metrics: []
+
+# Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ""
+    existingSecretPasswordKey: ""
+  master: {}
+  metrics: {}
+  networkPolicy:
+    enabled: true
+
+# PostgreSQL
+postgresql:
+  enabled: false
+  auth: {}
+  primary: {}
+  metrics: {}
+  networkPolicy:
+    enabled: true
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+# ConfigMap
+configMap:
+  enabled: true
+  scopeJson: |
+    {
+      "program": "REPLACE_ME",
+      "authorized_by": "REPLACE_ME",
+      "authorization_ref": "REPLACE_ME",
+      "include": ["*.example.com"],
+      "exclude": [],
+      "authorized_networks": ["10.0.0.0/8"],
+      "allowed_ports": [80, 443],
+      "allow_broad_networks": false,
+      "auth": {"users": []}
+    }
+  additionalConfigs: {}
+
+# Secrets
+secrets:
+  enabled: true
+  createSecrets: false
+  strixSecrets: {}
+  redisSecret: {}
+  postgresqlSecret: {}
+  grafanaSecret: {}
+  annotations: {}
+
+# PVC
+pvc:
+  strixData:
+    enabled: true
+    name: ""
+    accessModes: ["ReadWriteOnce"]
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: ""
+    volumeMode: Filesystem
+  redis:
+    enabled: true
+
+# ServiceAccount
+serviceAccount:
+  enabled: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: true
+
+# RBAC
+rbac:
+  enabled: true
+  createClusterRole: true
+  clusterRoleRules: []
+  roleRules: []
+
+# NetworkPolicy
+networkPolicy:
+  enabled: true
+  apiIngress: []
+  apiEgress: []
+
+# PodSecurityPolicy
+podSecurityPolicy:
+  enabled: true
+  restricted: {}
+
+# Environments
+environments:
+  dev: {}
+  staging: {}
+  production: {}
+
+# Other
+imagePullSecrets: []
+additionalLabels: {}
+additionalAnnotations: {}
+priorityClassName: ""
+topologySpreadConstraints: []

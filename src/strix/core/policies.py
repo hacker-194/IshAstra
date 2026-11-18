@@ -59,6 +59,8 @@ class EngagementPolicy:
     exclude: tuple[str, ...] = ()
     authorized_networks: tuple[str, ...] = ()
     allowed_ports: tuple[int, ...] = ()
+    allowed_asns: tuple[int, ...] = ()
+    allowed_countries: tuple[str, ...] = ()
     allow_broad_networks: bool = False
     status: str = "active"
     version: int = 1
@@ -85,9 +87,7 @@ class EngagementPolicy:
         if not TENANT_ID.fullmatch(self.tenant_id):
             raise PolicyError(f"tenant_id {self.tenant_id!r} is not a valid tenant id")
         if self.status not in POLICY_STATUSES:
-            raise PolicyError(
-                f"status {self.status!r} must be one of {POLICY_STATUSES}"
-            )
+            raise PolicyError(f"status {self.status!r} must be one of {POLICY_STATUSES}")
         if self.version < 1:
             raise PolicyError("version must be a positive integer")
         if (
@@ -105,8 +105,7 @@ class EngagementPolicy:
             return False, f"authorization policy {self.policy_id} is {self.status}"
         if self.effective_at is not None and moment < float(self.effective_at):
             return False, (
-                f"authorization policy {self.policy_id} is not yet "
-                f"effective (from {self.effective_at})"
+                f"authorization policy {self.policy_id} is not yet effective (from {self.effective_at})"
             )
         if self.expires_at is not None and moment >= float(self.expires_at):
             return (
@@ -114,6 +113,17 @@ class EngagementPolicy:
                 f"authorization policy {self.policy_id} expired at {self.expires_at}",
             )
         return True, ""
+
+    def lifecycle_state(self, *, now: float | None = None) -> str:
+        """One word for the lifecycle view: draft, active, revoked or expired."""
+        moment = _now() if now is None else now
+        if self.status == "revoked":
+            return "revoked"
+        if self.is_valid(now=moment)[0]:
+            return "active"
+        if self.expires_at is not None and moment >= float(self.expires_at):
+            return "expired"
+        return "draft"
 
     # -- gate snapshot -----------------------------------------------------
     def to_scope(self) -> Scope:
@@ -126,6 +136,8 @@ class EngagementPolicy:
             exclude=self.exclude,
             authorized_networks=self.authorized_networks,
             allowed_ports=self.allowed_ports,
+            allowed_asns=self.allowed_asns,
+            allowed_countries=self.allowed_countries,
             policy_id=self.policy_id,
             policy_version=self.version,
             tenant_id=self.tenant_id,
@@ -150,6 +162,8 @@ class EngagementPolicy:
             "created_by": self.created_by,
             "allow_broad_networks": self.allow_broad_networks,
             "allowed_ports": list(self.allowed_ports),
+            "allowed_asns": list(self.allowed_asns),
+            "allowed_countries": list(self.allowed_countries),
         }
         if include_hosts:
             data["include"] = list(self.include)
@@ -169,6 +183,8 @@ class EngagementPolicy:
             "exclude": list(self.exclude),
             "authorized_networks": list(self.authorized_networks),
             "allowed_ports": list(self.allowed_ports),
+            "allowed_asns": list(self.allowed_asns),
+            "allowed_countries": list(self.allowed_countries),
             "allow_broad_networks": self.allow_broad_networks,
             "status": self.status,
             "version": self.version,
@@ -191,6 +207,8 @@ class EngagementPolicy:
             exclude=tuple(row["exclude"]),
             authorized_networks=tuple(row["authorized_networks"]),
             allowed_ports=tuple(row["allowed_ports"]),
+            allowed_asns=tuple(row.get("allowed_asns") or ()),
+            allowed_countries=tuple(row.get("allowed_countries") or ()),
             allow_broad_networks=bool(row["allow_broad_networks"]),
             status=row["status"],
             version=int(row["version"]),
@@ -239,9 +257,7 @@ class PolicyRegistry:
     async def load_async(self) -> int:
         """Replace the in-memory view with what the database holds (startup)."""
         rows = await store.load_policies()
-        self._policies = {
-            row["policy_id"]: EngagementPolicy.from_row(row) for row in rows
-        }
+        self._policies = {row["policy_id"]: EngagementPolicy.from_row(row) for row in rows}
         self._loaded = True
         return len(self._policies)
 
@@ -271,6 +287,8 @@ class PolicyRegistry:
         exclude: list[str] | None = None,
         authorized_networks: list[str] | None = None,
         allowed_ports: list[int] | None = None,
+        allowed_asns: list[int] | None = None,
+        allowed_countries: list[str] | None = None,
         allow_broad_networks: bool = False,
         effective_at: float | None = None,
         expires_at: float | None = None,
@@ -295,6 +313,8 @@ class PolicyRegistry:
             exclude=tuple(exclude or ()),
             authorized_networks=tuple(authorized_networks or ()),
             allowed_ports=tuple(allowed_ports or ()),
+            allowed_asns=tuple(allowed_asns or ()),
+            allowed_countries=tuple(allowed_countries or ()),
             allow_broad_networks=bool(allow_broad_networks),
             status="active",
             version=1,
@@ -328,6 +348,8 @@ class PolicyRegistry:
         exclude: list[str] | None = None,
         authorized_networks: list[str] | None = None,
         allowed_ports: list[int] | None = None,
+        allowed_asns: list[int] | None = None,
+        allowed_countries: list[str] | None = None,
         allow_broad_networks: bool = False,
         effective_at: float | None = None,
         expires_at: float | None = None,
@@ -345,6 +367,8 @@ class PolicyRegistry:
                 exclude=exclude,
                 authorized_networks=authorized_networks,
                 allowed_ports=allowed_ports,
+                allowed_asns=allowed_asns,
+                allowed_countries=allowed_countries,
                 allow_broad_networks=allow_broad_networks,
                 effective_at=effective_at,
                 expires_at=expires_at,
@@ -370,6 +394,8 @@ class PolicyRegistry:
             "exclude",
             "authorized_networks",
             "allowed_ports",
+            "allowed_asns",
+            "allowed_countries",
             "allow_broad_networks",
             "effective_at",
             "expires_at",
@@ -377,12 +403,17 @@ class PolicyRegistry:
         unknown = set(changes) - allowed
         if unknown:
             raise PolicyError(f"cannot update field(s): {', '.join(sorted(unknown))}")
-        for field in ("include", "exclude", "authorized_networks", "allowed_ports"):
+        for field in (
+            "include",
+            "exclude",
+            "authorized_networks",
+            "allowed_ports",
+            "allowed_asns",
+            "allowed_countries",
+        ):
             if field in changes:
                 changes[field] = tuple(changes[field])
-        updated = replace(
-            current, version=current.version + 1, updated_at=_now(), **changes
-        )
+        updated = replace(current, version=current.version + 1, updated_at=_now(), **changes)
         try:
             updated.to_scope()
         except ValueError as exc:
@@ -399,17 +430,13 @@ class PolicyRegistry:
         return asyncio.run(self.update_async(policy_id, **changes))
 
     @async_locked
-    async def revoke_async(
-        self, policy_id: str, *, now: float | None = None
-    ) -> EngagementPolicy:
+    async def revoke_async(self, policy_id: str, *, now: float | None = None) -> EngagementPolicy:
         """Revoke: no new submission, no worker start, queued/running jobs cancelled."""
         await self._ensure_loaded_async()
         current = self._policies.get(policy_id)
         if current is None:
             raise PolicyError(f"unknown policy {policy_id}")
-        revoked = replace(
-            current, status="revoked", version=current.version + 1, updated_at=_now()
-        )
+        revoked = replace(current, status="revoked", version=current.version + 1, updated_at=_now())
         await store.save_policy(revoked.to_row())
         self._policies[policy_id] = revoked
         return revoked
@@ -433,9 +460,7 @@ class PolicyRegistry:
     @_registry_locked
     def list(self, tenant_id: str | None = None) -> list[EngagementPolicy]:
         self._ensure_loaded()
-        policies = sorted(
-            self._policies.values(), key=lambda p: (p.tenant_id, p.created_at)
-        )
+        policies = sorted(self._policies.values(), key=lambda p: (p.tenant_id, p.created_at))
         if tenant_id is None:
             return policies
         return [p for p in policies if p.tenant_id == tenant_id]
@@ -443,9 +468,7 @@ class PolicyRegistry:
     @async_locked
     async def list_async(self, tenant_id: str | None = None) -> list[EngagementPolicy]:  # type: ignore[valid-type]
         await self._ensure_loaded_async()
-        policies = sorted(
-            self._policies.values(), key=lambda p: (p.tenant_id, p.created_at)
-        )
+        policies = sorted(self._policies.values(), key=lambda p: (p.tenant_id, p.created_at))
         if tenant_id is None:
             return policies
         return [p for p in policies if p.tenant_id == tenant_id]
@@ -502,27 +525,45 @@ registry = PolicyRegistry()
 
 
 def tenant_scope_snapshot(
-    tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+    tenant_id: str,
+    policy_id: str | None = None,
+    *,
+    now: float | None = None,
+    parent_scope: Scope | None = None,
 ) -> tuple[Scope | None, str]:
-    """(validated gate snapshot, '') or (None, refusal reason) for a tenant."""
+    """(validated gate snapshot, '') or (None, refusal reason) for a tenant.
+
+    ``parent_scope`` is the organization default this engagement must stay
+    inside; the snapshot can only narrow, never widen, that policy.
+    """
     policy, reason = registry.resolve(tenant_id, policy_id, now=now)
     if policy is None:
         return None, reason
     try:
-        return policy.to_scope(), ""
+        scope = policy.to_scope()
+        if parent_scope is not None:
+            scope = scope.inherited_from(parent_scope)
+        return scope, ""
     except ValueError as exc:
         return None, f"authorization policy {policy.policy_id} is invalid: {exc}"
 
 
 async def tenant_scope_snapshot_async(
-    tenant_id: str, policy_id: str | None = None, *, now: float | None = None
+    tenant_id: str,
+    policy_id: str | None = None,
+    *,
+    now: float | None = None,
+    parent_scope: Scope | None = None,
 ) -> tuple[Scope | None, str]:
     """Async version of tenant_scope_snapshot."""
     policy, reason = await registry.resolve_async(tenant_id, policy_id, now=now)
     if policy is None:
         return None, reason
     try:
-        return policy.to_scope(), ""
+        scope = policy.to_scope()
+        if parent_scope is not None:
+            scope = scope.inherited_from(parent_scope)
+        return scope, ""
     except ValueError as exc:
         return None, f"authorization policy {policy.policy_id} is invalid: {exc}"
 

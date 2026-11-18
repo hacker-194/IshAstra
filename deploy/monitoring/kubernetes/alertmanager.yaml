@@ -1,0 +1,667 @@
+# Alertmanager with Config from alertmanager.yml
+# Compatible with Prometheus Operator v0.75+
+# Apply with: kubectl apply -f alertmanager.yaml
+
+---
+# ServiceAccount for Alertmanager
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: alertmanager
+
+---
+# Secret for Alertmanager configuration (from alertmanager.yml)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+stringData:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: 'smtp.example.com:587'
+      smtp_from: 'alertmanager@strix.example.com'
+      smtp_auth_username: 'alertmanager'
+      smtp_auth_password: '${SMTP_PASSWORD}'
+      smtp_require_tls: true
+      # Slack webhook URLs - replace with actual values or use ExternalSecrets
+      slack_api_url: '${SLACK_WEBHOOK_URL}'
+      slack_api_url_critical: '${SLACK_WEBHOOK_URL_CRITICAL}'
+      slack_api_url_security: '${SLACK_WEBHOOK_URL_SECURITY}'
+      # PagerDuty service key
+      pagerduty_service_key: '${PAGERDUTY_SERVICE_KEY}'
+
+    route:
+      group_by: ['alertname', 'component']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: 'default'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'critical-alerts'
+          continue: true
+        - match:
+            component: auth
+          receiver: 'security-alerts'
+        - match:
+            component: audit
+          receiver: 'security-alerts'
+        - match:
+            component: sli
+          receiver: 'sli-alerts'
+        - match:
+            component: compliance
+          receiver: 'compliance-alerts'
+
+    receivers:
+      - name: 'default'
+        email_configs:
+          - to: 'oncall@strix.example.com'
+            send_resolved: true
+            html: '{{ template "email.default.html" . }}'
+        slack_configs:
+          - api_url: '${SLACK_WEBHOOK_URL}'
+            channel: '#strix-alerts'
+            send_resolved: true
+            title: '{{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            icon_emoji: ':strix:'
+            username: 'Alertmanager'
+
+      - name: 'critical-alerts'
+        email_configs:
+          - to: 'oncall-critical@strix.example.com'
+            send_resolved: true
+            html: '{{ template "email.critical.html" . }}'
+        slack_configs:
+          - api_url: '${SLACK_WEBHOOK_URL_CRITICAL}'
+            channel: '#strix-critical'
+            send_resolved: true
+            title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            icon_emoji: ':alert:'
+            username: 'Alertmanager-Critical'
+        pagerduty_configs:
+          - service_key: '${PAGERDUTY_SERVICE_KEY}'
+            severity: critical
+            description: '{{ .GroupLabels.alertname }} - {{ .Annotations.summary }}'
+            details:
+              component: '{{ .GroupLabels.component }}'
+              alertname: '{{ .GroupLabels.alertname }}'
+              description: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+              runbook_url: '{{ range .Alerts }}{{ .Annotations.runbook_url }}{{ end }}'
+
+      - name: 'security-alerts'
+        email_configs:
+          - to: 'security@strix.example.com'
+            send_resolved: true
+            html: '{{ template "email.security.html" . }}'
+        slack_configs:
+          - api_url: '${SLACK_WEBHOOK_URL_SECURITY}'
+            channel: '#strix-security'
+            send_resolved: true
+            title: '🔒 SECURITY: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            icon_emoji: ':lock:'
+            username: 'Alertmanager-Security'
+
+      - name: 'sli-alerts'
+        email_configs:
+          - to: 'sli-alerts@strix.example.com'
+            send_resolved: true
+        slack_configs:
+          - api_url: '${SLACK_WEBHOOK_URL}'
+            channel: '#strix-sli'
+            send_resolved: true
+            title: '📊 SLI Alert: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+      - name: 'compliance-alerts'
+        email_configs:
+          - to: 'compliance@strix.example.com'
+            send_resolved: true
+        slack_configs:
+          - api_url: '${SLACK_WEBHOOK_URL}'
+            channel: '#strix-compliance'
+            send_resolved: true
+            title: '📋 Compliance Alert: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+    # Templates for email notifications
+    templates:
+      - '/etc/alertmanager/templates/*.tmpl'
+
+    # Inhibit rules to reduce noise
+    inhibit_rules:
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'component']
+      - source_match:
+          alertname: 'StrixServiceDown'
+        target_match_re:
+          alertname: 'Strix.*'
+        equal: ['component']
+
+---
+# TLS Secret for Alertmanager (generated by cert-manager or manually)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-tls
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded cert
+  tls.key: ""  # Base64 encoded key
+
+---
+# CA Secret for Alertmanager client verification
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-ca
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+type: Opaque
+data:
+  ca.crt: ""  # Base64 encoded CA cert
+
+---
+# Client cert for Prometheus to talk to Alertmanager
+apiVersion: v1
+kind: Secret
+metadata:
+  name: prometheus-client-certs
+  namespace: monitoring
+  labels:
+    app: prometheus
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: strix-observability
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # Base64 encoded client cert
+  tls.key: ""  # Base64 encoded client key
+
+---
+# Alertmanager Configuration ConfigMap (templates)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-templates
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+data:
+  email.default.html: |
+    {{ define "email.default.html" }}
+    <html>
+      <body>
+        <h2>{{ .GroupLabels.alertname }}</h2>
+        <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+        <p><strong>Component:</strong> {{ .GroupLabels.component }}</p>
+        {{ range .Alerts }}
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+          <h3>{{ .Annotations.summary }}</h3>
+          <p>{{ .Annotations.description }}</p>
+          <p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook_url }}">{{ .Annotations.runbook_url }}</a></p>
+          <p><strong>Starts at:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          {{ if .EndsAt }}<p><strong>Ends at:</strong> {{ .EndsAt.Format "2006-01-02 15:04:05" }}</p>{{ end }}
+        </div>
+        {{ end }}
+      </body>
+    </html>
+    {{ end }}
+
+  email.critical.html: |
+    {{ define "email.critical.html" }}
+    <html>
+      <body style="background-color: #fff0f0; border: 2px solid #ff0000; padding: 20px;">
+        <h1 style="color: #ff0000;">🚨 CRITICAL ALERT</h1>
+        <h2>{{ .GroupLabels.alertname }}</h2>
+        <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+        <p><strong>Component:</strong> {{ .GroupLabels.component }}</p>
+        {{ range .Alerts }}
+        <div style="background-color: #fff; border: 1px solid #ccc; padding: 15px; margin: 10px 0;">
+          <h3 style="color: #ff0000;">{{ .Annotations.summary }}</h3>
+          <p>{{ .Annotations.description }}</p>
+          <p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook_url }}">{{ .Annotations.runbook_url }}</a></p>
+          <p><strong>Starts at:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          {{ if .EndsAt }}<p><strong>Ends at:</strong> {{ .EndsAt.Format "2006-01-02 15:04:05" }}</p>{{ end }}
+        </div>
+        {{ end }}
+      </body>
+    </html>
+    {{ end }}
+
+  email.security.html: |
+    {{ define "email.security.html" }}
+    <html>
+      <body style="background-color: #f0f0ff; border: 2px solid #0000ff; padding: 20px;">
+        <h1 style="color: #0000ff;">🔒 SECURITY ALERT</h1>
+        <h2>{{ .GroupLabels.alertname }}</h2>
+        <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+        <p><strong>Component:</strong> {{ .GroupLabels.component }}</p>
+        {{ range .Alerts }}
+        <div style="background-color: #fff; border: 1px solid #ccc; padding: 15px; margin: 10px 0;">
+          <h3 style="color: #0000ff;">{{ .Annotations.summary }}</h3>
+          <p>{{ .Annotations.description }}</p>
+          <p><strong>Runbook:</strong> <a href="{{ .Annotations.runbook_url }}">{{ .Annotations.runbook_url }}</a></p>
+          <p><strong>Starts at:</strong> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+          {{ if .EndsAt }}<p><strong>Ends at:</strong> {{ .EndsAt.Format "2006-01-02 15:04:05" }}</p>{{ end }}
+        </div>
+        {{ end }}
+      </body>
+    </html>
+    {{ end }}
+
+---
+# Alertmanager Custom Resource
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: alertmanager
+    alertmanager: strix
+spec:
+  # High availability - 3 replicas for HA quorum
+  replicas: 3
+
+  # ServiceAccount for RBAC
+  serviceAccountName: alertmanager
+
+  # Security context
+  securityContext:
+    fsGroup: 65534
+    runAsNonRoot: true
+    runAsUser: 65534
+
+  # Container resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Storage for Alertmanager data
+  storage:
+    volumeClaimTemplate:
+      metadata:
+        name: alertmanager-data
+        labels:
+          app: alertmanager
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: fast-ssd
+
+  # Enable cluster mode for HA
+  enableClusterMode: true
+
+  # Cluster configuration for gossip
+  cluster:
+    peerTimeout: 15s
+    peerAddress: ""
+    gossipInterval: 2s
+    pushPullInterval: 30s
+    reconnectInterval: 15s
+    tlsConfig:
+      caFile: /etc/alertmanager/certs/ca.crt
+      certFile: /etc/alertmanager/certs/tls.crt
+      keyFile: /etc/alertmanager/certs/tls.key
+      serverName: alertmanager.monitoring.svc.cluster.local
+      minVersion: TLS1.2
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+
+  # Web configuration with TLS
+  web:
+    routePrefix: /
+    externalUrl: https://alertmanager.strix.example.com
+    tlsConfig:
+      certFile: /etc/alertmanager/certs/tls.crt
+      keyFile: /etc/alertmanager/certs/tls.key
+      clientCAFile: /etc/alertmanager/certs/ca.crt
+      minVersion: TLS1.2
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+
+  # Configuration from secret
+  configSecret: alertmanager-config
+
+  # Image configuration
+  image: quay.io/prometheus/alertmanager:v0.26.0
+
+  # Node selector and tolerations for dedicated monitoring nodes
+  nodeSelector:
+    node-role.kubernetes.io/monitoring: "true"
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "monitoring"
+      effect: "NoSchedule"
+
+  # Priority class for Alertmanager pods
+  priorityClassName: system-cluster-critical
+
+  # Volumes for TLS certificates
+  volumes:
+    - name: alertmanager-tls
+      secret:
+        secretName: alertmanager-tls
+    - name: alertmanager-ca
+      secret:
+        secretName: alertmanager-ca
+    - name: alertmanager-templates
+      configMap:
+        name: alertmanager-templates
+
+  # Volume mounts
+  volumeMounts:
+    - name: alertmanager-tls
+      mountPath: /etc/alertmanager/certs
+      readOnly: true
+    - name: alertmanager-ca
+      mountPath: /etc/alertmanager/certs/ca.crt
+      subPath: ca.crt
+      readOnly: true
+    - name: alertmanager-templates
+      mountPath: /etc/alertmanager/templates
+      readOnly: true
+
+---
+# Service for Alertmanager (web UI and API)
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: alertmanager
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-web
+      port: 9093
+      targetPort: 9093
+      protocol: TCP
+    - name: grpc
+      port: 9094
+      targetPort: 9094
+      protocol: TCP
+    - name: gossip
+      port: 9095
+      targetPort: 9095
+      protocol: TCP
+  selector:
+    app: alertmanager
+    alertmanager: strix
+
+---
+# Headless Service for Alertmanager gossip (cluster communication)
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-operated
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/component: alertmanager
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http-web
+      port: 9093
+      targetPort: 9093
+      protocol: TCP
+    - name: grpc
+      port: 9094
+      targetPort: 9094
+      protocol: TCP
+    - name: gossip
+      port: 9095
+      targetPort: 9095
+      protocol: TCP
+  selector:
+    app: alertmanager
+    alertmanager: strix
+
+---
+# ServiceMonitor for Alertmanager self-monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    release: prometheus
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  selector:
+    matchLabels:
+      app: alertmanager
+      alertmanager: strix
+  endpoints:
+    - port: http-web
+      path: /metrics
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      tlsConfig:
+        caFile: /etc/prometheus/certs/alertmanager-ca.crt
+        certFile: /etc/prometheus/certs/prometheus-client.crt
+        keyFile: /etc/prometheus/certs/prometheus-client.key
+        serverName: alertmanager.monitoring.svc.cluster.local
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  namespaceSelector:
+    matchNames:
+      - monitoring
+
+---
+# PodDisruptionBudget for Alertmanager HA
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: alertmanager
+      alertmanager: strix
+
+---
+# HorizontalPodAutoscaler for Alertmanager
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  scaleTargetRef:
+    apiVersion: monitoring.coreos.com/v1
+    kind: Alertmanager
+    name: alertmanager
+  minReplicas: 3
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Max
+
+---
+# NetworkPolicy for Alertmanager
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/part-of: strix-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: alertmanager
+      alertmanager: strix
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus to send alerts
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+              prometheus: strix
+      ports:
+        - protocol: TCP
+          port: 9093
+    # Allow Alertmanager cluster gossip
+    - from:
+        - podSelector:
+            matchLabels:
+              app: alertmanager
+              alertmanager: strix
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 9094
+        - protocol: TCP
+          port: 9095
+    # Allow Prometheus Operator to manage
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus-operator
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 9094
+        - protocol: TCP
+          port: 9095
+  egress:
+    # Allow Alertmanager to send notifications (SMTP, Slack, PagerDuty)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 25
+        - protocol: TCP
+          port: 465
+        - protocol: TCP
+          port: 587
+        - protocol: TCP
+          port: 443
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Alertmanager cluster gossip
+    - to:
+        - podSelector:
+            matchLabels:
+              app: alertmanager
+              alertmanager: strix
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 9094
+        - protocol: TCP
+          port: 9095

@@ -1,0 +1,97 @@
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "strix.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  annotations:
+    {{- include "strix.annotations" . | nindent 4 }}
+    {{- if .Values.api.annotations }}
+    {{- toYaml .Values.api.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "strix.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  strategy:
+    {{- include "strix.updateStrategy" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "strix.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        {{- if .Values.api.podAnnotations }}
+        {{- toYaml .Values.api.podAnnotations | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.api.service.port }}"
+        prometheus.io/path: "/api/metrics"
+        {{- if .Values.global.podSecurityStandard }}
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- end }}
+    spec:
+      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "strix.fullname" .) }}{{- else }} default{{- end }}
+      {{- include "strix.priorityClassName" . | nindent 6 }}
+      {{- if .Values.topologySpreadConstraints }}
+      {{- include "strix.topologySpreadConstraints" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.api.affinity }}
+      {{- include "strix.affinity" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.api.tolerations }}
+      {{- include "strix.tolerations" . | nindent 6 }}
+      {{- end }}
+      securityContext:
+        {{- if .Values.api.podSecurityContext }}
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+        {{- else }}
+        {{- include "strix.podSecurityContext" . | nindent 8 }}
+        {{- end }}
+      {{- include "strix.imagePullSecrets" . }}
+      initContainers:
+        {{- if .Values.api.initContainers }}
+        {{- toYaml .Values.api.initContainers | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          env:
+            {{- include "strix.env" . | nindent 12 }}
+          envFrom:
+            {{- include "strix.envFromSecrets" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.api.livenessProbe }}
+          livenessProbe:
+            {{- include "strix.livenessProbe" . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.api.readinessProbe }}
+          readinessProbe:
+            {{- include "strix.readinessProbe" . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.api.startupProbe }}
+          startupProbe:
+            {{- include "strix.startupProbe" . | nindent 12 }}
+          {{- end }}
+          {{- include "strix.resources" . | nindent 10 }}
+          {{- include "strix.volumeMounts" . | nindent 10 }}
+          securityContext:
+            {{- if .Values.api.securityContext }}
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+            {{- else }}
+            {{- include "strix.containerSecurityContext" . | nindent 12 }}
+            {{- end }}
+      {{- include "strix.volumes" . | nindent 6 }}
+      {{- if .Values.api.extraVolumes }}
+      {{- toYaml .Values.api.extraVolumes | nindent 6 }}
+      {{- end }}
+{{- end }}

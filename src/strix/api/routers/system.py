@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from strix import __version__
-from strix.api import deps
+from strix.api import dependencies as deps
 from strix.api.deps import Tenant, managed_mode_async, require_auth
 from strix.core import policies, scope, store
 from strix.core.adapters import ADAPTERS, PROFILES
@@ -37,15 +37,9 @@ async def ready() -> dict[str, Any]:
         database_ok = True
     except Exception:
         database_ok = False
-    chain_ok = (await deps.audit_chain.verify_cached_async())[
-        0
-    ]  # unauthenticated: must stay cheap
-    managed = await deps.managed_mode_async()
-    scope_ready = (
-        bool(await policies.registry.list_async())
-        if managed
-        else scope.active() is not None
-    )
+    chain_ok = (await deps.audit_chain.verify_cached_async())[0]  # unauthenticated: must stay cheap
+    managed = await managed_mode_async()
+    scope_ready = bool(await policies.registry.list_async()) if managed else scope.active() is not None
     return {
         "ready": database_ok and chain_ok,
         "database": database_ok,

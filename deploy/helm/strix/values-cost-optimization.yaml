@@ -1,0 +1,314 @@
+# Strix Helm Chart - Cost Optimization Values
+# Override file for cost-optimized deployment
+# Usage: helm install strix ./strix -f values.yaml -f values-cost-optimization.yaml
+
+# ============================================================================
+# Global Cost Optimization Settings
+# ============================================================================
+global:
+  # Priority Classes for workload prioritization
+  priorityClasses:
+    enabled: true
+    system:
+      name: "strix-system"
+      value: 2000000
+      preemptionPolicy: "PreemptLowerPriority"
+    critical:
+      name: "strix-critical"
+      value: 1000000
+      preemptionPolicy: "PreemptLowerPriority"
+    standard:
+      name: "strix-standard"
+      value: 500000
+      preemptionPolicy: "PreemptLowerPriority"
+    batch:
+      name: "strix-batch"
+      value: 100000
+      preemptionPolicy: "PreemptLowerPriority"
+
+  # Resource Quota per Tenant Namespace
+  resourceQuota:
+    enabled: true
+    name: "strix-tenant-quota"
+    tenantId: ""  # Set per namespace via --set global.resourceQuota.tenantId=tenant-name
+    projectId: "" # Set per namespace via --set global.resourceQuota.projectId=project-name
+    budgetMonthlyUSD: "1000"
+    limits:
+      requestsCpu: "32"
+      requestsMemory: "64Gi"
+      limitsCpu: "64"
+      limitsMemory: "128Gi"
+      pods: "100"
+      services: "20"
+      servicesLoadBalancers: "5"
+      servicesNodePorts: "0"
+      persistentVolumeClaims: "20"
+      requestsStorage: "500Gi"
+      configMaps: "50"
+      secrets: "50"
+      requestsEphemeralStorage: "100Gi"
+      limitsEphemeralStorage: "200Gi"
+    defaultLimits:
+      cpu: "1000m"
+      memory: "1Gi"
+    defaultRequests:
+      cpu: "250m"
+      memory: "512Mi"
+    maxLimits:
+      cpu: "8000m"
+      memory: "16Gi"
+      podCpu: "16000m"
+      podMemory: "32Gi"
+      pvcStorage: "100Gi"
+    minLimits:
+      cpu: "50m"
+      memory: "128Mi"
+      pvcStorage: "1Gi"
+    maxLimitRequestRatio:
+      cpu: "10"
+      memory: "10"
+
+  # Spot/Preemptible Instance Configuration
+  spot:
+    enabled: true
+    aws:
+      clusterName: "strix-cluster"
+      region: "us-east-1"
+      critical:
+        instanceType: "m6i.xlarge"
+        desiredCapacity: 3
+        minSize: 2
+        maxSize: 10
+        volumeSize: 50
+      batch:
+        instanceType: "m6i.2xlarge"
+        desiredCapacity: 0
+        minSize: 0
+        maxSize: 50
+        volumeSize: 100
+    gcp:
+      # Configure via Terraform (see spot-nodepools.yaml for reference)
+      enabled: false
+    azure:
+      # Configure via Terraform (see spot-nodepools.yaml for reference)
+      enabled: false
+
+# ============================================================================
+# Worker Configuration with KEDA and Graceful Preemption
+# ============================================================================
+worker:
+  enabled: true
+  replicaCount: 0  # KEDA will manage replicas (scale-to-zero)
+  priorityClass: "strix-batch"  # Default to batch (spot) priority
+
+  # KEDA Event-driven Autoscaling
+  keda:
+    enabled: true
+    pollingInterval: 15
+    cooldownPeriod: 300
+    minReplicas: 0  # Scale to zero!
+    maxReplicas: 50
+    restoreToOriginalReplicaCount: false
+    fallback:
+      failureThreshold: 3
+      replicas: 2
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 10
+              periodSeconds: 60
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 4
+              periodSeconds: 15
+          selectPolicy: Max
+    redis:
+      address: ""  # Auto-configured from Redis service
+      listName: "celery"
+      listLength: "10"
+      enableTLS: "false"
+      secretName: ""  # Auto-configured
+      secretKey: "redis-password"
+    prometheus:
+      enabled: true
+      serverAddress: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+      metricName: "strix_assessment_queue_pending"
+      threshold: "5"
+      query: "strix_assessment_queue_pending"
+      authModes: "none"
+    cpu:
+      threshold: "70"
+      metricType: "Utilization"
+    memory:
+      threshold: "80"
+      metricType: "Utilization"
+
+  # Graceful Preemption Handling
+  gracefulPreemption:
+    enabled: true
+    preStopEnabled: true
+    terminationGracePeriodSeconds: 330
+    gracePeriod: 300
+    minAvailable: "50%"
+    checkpointing:
+      enabled: true
+      interval: "30s"
+      directory: "/var/lib/strix/checkpoints"
+
+  # Resource settings for spot instances (smaller, more instances)
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # Tolerations for spot node pools
+  tolerations:
+    - key: "workload-type"
+      operator: "Equal"
+      value: "batch"
+      effect: "NoSchedule"
+    - key: "instance-lifecycle"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+    - key: "workload-type"
+      operator: "Equal"
+      value: "critical"
+      effect: "NoSchedule"
+
+  # Topology spread for HA across zones
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: strix
+          app.kubernetes.io/component: worker
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: strix
+          app.kubernetes.io/component: worker
+
+# ============================================================================
+# API Configuration (Critical Priority - On-Demand)
+# ============================================================================
+api:
+  enabled: true
+  replicaCount: 3
+  priorityClass: "strix-critical"
+  tolerations:
+    - key: "workload-type"
+      operator: "Equal"
+      value: "critical"
+      effect: "NoSchedule"
+    - key: "instance-lifecycle"
+      operator: "Equal"
+      value: "on-demand"
+      effect: "NoSchedule"
+  resources:
+    limits:
+      cpu: "4000m"
+      memory: "4Gi"
+    requests:
+      cpu: "2000m"
+      memory: "2Gi"
+
+# ============================================================================
+# Scheduler Configuration (System Priority - On-Demand)
+# ============================================================================
+scheduler:
+  enabled: true
+  replicaCount: 2
+  priorityClass: "strix-system"
+  tolerations:
+    - key: "workload-type"
+      operator: "Equal"
+      value: "critical"
+      effect: "NoSchedule"
+    - key: "instance-lifecycle"
+      operator: "Equal"
+      value: "on-demand"
+      effect: "NoSchedule"
+
+# ============================================================================
+# Monitoring & Cost Observability
+# ============================================================================
+monitoring:
+  servicemonitor:
+    enabled: true
+    release: "prometheus"
+    interval: "30s"
+    scrapeTimeout: "10s"
+    scheme: "https"
+  prometheusrule:
+    enabled: true
+    release: "prometheus"
+  grafanaDashboard:
+    enabled: true
+    folder: "Strix"
+  cost:
+    enabled: true
+    exporter:
+      image:
+        repository: "ghcr.io/your-org/strix-cost-exporter"
+        tag: "v1.0.0"
+      clusterName: "primary"
+    alertInterval: "1m"
+    recordingInterval: "1m"
+    budgetAlertFor: "5m"
+    budgetExceededFor: "1m"
+    spikeFor: "10m"
+    spotTerminationFor: "2m"
+    queueDepthFor: "5m"
+    idleWorkerFor: "30m"
+
+# ============================================================================
+# Multi-Cluster Burst Configuration (Reference)
+# ============================================================================
+# For multi-cluster burst, configure via:
+# 1. Cluster Federation / Karmada / Admiral
+# 2. Or manual setup with external-dns and global load balancer
+#
+# Example Karmada configuration (apply separately):
+# apiVersion: cluster.karmada.io/v1alpha1
+# kind: Cluster
+# metadata:
+#   name: strix-burst-cluster
+# spec:
+#   syncMode: Push
+#   apiEndpoint: https://burst-cluster.example.com:6443
+#   secretRef:
+#     name: burst-cluster-secret
+# ---
+# apiVersion: policy.karmada.io/v1alpha1
+# kind: ClusterOverridePolicy
+# metadata:
+#   name: strix-worker-burst
+# spec:
+#   resourceSelectors:
+#     - apiVersion: apps/v1
+#       kind: Deployment
+#       name: strix-worker
+#   overrideRules:
+#     - targetCluster:
+#         - strix-burst-cluster
+#       overriders:
+#         plaintext:
+#           - path: "/spec/replicas"
+#             operator: "replace"
+#             value: "10"  # Burst capacity

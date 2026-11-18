@@ -1,0 +1,364 @@
+{{- if .Values.costOptimization.spot.enabled }}
+---
+# AWS EKS: Spot Instance Node Group (managed node group)
+# Requires: eksctl, AWS Load Balancer Controller, Cluster Autoscaler
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "strix-cluster" }}
+  region: {{ .Values.costOptimization.spot.aws.region | default "us-east-1" }}
+  version: "1.28"
+---
+# NodeGroup for On-Demand Critical Workloads
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "strix-cluster" }}
+managedNodeGroups:
+  - name: strix-critical-ondemand
+    instanceType: {{ .Values.costOptimization.spot.aws.critical.instanceType | default "m6i.xlarge" }}
+    desiredCapacity: {{ .Values.costOptimization.spot.aws.critical.desiredCapacity | default 3 }}
+    minSize: {{ .Values.costOptimization.spot.aws.critical.minSize | default 2 }}
+    maxSize: {{ .Values.costOptimization.spot.aws.critical.maxSize | default 10 }}
+    volumeSize: {{ .Values.costOptimization.spot.aws.critical.volumeSize | default 50 }}
+    volumeType: gp3
+    labels:
+      workload-type: critical
+      instance-lifecycle: on-demand
+      strix.io/priority-tier: "critical"
+    taints:
+      - key: "workload-type"
+        value: "critical"
+        effect: "NoSchedule"
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        ebs: true
+        efs: true
+    privateNetworking: true
+    tags:
+      k8s.io/cluster-autoscaler/{{ .Values.costOptimization.spot.aws.clusterName }}: "owned"
+      k8s.io/cluster-autoscaler/node-template/label/workload-type: "critical"
+      strix.io/cost-center: "security-assessments"
+---
+# NodeGroup for Spot Batch Workloads
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "strix-cluster" }}
+managedNodeGroups:
+  - name: strix-batch-spot
+    instanceType: {{ .Values.costOptimization.spot.aws.batch.instanceType | default "m6i.2xlarge" }}
+    instancesDistribution:
+      instanceTypes:
+        - {{ .Values.costOptimization.spot.aws.batch.instanceType | default "m6i.2xlarge" }}
+        - m6i.xlarge
+        - m6i.4xlarge
+        - c6i.2xlarge
+        - c6i.xlarge
+        - r6i.xlarge
+      onDemandBaseCapacity: 0
+      onDemandPercentageAboveBaseCapacity: 0
+      spotAllocationStrategy: "capacity-optimized-prioritized"
+    desiredCapacity: {{ .Values.costOptimization.spot.aws.batch.desiredCapacity | default 0 }}
+    minSize: {{ .Values.costOptimization.spot.aws.batch.minSize | default 0 }}
+    maxSize: {{ .Values.costOptimization.spot.aws.batch.maxSize | default 50 }}
+    volumeSize: {{ .Values.costOptimization.spot.aws.batch.volumeSize | default 100 }}
+    volumeType: gp3
+    labels:
+      workload-type: batch
+      instance-lifecycle: spot
+      strix.io/priority-tier: "batch"
+    taints:
+      - key: "workload-type"
+        value: "batch"
+        effect: "NoSchedule"
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        ebs: true
+        efs: true
+    privateNetworking: true
+    tags:
+      k8s.io/cluster-autoscaler/{{ .Values.costOptimization.spot.aws.clusterName }}: "owned"
+      k8s.io/cluster-autoscaler/node-template/label/workload-type: "batch"
+      strix.io/cost-center: "security-assessments"
+---
+# GCP GKE: Node Pools (use with Terraform or gcloud)
+# This is a reference configuration - apply via Terraform
+---
+# GKE Node Pool: On-Demand Critical
+# resource "google_container_node_pool" "strix_critical" {
+#   name       = "strix-critical-ondemand"
+#   location   = var.region
+#   cluster    = google_container_cluster.strix.name
+#   node_count = 3
+#
+#   node_config {
+#     machine_type  = "n2-standard-4"
+#     disk_size_gb  = 50
+#     disk_type     = "pd-ssd"
+#     image_type    = "COS_CONTAINERD"
+#     oauth_scopes  = ["https://www.googleapis.com/auth/cloud-platform"]
+#     labels = {
+#       workload-type     = "critical"
+#       instance-lifecycle = "on-demand"
+#       strix.io/priority-tier = "critical"
+#     }
+#     taint {
+#       key    = "workload-type"
+#       value  = "critical"
+#       effect = "NO_SCHEDULE"
+#     }
+#   }
+#
+#   autoscaling {
+#     min_node_count = 2
+#     max_node_count = 10
+#   }
+#
+#   management {
+#     auto_repair  = true
+#     auto_upgrade = true
+#   }
+# }
+---
+# GKE Node Pool: Spot Batch
+# resource "google_container_node_pool" "strix_batch" {
+#   name       = "strix-batch-spot"
+#   location   = var.region
+#   cluster    = google_container_cluster.strix.name
+#   node_count = 0
+#
+#   node_config {
+#     machine_type  = "n2-standard-8"
+#     disk_size_gb  = 100
+#     disk_type     = "pd-ssd"
+#     image_type    = "COS_CONTAINERD"
+#     oauth_scopes  = ["https://www.googleapis.com/auth/cloud-platform"]
+#     labels = {
+#       workload-type     = "batch"
+#       instance-lifecycle = "spot"
+#       strix.io/priority-tier = "batch"
+#     }
+#     taint {
+#       key    = "workload-type"
+#       value  = "batch"
+#       effect = "NO_SCHEDULE"
+#     }
+#     spot = true
+#   }
+#
+#   autoscaling {
+#     min_node_count = 0
+#     max_node_count = 50
+#   }
+#
+#   management {
+#     auto_repair  = true
+#     auto_upgrade = true
+#   }
+# }
+---
+# Azure AKS: Node Pools (use with Terraform or az cli)
+# This is a reference configuration - apply via Terraform
+---
+# AKS Node Pool: On-Demand Critical
+# resource "azurerm_kubernetes_cluster_node_pool" "strix_critical" {
+#   name                  = "critical"
+#   kubernetes_cluster_id = azurerm_kubernetes_cluster.strix.id
+#   vm_size               = "Standard_D4s_v5"
+#   node_count            = 3
+#
+#   node_labels = {
+#     "workload-type"     = "critical"
+#     "instance-lifecycle" = "on-demand"
+#     "strix.io/priority-tier" = "critical"
+#   }
+#
+#   node_taints = [
+#     "workload-type=critical:NoSchedule"
+#   ]
+#
+#   enable_auto_scaling = true
+#   min_count           = 2
+#   max_count           = 10
+#
+#   os_disk_size_gb = 50
+#   os_disk_type    = "Ephemeral"
+#
+#   tags = {
+#     "strix.io/cost-center" = "security-assessments"
+#   }
+# }
+---
+# AKS Node Pool: Spot Batch
+# resource "azurerm_kubernetes_cluster_node_pool" "strix_batch" {
+#   name                  = "batch"
+#   kubernetes_cluster_id = azurerm_kubernetes_cluster.strix.id
+#   vm_size               = "Standard_D8s_v5"
+#   node_count            = 0
+#
+#   node_labels = {
+#     "workload-type"     = "batch"
+#     "instance-lifecycle" = "spot"
+#     "strix.io/priority-tier" = "batch"
+#   }
+#
+#   node_taints = [
+#     "workload-type=batch:NoSchedule"
+#   ]
+#
+#   enable_auto_scaling = true
+#   min_count           = 0
+#   max_count           = 50
+#
+#   os_disk_size_gb = 100
+#   os_disk_type    = "Ephemeral"
+#
+#   tags = {
+#     "strix.io/cost-center" = "security-assessments"
+#   }
+#
+#   # Spot configuration
+#   spot_max_price = -1
+# }
+---
+# Kubernetes Node Affinity and Tolerations for Strix Workloads
+# Apply these via pod templates or mutating webhook
+---
+# Critical Workload Pod Template Patch
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "strix.fullname" . }}-critical-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+    # Apply to critical priority pods (API, Scheduler, Critical Assessments)
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - critical
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - on-demand
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "critical"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Equal"
+          value: "on-demand"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.critical.name | default "strix-critical" }}
+---
+# Batch Workload Pod Template Patch
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "strix.fullname" . }}-batch-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+    # Apply to batch priority pods (Standard/Batch Assessments)
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - batch
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - spot
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "batch"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.batch.name | default "strix-batch" }}
+---
+# Standard Workload Pod Template Patch
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "strix.fullname" . }}-standard-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+    # Apply to standard priority pods (Standard Assessments)
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              preference:
+                matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - critical
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - on-demand
+            - weight: 30
+              preference:
+                matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - batch
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "critical"
+          effect: "NoSchedule"
+        - key: "workload-type"
+          operator: "Equal"
+          value: "batch"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Exists"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.standard.name | default "strix-standard" }}
+{{- end }}

@@ -303,22 +303,33 @@ class K8sAssessmentQueue:
         """Create the K8s Job and optional NetworkPolicy."""
         job_manifest = self._build_job_manifest(job, k8s_job_name)
 
+        job_uid = ""
         try:
-            self.batch_v1.create_namespaced_job(
+            created = self.batch_v1.create_namespaced_job(
                 namespace=self.config.namespace,
                 body=job_manifest,
             )
+            job_uid = getattr(getattr(created, "metadata", None), "uid", "") or ""
         except ApiException as exc:
             if exc.status == 409:
                 log.warning("K8s Job %s already exists", k8s_job_name)
+                existing = self.batch_v1.read_namespaced_job(
+                    name=k8s_job_name, namespace=self.config.namespace
+                )
+                job_uid = getattr(getattr(existing, "metadata", None), "uid", "") or ""
             else:
                 raise
 
         if self.config.network_policy_enabled:
-            await self._create_network_policy(job, k8s_job_name)
+            await self._create_network_policy(job, k8s_job_name, owner_uid=job_uid)
 
-    async def _create_network_policy(self, job: Job, k8s_job_name: str) -> None:
-        """Create NetworkPolicy restricting egress to scope targets."""
+    async def _create_network_policy(self, job: Job, k8s_job_name: str, *, owner_uid: str = "") -> None:
+        """Create NetworkPolicy restricting egress to scope targets.
+
+        Owned by the Job so Kubernetes garbage-collects it with the Job (which
+        itself expires via ttlSecondsAfterFinished) instead of leaking one
+        policy per assessment.
+        """
         authorized_networks = job.policy.get("scope_authorized_networks", [])
         allowed_ports = job.policy.get("scope_allowed_ports", [80, 443, 8443, 9443])
 
@@ -393,6 +404,20 @@ class K8sAssessmentQueue:
                     "app.kubernetes.io/component": "assessment-job",
                     "strix.job-id": job.id,
                 },
+                owner_references=(
+                    [
+                        client.V1OwnerReference(
+                            api_version="batch/v1",
+                            kind="Job",
+                            name=k8s_job_name,
+                            uid=owner_uid,
+                            controller=False,
+                            block_owner_deletion=False,
+                        )
+                    ]
+                    if owner_uid
+                    else None
+                ),
             ),
             spec=client.V1NetworkPolicySpec(
                 pod_selector=client.V1LabelSelector(match_labels={"strix.job-id": job.id}),

@@ -95,7 +95,7 @@ redis:
 
 # PostgreSQL - Disabled in staging
 postgresql:
-  enabled: false
+  enabled: true
 
 # Monitoring - Enabled
 monitoring:

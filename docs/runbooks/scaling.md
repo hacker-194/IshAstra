@@ -10,7 +10,7 @@
 This runbook covers horizontal and vertical scaling procedures for Strix platform components.
 
 **Current Architecture:**
-- **Queue Mode:** In-process (default) or Celery+Redis (distributed)
+- **Queue Mode:** In-process (default) or Kubernetes Jobs (distributed)
 - **Database:** SQLite (single-writer) or PostgreSQL (multi-writer)
 - **Workers:** `STRIX_WORKERS` per API pod
 - **Rate Limiting:** In-memory (single) or Redis (distributed)
@@ -29,11 +29,11 @@ This runbook covers horizontal and vertical scaling procedures for Strix platfor
 
 ## Current Capacity Baseline
 
-| Component | Current | Max (In-Process) | Max (Celery) |
+| Component | Current | Max (In-Process) | Max (k8s-jobs) |
 |-----------|---------|------------------|--------------|
 | API Replicas | 3 | 3 (single-writer SQLite) | 10+ (with PostgreSQL) |
 | Workers per API | 1 | 4 | 4 per pod |
-| Queue Depth | 32 | 100 | 1000+ (Redis) |
+| Queue Depth | 32 | 100 | cluster-bound |
 | Concurrent Jobs | 3 | 12 | 40+ |
 | Jobs/hour (web) | ~360 | ~1,440 | ~4,800+ |
 
@@ -145,173 +145,34 @@ kubectl exec -n $NAMESPACE strix-api-0 -- env | grep -E 'STRIX_(WORKERS|QUEUE_MA
 
 ---
 
-## Horizontal Scaling (Celery + Redis + PostgreSQL)
+## Horizontal Scaling (Kubernetes Jobs + PostgreSQL)
+
+Assessments scale by running each one as a Kubernetes Job, so the API process only
+submits work. The Job manifest and the supported values are in
+`docs/k8s-jobs-architecture.md` and `deploy/helm/strix/values-k8s-jobs.yaml`.
 
 ### Prerequisites for Horizontal Scaling
 
-- [ ] **Redis Cluster** deployed and accessible
 - [ ] **PostgreSQL** deployed (HA recommended)
-- [ ] **Celery workers** can connect to Redis + PostgreSQL
-- [ ] **Shared storage** for SQLite not needed (PostgreSQL used)
+- [ ] **Kubernetes Jobs** permitted for the `strix` service account
 - [ ] **Idempotency keys** implemented for all jobs
-- [ ] **STRIX_QUEUE_MODE=celery** configured
+- [ ] **STRIX_QUEUE_MODE=k8s-jobs** configured
 
-### Enable Celery Mode
-
-```bash
-#!/bin/bash
-# enable-celery-mode.sh
-
-set -euo pipefail
-
-NAMESPACE="strix"
-
-# 1. Deploy Redis (if not exists)
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install redis bitnami/redis -n $NAMESPACE --create-namespace \
-  --set architecture=replication \
-  --set auth.enabled=true \
-  --set auth.password="$REDIS_PASSWORD" \
-  --set master.persistence.enabled=true \
-  --set replica.persistence.enabled=true
-
-# 2. Deploy PostgreSQL (if not exists)
-helm install postgresql bitnami/postgresql -n $NAMESPACE \
-  --set auth.postgresPassword="$POSTGRES_PASSWORD" \
-  --set auth.database=strix \
-  --set primary.persistence.enabled=true
-
-# 3. Run migrations on PostgreSQL
-kubectl exec -n $NAMESPACE strix-api-0 -- /usr/local/bin/python -m strix.db.migrate --target postgresql
-
-# 4. Update ConfigMap for Celery mode
-kubectl patch configmap strix-config -n $NAMESPACE -p '{
-  "data": {
-    "STRIX_QUEUE_MODE": "celery",
-    "STRIX_CELERY_BROKER_URL": "redis://:password@redis-master:6379/1",
-    "STRIX_CELERY_RESULT_BACKEND": "redis://:password@redis-master:6379/2",
-    "STRIX_DATABASE_URL": "postgresql://postgres:password@postgresql:5432/strix"
-  }
-}'
-
-# 5. Restart API to pick up new config
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n $NAMESPACE
-
-# 6. Deploy Celery workers as separate deployment
-cat <<EOF | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: strix-celery-worker
-  namespace: $NAMESPACE
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: strix-celery-worker
-  template:
-    metadata:
-      labels:
-        app: strix-celery-worker
-    spec:
-      containers:
-      - name: worker
-        image: strix:3.5.0
-        command: ["celery", "-A", "strix.core.queue", "worker", "-Q", "strix_assessments", "-c", "1", "-l", "INFO"]
-        env:
-        - name: STRIX_CELERY_BROKER_URL
-          value: "redis://:password@redis-master:6379/1"
-        - name: STRIX_CELERY_RESULT_BACKEND
-          value: "redis://:password@redis-master:6379/2"
-        - name: STRIX_DATABASE_URL
-          value: "postgresql://postgres:password@postgresql:5432/strix"
-        resources:
-          requests:
-            cpu: "1000m"
-            memory: "2Gi"
-          limits:
-            cpu: "2000m"
-            memory: "4Gi"
-EOF
-
-echo "Celery mode enabled. Workers deployed."
-```
-
-### Scale Celery Workers
+### Enable k8s-jobs Mode
 
 ```bash
-#!/bin/bash
-# scale-celery-workers.sh
-
-set -euo pipefail
-
-NAMESPACE="strix"
-DESIRED_REPLICAS="${1:-5}"  # Default to 5 workers
-
-# Scale worker deployment
-kubectl scale deployment strix-celery-worker -n $NAMESPACE --replicas=$DESIRED_REPLICAS
-
-# Wait for scale
-kubectl rollout status deployment/strix-celery-worker -n $NAMESPACE --timeout=300s
-
-# Verify workers registered in Celery
-kubectl exec -n $NAMESPACE redis-master-0 -- redis-cli -a $REDIS_PASSWORD CLIENT LIST | grep -c "name=celery" || echo "Check Celery monitoring"
-
-echo "Scaled to $DESIRED_REPLICAS Celery workers"
+helm upgrade strix deploy/helm/strix -n strix \
+  -f deploy/helm/strix/values-prod.yaml \
+  -f deploy/helm/strix/values-k8s-jobs.yaml
 ```
 
-### Auto-Scaling (HPA)
-
-```yaml
-# hpa-celery-workers.yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: strix-celery-worker-hpa
-  namespace: strix
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: strix-celery-worker
-  minReplicas: 2
-  maxReplicas: 20
-  metrics:
-  - type: External
-    external:
-      metric:
-        name: strix_queue_depth
-      target:
-        type: AverageValue
-        averageValue: "10"  # 10 queued jobs per worker
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Percent
-        value: 10
-        periodSeconds: 60
-    scaleUp:
-      stabilizationWindowSeconds: 60
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 30
-      - type: Pods
-        value: 4
-        periodSeconds: 30
-      selectPolicy: Max
-```
+### Scale the API
 
 ```bash
-kubectl apply -f hpa-celery-workers.yaml
+kubectl scale deployment strix-api -n strix --replicas=10
 ```
+
+Job concurrency is bounded by the cluster, not by API replicas.
 
 ---
 
@@ -582,20 +443,10 @@ kubectl rollout restart deployment/strix-api -n strix
 ### Rollback Horizontal Scale
 
 ```bash
-# Scale down Celery workers
-kubectl scale deployment strix-celery-worker -n strix --replicas=2
-
-# Disable Celery mode (back to in-process)
-kubectl patch configmap strix-config -n strix -p '{
-  "data": {
-    "STRIX_QUEUE_MODE": "inprocess"
-  }
-}'
+# Drop back to the in-process queue
+helm upgrade strix deploy/helm/strix -n strix -f deploy/helm/strix/values-prod.yaml
 
 kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
-
-# Delete Celery worker deployment
-kubectl delete deployment strix-celery-worker -n strix
 ```
 
 ### Rollback Database Migration

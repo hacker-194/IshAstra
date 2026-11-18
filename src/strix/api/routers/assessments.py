@@ -47,7 +47,7 @@ from strix.report_pdf import generate_pdf_from_job
 
 router = APIRouter(prefix="/api")
 
-# One queue for the process, selected by STRIX_QUEUE_MODE (in-process or Celery).
+# One queue for the process, selected by STRIX_QUEUE_MODE (in-process or k8s-jobs).
 # Use a lazy getter to allow test fixtures to set environment variables first.
 _assessment_worker = None
 
@@ -568,7 +568,7 @@ async def cancel_assessment(
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] not in _ACTIVE_STATES:
         raise HTTPException(status_code=409, detail=f"Job is already {job['state']}")
-    # Persist first: a Celery worker may own execution, and its in-memory job
+    # Persist first: another process may own execution, and its in-memory job
     # cannot see this process's event. The durable flag is polled by the owner.
     persisted = await store.request_cancel(job_id, tenant=tenant_filter(tenant))
     signalled = _get_assessment_worker().cancel(job_id)

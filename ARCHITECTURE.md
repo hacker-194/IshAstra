@@ -44,7 +44,7 @@ Strix is an **authorized security assessment platform** that enforces authorizat
 ```
 
 The queue shown as in-process is the default: `STRIX_QUEUE_MODE` selects
-`inprocess`, `celery` or `k8s-jobs`, so the worker box can be a thread pool in the
+`inprocess`, `k8s-jobs` or `k8s-jobs`, so the worker box can be a thread pool in the
 API process or a separate deployment (see `docs/k8s-jobs-architecture.md`).
 
 ## Core Components
@@ -248,7 +248,7 @@ GET /api/assess/{id} → coverage, findings, verdict
 ## Deployment Constraints
 
 - **Single host by default** — SQLite is the supported pilot backend; one worker lease per database
-- **In-process queue by default** — Redis can share rate limits; Celery mode adds a distributed queue and durable cancellation but remains experimental
+- **In-process queue by default** — Redis can share rate limits; k8s-jobs mode adds a distributed queue and durable cancellation but remains experimental
 - **PostgreSQL is experimental** — loop-aware pools and a single-host worker path are tested; no HA or multi-node support
 - **No multi-node guarantee** — multi-node scheduling, exactly-once execution and automated failover are not supported
 - **TLS termination** — Strix speaks HTTP; put behind reverse proxy, set `STRIX_TRUSTED_PROXIES`

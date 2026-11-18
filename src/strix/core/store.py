@@ -2170,7 +2170,7 @@ async def claim_job(job_id: str, *, tenant: str, worker: str, now: float | None 
 async def request_cancel(job_id: str, *, tenant: str | None = None) -> bool:
     """Persist a cancellation request for a queued/running job.
 
-    The flag is read by the process that owns execution (Celery workers are
+    The flag is read by the process that owns execution (workers are
     allowed to run in another process), so cancellation does not depend on an
     in-memory event that only the submitting API process can see.
     """
@@ -2185,7 +2185,7 @@ async def request_cancel(job_id: str, *, tenant: str | None = None) -> bool:
         cursor = await _execute(conn, sql, True, *params)
         if cursor.rowcount != 1:
             return False
-        # A queued Celery task can be revoked before any worker claims it, so
+        # A queued job can be revoked before any worker claims it, so
         # no process would ever write the terminal state. Running jobs keep
         # their state and stop cooperatively via the flag.
         await _execute(

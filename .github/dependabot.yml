@@ -51,8 +51,6 @@ updates:
       optional-dependencies:
         patterns:
           - "asyncpg*"
-          - "celery*"
-          - "kombu*"
           - "fastmcp*"
           - "aiohttp*"
           - "beautifulsoup4*"

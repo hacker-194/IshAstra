@@ -19,7 +19,7 @@ considered. It is a policy statement, not a price list and not an offer.
 - **Support is best-effort.** GitHub issues and documentation only. There is no
   SLA, no on-call rotation and no hosted service operated by the project.
 - **Honest limits.** Single-node SQLite is the supported pilot deployment;
-  PostgreSQL and Celery are experimental single-host paths; there is no HA.
+  PostgreSQL and Kubernetes Jobs are experimental single-host paths; there is no HA.
 
 Free is a deliberate choice for this phase: the product needs real engagements
 and accepted evidence packs far more than it needs revenue.

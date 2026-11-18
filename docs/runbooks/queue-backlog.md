@@ -54,7 +54,7 @@ time() - strix_worker_heartbeat_timestamp
 # Check API pod status
 kubectl get pods -n strix -l app.kubernetes.io/name=strix,component=api
 
-# Check worker pods (if using Celery)
+# Check worker pods (if using Kubernetes Jobs)
 kubectl get pods -n strix -l app.kubernetes.io/name=strix,component=worker
 
 # Check HPA status
@@ -107,7 +107,7 @@ curl -s -H "Authorization: Bearer $ADMIN_KEY" \
 # Scale API deployment (if HPA not scaling fast enough)
 kubectl scale deployment strix-api -n strix --replicas=5
 
-# Or scale worker deployment (if using Celery)
+# Or scale worker deployment (if using Kubernetes Jobs)
 kubectl scale deployment strix-worker -n strix --replicas=10
 
 # Verify scaling

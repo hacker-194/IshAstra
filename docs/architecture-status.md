@@ -21,7 +21,7 @@ CLI / REST / static UI
 API layer (auth, tenant state, rate limit, body limits, audit)
         │
         ▼
-Job orchestration ──► queue (in-process default, Celery optional)
+Job orchestration ──► queue (in-process default, k8s-jobs optional)
         │
         ▼
 Scope gate ──► adapters (HTTP, crawl, OpenAPI, authz, SSRF, git, TCP, nmap, nuclei)
@@ -77,8 +77,8 @@ wrappers exist for the CLI and worker threads. SQLite is the default. The
 PostgreSQL path uses loop-aware pools and a scheduler memory job store with the
 database as the authoritative schedule record; validated: schema migrations
 v1-v20, SIGTERM soak (no stale lock, audit chain intact, API verify passes),
-load soak (10 jobs, 0 failed), Celery queue integration (10 jobs distributed
-across Celery workers). No HA/multi-node support.
+load soak (10 jobs, 0 failed). Distributed execution runs as Kubernetes Jobs
+(manifests render-verified, never applied to a cluster). No HA/multi-node support.
 
 ## 4. Runtime modes
 
@@ -86,16 +86,16 @@ across Celery workers). No HA/multi-node support.
 |---|---|---|
 | Single process, in-memory queue | Default | Supported |
 | Redis rate limiting | `STRIX_WORKERS>1` or `STRIX_REDIS_REQUIRED=1` | Supported |
-| Celery + Redis job queue | `STRIX_QUEUE_MODE=celery`, compose `celery` profile | **Experimental** (10-job load soak passed) |
-| PostgreSQL | `STRIX_DATABASE_URL` plus `asyncpg` extra | **Advanced: tested single-host, no HA** (SIGTERM soak, load soak, audit chain, Celery integration passed) |
-| Multi-node API + shared queue | Celery mode | Not production-ready |
+| Kubernetes Jobs queue | `STRIX_QUEUE_MODE=k8s-jobs`, `values-k8s-jobs.yaml` | **Experimental**; chart renders, no cluster apply or multi-node soak |
+| PostgreSQL | `STRIX_DATABASE_URL` plus `asyncpg` extra | **Advanced: tested single-host, no HA** (SIGTERM soak, load soak, audit chain passed) |
+| Multi-node API + shared queue | k8s-jobs mode | Not production-ready |
 
 As of this change, API routers obtain their queue from
-`core.queue.get_assessment_worker()`, so `STRIX_QUEUE_MODE=celery` actually
-routes submissions and policy revocations to Celery instead of silently using
-the in-process worker. Cancellation is persisted in the database; the Celery
-worker polls it, revokes queued task IDs and stops running jobs cooperatively.
-Running and queued cancellation were validated on one host. Multi-node
+`core.queue.get_assessment_worker()`, so `STRIX_QUEUE_MODE=k8s-jobs` routes
+submissions and policy revocations to Kubernetes Jobs instead of silently using
+the in-process worker. Cancellation is persisted in the database; the Job worker
+polls it and stops running jobs cooperatively. Running and queued cancellation
+were validated on one host. Multi-node
 scheduling, exactly-once execution and crash recovery remain unsupported.
 
 ## 5. Security boundaries
@@ -116,9 +116,9 @@ scheduling, exactly-once execution and crash recovery remain unsupported.
    isolation requirement appears.
 2. **SQLite remains the default.** It matches the supported single-node
    deployment. PostgreSQL has a tested single-host worker path (SIGTERM soak,
-   load soak, audit chain integrity, Celery integration all passed) but no HA or
+   load soak, audit chain integrity all passed) but no HA or
    multi-node migration; multi-node promotion requires failover tests.
-3. **In-process queue remains the default.** Celery is an opt-in deployment mode,
+3. **In-process queue remains the default.** Kubernetes Jobs is an opt-in deployment mode,
    not a second supported architecture. Durable cancellation is implemented and
    tested on one host, but multi-node scheduling/idempotency are not.
 4. **No paid edition or feature gating.** Organizations, RBAC and SSO belong in
@@ -154,7 +154,7 @@ approval now exists; notifications and a background expiry worker do not.
 Add PostgreSQL only when: multi-process API writes are required, SQLite write
 contention is measured, and the worker no longer depends on per-thread event
 loops. Single-host PostgreSQL is validated (migrations, SIGTERM, load, audit
-chain, Celery). Add a shared queue as default only when cross-process
+chain). Add a shared queue as default only when cross-process
 cancellation, idempotency and operational runbooks are tested. Add
 per-project/per-endpoint scopes before delegating keys beyond tenant-level
 roles.

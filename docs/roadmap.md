@@ -15,14 +15,14 @@ result.
 | Proof verification and offline checks | Done; 49 proof tests pass |
 | Tenant isolation and audit chain | Done; API/auth and asset-isolation tests pass |
 | Finding integrity, redaction, SARIF | Done; model + export tested |
-| Distributed queue actually selected by API routers | Done; Celery mode dispatches submissions and policy revocations |
+| Distributed queue actually selected by API routers | Done; k8s-jobs mode dispatches submissions and policy revocations |
 | Durable cross-process cancellation | Done; persisted flag stops running jobs and cancels queued jobs; policy revoke sets it |
 | Deterministic test suite | Done; 1426 passed / 0 failed / 14 skipped (64.97% coverage) |
 | Remove duplicate/dead code and stale docs | Lint/format clean; readiness docs updated |
 | Community files: code of conduct, issue/PR templates, changelog | Done |
 | Backup/restore drill recorded | Done; 14 tables match, integrity ok, HMAC audit chain verified |
 | Live nmap + Nuclei tests against deterministic loopback lab | Done locally (4 passed); CI installs nmap, pinned Nuclei v3.11.1 and templates |
-| Dependency duplicates and Celery/Redis compatibility | Done; OTel is opt-in, `redis>=6.1,<7.0` for Celery 5.7 |
+| Dependency duplicates and Kubernetes Jobs compatibility | Done; OTel is opt-in, `redis>=6.1,<7.0` for Kubernetes Jobs 5.7 |
 | Production fail-closed mode | Done; `STRIX_ENV=production` requires bootstrap/audit secrets and disables API docs |
 | CI valid and running on the default branch | Workflows parse locally; first GitHub run not yet observed |
 
@@ -117,7 +117,7 @@ runbooks exercised, and every feature still available under MIT.
 - No paid edition or feature gating: every feature remains available under MIT.
 - No PostgreSQL production claim before multi-node/HA and soak testing; the
   single-host worker path is now tested and remains experimental.
-- No Celery production claim before multi-node scheduling, idempotency and
+- No Kubernetes Jobs production claim before multi-node scheduling, idempotency and
   crash recovery are tested; cross-process cancellation is now implemented.
 - No AI feature that can change findings or execute tools.
 - No new detector before coverage and evidence semantics are correct.

@@ -10,8 +10,8 @@ claims.
 |---|---|
 | Single-node self-hosted, single process, SQLite | **Conditional go for supervised pilots** |
 | Single node with Redis rate limiting, workers > 1 | Conditional; multi-process limiter verified, no soak test |
-| Celery + Redis distributed workers | **Experimental**; single-host queue and cross-process cancellation validated, not production-grade (10-job load soak passed) |
-| PostgreSQL backend | **Advanced: tested single-host, no HA**; SIGTERM soak, load soak, audit chain integrity, Celery integration all passed on one host |
+| Kubernetes Jobs distributed workers | **Experimental**; Job manifests render and unit tests pass, never applied to a cluster; not production-grade |
+| PostgreSQL backend | **Advanced: tested single-host, no HA**; SIGTERM soak, load soak, audit chain integrity all passed on one host |
 | Managed multi-tenant hosting | Not provided by the project; self-host only (MIT permits independent hosting) |
 | Air-gapped / regulated deployment | Possible with local tooling and no OTLP; validate policy and retention requirements |
 
@@ -73,7 +73,7 @@ gates on `main`/`master`/`release/*` branches with helm-lint, kubeconform, and E
 | Assessment benchmark, SQLite, 50 jobs / 4 workers | 50/50 completed; **69.70 jobs/s**; p50 651.1 ms, p95 712.4 ms, p99 717.4 ms; wall 0.72 s |
 | Assessment benchmark, PostgreSQL, 20 jobs / 4 workers | 20/20 completed; **51.68 jobs/s**; p50 361.9 ms, p95 384.5 ms, p99 387.0 ms; wall 0.39 s |
 | PostgreSQL SIGTERM soak test | No stale worker lock; audit chain valid; API verify passes; all jobs terminal |
-| Celery + PostgreSQL load soak | 10/10 completed; 1.40 jobs/s; p50 3121.8 ms, p95 6158.5 ms |
+| Celery + PostgreSQL load soak (transport since removed) | 10/10 completed; 1.40 jobs/s; p50 3121.8 ms, p95 6158.5 ms |
 | HTTP health baseline (`scripts/load_check.py`, 1000 requests, concurrency 20) | 0 errors; 307.6 req/s; p50 47.9 ms, p95 164.9 ms, p99 229.2 ms (2026-11-13) |
 | Redis multi-process rate limiter | Two API processes: 10 allowed, 2 denied, shared limit |
 | Release artifact | `strix-3.5.0-py3-none-any.whl` built successfully (474,056 bytes) |
@@ -116,7 +116,7 @@ single-machine smoke measurement, not a capacity commitment.
 - Local code/dependency scanning with SARIF for CI.
 - Single-tenant or tenant-separated API access on one node.
 - Cooperative cancellation of queued and running assessments, including across
-  a Celery worker process.
+  process boundaries.
 - Fail-closed production startup (`STRIX_ENV=production`) with API docs disabled.
 - **External scanner integration**: Nikto (web server vuln scan) and sqlmap (SQL injection detection) available in `web-full` and `api-full` profiles, scope-gated and read-only.
 
@@ -138,7 +138,7 @@ configuration. It does not close the gaps below.
 | Remote repository onboarding and PR annotations | **Partial** | `strix init` generates GitHub Action workflow with SARIF upload to Code Scanning; PR annotations work via SARIF. Local code scan paths still primary. |
 | Long-term trend analytics and compliance dashboards | **Partial** | The trends API covers up to 366 days; there is no long-term compliance dashboard. |
 | Operational usage/quota reporting | **Missing** | No per-tenant usage reporting. Phase 1 is free; paid services are gated on validation (`commercialization.md`). All features remain MIT. |
-| Multi-node/HA and soak testing | **Partial** | PostgreSQL: single-host SIGTERM soak, load soak, audit chain integrity, Celery integration all passed. Celery: single-host load soak (10 jobs) passed. Multi-node HA/failover not tested. |
+| Multi-node/HA and soak testing | **Partial** | PostgreSQL: single-host SIGTERM soak, load soak, audit chain integrity all passed. Distributed queue: Kubernetes Jobs manifests render; no cluster run. Multi-node HA/failover not tested. |
 | Representative capacity test | **Not done** | Benchmarks are loopback `web` profiles, not scanner-heavy or wide-network workloads. |
 | SQLite encryption at rest | **Not provided** | The operator must use disk/volume encryption and restrict database access. |
 | **E2E test coverage** | ✅ **Implemented** 2026-11-15 | 12 Playwright tests covering auth → assessment → findings → SARIF export, tenant isolation, scope enforcement. |
@@ -157,8 +157,9 @@ configuration. It does not close the gaps below.
 | First green GitHub Actions run | **Not observed** | Workflows validate locally; only GitHub can execute them. |
 
 PostgreSQL is validated for single-host deployment (SIGTERM soak, load soak,
-audit chain integrity, Celery integration). Celery remains opt-in experimental
-with single-host validation only. Neither provides HA or multi-node guarantees.
+audit chain integrity, and the Celery-era integration since removed). The
+Kubernetes Jobs path is render-verified only. Neither provides HA or multi-node
+guarantees.
 
 ## 6. Go/no-go checklist before a pilot
 
@@ -187,14 +188,13 @@ with single-host validation only. Neither provides HA or multi-node guarantees.
 - Worker shutdown cancels running jobs and fails unfinished rows.
 - SQLite files are owner-only; loss of the database loses jobs, findings, key
   hashes and audit history. Backups are mandatory.
-- Celery mode persists cancellation in the database; the worker polls it and
-  revokes queued task IDs. Validated for running and queued jobs on one host.
-  Crash recovery and exactly-once execution across nodes are not guaranteed.
+- The k8s-jobs mode persists cancellation in the database; the Job worker polls
+  it. Validated for running and queued jobs on one host against the in-process
+  worker. Crash recovery and exactly-once execution across nodes are not guaranteed.
 - PostgreSQL uses loop-aware pools and a scheduler memory job store with the
   database as the authoritative schedule record. Validated: schema migrations
   v1-v20, SIGTERM soak (no stale lock, audit chain intact, API verify passes),
-  load soak (10 jobs, 0 failed), Celery queue integration (10 jobs distributed
-  across Celery workers). Multi-node failover is not supported.
+  load soak (10 jobs, 0 failed). Multi-node failover is not supported.
 
 ## 8. Capacity and performance
 
@@ -216,7 +216,7 @@ soak, scanner concurrency limits and a repeat on the deployment hardware.
 
 Ship the **open-source single-node pilot** with explicit limitations. Production
 mode is implemented, but it is a configuration gate, not an audit or HA claim.
-Keep Celery and PostgreSQL opt-in and experimental, do not advertise HA or
+Keep Kubernetes Jobs and PostgreSQL opt-in and experimental, do not advertise HA or
 multi-node guarantees, and do not claim compliance certification. The next
 release should close the per-project scope and multi-node HA gaps in
 [`roadmap.md`](roadmap.md), not add detectors.
@@ -375,8 +375,7 @@ instance, not inferred from source.
   the PostgreSQL chain now applies `MIGRATIONS_MSSP_PG`.
 - **Undeclared runtime imports fixed**: `croniter` (compliance router) and
   `SQLAlchemy` (APScheduler's `SQLAlchemyJobStore`) were imported but never
-  declared; Celery now imports lazily because it ships only in an optional
-  extra.
+  declared and are now pinned.
 - **AI analyst is real**: an OpenAI-compatible chat-completions provider parses
   JSON triage, drops priorities for fingerprints that do not exist, and
   degrades to `ai_enriched: false` instead of failing a request.

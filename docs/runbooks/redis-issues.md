@@ -16,7 +16,7 @@
 - Rate limiting fails (open or closed depending on `STRIX_REDIS_REQUIRED`)
 - Scheduler fails to start (leader election)
 - Distributed locks fail (duplicate scheduled scans)
-- Celery queue unavailable (if using Celery workers)
+- Kubernetes Jobs queue unavailable (if using k8s-jobs workers)
 - `redis-cli ping` returns error or times out
 - High Redis memory usage / eviction
 
@@ -75,8 +75,8 @@ kubectl exec -n strix redis-master-0 -- redis-cli -n 0 DBSIZE
 # Check scheduler locks
 kubectl exec -n strix redis-master-0 -- redis-cli -n 0 KEYS "scheduler:lock:*"
 
-# Check Celery queue (if used)
-kubectl exec -n strix redis-master-0 -- redis-cli -n 1 LLEN celery
+# Check Kubernetes Jobs queue (if used)
+kubectl exec -n strix redis-master-0 -- redis-cli -n 1 LLEN k8s-jobs
 kubectl exec -n strix redis-master-0 -- redis-cli -n 1 KEYS "*" | head -20
 ```
 

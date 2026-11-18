@@ -314,9 +314,8 @@ Layout: `src/strix/core` (scope gate, adapters, jobs, worker, store, findings,
 probe, policies, redaction, crawler), `src/strix/api` (app factory, routers,
 security middleware, static UI), `src/strix/lab` (detection lab, oracle,
 evaluation runner), `src/strix/rules` (bundled Semgrep ruleset), the modules
-sitting directly under `src/strix` (`cli.py`, `config.py`, `code_scan.py`,
-`analyst.py`, `monitor.py`, `audit.py`, `metrics.py`, `report_html.py`,
-`retention.py`).
+sitting directly under `src/strix` (`cli.py`, `config.py`, `analyst.py`,
+`monitor.py`, `audit.py`, `metrics.py`, `report_html.py`, `retention.py`).
 
 ## Deploying
 

@@ -199,8 +199,7 @@ the checks, the publish checklist and the pilot contract language.
 | `STRIX_SCOPE_MODE` | `auto` | `global` (single scope document), `managed` (per-tenant engagement policies), or `auto` (managed as soon as a policy exists in the database, global before that). |
 | `STRIX_DB` | `strix.db` | SQLite file (jobs, findings, assets, policies). |
 | `STRIX_DATABASE_URL` | – | PostgreSQL DSN. Experimental: tested single-host API+worker, no HA or multi-node support. |
-| `STRIX_QUEUE_MODE` | `inprocess` | `celery` enables the distributed queue (extra install; experimental). |
-| `STRIX_CELERY_BROKER_URL` | `redis://localhost:6379/1` | Celery broker when `STRIX_QUEUE_MODE=celery`. |
+| `STRIX_QUEUE_MODE` | `inprocess` | `k8s-jobs` enables the distributed queue (extra install; experimental). |
 | `STRIX_REDIS_URL` | `redis://localhost:6379/0` | Shared rate limiting and cache. |
 | `STRIX_WORKERS` / `STRIX_QUEUE_MAX` | `1` / `32` | Concurrent jobs / queue depth. |
 | `STRIX_CORS_ORIGINS` | none | Comma-separated origins. The bundled UI needs none. |
@@ -435,7 +434,7 @@ lease → run readiness checks (audit chain HMAC-SHA256, scope/policy, schema,
 admin keys). RPO equals your backup interval (default hourly via cron).
 
 See `DEPLOYMENT.md` §9 for the full failover procedure and RTO/RPO details.
-Redis can share rate limits across API processes. Celery mode has a distributed
+Redis can share rate limits across API processes. k8s-jobs mode has a distributed
 queue and durable cooperative cancellation (validated for running and queued jobs
 on one host), and PostgreSQL has a tested single-host API+worker path. None of
 these paths has HA, multi-node scheduling, exactly-once execution or a production

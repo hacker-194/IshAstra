@@ -1,12 +1,15 @@
 # Migration Guide: Polling to Event-Driven Architecture
 
+> **Note:** the Celery transport described as "legacy" below was removed; the
+> queue is now in-process or Kubernetes Jobs.
+
 This guide documents the migration from Strix's legacy synchronous polling architecture to the new event-driven architecture.
 
 ## Overview
 
 ### Legacy Architecture (v3.4 and earlier)
 ```
-Client → POST /assessments → Queue (Celery/Redis) → Worker → Database → Webhook
+Client → POST /assessments → Queue (in-process or k8s-jobs) → Worker → Database → Webhook
                                     ↓
                               Client polls GET /assessments/{id}
 ```
@@ -30,7 +33,7 @@ Client → POST /assessments → Event: assessment.submitted → Event Bus
 **Risk:** Low
 
 Both systems run simultaneously. The HTTP API writes to both:
-1. Legacy Celery queue (for existing workers)
+1. Legacy queue (in-process or k8s-jobs)
 2. New event bus (for new consumers)
 
 ```python
@@ -434,7 +437,7 @@ python -m strix.events.schemas validate --event-file event.json
 | 1. Dual-Write | 1-2 weeks | API writes to both queue and event bus |
 | 2. Consumer Migration | 1-2 weeks | All projections and webhook consumer running |
 | 3. Producer Cutover | 1 week | API publishes events only |
-| 4. Legacy Removal | 1 week | Celery worker removed, polling endpoints removed |
+| 4. Legacy Removal | 1 week | Celery removed 2026-11-18; polling endpoints still to remove |
 | **Total** | **4-6 weeks** | **Full event-driven architecture** |
 
 ## Success Criteria

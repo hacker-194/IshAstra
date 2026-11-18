@@ -203,7 +203,7 @@ def init_metrics() -> CollectorRegistry:
     )
 
     # Queue and worker occupancy. ``mode`` is the queue backend (inprocess,
-    # celery, k8s-jobs) so a dashboard can tell which deployment it is looking at.
+    # k8s-jobs) so a dashboard can tell which deployment it is looking at.
     QUEUE_DEPTH = Gauge(
         "strix_queue_depth",
         "Jobs waiting for a worker",

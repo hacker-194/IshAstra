@@ -483,4 +483,4 @@ echo "=== Rollback to Primary Complete ==="
 - [backup.md](./backup.md) - Automated backup procedures (feeds standby)
 - [restore.md](./restore.md) - Point-in-time restore (alternative to failover)
 - [disaster-recovery.md](./disaster-recovery.md) - Full DR scenarios
-- [scaling.md](./scaling.md) - Horizontal scaling (Celery workers)
+- [scaling.md](./scaling.md) - Horizontal scaling (k8s-jobs workers)

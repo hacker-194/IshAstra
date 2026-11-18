@@ -52,7 +52,7 @@ rate(strix_adapter_timeout_total[5m]) by (adapter)
 # Check API logs for adapter errors
 kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=200 | grep -iE "adapter|nmap|nuclei|zap|crawler" | grep -iE "error|fail|timeout|exception"
 
-# Check worker logs (if using Celery)
+# Check worker logs (if using Kubernetes Jobs)
 kubectl logs -n strix -l app.kubernetes.io/name=strix,component=worker --tail=200 | grep -iE "adapter|nmap|nuclei|zap|crawler" | grep -iE "error|fail|timeout|exception"
 
 # Filter by specific adapter

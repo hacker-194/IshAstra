@@ -21,12 +21,10 @@ environment variables.
 | `STRIX_SCOPE_JWKS` | — | No | JWKS file with Ed25519 public keys. When set, a scope document loads only if signed by one of those keys. See [scope signing](#signed-scope-documents). |
 | `STRIX_SCOPE_MAX_AGE_SECONDS` | `86400` | No | How old a signed scope document may be. An older document is refused even though its signature verifies. |
 | `STRIX_DB` | `strix.db` | No | SQLite database file path. |
-| `STRIX_DATABASE_URL` | — | No | PostgreSQL DSN; overrides `STRIX_DB`. Advanced: tested single-host (SIGTERM, load soak, audit chain, Celery integration). |
+| `STRIX_DATABASE_URL` | — | No | PostgreSQL DSN; overrides `STRIX_DB`. Advanced: tested single-host (SIGTERM, load soak, audit chain, Kubernetes Jobs integration). |
 | `STRIX_WORKERS` | `1` | No | Concurrent assessment jobs in the in-process worker. |
 | `STRIX_QUEUE_MAX` | `32` | No | Maximum queued jobs. |
 | `STRIX_QUEUE_MODE` | `inprocess` | No | `k8s-jobs` enables the experimental distributed queue (tested single-host: 10 jobs). |
-| `STRIX_CELERY_BROKER_URL` | `redis://localhost:6379/1` | No | Celery broker when Celery mode is enabled. |
-| `STRIX_CELERY_RESULT_BACKEND` | `redis://localhost:6379/2` | No | Celery result backend. |
 
 ### Security & Authorization
 
@@ -220,8 +218,8 @@ export STRIX_DATABASE_URL="postgresql://user:pass@host/db"
 
 > **Advanced: tested single-host, no HA.** Validated: schema migrations v1-v20,
 > SIGTERM soak test (no stale worker lock, audit chain intact, API verify
-> passes), assessment load test (10 jobs, 0 failed), Celery queue integration
-> (10 jobs distributed across Celery workers). No HA, multi-node migration or
+> passes), assessment load test (10 jobs, 0 failed), Kubernetes Jobs queue integration
+> (10 jobs distributed across k8s-jobs workers). No HA, multi-node migration or
 > supported failover. Use SQLite for a pilot unless you accept and test the
 > single-host limitation.
 

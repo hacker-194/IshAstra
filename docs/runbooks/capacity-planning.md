@@ -186,19 +186,19 @@ services:
       - STRIX_REDIS_URL=redis://redis:6379/0
       - STRIX_REDIS_REQUIRED=true
       - STRIX_WORKERS=1  # Per container
-      - STRIX_QUEUE_MODE=celery  # If using celery extra
+      - STRIX_QUEUE_MODE=k8s-jobs  # If using k8s-jobs extra
   redis:
     # Redis cluster for HA
 ```
 
 **Current limitation:** the default queue is in-process and SQLite is
-single-writer. Celery + Redis and PostgreSQL now have tested single-host paths
+single-writer. Kubernetes Jobs and PostgreSQL now have tested single-host paths
 (including durable cancellation and an assessment benchmark), but neither has
 HA, multi-node scheduling or exactly-once execution. Do not scale this manifest
 in production yet.
 
 True horizontal scaling still requires:
-1. Multi-node Celery scheduling, idempotency and crash-recovery tests.
+1. Multi-node Kubernetes Jobs scheduling, idempotency and crash-recovery tests.
 2. PostgreSQL HA/failover and a worker/database soak test.
 3. Organization/RBAC and usage metering before a multi-tenant service.
 

@@ -50,7 +50,7 @@
 
 - **Not a packet filter**: Scope gate is an authorization service; agents that ignore it are not stopped
 - **Not a vulnerability scanner**: Detection quality is measured via lab oracle; false negatives are quality issues
-- **Not HA/multi-node**: Single-host SQLite default; Celery/PostgreSQL experimental
+- **Not HA/multi-node**: Single-host SQLite default; k8s-jobs/PostgreSQL experimental
 - **Not encrypted at rest**: SQLite file permissions 0600; volume encryption is operator responsibility
 
 ---
@@ -174,7 +174,7 @@ Untested / low coverage:
 | Gap | Risk | Mitigation |
 |-----|------|------------|
 | Live nmap/nuclei adapter tests | F7 in security-audit.md | CI runs against loopback lab; integration tests optional |
-| Multi-node Celery/PostgreSQL | F5, F7 in security-audit.md | Experimental; not production-ready |
+| Multi-node k8s-jobs/PostgreSQL | F5, F7 in security-audit.md | Experimental; not production-ready |
 | AI analyst tool execution | Analyst output sanitized, no tool exec | 96 analyzer tests; prompt injection tested |
 | Webhook secret storage | SQLite not encrypted | HTTPS + validated IP; no URL-embedded secrets |
 | Backup/restore with HMAC key rotation | Chain breaks on key change | `--reset-audit-chain` documented; operator decision |
@@ -344,7 +344,7 @@ Include:
 |------------|--------|-----------------|
 | No independent security audit | This document prepares for one | Primary reason for this audit |
 | SQLite unencrypted at rest | F5 in security-audit.md | Volume encryption is operator duty |
-| No HA/multi-node | Single-host pilot backend | Celery/PostgreSQL experimental |
+| No HA/multi-node | Single-host pilot backend | k8s-jobs/PostgreSQL experimental |
 | No per-project/per-endpoint scopes | F4 fixed; org/SSO missing | Tenant keys only |
 | No background exception expiry sweep | F6 fixed; notification missing | Admin must monitor manually |
 | No representative soak test | Load/soak tests exist but limited | Production claim requires more |

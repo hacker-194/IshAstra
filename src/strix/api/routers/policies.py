@@ -22,7 +22,7 @@ from strix.core.queue import get_assessment_worker
 
 router = APIRouter(prefix="/api")
 
-# Cancel through the queue the deployment actually runs (in-process or Celery).
+# Cancel through the queue the deployment actually runs (in-process or k8s-jobs).
 # Use a lazy getter to allow test fixtures to set environment variables first.
 _assessment_worker = None
 

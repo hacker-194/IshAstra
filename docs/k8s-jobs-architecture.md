@@ -2,7 +2,7 @@
 
 ## Overview
 
-Replace in-process/Celery workers with Kubernetes Jobs for assessment execution. Each assessment runs in an isolated pod with the `strix-assessment` image, writing results directly to PostgreSQL.
+Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment execution. Each assessment runs in an isolated pod with the `strix-assessment` image, writing results directly to PostgreSQL.
 
 ---
 
@@ -489,7 +489,7 @@ if __name__ == "__main__":
 ```python
 """Kubernetes Jobs queue implementation for Strix assessments.
 
-Replaces in-process/Celery queue with K8s Job API.
+Replaces in-process/Kubernetes Jobs queue with K8s Job API.
 Used when STRIX_QUEUE_MODE=k8s-jobs.
 """
 

@@ -61,7 +61,7 @@ State these in writing before the first engagement:
 
 - **Single node only.** One Strix process per SQLite database; a second process
   is refused by the worker lease. No HA, no failover, no multi-node scheduling.
-  PostgreSQL and Celery are experimental single-host paths.
+  PostgreSQL and Kubernetes Jobs are experimental single-host paths.
 - **`partial` is not clean.** A partial job means at least one selected detector
   could not complete. Only `completed` with full coverage may be read as
   "no findings from the selected coverage".

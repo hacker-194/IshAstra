@@ -236,7 +236,7 @@ Key environment variables:
 | `STRIX_REDIS_URL` | `redis://localhost:6379/0` | Redis for shared rate limiting |
 | `STRIX_REDIS_REQUIRED` | `false` | Fail startup if Redis unavailable |
 | `STRIX_WORKERS` | `1` | Concurrent assessment jobs in the in-process worker |
-| `STRIX_QUEUE_MODE` | `inprocess` | `celery` enables the experimental distributed queue |
+| `STRIX_QUEUE_MODE` | `inprocess` | `k8s-jobs` enables the experimental distributed queue |
 | `STRIX_DISABLE_DOCS` | `false` | Disable /docs, /redoc, /openapi.json |
 | `STRIX_TRUSTED_PROXIES` | (empty) | Trusted proxy IPs for X-Forwarded-* |
 

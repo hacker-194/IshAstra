@@ -106,7 +106,7 @@ echo "Target: $NAMESPACE/$POD_NAME:$DB_PATH_IN_POD"
 echo "Scaling down writers..."
 kubectl scale deployment strix-api -n $NAMESPACE --replicas=0
 kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=0
-# If Celery workers exist
+# If k8s-jobs workers exist
 kubectl scale deployment strix-worker -n $NAMESPACE --replicas=0 2>/dev/null || true
 
 # Wait for pods to terminate

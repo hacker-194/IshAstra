@@ -22,35 +22,6 @@ class Tenant:
     created_at: float
 
 
-async def get_tenant(tenant_id: str) -> Tenant | None:
-    """Load a tenant by ID."""
-    db = await store.get_database()
-    async with db.transaction() as conn:
-        row = await store._fetchone(
-            conn,
-            """SELECT ak.*, om.org_id
-               FROM api_keys ak
-               LEFT JOIN org_memberships om ON om.tenant_id = ak.tenant_id
-               WHERE ak.tenant_id = ?""",
-            tenant_id,
-        )
-
-    if row is None:
-        return None
-
-    org_id = row["org_id"]
-    return Tenant(
-        tenant_id=row["tenant_id"],
-        org_id=org_id,
-        name=row["tenant_id"],
-        tier=row["tier"],
-        admin=bool(row["admin"]),
-        active=bool(row["active"]),
-        scope=row.get("scope") or "write",
-        created_at=row["created_at"],
-    )
-
-
 async def list_tenants(org_id: str | None = None) -> list[dict[str, Any]]:
     """List all tenants, optionally filtered by organization."""
     db = await store.get_database()
@@ -99,10 +70,3 @@ async def create_tenant(
     from strix.api.security import api_keys
 
     return await api_keys.register_async(tenant_id, tier, admin=admin, scope=scope)
-
-
-async def deactivate_tenant(tenant_id: str) -> bool:
-    """Deactivate a tenant (revoke their key)."""
-    from strix.api.security import api_keys
-
-    return await api_keys.revoke_async(tenant_id)

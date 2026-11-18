@@ -1,6 +1,6 @@
 """Kubernetes Jobs queue implementation for Strix assessments.
 
-Replaces in-process/Celery queue with K8s Job API.
+Kubernetes Jobs-backed queue: one Job per assessment.
 Used when STRIX_QUEUE_MODE=k8s-jobs.
 """
 

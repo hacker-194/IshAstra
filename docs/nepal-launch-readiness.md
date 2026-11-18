@@ -34,7 +34,7 @@ Known limits to state honestly in a pilot contract:
 
 - **Single writer.** The worker lease refuses a second process; no horizontal
   scaling, no automated HA/failover. Backups + restore are the recovery path.
-- **SQLite is the supported pilot backend.** PostgreSQL and Celery have tested
+- **SQLite is the supported pilot backend.** PostgreSQL and Kubernetes Jobs have tested
   single-host worker paths but are experimental, with no HA or multi-node
   failover.
 - Detection is authorized, non-destructive DAST/SAST-style coverage; it is not a

@@ -7,6 +7,7 @@ Used when STRIX_QUEUE_MODE=k8s-jobs.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -32,6 +33,7 @@ QUEUE_MODE_K8S_JOBS = "k8s-jobs"
 @dataclass
 class K8sJobConfig:
     """Configuration for K8s Job creation."""
+
     namespace: str = "strix-assessments"
     image: str = ""
     service_account: str = "strix"
@@ -155,7 +157,9 @@ class K8sAssessmentQueue:
                     "app.kubernetes.io/component": "assessment-job",
                     "strix.job-id": job.id,
                     "strix.tenant": job.actor,
-                } if self.config.labels else {
+                }
+                if self.config.labels
+                else {
                     "app.kubernetes.io/component": "assessment-job",
                     "strix.job-id": job.id,
                     "strix.tenant": job.actor,
@@ -183,7 +187,9 @@ class K8sAssessmentQueue:
                             client.V1EnvVar(name="STRIX_TENANT_ID", value=job.actor),
                             client.V1EnvVar(name="STRIX_TARGET", value=job.target),
                             client.V1EnvVar(name="STRIX_PROFILE", value=job.profile),
-                            client.V1EnvVar(name="STRIX_TIMEOUT_SECONDS", value=str(job.policy.get("timeout", 3600))),
+                            client.V1EnvVar(
+                                name="STRIX_TIMEOUT_SECONDS", value=str(job.policy.get("timeout", 3600))
+                            ),
                             client.V1EnvVar(name="STRIX_SCOPE_JSON", value=json.dumps(scope_data)),
                             client.V1EnvVar(name="STRIX_LOG_FORMAT", value="json"),
                             client.V1EnvVar(name="STRIX_LOG_LEVEL", value="INFO"),
@@ -282,9 +288,7 @@ class K8sAssessmentQueue:
         if not self.config.env_from_secrets:
             return None
         return [
-            client.V1EnvFromSource(
-                secret_ref=client.V1SecretEnvSource(name=item["name"])
-            )
+            client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name=item["name"]))
             for item in self.config.env_from_secrets
         ]
 
@@ -314,48 +318,60 @@ class K8sAssessmentQueue:
         egress_rules = []
 
         # 1. DNS
-        egress_rules.append(client.V1NetworkPolicyEgressRule(
-            to=[client.V1NetworkPolicyPeer(
-                namespace_selector=client.V1LabelSelector(
-                    match_labels={"kubernetes.io/metadata.name": "kube-system"}
-                )
-            )],
-            ports=[
-                client.V1NetworkPolicyPort(protocol="UDP", port=53),
-                client.V1NetworkPolicyPort(protocol="TCP", port=53),
-            ],
-        ))
+        egress_rules.append(
+            client.V1NetworkPolicyEgressRule(
+                to=[
+                    client.V1NetworkPolicyPeer(
+                        namespace_selector=client.V1LabelSelector(
+                            match_labels={"kubernetes.io/metadata.name": "kube-system"}
+                        )
+                    )
+                ],
+                ports=[
+                    client.V1NetworkPolicyPort(protocol="UDP", port=53),
+                    client.V1NetworkPolicyPort(protocol="TCP", port=53),
+                ],
+            )
+        )
 
         # 2. Scope targets
         if authorized_networks:
             for cidr in authorized_networks:
                 for port in allowed_ports:
-                    egress_rules.append(client.V1NetworkPolicyEgressRule(
-                        to=[client.V1NetworkPolicyPeer(
-                            ip_block=client.V1IPBlock(cidr=cidr)
-                        )],
-                        ports=[client.V1NetworkPolicyPort(protocol="TCP", port=port)],
-                    ))
+                    egress_rules.append(
+                        client.V1NetworkPolicyEgressRule(
+                            to=[client.V1NetworkPolicyPeer(ip_block=client.V1IPBlock(cidr=cidr))],
+                            ports=[client.V1NetworkPolicyPort(protocol="TCP", port=port)],
+                        )
+                    )
 
         # 3. Database
-        egress_rules.append(client.V1NetworkPolicyEgressRule(
-            to=[client.V1NetworkPolicyPeer(
-                pod_selector=client.V1LabelSelector(
-                    match_labels={"app.kubernetes.io/name": "postgresql"}
-                )
-            )],
-            ports=[client.V1NetworkPolicyPort(protocol="TCP", port=5432)],
-        ))
+        egress_rules.append(
+            client.V1NetworkPolicyEgressRule(
+                to=[
+                    client.V1NetworkPolicyPeer(
+                        pod_selector=client.V1LabelSelector(
+                            match_labels={"app.kubernetes.io/name": "postgresql"}
+                        )
+                    )
+                ],
+                ports=[client.V1NetworkPolicyPort(protocol="TCP", port=5432)],
+            )
+        )
 
         # 4. K8s API
-        egress_rules.append(client.V1NetworkPolicyEgressRule(
-            to=[client.V1NetworkPolicyPeer(
-                namespace_selector=client.V1LabelSelector(
-                    match_labels={"kubernetes.io/metadata.name": "kube-system"}
-                )
-            )],
-            ports=[client.V1NetworkPolicyPort(protocol="TCP", port=443)],
-        ))
+        egress_rules.append(
+            client.V1NetworkPolicyEgressRule(
+                to=[
+                    client.V1NetworkPolicyPeer(
+                        namespace_selector=client.V1LabelSelector(
+                            match_labels={"kubernetes.io/metadata.name": "kube-system"}
+                        )
+                    )
+                ],
+                ports=[client.V1NetworkPolicyPort(protocol="TCP", port=443)],
+            )
+        )
 
         netpol = client.V1NetworkPolicy(
             api_version="networking.k8s.io/v1",
@@ -369,9 +385,7 @@ class K8sAssessmentQueue:
                 },
             ),
             spec=client.V1NetworkPolicySpec(
-                pod_selector=client.V1LabelSelector(
-                    match_labels={"strix.job-id": job.id}
-                ),
+                pod_selector=client.V1LabelSelector(match_labels={"strix.job-id": job.id}),
                 policy_types=["Egress"],
                 egress=egress_rules,
             ),
@@ -410,13 +424,11 @@ class K8sAssessmentQueue:
                     log.exception("Failed to delete K8s Job %s", k8s_job_name)
 
         if k8s_job_name:
-            try:
+            with contextlib.suppress(ApiException):
                 self.networking_v1.delete_namespaced_network_policy(
                     name=f"{k8s_job_name}-netpol",
                     namespace=self.config.namespace,
                 )
-            except ApiException:
-                pass
 
         return True
 
@@ -424,8 +436,7 @@ class K8sAssessmentQueue:
         """Cancel all jobs bound to a policy."""
         with self._lock:
             targets = [
-                job for job in self._active.values()
-                if (job.policy or {}).get("policy_id") == policy_id
+                job for job in self._active.values() if (job.policy or {}).get("policy_id") == policy_id
             ]
         for job in targets:
             self.cancel(job.id)
@@ -440,10 +451,8 @@ class K8sAssessmentQueue:
 
         if self._monitor_task:
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
 
         with self._lock:
             job_ids = list(self._active.keys())
@@ -528,7 +537,8 @@ def get_k8s_assessment_queue(
 
     config = K8sJobConfig(
         namespace=os.environ.get("STRIX_K8S_NAMESPACE", "strix-assessments"),
-        image=os.environ.get("STRIX_K8S_IMAGE", "") or f"{settings.k8s_image_repository}:{settings.k8s_image_tag}",
+        image=os.environ.get("STRIX_K8S_IMAGE", "")
+        or f"{settings.k8s_image_repository}:{settings.k8s_image_tag}",
         service_account=os.environ.get("STRIX_K8S_SERVICE_ACCOUNT", "strix"),
         runtime_class=os.environ.get("STRIX_K8S_RUNTIME_CLASS", "gvisor") or None,
         priority_class=os.environ.get("STRIX_K8S_PRIORITY_CLASS") or None,
@@ -544,7 +554,9 @@ def get_k8s_assessment_queue(
                 "cpu": os.environ.get("STRIX_K8S_CPU_REQUEST", "1000m"),
                 "memory": os.environ.get("STRIX_K8S_MEMORY_REQUEST", "1Gi"),
             },
-        } if os.environ.get("STRIX_K8S_CPU_LIMIT") else None,
+        }
+        if os.environ.get("STRIX_K8S_CPU_LIMIT")
+        else None,
         db_secret_name=os.environ.get("STRIX_K8S_DB_SECRET", "strix-secrets"),
         scope_configmap_name=os.environ.get("STRIX_K8S_SCOPE_CM", "strix-scope"),
         network_policy_enabled=os.environ.get("STRIX_K8S_NETPOL", "true").lower() == "true",

@@ -537,6 +537,7 @@ class TestHAHealthChecks:
     @pytest.mark.asyncio
     async def test_health_check_degraded_on_failure(self, ha_manager):
         """Test that health check reports degraded when checks fail."""
+
         # Register a failing check
         async def failing_check():
             raise Exception("Simulated failure")
@@ -716,7 +717,7 @@ class TestHAIntegration:
 
         # Start multiple standbys
         standbys = []
-        for i in range(3):
+        for _ in range(3):
             standby = HAManager(
                 settings=pg_settings,
                 audit_chain=audit_chain,

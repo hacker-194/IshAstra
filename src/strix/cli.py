@@ -754,11 +754,7 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
     try:
         # Load base scope document if it exists
         base_scope_path = Path(args.scope).expanduser().resolve()
-        if base_scope_path.is_file():
-            base_document = json.loads(base_scope_path.read_text())
-        else:
-            # Create minimal scope document from arguments
-            base_document = {}
+        base_document = json.loads(base_scope_path.read_text()) if base_scope_path.is_file() else {}
 
         # Parse hosts
         include_hosts = [h.strip() for h in args.hosts.split(",") if h.strip()]
@@ -767,8 +763,12 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
             return 2
 
         exclude_hosts = [h.strip() for h in args.exclude.split(",") if h.strip()] if args.exclude else []
-        authorized_networks = [n.strip() for n in args.networks.split(",") if n.strip()] if args.networks else []
-        allowed_ports = [int(p.strip()) for p in args.ports.split(",") if p.strip()] if args.ports else [80, 443]
+        authorized_networks = (
+            [n.strip() for n in args.networks.split(",") if n.strip()] if args.networks else []
+        )
+        allowed_ports = (
+            [int(p.strip()) for p in args.ports.split(",") if p.strip()] if args.ports else [80, 443]
+        )
 
         # Build scope document
         scope_document = {
@@ -785,6 +785,7 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
 
         # Validate the scope document structure
         from strix.core.scope import Scope
+
         Scope(
             program=scope_document["program"],
             authorized_by=scope_document["authorized_by"],
@@ -810,7 +811,11 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
         )
 
         # Write output
-        output_path = Path(args.output).expanduser().resolve() if args.output else Path("scope-breakglass.json").resolve()
+        output_path = (
+            Path(args.output).expanduser().resolve()
+            if args.output
+            else Path("scope-breakglass.json").resolve()
+        )
         output_path.write_text(json.dumps(signed, indent=2) + "\n")
 
         print(f"break-glass scope written to {output_path}", file=sys.stderr)
@@ -2112,9 +2117,7 @@ def main(argv: list[str] | None = None) -> None:
     breakglass_parser.add_argument(
         "--scope", default="scope.json", help="Base scope document to authorize (default: scope.json)"
     )
-    breakglass_parser.add_argument(
-        "--tenant", required=True, help="Tenant identifier for audit trail"
-    )
+    breakglass_parser.add_argument("--tenant", required=True, help="Tenant identifier for audit trail")
     breakglass_parser.add_argument(
         "--hosts",
         required=True,
@@ -2140,12 +2143,8 @@ def main(argv: list[str] | None = None) -> None:
     breakglass_parser.add_argument(
         "--jwks", required=True, help="JWKS file containing both approver public keys"
     )
-    breakglass_parser.add_argument(
-        "--reason", required=True, help="Reason for break-glass activation"
-    )
-    breakglass_parser.add_argument(
-        "--output", "-o", help="Output path (default: scope-breakglass.json)"
-    )
+    breakglass_parser.add_argument("--reason", required=True, help="Reason for break-glass activation")
+    breakglass_parser.add_argument("--output", "-o", help="Output path (default: scope-breakglass.json)")
     breakglass_parser.add_argument(
         "--program", help="Program name (default: from base scope or 'break-glass')"
     )
@@ -2155,12 +2154,8 @@ def main(argv: list[str] | None = None) -> None:
     breakglass_parser.add_argument(
         "--ref", help="Authorization reference (default: from base scope or 'break-glass')"
     )
-    breakglass_parser.add_argument(
-        "--exclude", default="", help="Comma-separated out-of-scope hosts"
-    )
-    breakglass_parser.add_argument(
-        "--networks", default="", help="Comma-separated authorized CIDR networks"
-    )
+    breakglass_parser.add_argument("--exclude", default="", help="Comma-separated out-of-scope hosts")
+    breakglass_parser.add_argument("--networks", default="", help="Comma-separated authorized CIDR networks")
     breakglass_parser.add_argument(
         "--ports", default="80,443", help="Comma-separated allowed ports (default: 80,443)"
     )

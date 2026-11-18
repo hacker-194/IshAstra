@@ -125,10 +125,7 @@ class LabHandler(BaseHTTPRequestHandler):
             # Positive: the exact bait the official nuclei `git-config`
             # exposure template matches (word match on [core], status 200,
             # body must not be HTML).
-            bait = (
-                b"[core]\n\trepositoryformatversion = 0\n"
-                b"\tfilemode = true\n\tbare = false\n"
-            )
+            bait = b"[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n"
             self._send(200, bait, "text/plain")
 
         elif route == "/.git/HEAD":
@@ -155,9 +152,7 @@ class LabHandler(BaseHTTPRequestHandler):
             # Negative: static catalog text; a quote mutation changes nothing.
             identifier = params.get("id", "")
             text = f"Catalog item {identifier!r}: widget, $9.99, in stock.\n"
-            self._send(
-                200, text.encode(), "text/plain; charset=utf-8", dict(_HARDENED_HEADERS)
-            )
+            self._send(200, text.encode(), "text/plain; charset=utf-8", dict(_HARDENED_HEADERS))
 
         elif route == "/public":
             # Negative: hardened page with no bait files anywhere near it.
@@ -240,10 +235,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     server = LabServer(("127.0.0.1", args.port))
-    print(
-        f"strix detection lab on http://127.0.0.1:{server.server_address[1]} "
-        "(Ctrl+C to stop)"
-    )
+    print(f"strix detection lab on http://127.0.0.1:{server.server_address[1]} (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

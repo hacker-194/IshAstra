@@ -390,8 +390,10 @@ MIGRATIONS_MSSP: list[tuple[int, str]] = [
         created_at             REAL NOT NULL,
         UNIQUE(partner_id, customer_id, period_start)
     );
-    CREATE INDEX IF NOT EXISTS mssp_usage_by_partner_period ON mssp_usage_records (partner_id, period_start);
-    CREATE INDEX IF NOT EXISTS mssp_usage_by_customer_period ON mssp_usage_records (customer_id, period_start);
+    CREATE INDEX IF NOT EXISTS mssp_usage_by_partner_period
+        ON mssp_usage_records (partner_id, period_start);
+    CREATE INDEX IF NOT EXISTS mssp_usage_by_customer_period
+        ON mssp_usage_records (customer_id, period_start);
     """,
     ),
     (
@@ -482,8 +484,10 @@ MIGRATIONS_MSSP_PG: list[tuple[int, str]] = [
         created_at             DOUBLE PRECISION NOT NULL,
         UNIQUE(partner_id, customer_id, period_start)
     );
-    CREATE INDEX IF NOT EXISTS mssp_usage_by_partner_period ON mssp_usage_records (partner_id, period_start);
-    CREATE INDEX IF NOT EXISTS mssp_usage_by_customer_period ON mssp_usage_records (customer_id, period_start);
+    CREATE INDEX IF NOT EXISTS mssp_usage_by_partner_period
+        ON mssp_usage_records (partner_id, period_start);
+    CREATE INDEX IF NOT EXISTS mssp_usage_by_customer_period
+        ON mssp_usage_records (customer_id, period_start);
     """,
     ),
     (
@@ -856,7 +860,8 @@ async def list_partner_customers(
         if status:
             rows = await store._fetchall(
                 conn,
-                "SELECT * FROM mssp_customers WHERE partner_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM mssp_customers WHERE partner_id = ? AND status = ? "
+                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 partner_id,
                 status.value,
                 limit,
@@ -902,14 +907,15 @@ async def update_customer(
             return None
 
         # Validate tier change against partner limits if upgrading
-        if tier is not None and tier != PricingTier(row["tier"]):
-            partner = await get_partner(row["partner_id"])
-            if partner:
-                partner_limits = MSSP_TIER_LIMITS[partner.tier]
-                # Check if new tier is allowed for this partner tier
-                # (Registered partners can only have Free/Starter customers)
-                if partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
-                    raise ValueError(f"Registered partners cannot have {tier.value} customers")
+        changed_tier = tier is not None and tier != PricingTier(row["tier"])
+        partner = await get_partner(row["partner_id"]) if changed_tier else None
+        # Registered partners can only have Free/Starter customers.
+        if (
+            partner is not None
+            and partner.tier == MSSPTier.REGISTERED
+            and tier in (PricingTier.PRO, PricingTier.ENTERPRISE)
+        ):
+            raise ValueError(f"Registered partners cannot have {tier.value} customers")
 
         updates: list[str] = []
         params: list[Any] = []
@@ -1234,7 +1240,8 @@ async def list_partner_invitations(
         if status:
             rows = await store._fetchall(
                 conn,
-                "SELECT * FROM mssp_invitations WHERE partner_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM mssp_invitations WHERE partner_id = ? AND status = ? "
+                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 partner_id,
                 status,
                 limit,
@@ -1243,7 +1250,8 @@ async def list_partner_invitations(
         else:
             rows = await store._fetchall(
                 conn,
-                "SELECT * FROM mssp_invitations WHERE partner_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM mssp_invitations WHERE partner_id = ? "
+                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 partner_id,
                 limit,
                 offset,
@@ -1265,7 +1273,6 @@ def get_customer_effective_limits(customer: MSSPCustomer, partner: MSSPPartner) 
     """Get effective limits for a customer (minimum of customer tier and partner tier)."""
     customer_limits = get_tier_limits(customer.tier)
     customer_features = get_tier_features(customer.tier)
-    partner_limits = get_mssp_tier_limits(partner.tier)
 
     # For MSSP customers, some limits may be constrained by partner tier
     # For now, return customer tier limits with partner context
@@ -1281,5 +1288,5 @@ def get_customer_effective_limits(customer: MSSPCustomer, partner: MSSPPartner) 
         "max_webhooks": customer_limits.max_webhooks,
         "max_schedules": customer_limits.max_schedules,
         "max_finding_records": customer_limits.max_finding_records,
-        "features": {k: v for k, v in customer_features.__dict__.items()},
+        "features": dict(customer_features.__dict__),
     }

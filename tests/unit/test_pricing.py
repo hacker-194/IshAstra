@@ -234,7 +234,7 @@ class TestFeatureAccess:
     def test_feature_descriptions(self):
         """Test feature descriptions exist for all features."""
         features = TIER_FEATURES[PricingTier.ENTERPRISE]
-        for feature_name in features.__dict__.keys():
+        for feature_name in features.__dict__:
             assert feature_name in FEATURE_DESCRIPTIONS
             assert len(FEATURE_DESCRIPTIONS[feature_name]) > 0
 

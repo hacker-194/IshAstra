@@ -182,20 +182,14 @@ def score(
     measured_positives = [case for case in positives if measured(case)]
     unmeasured = [case["id"] for case in positives if not measured(case)]
     unmeasured_negatives = [
-        case["id"]
-        for case in negatives
-        if detectors_run is not None and not measured(case)
+        case["id"] for case in negatives if detectors_run is not None and not measured(case)
     ]
 
     tp = sum(1 for case in measured_positives if assigned.get(case["id"]))
     fn = len(measured_positives) - tp
     # A negative case whose detector never ran also proves nothing, but it
     # cannot inflate precision either: it simply contributes no false positive.
-    fp = sum(
-        1
-        for case in negatives
-        if assigned.get(case["id"]) and case["id"] not in unmeasured_negatives
-    )
+    fp = sum(1 for case in negatives if assigned.get(case["id"]) and case["id"] not in unmeasured_negatives)
 
     verification_violations: list[str] = []
     for case in measured_positives:
@@ -212,9 +206,7 @@ def score(
 
     precision = (tp / (tp + fp)) if (tp + fp) else (1.0 if fn == 0 else 0.0)
     recall = (tp / (tp + fn)) if (tp + fn) else 1.0
-    f1 = (
-        (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-    )
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
     fp_rate = (fp / len(negatives)) if negatives else 0.0
     return {
         "true_positives": tp,
@@ -289,22 +281,17 @@ class EvaluationRun:
         unavailable = self.detectors_unavailable
         if unavailable:
             lines.extend(
-                f"detector unavailable: {name} ({reason})"
-                for name, reason in sorted(unavailable.items())
+                f"detector unavailable: {name} ({reason})" for name, reason in sorted(unavailable.items())
             )
         if self.workflows:
             lines.append(
                 "workflow scans: "
-                + ", ".join(
-                    f"{item['profile']}={item['state']}" for item in self.workflows
-                )
+                + ", ".join(f"{item['profile']}={item['state']}" for item in self.workflows)
             )
         cases = self.metrics.get("verification_violations") or []
         lines.extend(f"verification violation: {item}" for item in cases)
         lines.extend(
-            f"unmatched finding: {f.detector}/{f.category} at "
-            f"{f.location or f.asset}"
-            for f in self.unmatched
+            f"unmatched finding: {f.detector}/{f.category} at {f.location or f.asset}" for f in self.unmatched
         )
         lines.extend(f"note: {note}" for note in self.notes)
         return "\n".join(lines)
@@ -331,9 +318,7 @@ def _assess(
         ran.add(adapter.id)
     for path in paths:
         try:
-            result = adapter.assess(
-                f"{base_url}{path}", timeout=timeout, cancel=threading.Event()
-            )
+            result = adapter.assess(f"{base_url}{path}", timeout=timeout, cancel=threading.Event())
         except AdapterNotApplicable as exc:
             # Not applicable to this route is not a detection miss.
             notes.append(f"{adapter.id} not applicable to {path}: {exc}")
@@ -360,9 +345,7 @@ def _run_workflow(profile: str, base_url: str) -> tuple[jobs.Job | None, list[st
     notes.append(f"workflow {profile}: {job.state.value} — {job.verdict}")
     for run in job.runs:
         if run.state.value != "ok":
-            notes.append(
-                f"workflow {profile}: {run.adapter} {run.state.value}: {run.detail}"
-            )
+            notes.append(f"workflow {profile}: {run.adapter} {run.state.value}: {run.detail}")
     return job, notes
 
 
@@ -432,15 +415,11 @@ def run_evaluation(
                 unavailable[nuclei.id] = detail
                 notes.append(f"nuclei skipped: {detail}")
             else:
-                nuclei.TEMPLATE_SUBSET = (
-                    nuclei_subset  # bounded sweep, like the e2e test
-                )
+                nuclei.TEMPLATE_SUBSET = nuclei_subset  # bounded sweep, like the e2e test
                 ok, detail = nuclei.available()
                 ran.add(nuclei.id)
                 tools["nuclei"] = detail.removeprefix("nuclei ").strip() or detail
-                result = nuclei.assess(
-                    f"{base_url}/", timeout=_NUCLEI_TIMEOUT, cancel=threading.Event()
-                )
+                result = nuclei.assess(f"{base_url}/", timeout=_NUCLEI_TIMEOUT, cancel=threading.Event())
                 findings.extend(result.findings)
                 notes.extend(result.notes)
 
@@ -454,9 +433,7 @@ def run_evaluation(
                 version = _NMAP_VERSION.search(detail)
                 ran.add(nmap.id)
                 tools["nmap"] = version.group(1) if version else detail
-                result = nmap.assess(
-                    f"{base_url}/", timeout=_NMAP_TIMEOUT, cancel=threading.Event()
-                )
+                result = nmap.assess(f"{base_url}/", timeout=_NMAP_TIMEOUT, cancel=threading.Event())
                 findings.extend(result.findings)
                 notes.extend(result.notes)
 
@@ -534,8 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--nuclei-subset",
         default="http/exposures/configs",
-        help="comma-separated template subset relative to the "
-        "nuclei-templates root (default: %(default)s)",
+        help="comma-separated template subset relative to the nuclei-templates root (default: %(default)s)",
     )
     parser.add_argument(
         "--workflow",
@@ -568,9 +544,7 @@ def main(argv: list[str] | None = None) -> int:
     print(run.human_summary())
     if args.report is not None:
         args.report.parent.mkdir(parents=True, exist_ok=True)
-        args.report.write_text(
-            json.dumps(run.to_dict(), indent=2) + "\n", encoding="utf-8"
-        )
+        args.report.write_text(json.dumps(run.to_dict(), indent=2) + "\n", encoding="utf-8")
         print(f"report written to {args.report}")
 
     metrics = run.metrics
@@ -590,10 +564,7 @@ def main(argv: list[str] | None = None) -> int:
     if metrics["recall"] < args.min_recall:
         failures.append(f"recall {metrics['recall']} < {args.min_recall}")
     if metrics["verification_violations"]:
-        failures.append(
-            f"{len(metrics['verification_violations'])} verification "
-            "level violation(s)"
-        )
+        failures.append(f"{len(metrics['verification_violations'])} verification level violation(s)")
     if failures:
         print("FAILED: " + "; ".join(failures))
         return 1

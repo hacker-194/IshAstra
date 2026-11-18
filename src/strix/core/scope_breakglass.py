@@ -89,6 +89,7 @@ def _verify_approver_signature(
 
     import base64
     import binascii
+
     from cryptography.exceptions import InvalidSignature
 
     try:
@@ -135,9 +136,7 @@ def create_break_glass_scope(
     # Validate duration
     ttl = _parse_duration(duration)
     if ttl > BREAK_GLASS_MAX:
-        raise BreakGlassError(
-            f"break-glass duration {duration} exceeds maximum of {BREAK_GLASS_MAX}"
-        )
+        raise BreakGlassError(f"break-glass duration {duration} exceeds maximum of {BREAK_GLASS_MAX}")
 
     # Load JWKS and verify both approvers are present
     jwks_data = json.loads(Path(jwks_path).expanduser().read_text())
@@ -210,7 +209,10 @@ def create_break_glass_scope(
 
     log.info(
         "break-glass scope created for tenant %s by approvers %s, %s (expires %s)",
-        tenant_id, approver1_kid, approver2_kid, expires_at
+        tenant_id,
+        approver1_kid,
+        approver2_kid,
+        expires_at,
     )
 
     return signed_document
@@ -318,7 +320,6 @@ def verify_break_glass_scope(
     else:
         jwks_data = jwks
 
-    keys = scope_signing.key_set(jwks)
     verified_kids = set()
 
     for sig_block in signatures:

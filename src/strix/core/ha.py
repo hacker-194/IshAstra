@@ -333,10 +333,8 @@ class GracefulShutdown:
     def remove_signal_handlers(self) -> None:
         """Restore original signal handlers."""
         for sig, handler in self._original_handlers.items():
-            try:
+            with contextlib.suppress(OSError, ValueError):
                 signal.signal(sig, handler)
-            except (OSError, ValueError):
-                pass
 
 
 class HAManager:
@@ -470,5 +468,5 @@ async def create_ha_manager(
         election_config=election_config,
         drain_timeout=drain_timeout,
     )
-    is_leader = await manager.start()
+    await manager.start()
     return manager

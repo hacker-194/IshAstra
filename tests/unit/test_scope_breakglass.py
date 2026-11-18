@@ -10,8 +10,7 @@ from typing import Any
 
 import pytest
 
-from strix.core import scope_breakglass
-from strix.core import scope_signing
+from strix.core import scope_breakglass, scope_signing
 
 
 def _create_test_jwks(temp_dir: Path) -> tuple[Path, Path, Path]:
@@ -352,9 +351,10 @@ class TestBreakGlassCLI:
 
     def test_cli_help(self) -> None:
         """Test that CLI help works."""
-        from strix.cli import main
         import sys
         from io import StringIO
+
+        from strix.cli import main
 
         old_argv = sys.argv
         old_stdout = sys.stdout
@@ -371,9 +371,10 @@ class TestBreakGlassCLI:
 
     def test_cli_missing_required_args(self) -> None:
         """Test that CLI fails with missing required args."""
-        from strix.cli import main
         import sys
         from io import StringIO
+
+        from strix.cli import main
 
         old_argv = sys.argv
         old_stderr = sys.stderr

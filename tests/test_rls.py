@@ -29,7 +29,7 @@ class TestRLSPolicies:
         pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
 
         # Apply RLS migration
-        async with pool.acquire() as conn:
+        async with pool.acquire():
             # Run migration 28 SQL here
             pass
 
@@ -46,7 +46,12 @@ class TestRLSPolicies:
                    VALUES ($1, $2, $3, $4, $5, $6)
                    ON CONFLICT (tenant_id) DO UPDATE SET
                        key_hash = EXCLUDED.key_hash""",
-                tenant_id, "hash_a", "free", False, True, 1234567890.0
+                tenant_id,
+                "hash_a",
+                "free",
+                False,
+                True,
+                1234567890.0,
             )
             return tenant_id
 
@@ -60,7 +65,12 @@ class TestRLSPolicies:
                    VALUES ($1, $2, $3, $4, $5, $6)
                    ON CONFLICT (tenant_id) DO UPDATE SET
                        key_hash = EXCLUDED.key_hash""",
-                tenant_id, "hash_b", "free", False, True, 1234567890.0
+                tenant_id,
+                "hash_b",
+                "free",
+                False,
+                True,
+                1234567890.0,
             )
             return tenant_id
 
@@ -74,7 +84,12 @@ class TestRLSPolicies:
                    VALUES ($1, $2, $3, $4, $5, $6)
                    ON CONFLICT (tenant_id) DO UPDATE SET
                        key_hash = EXCLUDED.key_hash""",
-                tenant_id, "hash_admin", "enterprise", True, True, 1234567890.0
+                tenant_id,
+                "hash_admin",
+                "enterprise",
+                True,
+                True,
+                1234567890.0,
             )
             return tenant_id
 
@@ -82,25 +97,35 @@ class TestRLSPolicies:
         """Test that tenants can only see their own jobs."""
         async with pg_pool.acquire() as conn:
             # Insert job for tenant A
-            await conn.execute(
-                """SELECT set_app_current_tenant($1)""",
-                tenant_a
-            )
+            await conn.execute("""SELECT set_app_current_tenant($1)""", tenant_a)
             await conn.execute(
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                "job_a1", tenant_a, "example.com", "web", "tester", "{}", "completed", "clean", 1234567890.0
+                "job_a1",
+                tenant_a,
+                "example.com",
+                "web",
+                "tester",
+                "{}",
+                "completed",
+                "clean",
+                1234567890.0,
             )
 
             # Insert job for tenant B
-            await conn.execute(
-                """SELECT set_app_current_tenant($1)""",
-                tenant_b
-            )
+            await conn.execute("""SELECT set_app_current_tenant($1)""", tenant_b)
             await conn.execute(
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                "job_b1", tenant_b, "example.org", "web", "tester", "{}", "completed", "clean", 1234567890.0
+                "job_b1",
+                tenant_b,
+                "example.org",
+                "web",
+                "tester",
+                "{}",
+                "completed",
+                "clean",
+                1234567890.0,
             )
 
             # Query as tenant A - should only see tenant A's job
@@ -124,8 +149,20 @@ class TestRLSPolicies:
                 """INSERT INTO findings (job_id, tenant, fingerprint, asset, category, title, severity,
                        confidence, verification, status, detector, detector_version, evidence, sources)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)""",
-                "job_a1", tenant_a, "fp_a1", "example.com", "xss", "XSS found", "high",
-                "confirmed", "verified", "open", "scanner", "1.0", "evidence", "[]"
+                "job_a1",
+                tenant_a,
+                "fp_a1",
+                "example.com",
+                "xss",
+                "XSS found",
+                "high",
+                "confirmed",
+                "verified",
+                "open",
+                "scanner",
+                "1.0",
+                "evidence",
+                "[]",
             )
 
             # Insert finding for tenant B
@@ -134,8 +171,20 @@ class TestRLSPolicies:
                 """INSERT INTO findings (job_id, tenant, fingerprint, asset, category, title, severity,
                        confidence, verification, status, detector, detector_version, evidence, sources)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)""",
-                "job_b1", tenant_b, "fp_b1", "example.org", "sqli", "SQLi found", "critical",
-                "confirmed", "verified", "open", "scanner", "1.0", "evidence", "[]"
+                "job_b1",
+                tenant_b,
+                "fp_b1",
+                "example.org",
+                "sqli",
+                "SQLi found",
+                "critical",
+                "confirmed",
+                "verified",
+                "open",
+                "scanner",
+                "1.0",
+                "evidence",
+                "[]",
             )
 
             # Query as tenant A
@@ -158,7 +207,15 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                "job_a1", tenant_a, "example.com", "web", "tester", "{}", "completed", "clean", 1234567890.0
+                "job_a1",
+                tenant_a,
+                "example.com",
+                "web",
+                "tester",
+                "{}",
+                "completed",
+                "clean",
+                1234567890.0,
             )
 
             # Query as admin - should see all jobs
@@ -178,9 +235,18 @@ class TestRLSPolicies:
             # Try to insert a job for tenant B - should fail due to WITH CHECK policy
             with pytest.raises(Exception) as exc_info:
                 await conn.execute(
-                    """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict, created_at)
+                    """INSERT INTO jobs
+                       (id, tenant, target, profile, actor, policy, state, verdict, created_at)
                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                    "job_bad", tenant_b, "example.com", "web", "tester", "{}", "completed", "clean", 1234567890.0
+                    "job_bad",
+                    tenant_b,
+                    "example.com",
+                    "web",
+                    "tester",
+                    "{}",
+                    "completed",
+                    "clean",
+                    1234567890.0,
                 )
             # Should raise a policy violation error
             assert "policy" in str(exc_info.value).lower() or "rls" in str(exc_info.value).lower()
@@ -216,11 +282,21 @@ class TestRLSPolicies:
             # Should have policies on all tenant-scoped tables
             table_names = {p["table_name"] for p in policies}
             expected_tables = {
-                "jobs", "findings", "api_keys", "audit_log",
-                "engagement_policies", "evidence_packs", "assets",
-                "finding_events", "finding_remediation", "finding_records",
-                "tenant_users", "org_memberships",
-                "compliance_schedules", "compliance_reports", "compliance_exports",
+                "jobs",
+                "findings",
+                "api_keys",
+                "audit_log",
+                "engagement_policies",
+                "evidence_packs",
+                "assets",
+                "finding_events",
+                "finding_remediation",
+                "finding_records",
+                "tenant_users",
+                "org_memberships",
+                "compliance_schedules",
+                "compliance_reports",
+                "compliance_exports",
             }
             for table in expected_tables:
                 assert table in table_names, f"Missing policy on {table}"
@@ -256,13 +332,20 @@ class TestRLSPolicies:
             """)
             index_names = {i["index_name"] for i in indexes}
             expected_indexes = {
-                "idx_jobs_tenant_rls", "idx_findings_tenant_rls",
-                "idx_api_keys_tenant_rls", "idx_audit_log_tenant_rls",
-                "idx_engagement_policies_tenant_rls", "idx_evidence_packs_tenant_rls",
-                "idx_assets_tenant_rls", "idx_finding_events_tenant_rls",
-                "idx_finding_remediation_tenant_rls", "idx_finding_records_tenant_rls",
-                "idx_tenant_users_tenant_rls", "idx_org_memberships_tenant_rls",
-                "idx_compliance_schedules_tenant_rls", "idx_compliance_reports_tenant_rls",
+                "idx_jobs_tenant_rls",
+                "idx_findings_tenant_rls",
+                "idx_api_keys_tenant_rls",
+                "idx_audit_log_tenant_rls",
+                "idx_engagement_policies_tenant_rls",
+                "idx_evidence_packs_tenant_rls",
+                "idx_assets_tenant_rls",
+                "idx_finding_events_tenant_rls",
+                "idx_finding_remediation_tenant_rls",
+                "idx_finding_records_tenant_rls",
+                "idx_tenant_users_tenant_rls",
+                "idx_org_memberships_tenant_rls",
+                "idx_compliance_schedules_tenant_rls",
+                "idx_compliance_reports_tenant_rls",
                 "idx_compliance_exports_tenant_rls",
             }
             for idx in expected_indexes:
@@ -277,8 +360,15 @@ class TestRLSPolicies:
                 """INSERT INTO mssp_partners (partner_id, name, slug, tier, status, admin_key_hash,
                        contact_email, created_at, updated_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                partner_id, "Test MSSP", "test-mssp", "authorized", "active",
-                "partner_key_hash", "partner@example.com", 1234567890.0, 1234567890.0
+                partner_id,
+                "Test MSSP",
+                "test-mssp",
+                "authorized",
+                "active",
+                "partner_key_hash",
+                "partner@example.com",
+                1234567890.0,
+                1234567890.0,
             )
 
             # Create customer for partner
@@ -287,8 +377,14 @@ class TestRLSPolicies:
                 """INSERT INTO mssp_customers (customer_id, partner_id, tenant_id, name, status, tier,
                        created_at, updated_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-                "cust_1", partner_id, customer_tenant, "Customer Corp", "active", "pro",
-                1234567890.0, 1234567890.0
+                "cust_1",
+                partner_id,
+                customer_tenant,
+                "Customer Corp",
+                "active",
+                "pro",
+                1234567890.0,
+                1234567890.0,
             )
 
             # Create another tenant not managed by this partner
@@ -296,7 +392,12 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO api_keys (tenant_id, key_hash, tier, admin, active, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6)""",
-                other_tenant, "other_hash", "free", False, True, 1234567890.0
+                other_tenant,
+                "other_hash",
+                "free",
+                False,
+                True,
+                1234567890.0,
             )
 
             # Set MSSP partner context
@@ -318,7 +419,12 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO organizations (org_id, name, slug, tier, created_at, updated_at)
                    VALUES ($1, $2, $3, $4, $5, $6)""",
-                org_id, "Test Org", "test-org", "enterprise", 1234567890.0, 1234567890.0
+                org_id,
+                "Test Org",
+                "test-org",
+                "enterprise",
+                1234567890.0,
+                1234567890.0,
             )
 
             # Create admin tenant (org admin)
@@ -326,7 +432,12 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO api_keys (tenant_id, key_hash, tier, admin, active, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6)""",
-                admin_tenant, "admin_hash", "enterprise", False, True, 1234567890.0
+                admin_tenant,
+                "admin_hash",
+                "enterprise",
+                False,
+                True,
+                1234567890.0,
             )
 
             # Create member tenant
@@ -334,19 +445,30 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO api_keys (tenant_id, key_hash, tier, admin, active, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6)""",
-                member_tenant, "member_hash", "pro", False, True, 1234567890.0
+                member_tenant,
+                "member_hash",
+                "pro",
+                False,
+                True,
+                1234567890.0,
             )
 
             # Link both to organization
             await conn.execute(
                 """INSERT INTO org_memberships (org_id, tenant_id, role, joined_at)
                    VALUES ($1, $2, $3, $4)""",
-                org_id, admin_tenant, "admin", 1234567890.0
+                org_id,
+                admin_tenant,
+                "admin",
+                1234567890.0,
             )
             await conn.execute(
                 """INSERT INTO org_memberships (org_id, tenant_id, role, joined_at)
                    VALUES ($1, $2, $3, $4)""",
-                org_id, member_tenant, "member", 1234567890.0
+                org_id,
+                member_tenant,
+                "member",
+                1234567890.0,
             )
 
             # Insert job for member tenant
@@ -354,7 +476,15 @@ class TestRLSPolicies:
             await conn.execute(
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict, created_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                "job_member", member_tenant, "example.com", "web", "tester", "{}", "completed", "clean", 1234567890.0
+                "job_member",
+                member_tenant,
+                "example.com",
+                "web",
+                "tester",
+                "{}",
+                "completed",
+                "clean",
+                1234567890.0,
             )
 
             # Query as org admin - should see member's job

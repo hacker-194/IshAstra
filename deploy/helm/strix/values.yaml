@@ -27,7 +27,7 @@ global:
 # ============================================================================
 api:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   # Strategy for rolling updates
   updateStrategy:
     type: RollingUpdate
@@ -194,7 +194,7 @@ api:
     minAvailable: 1
   # Horizontal Pod Autoscaler
   hpa:
-    enabled: true
+    enabled: false  # SQLite backs one pod; enable with postgresql.enabled
     minReplicas: 2
     maxReplicas: 10
     behavior:
@@ -731,6 +731,8 @@ secrets:
   enabled: true
   # These should be populated via External Secrets Operator, Vault Agent, or manual creation
   # Values below are placeholders - REPLACE IN PRODUCTION
+  # With createSecrets: false, the operator-supplied secret must also carry
+  # `database-url` alongside `postgresql-password` when postgresql.enabled.
   createSecrets: true
   strixSecrets:
     # Bootstrap admin API key (16+ chars, no placeholders)

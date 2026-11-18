@@ -312,3 +312,7 @@ monitoring:
 #           - path: "/spec/replicas"
 #             operator: "replace"
 #             value: "10"  # Burst capacity
+
+# SQLite cannot back three API replicas; the bundled database keeps the set valid.
+postgresql:
+  enabled: true

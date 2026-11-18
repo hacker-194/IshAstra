@@ -201,6 +201,11 @@ seccompProfiles:
 # API Configuration for K8s Jobs Mode
 # ============================================================================
 api:
+  # One API pod on SQLite unless you point STRIX_DATABASE_URL at PostgreSQL;
+  # Job pods cannot share a SQLite file with the API.
+  replicaCount: 1
+  hpa:
+    enabled: false
   env:
     STRIX_QUEUE_MODE: "k8s-jobs"
     STRIX_K8S_NAMESPACE: "strix-assessments"

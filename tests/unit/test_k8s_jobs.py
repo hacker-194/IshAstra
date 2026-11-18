@@ -43,3 +43,28 @@ def test_job_manifest_carries_the_authorized_scope():
     carried = json.loads(env["STRIX_SCOPE_JSON"])
     assert carried["allowed_ports"] == [8080]
     assert carried["authorized_networks"] == ["127.0.0.0/8"]
+
+
+class _StubNetworking:
+    def __init__(self) -> None:
+        self.body = None
+
+    def create_namespaced_network_policy(self, namespace: str, body) -> None:  # noqa: ANN001
+        self.body = body
+
+
+def test_network_policy_is_collected_with_its_job():
+    """Without an ownerReference, one NetworkPolicy leaks per assessment."""
+    import asyncio
+
+    scope = Scope(program="p", authorized_by="a", authorization_ref="r", include=["127.0.0.1"])
+    job = jobs.prepare(target="http://127.0.0.1:8080", profile="web", actor="t", scope_snapshot=scope)
+    queue = K8sAssessmentQueue.__new__(K8sAssessmentQueue)
+    queue.config = K8sJobConfig(image="strix:test")
+    queue.networking_v1 = _StubNetworking()
+
+    asyncio.run(queue._create_network_policy(job, "strix-assess-test", owner_uid="uid-123"))
+
+    refs = queue.networking_v1.body.metadata.owner_references
+    assert refs, "network policy has no owner, so nothing deletes it"
+    assert (refs[0].kind, refs[0].uid, refs[0].name) == ("Job", "uid-123", "strix-assess-test")

@@ -1,3 +1,4 @@
+{{- include "strix.validateDatabase" . -}}
 {{- if .Values.api.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -64,6 +65,13 @@ spec:
           imagePullPolicy: {{ .Values.global.image.pullPolicy }}
           env:
             {{- include "strix.env" . | nindent 12 }}
+            {{- if and .Values.postgresql.enabled (not (index .Values.api.env "STRIX_DATABASE_URL")) }}
+            - name: STRIX_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "strix.fullname" . }}-postgresql-secret
+                  key: database-url
+            {{- end }}
           envFrom:
             {{- include "strix.envFromSecrets" . | nindent 12 }}
           ports:

@@ -954,3 +954,20 @@ Default seccomp profile (baseline for all scanners)
   ]
 }
 {{- end }}
+{{/*
+SQLite is single-writer. Refuse to render more than one API pod on it: that is
+how two pods end up with two different databases and half the state disappears.
+*/}}
+{{- define "strix.validateDatabase" -}}
+{{- $env := .Values.api.env | default dict -}}
+{{- $url := toString (index $env "STRIX_DATABASE_URL" | default "") -}}
+{{- $postgres := or .Values.postgresql.enabled (hasPrefix "postgres" $url) -}}
+{{- $replicas := int (.Values.api.replicaCount | default 1) -}}
+{{- if .Values.api.hpa.enabled -}}
+{{- $replicas = max $replicas (int (.Values.api.hpa.minReplicas | default 1)) -}}
+{{- end -}}
+{{- $allow := get (default dict .Values.database) "allowSqliteMultiReplica" | default false -}}
+{{- if and (not $postgres) (not $allow) (gt $replicas 1) -}}
+{{- fail (printf "SQLite backs one API pod, but this render asks for %d. Enable postgresql.enabled (or set api.env.STRIX_DATABASE_URL to a postgres:// URL), or pin api.replicaCount: 1 and api.hpa.enabled: false." $replicas) -}}
+{{- end -}}
+{{- end -}}

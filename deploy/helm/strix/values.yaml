@@ -129,7 +129,6 @@ api:
     STRIX_SCOPE_FILE: "/etc/strix/scope.json"
     STRIX_DB: "/var/lib/strix/strix.db"
     STRIX_REDIS_URL: "redis://redis-master:6379/0"
-    STRIX_REDIS_REQUIRED: "1"
     STRIX_WORKERS: "1"
     STRIX_QUEUE_MODE: "inprocess"
     STRIX_SCOPE_MODE: "auto"
@@ -149,7 +148,6 @@ api:
   # Sensitive environment variables (populated from secrets)
   envFromSecrets:
     - name: strix-secrets
-      prefix: STRIX_
   # Volume mounts
   volumes:
     - name: strix-data
@@ -292,7 +290,6 @@ scheduler:
     STRIX_SCOPE_FILE: "/etc/strix/scope.json"
     STRIX_DB: "/var/lib/strix/strix.db"
     STRIX_REDIS_URL: "redis://redis-master:6379/0"
-    STRIX_REDIS_REQUIRED: "1"
     STRIX_WORKERS: "1"
     STRIX_QUEUE_MODE: "inprocess"
     STRIX_SCOPE_MODE: "auto"
@@ -310,7 +307,6 @@ scheduler:
     STRIX_SCHEDULER_JOB_TIMEOUT: "300"
   envFromSecrets:
     - name: strix-secrets
-      prefix: STRIX_
   volumes:
     - name: strix-data
       persistentVolumeClaim:
@@ -434,7 +430,6 @@ worker:
   env:
     STRIX_DB: "/var/lib/strix/strix.db"
     STRIX_REDIS_URL: "redis://redis-master:6379/0"
-    STRIX_REDIS_REQUIRED: "1"
     STRIX_QUEUE_MODE: "inprocess"
     STRIX_SCOPE_FILE: "/etc/strix/scope.json"
     STRIX_LOG_FORMAT: "json"
@@ -443,7 +438,6 @@ worker:
     PYTHONDONTWRITEBYTECODE: "1"
   envFromSecrets:
     - name: strix-secrets
-      prefix: STRIX_
   volumes:
     - name: strix-data
       persistentVolumeClaim:
@@ -543,8 +537,9 @@ redis:
       failureThreshold: 6
   metrics:
     enabled: true
+    # Requires the Prometheus Operator CRDs; opt in when they exist
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 30s
       namespace: monitoring
   networkPolicy:
@@ -598,8 +593,9 @@ postgresql:
       failureThreshold: 6
   metrics:
     enabled: true
+    # Requires the Prometheus Operator CRDs; opt in when they exist
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 30s
       namespace: monitoring
   networkPolicy:

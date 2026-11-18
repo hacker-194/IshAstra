@@ -1430,7 +1430,8 @@ class PostgreSQLDatabase(Database):
         pool = await self._ensure_pool()
         async with pool.acquire() as conn, conn.transaction():
             metrics.observe_db_acquire("postgres", time.monotonic() - acquire_started)
-            metrics.record_db_pool("postgres", pool.get_size(), pool.get_idle())
+            idle = getattr(pool, "get_idle_size", lambda: 0)()
+            metrics.record_db_pool("postgres", pool.get_size(), idle)
             yield conn
 
     def transaction_with_tenant(

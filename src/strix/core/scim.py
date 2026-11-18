@@ -463,12 +463,11 @@ class SCIMStore:
                         strix_user["display_name"] = formatted
 
             elif op_type == "add" and path == "groups" and isinstance(value, list):
-                # Group membership additions are not implemented yet
-                pass
+                await self._apply_group_membership(user_id, value, tenant_id, scim_token, add=True)
 
             elif op_type == "remove" and path == "groups":
-                # Group membership removals are not implemented yet
-                pass
+                refs = value if isinstance(value, list) else []
+                await self._apply_group_membership(user_id, refs, tenant_id, scim_token, add=False)
 
         # Save updates
         await store.save_tenant_user(
@@ -489,6 +488,44 @@ class SCIMStore:
         if updated is None:
             raise ValueError(f"User {user_id} not found after update")
         return updated
+
+    async def _apply_group_membership(
+        self,
+        user_id: str,
+        groups: list[Any],
+        tenant_id: str,
+        scim_token: str,
+        *,
+        add: bool,
+    ) -> None:
+        """Add or remove a user from the groups named in a user PATCH.
+
+        RFC 7644 lets an IdP express membership from the user side as well as
+        from the group side; both must land in the same group mapping.
+        """
+        for ref in groups:
+            group_ref = str(
+                (ref.get("value") or ref.get("display")) if isinstance(ref, dict) else ref or ""
+            ).strip()
+            if not group_ref:
+                continue
+
+            mapping = await self._get_group_mapping(group_ref, tenant_id, scim_token)
+            if mapping is None:
+                # Allow the IdP to reference a group by displayName.
+                for candidate in await self._get_group_mappings_by_tenant(tenant_id):
+                    if candidate.get("display_name") == group_ref:
+                        mapping = candidate
+                        group_ref = candidate["scim_id"]
+                        break
+            if mapping is None:
+                continue
+
+            members = [m for m in mapping.get("member_ids", []) if m != user_id]
+            if add:
+                members.append(user_id)
+            mapping["member_ids"] = members
+            await self._save_group_mapping(group_ref, mapping, tenant_id, mapping.get("org_id"), scim_token)
 
     async def delete_user(self, user_id: str, tenant_id: str, scim_token: str) -> bool:
         """Delete a SCIM user (deprovisions from Strix)."""

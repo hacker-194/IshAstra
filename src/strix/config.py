@@ -107,6 +107,15 @@ class Settings:
     audit_max_entries: int = 10_000
     audit_hmac_key: str = ""
     webhook_secret: str = ""  # HMAC key for alert webhook signatures
+    # Outbound email for organization invitations (SMTP, stdlib client).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    # Used to build acceptance links in outgoing mail.
+    public_base_url: str = ""
     # Encryption key for webhook secrets at rest (AES-GCM, 32 bytes base64).
     # If not set, webhook URLs are stored in plaintext (not recommended for production).
     encryption_key: str = ""
@@ -212,6 +221,13 @@ class Settings:
             # PostgreSQL wins when configured; otherwise the SQLite file path.
             db_path=database_url or os.environ.get("STRIX_DB", "strix.db"),
             api_key=api_key,
+            smtp_host=os.environ.get("STRIX_SMTP_HOST", "").strip(),
+            smtp_port=int(os.environ.get("STRIX_SMTP_PORT", "587") or 587),
+            smtp_username=os.environ.get("STRIX_SMTP_USERNAME", "").strip(),
+            smtp_password=_secret("STRIX_SMTP_PASSWORD", os.environ.get("STRIX_SMTP_PASSWORD", "")),
+            smtp_from=os.environ.get("STRIX_SMTP_FROM", "").strip(),
+            smtp_starttls=os.environ.get("STRIX_SMTP_STARTTLS", "1").strip().lower() in {"1", "true", "yes"},
+            public_base_url=os.environ.get("STRIX_PUBLIC_BASE_URL", "").strip().rstrip("/"),
             scope_mode=scope_mode,
             scope_jwks=os.environ.get("STRIX_SCOPE_JWKS", "").strip(),
             scope_max_age=_int("STRIX_SCOPE_MAX_AGE_SECONDS", 86_400),

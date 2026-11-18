@@ -29,11 +29,9 @@ documented limitations.
 | PostgreSQL schema and assessment run | Migration 18 applied; 20/20 jobs completed with 4 workers |
 | E2E tests (Playwright) | **10 critical path tests** covering auth → assessment → findings → SARIF export, tenant isolation, scope enforcement |
 
-Quality gates on this tree: `pytest tests/unit tests/security` passes, `mypy src`
-is clean (97 files), and `ruff check` / `ruff format --check` are clean on the
-files this work touches. `ruff check src` still reports 39 pre-existing findings
-(E501, B904, F841, SIM105) in `mssp.py`, `pricing.py`, `ha.py`, `k8s_queue.py`,
-`analyst.py` and `sandbox.py`, so the lint job is not green repo-wide.
+Quality gates on this tree: `pytest tests/unit tests/security` passes, and
+`ruff check src tests scripts` and `ruff format --check src tests scripts` are
+clean repo-wide (the 39 findings once listed here are fixed).
 Production-mode tests verify that
 missing bootstrap/audit secrets are fatal and that docs are disabled. CI is configured to run the same
 gates on `main`/`master`/`release/*` branches with helm-lint, kubeconform, and E2E validation.
@@ -352,3 +350,45 @@ code; the evidence for each claim is the file, endpoint or test named beside it.
   - 22 MSSP tests (tier limits, models, effective limits, status enums, constraints)
 
 **Note:** All scaffolding is MIT-licensed open-source. No payment processing is implemented — only the data models, API structure, and business logic for future premium features. Integration with billing providers (Stripe, etc.) would be added at commercialization time.
+
+### 2026-11-18 Update: verification pass against running artefacts
+
+Everything below was executed against the built image and a real PostgreSQL 16
+instance, not inferred from source.
+
+- **Image**: builds and boots as uid 10001 with a read-only root filesystem;
+  `/api/health` 200 (`"version":"3.5.0"`), `/api/ready` 200, `/api/metrics`
+  401 anonymous and 200 with the API key, zero tracebacks.
+- **Mutating routes were broken in the image**: `python-multipart` was never
+  declared, so CSRF form parsing raised `AssertionError` and *every* write
+  returned 500. It is now a pinned base dependency; verified `POST /api/v2/orgs`
+  → 200, invite without SMTP → 503, invalid role → 400, invalid token → 400.
+- **PostgreSQL RLS suite now passes (15 tests)**. It builds the schema through
+  the application's own migration chain and connects as a non-superuser role,
+  because a superuser bypasses row-level security entirely — the previous suite
+  could not have proved isolation even if it had created the schema.
+- **RLS migration corrected**: the invalid `ALTER TABLE ... SET
+  (enable_rowsecurity = on)` block is gone, policies are dropped/recreated
+  idempotently, and global admins may bootstrap the first organization (the
+  membership table it checks cannot exist before that org does).
+- **MSSP tables on PostgreSQL**: previously only the SQLite chain created them;
+  the PostgreSQL chain now applies `MIGRATIONS_MSSP_PG`.
+- **Undeclared runtime imports fixed**: `croniter` (compliance router) and
+  `SQLAlchemy` (APScheduler's `SQLAlchemyJobStore`) were imported but never
+  declared; Celery now imports lazily because it ships only in an optional
+  extra.
+- **AI analyst is real**: an OpenAI-compatible chat-completions provider parses
+  JSON triage, drops priorities for fingerprints that do not exist, and
+  degrades to `ai_enriched: false` instead of failing a request.
+- **Organization invitations are real**: signed 7-day tokens plus SMTP
+  delivery, and `POST /api/v2/orgs/invitations/accept` creates the membership
+  (was a 501).
+- **SCIM user PATCH `groups`** add/remove is implemented, by group id or
+  displayName.
+- **Gates**: `ruff check` and `ruff format --check` clean over
+  `src tests scripts`; 1560 tests pass with the PostgreSQL suite included
+  (70 skipped, all environment-gated).
+
+Still open: the `migrations/alembic/` tree duplicates the runtime schema chain
+and is not authoritative (it also lacks the MSSP tables); multi-node HA and a
+representative soak on deployment hardware remain untested.

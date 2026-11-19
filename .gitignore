@@ -64,3 +64,4 @@ prod-secrets/
 security-reports/
 site/
 kubeseal
+detection-benchmark-results.json

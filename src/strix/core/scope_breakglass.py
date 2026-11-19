@@ -366,6 +366,7 @@ def revoke_break_glass_scope(
     valid, msg, meta = verify_break_glass_scope(document, jwks)
     if not valid:
         raise BreakGlassError(f"cannot revoke invalid break-glass document: {msg}")
+    meta = meta or {}
 
     # Add revocation metadata
     metadata = dict(document.get("metadata") or {})

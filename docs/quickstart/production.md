@@ -255,7 +255,7 @@ EOF
 
 ### Grafana Dashboards
 
-Import from `monitoring/grafana/dashboards/`:
+Import from `deploy/monitoring/grafana/dashboards/`:
 - Strix Overview
 - Scope Gate Performance
 - Assessment Pipeline

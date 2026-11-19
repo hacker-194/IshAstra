@@ -472,7 +472,7 @@ tlc -config JudgeAddresses.cfg JudgeAddresses.tla
 
 ### Grafana Dashboard
 
-Import `monitoring/grafana/dashboards/scope-gate.json` for:
+Import `deploy/monitoring/grafana/dashboards/scope-gate.json` for:
 - Check rate by layer/decision
 - Latency percentiles (p50, p95, p99)
 - Denial reasons breakdown

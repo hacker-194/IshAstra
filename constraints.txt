@@ -32,6 +32,7 @@ prometheus-client==0.25.0
 
 # Test and development
 pytest==9.1.1
+pytest-cov==7.1.0
 pytest-asyncio==1.4.1
 ruff==0.17.2
 mypy==2.4.0

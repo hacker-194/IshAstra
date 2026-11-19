@@ -208,7 +208,7 @@ limitations under the License.
 ## Strix Copyright
 
 ```
-Copyright 2022-2024 Strix Security, Inc.
+Copyright 2026 Strix Security, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -235,27 +235,21 @@ Strix includes components from the following projects. Licenses are included in 
 |---------|---------|--------|
 | FastAPI | MIT | https://github.com/fastapi/fastapi |
 | Pydantic | MIT | https://github.com/pydantic/pydantic |
+| Uvicorn | BSD-3-Clause | https://github.com/encode/uvicorn |
 | SQLAlchemy | MIT | https://github.com/sqlalchemy/sqlalchemy |
-| Celery | BSD-3-Clause | https://github.com/celery/celery |
+| aiosqlite | MIT | https://github.com/omnilib/aiosqlite |
 | Redis-py | MIT | https://github.com/redis/redis-py |
 | httpx | BSD-3-Clause | https://github.com/encode/httpx |
-| pydantic-settings | MIT | https://github.com/pydantic/pydantic-settings |
-| python-jose | MIT | https://github.com/mpdavis/python-jose |
 | cryptography | Apache-2.0/BSD | https://github.com/pyca/cryptography |
 | prometheus-client | Apache-2.0 | https://github.com/prometheus/client_python |
-| structlog | Apache-2.0/MIT | https://github.com/hynek/structlog |
-
-### Rust Dependencies
-
-| Package | License | Source |
-|---------|---------|--------|
-| tokio | MIT | https://github.com/tokio-rs/tokio |
-| serde | MIT/Apache-2.0 | https://github.com/serde-rs/serde |
-| reqwest | MIT/Apache-2.0 | https://github.com/seanmonstar/reqwest |
-| ed25519-dalek | MIT/Apache-2.0 | https://github.com/dalek-cryptography/ed25519-dalek |
-| ring | MIT/Apache-2.0/ISC | https://github.com/briansmith/ring |
-| tracing | MIT | https://github.com/tokio-rs/tracing |
-| clap | MIT/Apache-2.0 | https://github.com/clap-rs/clap |
+| APScheduler | MIT | https://github.com/agronholm/apscheduler |
+| python3-saml | MIT | https://github.com/SAML-Toolkits/python3-saml |
+| PyJWT | MIT | https://github.com/jpadilla/pyjwt |
+| jsonschema | MIT | https://github.com/python-jsonschema/jsonschema |
+| WeasyPrint | BSD-3-Clause | https://github.com/Kozea/WeasyPrint |
+| defusedxml | PSF-2.0 | https://github.com/tiran/defusedxml |
+| python-multipart | Apache-2.0 | https://github.com/Kludex/python-multipart |
+| croniter | MIT | https://github.com/pallets-eco/croniter |
 
 ### Infrastructure
 
@@ -274,12 +268,11 @@ Strix includes components from the following projects. Licenses are included in 
 | Tool | License | Source |
 |------|---------|--------|
 | pytest | MIT | https://github.com/pytest-dev/pytest |
+| pytest-cov | MIT | https://github.com/pytest-dev/pytest-cov |
+| hypothesis | MPL-2.0 | https://github.com/HypothesisWorks/hypothesis |
 | ruff | MIT | https://github.com/astral-sh/ruff |
-| black | MIT | https://github.com/psf/black |
 | mypy | MIT | https://github.com/mypyc/mypy |
-| cargo | Apache-2.0/MIT | https://github.com/rust-lang/cargo |
-| clippy | Apache-2.0/MIT | https://github.com/rust-lang/rust-clippy |
-| rustfmt | Apache-2.0/MIT | https://github.com/rust-lang/rustfmt |
+| mutmut | BSD-3-Clause | https://github.com/boxed/mutmut |
 
 ---
 
@@ -309,12 +302,7 @@ All source files should include this header:
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2022-2024 Strix Security, Inc.
-```
-
-```rust
-// SPDX-License-Identifier: Apache-2.0
-// Copyright 2022-2024 Strix Security, Inc.
+# Copyright 2026 Strix Security, Inc.
 ```
 
 ---

@@ -15,10 +15,11 @@ global:
     app.kubernetes.io/component: security-assessment
   podSecurityStandard: restricted
 
-# API Deployment - 2 replicas, moderate resources
+# API Deployment - single writer, moderate resources
 api:
   enabled: true
-  replicaCount: 2
+  # Single writer; see docs/quickstart/production.md.
+  replicaCount: 1
   resources:
     limits:
       cpu: "2000m"
@@ -27,9 +28,10 @@ api:
       cpu: "500m"
       memory: "1Gi"
   hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
+    # Autoscaling would start a second writer; there is no distributed queue.
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
   ingress:
     enabled: true
     className: "nginx"

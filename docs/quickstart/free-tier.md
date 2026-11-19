@@ -123,6 +123,6 @@ When you outgrow free limits:
 1. Upgrade Neon/Upstash to paid plans
 2. Add Oracle worker nodes
 3. Switch to `values-prod.yaml` Helm config
-4. Enable horizontal pod autoscaling
+4. Scale vertically (one writer per database; autoscaling is not supported)
 
 See [Kubernetes Deployment](../deployment/kubernetes.md) or [Helm Deployment](../deployment/helm.md).

@@ -473,7 +473,7 @@ data:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `strix_scheduler_leader_election_total` | Counter | Leader elections |
+| `strix_jobs_total` | Counter | Job state transitions |
 | `strix_scheduler_leader_election_failures_total` | Counter | Failed elections |
 | `strix_scheduler_jobs_triggered_total` | Counter | Cron jobs triggered |
 

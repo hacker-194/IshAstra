@@ -35,6 +35,7 @@ coverage.xml
 htmlcov/
 .mypy_cache/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 *.pyc
 __pycache__/

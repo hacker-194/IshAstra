@@ -4,6 +4,10 @@
 
 Run Strix for $0/month using Oracle Cloud Free Tier, Neon, Upstash, Cloudflare, and GHCR.
 
+> **Scaling warning:** the free-tier stack is still single-writer. One API/worker
+> replica per database; do not enable HPA or add replicas. See
+> [Production deployment](../quickstart/production.md).
+
 ## Architecture
 
 ```

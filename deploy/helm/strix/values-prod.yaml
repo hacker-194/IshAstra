@@ -16,11 +16,10 @@ global:
   podSecurityStandard: restricted
   priorityClassName: "system-cluster-critical"
 
-# HA Configuration
+# Compatibility block: there is no HA implementation. The worker lease allows
+# one process per database, so these values are inert and must not be relied on.
 ha:
-  enabled: true
-  # Leader election uses PostgreSQL advisory locks
-  # Requires PostgreSQL backend (not SQLite)
+  enabled: false
   leaderElection:
     lockName: "strix_leader_election"
     ttlSeconds: 30
@@ -35,8 +34,9 @@ api:
   enabled: true
   pdb:
     enabled: true
-    minAvailable: 2
-  replicaCount: 3
+    minAvailable: 1
+  # Single writer: see docs/quickstart/production.md before raising this.
+  replicaCount: 1
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -100,9 +100,10 @@ api:
     - name: tmp
       emptyDir: {}
   hpa:
-    enabled: true
-    minReplicas: 3
-    maxReplicas: 20
+    # Disabled: a second API/worker process cannot share the database lease.
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
     behavior:
       scaleDown:
         stabilizationWindowSeconds: 300
@@ -211,7 +212,8 @@ scheduler:
   pdb:
     enabled: true
     minAvailable: 1
-  replicaCount: 2
+  # One scheduler: there is no leader election.
+  replicaCount: 1
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -263,9 +265,9 @@ scheduler:
     seccompProfile:
       type: RuntimeDefault
   hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 5
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
     metrics:
       - type: Resource
         resource:
@@ -297,8 +299,9 @@ worker:
   enabled: true
   pdb:
     enabled: true
-    minAvailable: 2
-  replicaCount: 4
+    minAvailable: 1
+  # One writer per database: see docs/quickstart/production.md.
+  replicaCount: 1
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -350,9 +353,9 @@ worker:
     seccompProfile:
       type: RuntimeDefault
   hpa:
-    enabled: true
-    minReplicas: 4
-    maxReplicas: 50
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
     behavior:
       scaleDown:
         stabilizationWindowSeconds: 600

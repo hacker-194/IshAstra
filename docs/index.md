@@ -26,8 +26,8 @@ Strix is a security assessment platform built on a **default-deny authorization 
 
 ### Multi-Tenancy
 - ContextVar-based isolation
-- Row-Level Security (PostgreSQL)
-- Partner/Organization/Tier hierarchy
+- Per-tenant API keys (hashed at rest)
+- Row-Level Security (PostgreSQL backend)
 
 ## Quick Links
 
@@ -36,7 +36,7 @@ Strix is a security assessment platform built on a **default-deny authorization 
 | [Quick Start Overview](quickstart/overview.md) | Get running in 5 minutes |
 | [Free Tier Deployment](quickstart/free-tier.md) | $0/month on Oracle Cloud |
 | [Local Development](quickstart/local-dev.md) | Docker Compose setup |
-| [Production Deployment](quickstart/production.md) | Kubernetes/Helm |
+| [Production Deployment](quickstart/production.md) | Supported topology and go-live checklist |
 
 ## Architecture
 
@@ -60,8 +60,8 @@ Strix is a security assessment platform built on a **default-deny authorization 
 │         ┌────────────────┼────────────────┐                   │
 │         ▼                ▼                ▼                   │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │ PostgreSQL  │  │   Redis     │  │  Object     │           │
-│  │ (RLS, pgv)  │  │  (Queue)    │  │  Store (S3) │           │
+│  │ PostgreSQL  │  │   Redis     │  │  Reports    │           │
+│  │ (RLS)       │  │  (limits)   │  │  (local)    │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘

@@ -2,19 +2,23 @@
 
 [![License](https://img.shields.io/github/license/strix/strix)](LICENSE)
 [![CI](https://github.com/strix/strix/actions/workflows/ci.yml/badge.svg)](https://github.com/strix/strix/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/strix/strix)](https://codecov.io/gh/strix/strix)
-[![Slack](https://img.shields.io/badge/Slack-Join-blue)](https://slack.strix.dev)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![Kubernetes](https://img.shields.io/badge/k8s-1.28+-blue)](https://kubernetes.io)
 
 > **The only security scanner that enforces authorization BEFORE every connection.**
+
+> **Project status:** pilot-grade for a single-tenant, single-host deployment.
+> The authorization core is TLA+-verified and CI-enforced; the platform has no
+> HA or multi-node story yet. Read
+> [Production deployment](docs/quickstart/production.md) before promising
+> uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
 
 ## Why Strix?
 
 | Feature | Strix | Nuclei | Trivy | OWASP ZAP | OpenVAS |
 |---------|-------|--------|-------|-----------|---------|
 | **Default-deny authorization** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Multi-tenant isolation** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **API-key tenant isolation** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Cryptographic audit chain** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **SARIF + compliance reports** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Runs Nuclei/nmap/SQLMap** | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -34,7 +38,7 @@ chmod +x scripts/bootstrap-free.sh
 ```
 
 **What you get:**
-- HA k0s cluster on Oracle Always Free (2x ARM 4OCPU/24GB)
+- 2-node k0s cluster on Oracle Always Free (2x ARM 4OCPU/24GB); add a third node for control-plane quorum
 - Neon PostgreSQL (serverless, 0.5GB free)
 - Upstash Redis (serverless, 256MB free)
 - Cloudflare Tunnel ingress (zero public IP, DDoS protection)
@@ -120,6 +124,7 @@ docker-compose up -d
 - [Scope Gate Deep Dive](docs/scope-gate/concepts.md)
 - [Adapter Development](docs/adapters/custom.md)
 - [Deployment Guide](DEPLOYMENT.md)
+- [Production Deployment & Readiness](docs/quickstart/production.md)
 - [Free-Tier Deployment](docs/deployment/free-tier.md)
 - [API Reference](docs/api/authentication.md)
 - [Compliance Mapping](docs/compliance/overview.md)
@@ -129,7 +134,7 @@ docker-compose up -d
 | Environment | Command | Cost |
 |-------------|---------|------|
 | **Free Tier (Oracle)** | `./scripts/bootstrap-free.sh` | $0/month |
-| **Production (EKS/GKE/AKS)** | `helm install -f values-prod.yaml` | Cloud costs |
+| **Single-host production** | systemd or Compose, one writer | Low |
 | **Local Dev** | `docker-compose up -d` | Free |
 | **Kind/Minikube** | `./scripts/bootstrap-kind.sh` | Free |
 
@@ -153,8 +158,7 @@ Apache-2.0 — see [LICENSE](LICENSE)
 
 ## Community
 
-- **Slack**: [slack.strix.dev](https://slack.strix.dev)
-- **Discord**: [discord.gg/strix](https://discord.gg/strix)
+- **Questions and ideas**: [GitHub Discussions](https://github.com/strix/strix/discussions)
 - **Issues**: [GitHub Issues](https://github.com/strix/strix/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/strix/strix/discussions)
 

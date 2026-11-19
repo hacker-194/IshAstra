@@ -54,9 +54,10 @@ api:
     enabled: true
     minAvailable: 1
   hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 10
+    # Single writer: this stays off even with PostgreSQL.
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
     metrics: []
 
 # Strix Scheduler

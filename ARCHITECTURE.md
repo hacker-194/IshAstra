@@ -44,8 +44,9 @@ Strix is an **authorized security assessment platform** that enforces authorizat
 ```
 
 The queue shown as in-process is the default: `STRIX_QUEUE_MODE` selects
-`inprocess`, `k8s-jobs` or `k8s-jobs`, so the worker box can be a thread pool in the
-API process or a separate deployment (see `docs/k8s-jobs-architecture.md`).
+`inprocess` (a thread pool inside the API process) or `k8s-jobs` (one
+Kubernetes Job per assessment, for fleet deployments) — see
+`docs/architecture/jobs.md`. These are the only two modes the code accepts.
 
 ## Core Components
 

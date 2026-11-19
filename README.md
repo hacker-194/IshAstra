@@ -115,14 +115,14 @@ docker-compose up -d
 
 ## Documentation
 
-- [Quick Start](docs/quickstart.md)
+- [Quick Start](docs/quickstart/overview.md)
 - [Architecture](ARCHITECTURE.md)
-- [Scope Gate Deep Dive](docs/scope-gate.md)
-- [Adapter Development](docs/adapters.md)
+- [Scope Gate Deep Dive](docs/scope-gate/concepts.md)
+- [Adapter Development](docs/adapters/custom.md)
 - [Deployment Guide](DEPLOYMENT.md)
-- [Free-Tier Deployment](docs/free-tier-deployment.md)
-- [API Reference](docs/api.md)
-- [Compliance Mapping](docs/compliance.md)
+- [Free-Tier Deployment](docs/deployment/free-tier.md)
+- [API Reference](docs/api/authentication.md)
+- [Compliance Mapping](docs/compliance/overview.md)
 
 ## Deployment Options
 
@@ -144,7 +144,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ## Security
 
 - [Security Policy](SECURITY.md) — vulnerability disclosure
-- [Penetration Test Report](docs/penetration-test-report.md)
+- [Security Review](docs/security-review.md)
 - [TLA+ Verification](docs/tla/)
 
 ## License

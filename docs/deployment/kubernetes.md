@@ -627,7 +627,7 @@ spec:
 
 ### Grafana Dashboards
 
-Import from `monitoring/grafana/dashboards/`:
+Import from `deploy/monitoring/grafana/dashboards/`:
 - `strix-overview.json` - Cluster overview
 - `strix-scope-gate.json` - Authorization metrics
 - `strix-assessments.json` - Assessment pipeline

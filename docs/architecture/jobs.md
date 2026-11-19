@@ -456,7 +456,7 @@ async def _update_metrics(self):
 
 ### Grafana Dashboard
 
-Import `monitoring/grafana/dashboards/job-orchestration.json`
+Import `deploy/monitoring/grafana/dashboards/job-orchestration.json`
 
 ---
 

@@ -254,7 +254,7 @@ spec:
 ### Import Dashboards
 
 ```bash
-# Import from monitoring/grafana/dashboards/
+# Import from deploy/monitoring/grafana/dashboards/
 # Dashboard IDs: 1860, 1861, 1862, 1863
 ```
 

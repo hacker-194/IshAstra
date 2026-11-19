@@ -10,7 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from strix.api.app import create_app
-from strix.api.dependencies import reset_settings
+from strix.api.deps import reset_settings
 from strix.api.security import api_keys
 from strix.core import scope, store
 from strix.core.scheduler import create_scheduler
@@ -31,9 +31,9 @@ async def app_with_db(temp_db, scope_file):
     # Manually run bootstrap (lifespan doesn't run until first request,
     # but auth needs keys loaded beforehand)
     from strix.api import app as app_module
-    from strix.api import dependencies as deps
+    from strix.api import deps
     from strix.api.app import _bootstrap_admin_key_async
-    from strix.api.dependencies import init_http_client
+    from strix.api.deps import init_http_client
     from strix.core import policies
 
     async def bootstrap():

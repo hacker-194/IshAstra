@@ -633,7 +633,7 @@ class TestSCIMAPIIntegration:
     @pytest_asyncio.fixture
     async def app(self, temp_db):
         """Create test app with SCIM router."""
-        from strix.api.dependencies import reset_settings
+        from strix.api.deps import reset_settings
         from strix.api.security import api_keys
         from strix.core import scope
 
@@ -678,9 +678,9 @@ class TestSCIMAPIIntegration:
 
         app = create_app()
 
-        from strix.api import dependencies as deps
+        from strix.api import deps
         from strix.api.app import _bootstrap_admin_key_async
-        from strix.api.dependencies import init_http_client
+        from strix.api.deps import init_http_client
         from strix.core import policies
         from strix.core.scheduler import create_scheduler
 

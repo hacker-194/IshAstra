@@ -109,7 +109,7 @@ class SensitiveRateLimitMiddleware(BaseHTTPMiddleware):
             allowed, limit, retry = await rate_limiter.bucket.allow(identifier, rate, per_seconds)
         except (TimeoutError, RedisConnectionError, RedisTimeoutError, RedisError) as exc:
             # Redis unavailable - fail closed for sensitive endpoints
-            from strix.api.dependencies import get_settings
+            from strix.api.deps import get_settings
 
             settings = get_settings()
             if settings.redis_required or settings.workers > 1:
@@ -132,7 +132,7 @@ class SensitiveRateLimitMiddleware(BaseHTTPMiddleware):
             )
             allowed, limit, retry = True, 0, 0
         except Exception as exc:
-            from strix.api.dependencies import get_settings
+            from strix.api.deps import get_settings
 
             settings = get_settings()
             if settings.redis_required or settings.workers > 1:

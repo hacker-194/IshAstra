@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
-from strix.api.dependencies import get_settings
+from strix.api.deps import get_settings
 from strix.api.security import api_keys
 from strix.config import Settings
 from strix.core.auth import generate_nonce, generate_pkce_pair, generate_state
@@ -201,6 +201,7 @@ async def validate_id_token(
         key,
         algorithms=["RS256"],
         audience=client_id,
+        issuer=provider.issuer,
         options={"verify_exp": True, "verify_iat": True, "verify_nbf": True},
     )
 

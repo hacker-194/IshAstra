@@ -6,13 +6,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from strix.api import dependencies as api_deps
+from strix.api import deps as api_deps
 from strix.api.csrf import validate_csrf_token
-from strix.api.dependencies import get_monitor
 from strix.api.deps import (
     Tenant,
     audit_async,
     check_target_or_raise,
+    get_monitor,
     require_admin,
     require_auth,
 )

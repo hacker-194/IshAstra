@@ -13,9 +13,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from strix import analyst
-from strix.api import dependencies as deps
+from strix.api import deps
 from strix.api.csrf import validate_csrf_token
-from strix.api.dependencies import settings as deps_settings
 from strix.api.deps import (
     Tenant,
     audit_async,
@@ -25,6 +24,7 @@ from strix.api.deps import (
     tenant_filter,
     tenant_scope_async,
 )
+from strix.api.deps import settings as deps_settings
 from strix.api.schemas import (
     AssessRequest,
     AssessResponse,

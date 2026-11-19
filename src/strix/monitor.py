@@ -172,7 +172,7 @@ class WebhookAlertSink(AlertSink):
         last: Exception | None = None
         for attempt in range(1, DELIVERY_ATTEMPTS + 1):
             try:
-                from strix.api.dependencies import get_http_client
+                from strix.api.deps import get_http_client
 
                 client = await get_http_client()
                 await self._post_async(client, body)

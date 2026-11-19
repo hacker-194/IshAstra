@@ -11,9 +11,8 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
   process pointed at the same database refuses to start rather than
   double-running jobs. SQLite (WAL) is the supported pilot backend. PostgreSQL
   is an advanced backend: tested single-host with audit chain integrity,
-  SIGTERM handling, and load soak (10+ jobs). Celery + Redis is opt-in experimental:
-  single-host horizontal scaling works (tested 10 jobs), but no HA, multi-node
-  scheduling or production support commitment.
+  SIGTERM handling, and load soak (10+ jobs); the worker remains in-process,
+  so there is no HA, multi-node scheduling or production support commitment.
 - Optional binaries widen coverage: `nmap` (network profile; the image installs
   it), `nuclei` (web-deep exposure templates). A missing tool is reported as
   unavailable coverage by the job — it is never reported as a clean result.
@@ -251,8 +250,8 @@ Strix is deliberately single-writer per database:
    failed at startup, never resumed silently.
 4. **Redis** backs rate limiting and is required by the compose stack so limits
    survive a process restart/database reset. The default job queue is in-process;
-   `STRIX_QUEUE_MODE=celery` uses Redis as a distributed broker and has durable
-   cancellation, but is experimental and not an HA queue.
+   `STRIX_QUEUE_MODE=k8s-jobs` runs one Kubernetes Job per assessment and is
+   experimental, not an HA queue.
 5. **Health checks:** `/api/health` and `/api/ready` are unauthenticated;
    `/api/monitor/status` and `/api/metrics` require the admin key. Probe
    `/api/ready` from the load balancer/proxy.
@@ -262,14 +261,13 @@ Strix is deliberately single-writer per database:
 7. **PostgreSQL** is an advanced backend (tested single-host, no HA). The worker
    uses loop-aware asyncpg pools. Validated: schema migrations (v1-v20),
    SIGTERM soak test (no stale lock, audit chain intact, API verify passes),
-   assessment load test (10 jobs, 0 failed), Celery queue integration
-   (10 jobs distributed across Celery workers). No HA, multi-node migration,
+   assessment load test (10 jobs, 0 failed). No HA, multi-node migration,
    or supported failover; use SQLite for a pilot unless you accept and test
    the single-host limitation.
 
 ## 11. Nepal launch readiness
 
-See [`docs/nepal-launch-readiness.md`](docs/nepal-launch-readiness.md) for the
+See [`docs/.archive/nepal-launch-readiness.md`](docs/.archive/nepal-launch-readiness.md) for the
 in-country deployment profile, NRB/NTA/NCSP evidence mapping, and the
 legal/business prerequisites that are outside this repository's control.
 

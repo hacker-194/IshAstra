@@ -47,7 +47,7 @@ Strix is a security assessment platform built on a **default-deny authorization 
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌────────────────────────┐  │
 │  │   API       │  │  Worker     │  │  Scheduler             │  │
-│  │  (FastAPI)  │  │  (Celery)   │  │  (APScheduler)         │  │
+│  │  (FastAPI)  │  │  (inproc)   │  │  (APScheduler)         │  │
 │  └──────┬──────┘  └──────┬──────┘  └───────────┬────────────┘  │
 │         │                │                     │               │
 │         └────────────────┼─────────────────────┘               │

@@ -49,6 +49,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Refuse tracked secrets and runtime state
+        # The repository ships .env.*.example templates and a SQLite-free test
+        # suite, so anything matching these patterns is an accident. Failing
+        # here keeps credentials and database files out of the object store.
+        run: |
+          set -euo pipefail
+          offenders=$(git ls-files | grep -Ei '(^|/)\.env($|\.)|(^|/)(prod-secrets|security-reports)/|\.(db|db-wal|db-shm|sqlite|sqlite3)$|\.(pem|key)$|(^|/)kubeseal$' | grep -v '\.example$' || true)
+          if [ -n "$offenders" ]; then
+            echo "::error::Tracked secrets or runtime state must not be committed:"
+            echo "$offenders"
+            exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}

@@ -15,7 +15,7 @@ global:
 # Strix API
 api:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
@@ -87,7 +87,7 @@ scheduler:
 # Celery Workers
 worker:
   enabled: false
-  replicaCount: 2
+  replicaCount: 1
   updateStrategy:
     type: RollingUpdate
   resources: {}

@@ -1,7 +1,7 @@
 """Pricing tier models and feature flags for future premium launch.
 
 This module provides the data models and business logic for Strix pricing tiers.
-All features remain MIT-licensed and open-source. No payment processing — just
+All features remain Apache-2.0-licensed and open-source. No payment processing — just
 the data models and API structure for future premium features.
 
 Tiers:

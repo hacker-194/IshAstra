@@ -5,7 +5,7 @@ Maps Strix findings to NRB banking cybersecurity directives:
 - Directive 8/075: Cyber Resilience Framework
 - Directive 11/076: Digital Banking Security
 
-All mappings are MIT-licensed and open for audit.
+All mappings are Apache-2.0-licensed and open for audit.
 """
 
 from __future__ import annotations

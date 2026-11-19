@@ -33,17 +33,17 @@ api:
     requests:
       cpu: "100m"
       memory: "128Mi"
-  autoscaling:
+  hpa:
+    # Single writer per database.
     enabled: false
   ingress:
     enabled: false
   service:
     type: ClusterIP
+  # The chart renders api.env as a map, not a list of name/value pairs.
   env:
-    - name: STRIX_WORKERS
-      value: "2"
-    - name: STRIX_SKIP_REDIS_INIT
-      value: "false"
+    STRIX_WORKERS: "2"
+    STRIX_SKIP_REDIS_INIT: "false"
 
 scheduler:
   replicaCount: 1

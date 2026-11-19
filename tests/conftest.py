@@ -42,6 +42,19 @@ def pytest_sessionfinish() -> None:
         asyncio.run(store.close_db_pool())
 
 
+@pytest_asyncio.fixture(autouse=True, scope="function")
+async def reset_store_per_test():
+    """Reset the database store between each test to prevent connection leaks."""
+    from strix.core import store
+    from strix.core.store import _database
+
+    yield
+    # Close the database pool to prevent cross-test contamination
+    await store.close_database()
+    if _database is not None and hasattr(_database, "discard_sync"):
+        _database.discard_sync()
+
+
 # Integration test targets (can be overridden via env vars)
 HTTPBIN_URL = os.environ.get("STRIX_HTTPBIN_URL", "https://httpbin.org")
 JUICE_SHOP_URL = os.environ.get("STRIX_JUICE_SHOP_URL", "http://localhost:3000")

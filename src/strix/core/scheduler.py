@@ -324,8 +324,8 @@ class Scheduler:
                 data["next_run"],
                 data["run_count"],
                 data["max_concurrent"],
-                int(data["catch_up"]),
-                int(data["enabled"]),
+                data["catch_up"],
+                data["enabled"],
             )
 
     async def _delete_schedule(self, schedule_id: str) -> None:

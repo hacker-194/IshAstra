@@ -64,6 +64,10 @@ services:
       - STRIX_SCOPE_DIR=/etc/strix/scopes
       - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
       - STRIX_SCOPE_MAX_AGE_SECONDS=86400
+      - STRIX_OIDC_ISSUER=${STRIX_OIDC_ISSUER:-}
+      - STRIX_OIDC_CLIENT_ID=${STRIX_OIDC_CLIENT_ID:-}
+      - STRIX_OIDC_CLIENT_SECRET=${STRIX_OIDC_CLIENT_SECRET:-}
+      - STRIX_OIDC_REDIRECT_URI=${STRIX_OIDC_REDIRECT_URI:-}
       - STRIX_LOG_LEVEL=DEBUG
       - STRIX_METRICS_ENABLED=true
       - STRIX_OTEL_ENABLED=false
@@ -206,6 +210,31 @@ services:
     networks:
       - strix-network
 
+  # =============================================================================
+  # Optional local OIDC/SAML identity provider
+  # =============================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    container_name: strix-keycloak
+    profiles: ["sso"]
+    command: ["start-dev", "--http-port=8180", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-only-change-me}
+      KC_HOSTNAME: keycloak.localhost
+      KC_HOSTNAME_PORT: 8180
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      strix-network:
+        aliases:
+          - keycloak.localhost
+
 # =============================================================================
 # Networks
 # =============================================================================
@@ -225,3 +254,4 @@ volumes:
   prometheus_data:
   grafana_data:
   jaeger_data:
+  keycloak_data:

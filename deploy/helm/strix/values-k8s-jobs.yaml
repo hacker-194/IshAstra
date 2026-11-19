@@ -14,6 +14,7 @@ k8sJobs:
 
   # Kubernetes namespace for Jobs
   namespace: "strix-assessments"
+  createNamespace: true
 
   # Container image for assessment jobs
   image: ""  # defaults to global.image.repository:global.image.tag
@@ -22,10 +23,10 @@ k8sJobs:
   serviceAccount: "strix"
 
   # Runtime class for sandbox isolation (gvisor, kata, or "" for runc)
-  runtimeClassName: "gvisor"
+  runtimeClassName: ""  # set to gvisor when a gVisor RuntimeClass exists
 
   # Priority class for spot/preemptible instances
-  priorityClassName: "strix-spot-priority"
+  priorityClassName: ""  # set when the PriorityClass is installed
 
   # Job cleanup
   ttlSecondsAfterFinished: 3600  # 1 hour
@@ -200,6 +201,10 @@ seccompProfiles:
 # ============================================================================
 # API Configuration for K8s Jobs Mode
 # ============================================================================
+# Job pods cannot share the API's SQLite file, so this mode requires PostgreSQL.
+postgresql:
+  enabled: true
+
 api:
   # One API pod on SQLite unless you point STRIX_DATABASE_URL at PostgreSQL;
   # Job pods cannot share a SQLite file with the API.

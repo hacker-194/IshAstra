@@ -1,22 +1,57 @@
-## What changed
+# GitHub PR Template
+# Supersedes: No previous PR template existed
+# Linked from: GitHub UI when creating new PR
+# User instruction: "update all"
 
-<!-- One or two sentences. Link the issue this closes, if any. -->
+## Description
 
-## Why
+<!-- Describe your changes -->
 
-<!-- The user-visible or security reason for the change. -->
+## Type of Change
 
-## Verification
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+- [ ] Refactoring
+- [ ] Performance improvement
+- [ ] Test improvement
+- [ ] CI/CD change
 
-<!-- Commands you ran and their results. Do not claim checks you did not run. -->
+## Component(s) Affected
 
-- [ ] `ruff check src/`
-- [ ] `mypy`
-- [ ] `pytest`
-- [ ] Documentation updated for behavior or configuration changes
+- [ ] Scope Gate (`src/strix/core/scope.py`)
+- [ ] API (`src/strix/api/`)
+- [ ] Adapters (`src/strix/core/adapters.py`)
+- [ ] Workers (`src/strix/core/worker.py`)
+- [ ] Scheduler (`src/strix/core/scheduler.py`)
+- [ ] CLI (`src/strix/cli.py`)
+- [ ] Helm Chart (`deploy/helm/strix/`)
+- [ ] Documentation (`docs/`)
+- [ ] Tests (`tests/`)
+- [ ] Other: _____
 
-## Security review
+## Testing
 
-- [ ] The default-deny scope gate is still the only outbound authorization path.
-- [ ] Tenant isolation and audit/redaction boundaries are preserved.
-- [ ] No credentials, tokens, local databases or `.env` files are included.
+- [ ] Unit tests pass (`pytest tests/unit/`)
+- [ ] Integration tests pass (`pytest tests/integration/`)
+- [ ] Manual testing done (describe):
+- [ ] New tests added for changes
+
+## Checklist
+
+- [ ] Code follows project style (ruff, mypy pass)
+- [ ] Self-reviewed the code
+- [ ] Comments added for complex logic
+- [ ] Documentation updated if needed
+- [ ] No secrets or credentials committed
+- [ ] CHANGELOG.md updated (if user-facing)
+- [ ] Migration script added (if DB schema changed)
+
+## Screenshots/Logs (if applicable)
+
+<!-- Add screenshots or relevant logs -->
+
+## Related Issues
+
+Fixes #<!-- issue number -->

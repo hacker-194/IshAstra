@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: strix-api-ingress-ap-south
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/part-of: strix-platform
+    topology.kubernetes.io/region: ap-south
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: strix
+      app.kubernetes.io/component: api
+      topology.kubernetes.io/region: ap-south
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000

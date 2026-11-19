@@ -1,0 +1,41 @@
+# OpenSSF Scorecard Workflow
+# Process: GitHub Actions reads this YAML to run OpenSSF Scorecard supply chain security analysis
+# Effect: Scores project on security best practices (branch protection, CI, dependencies, etc.)
+# No secrets written in plain text
+# User instruction: "update all"
+
+name: Scorecard
+
+on:
+  push:
+    branches: [main, master, "release/*"]
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+jobs:
+  scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@v2.3.1
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+          category: scorecard

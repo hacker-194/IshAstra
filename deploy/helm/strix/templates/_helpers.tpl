@@ -28,6 +28,26 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "strix.appSecretName" -}}
+{{- if .Values.api.envFromSecrets }}
+{{- index (index .Values.api.envFromSecrets 0) "name" }}
+{{- else }}
+{{- printf "%s-secrets" (include "strix.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{- define "strix.redisSecretName" -}}
+{{- default (printf "%s-redis-secret" (include "strix.fullname" .)) .Values.redis.auth.existingSecret }}
+{{- end }}
+
+{{- define "strix.postgresqlSecretName" -}}
+{{- default (printf "%s-postgresql-secret" (include "strix.fullname" .)) .Values.postgresql.auth.existingSecret }}
+{{- end }}
+
+{{- define "strix.grafanaSecretName" -}}
+{{- default (printf "%s-grafana-secret" (include "strix.fullname" .)) .Values.monitoring.grafana.grafana.admin.existingSecret }}
+{{- end }}
+
 {{/*
 Common labels
 */}}
@@ -90,8 +110,10 @@ seccompProfile:
 Image pull secrets
 */}}
 {{- define "strix.imagePullSecrets" -}}
-{{- if .Values.imagePullSecrets }}
-{{- toYaml .Values.imagePullSecrets | nindent 8 }}
+{{- $pullSecrets := .Values.global.image.pullSecrets | default .Values.imagePullSecrets -}}
+{{- if $pullSecrets }}
+imagePullSecrets:
+{{- toYaml $pullSecrets | nindent 2 }}
 {{- end }}
 {{- end }}
 
@@ -312,7 +334,8 @@ volumes:
         path: {{ .path }}
       {{- end }}
     {{- end }}
-    {{- if .emptyDir }}
+    {{- if hasKey . "emptyDir" }}
+    {{- if or .emptyDir.medium .emptyDir.sizeLimit }}
     emptyDir:
       {{- if .emptyDir.medium }}
       medium: {{ .emptyDir.medium }}
@@ -320,6 +343,9 @@ volumes:
       {{- if .emptyDir.sizeLimit }}
       sizeLimit: {{ .emptyDir.sizeLimit }}
       {{- end }}
+    {{- else }}
+    emptyDir: {}
+    {{- end }}
     {{- end }}
 {{- end }}
 {{- end }}
@@ -346,7 +372,8 @@ volumes:
         path: {{ .path }}
       {{- end }}
     {{- end }}
-    {{- if .emptyDir }}
+    {{- if hasKey . "emptyDir" }}
+    {{- if or .emptyDir.medium .emptyDir.sizeLimit }}
     emptyDir:
       {{- if .emptyDir.medium }}
       medium: {{ .emptyDir.medium }}
@@ -354,6 +381,9 @@ volumes:
       {{- if .emptyDir.sizeLimit }}
       sizeLimit: {{ .emptyDir.sizeLimit }}
       {{- end }}
+    {{- else }}
+    emptyDir: {}
+    {{- end }}
     {{- end }}
 {{- end }}
 {{- end }}
@@ -380,7 +410,8 @@ volumes:
         path: {{ .path }}
       {{- end }}
     {{- end }}
-    {{- if .emptyDir }}
+    {{- if hasKey . "emptyDir" }}
+    {{- if or .emptyDir.medium .emptyDir.sizeLimit }}
     emptyDir:
       {{- if .emptyDir.medium }}
       medium: {{ .emptyDir.medium }}
@@ -388,6 +419,9 @@ volumes:
       {{- if .emptyDir.sizeLimit }}
       sizeLimit: {{ .emptyDir.sizeLimit }}
       {{- end }}
+    {{- else }}
+    emptyDir: {}
+    {{- end }}
     {{- end }}
 {{- end }}
 {{- end }}
@@ -397,7 +431,7 @@ volumes:
 Volume mounts
 */}}
 {{- define "strix.volumeMounts" -}}
-{{- if .Values.api.volumeMounts }}
+{{- if or .Values.api.volumeMounts .Values.scopeSigning.enabled }}
 volumeMounts:
 {{- range .Values.api.volumeMounts }}
   - name: {{ .name }}
@@ -408,6 +442,12 @@ volumeMounts:
     {{- if .readOnly }}
     readOnly: {{ .readOnly }}
     {{- end }}
+{{- end }}
+{{- if .Values.scopeSigning.enabled }}
+  - name: scope-signing-jwks
+    mountPath: /etc/strix/scope-signing
+    subPath: {{ .Values.scopeSigning.publicDirectory | quote }}
+    readOnly: true
 {{- end }}
 {{- end }}
 {{- end }}
@@ -969,5 +1009,26 @@ how two pods end up with two different databases and half the state disappears.
 {{- $allow := get (default dict .Values.database) "allowSqliteMultiReplica" | default false -}}
 {{- if and (not $postgres) (not $allow) (gt $replicas 1) -}}
 {{- fail (printf "SQLite backs one API pod, but this render asks for %d. Enable postgresql.enabled (or set api.env.STRIX_DATABASE_URL to a postgres:// URL), or pin api.replicaCount: 1 and api.hpa.enabled: false." $replicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Assessment Jobs run in their own pods and cannot read the API's SQLite file.
+*/}}
+{{- define "strix.validateK8sJobs" -}}
+{{- if and .Values.k8sJobs.enabled (not .Values.postgresql.enabled) -}}
+{{- fail "k8sJobs requires PostgreSQL: Job pods cannot share the API's SQLite file. Set postgresql.enabled=true (or run STRIX_QUEUE_MODE=inprocess)." -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Scope-key rotation needs durable, shared storage for the signer and verifier.
+*/}}
+{{- define "strix.validateScopeSigning" -}}
+{{- if and .Values.scopeSigning.enabled (not .Values.scopeSigning.existingClaim) -}}
+{{- fail "scopeSigning.enabled requires scopeSigning.existingClaim: provision a ReadWriteMany PVC and seed its public/scope-jwks.json with strix scope-keygen." -}}
+{{- end -}}
+{{- if and .Values.scopeSigning.rotation.enabled (not .Values.scopeSigning.enabled) -}}
+{{- fail "scopeSigning.rotation.enabled requires scopeSigning.enabled=true." -}}
 {{- end -}}
 {{- end -}}

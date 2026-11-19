@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strix-api
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: strix-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: strix
+      app.kubernetes.io/component: api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: strix
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: strix-platform
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/your-org/strix:3.5.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: STRIX_DB
+              value: /var/lib/strix/strix.db
+            - name: STRIX_SCOPE_FILE
+              value: /etc/strix/scope.json
+          envFrom:
+            - secretRef:
+                name: strix-secrets
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/strix
+            - name: config
+              mountPath: /etc/strix
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: strix-data-pvc
+        - name: config
+          configMap:
+            name: strix-config
+            items:
+              - key: scope.json
+                path: scope.json

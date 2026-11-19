@@ -15,6 +15,16 @@ spec:
     - name: strix.rules
       interval: 30s
       rules:
+        - record: strix_assessment_queue_pending
+          expr: sum(strix_queue_depth)
+
+        - record: strix_scope_gate_decision_latency_seconds_p95
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum(rate(strix_scope_gate_decision_duration_seconds_bucket[5m])) by (le)
+            )
+
         # Queue backlog alerts
         - alert: StrixQueueBacklogHigh
           expr: |

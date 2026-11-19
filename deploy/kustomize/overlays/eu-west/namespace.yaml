@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: strix-eu-west
+  labels:
+    app.kubernetes.io/part-of: strix-platform
+    topology.kubernetes.io/region: eu-west

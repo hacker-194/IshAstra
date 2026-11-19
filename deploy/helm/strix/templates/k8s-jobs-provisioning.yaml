@@ -1,0 +1,32 @@
+{{- if .Values.k8sJobs.enabled }}
+{{- if .Values.k8sJobs.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.k8sJobs.namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assessment-jobs
+---
+{{- end }}
+# Job pods run in their own namespace, so they need their own identity.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.k8sJobs.serviceAccount }}
+  namespace: {{ .Values.k8sJobs.namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+---
+# The Job manifest mounts this ConfigMap; a missing one blocks pod creation.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.k8sJobs.scopeConfigMapName | default "strix-scope" }}
+  namespace: {{ .Values.k8sJobs.namespace }}
+  labels:
+    {{- include "strix.labels" . | nindent 4 }}
+data:
+  {{ .Values.k8sJobs.scopeConfigMapKey | default "scope.json" }}: |
+    {{- (.Values.k8sJobs.scope | default dict) | toJson | nindent 4 }}
+{{- end }}

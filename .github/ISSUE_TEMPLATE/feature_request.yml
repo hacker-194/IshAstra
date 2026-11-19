@@ -1,32 +1,57 @@
-name: Feature request
-description: Propose a capability or workflow improvement.
-title: "feat: "
+# GitHub Issue Template: Feature Request
+# Process: GitHub Actions / GitHub UI reads this when user creates new issue
+# Effect: Pre-populates feature request form with structured fields
+# No secrets written in plain text
+# User instruction: "update all"
+
+name: Feature Request
+description: Suggest a new feature
+title: "[FEATURE]: "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: "Thanks for suggesting a feature! Please describe it below."
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What can you not do today, or what is unnecessarily difficult?
+      label: Problem Statement
+      description: What problem does this solve?
     validations:
       required: true
   - type: textarea
-    id: proposal
+    id: solution
     attributes:
-      label: Proposed behavior
-      description: Describe the outcome, not a full implementation.
+      label: Proposed Solution
+      description: How should it work?
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-    validations:
-      required: false
-  - type: checkboxes
-    id: boundaries
+      label: Alternatives Considered
+      description: Other approaches you've considered
+  - type: dropdown
+    id: component
     attributes:
-      label: Security boundaries
+      label: Component
       options:
-        - label: This request preserves default-deny authorization and tenant isolation.
+        - Scope Gate
+        - API
+        - Adapters
+        - Workers
+        - Scheduler
+        - CLI
+        - Helm Chart
+        - Documentation
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I've searched existing issues
+          required: true
+        - label: This aligns with Strix's authorization-first philosophy
           required: true

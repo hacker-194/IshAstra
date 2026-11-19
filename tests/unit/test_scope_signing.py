@@ -146,6 +146,54 @@ def test_jwks_file_named_by_environment_is_used(keypair, tmp_path, monkeypatch):
     assert parse_scope_document(_signed(DOC, key_path)).program == "Signed engagement"
 
 
+def test_key_rotation_keeps_old_keys_and_refreshes_file_backed_verification(tmp_path, monkeypatch):
+    old_pem, old_jwk = scope_signing.generate_keypair("kid-old")
+    old_path = _pem_file(tmp_path, "old.pem", old_pem)
+    jwks_path = tmp_path / "jwks.json"
+    jwks_path.write_text(json.dumps({"keys": [old_jwk]}))
+    monkeypatch.setenv("STRIX_SCOPE_JWKS", str(jwks_path))
+    configure_signing(None)
+    assert parse_scope_document(_signed(DOC, old_path, "kid-old")).program == "Signed engagement"
+
+    new_path = tmp_path / "new.pem"
+    new_jwk = scope_signing.rotate_keypair("kid-new", new_path, jwks_path)
+    assert new_path.stat().st_mode & 0o777 == 0o600
+    assert len(json.loads(jwks_path.read_text())["keys"]) == 2
+    assert parse_scope_document(_signed(DOC, new_path, "kid-new")).program == "Signed engagement"
+    assert parse_scope_document(_signed(DOC, old_path, "kid-old")).program == "Signed engagement"
+
+    with pytest.raises(ValueError, match="already contains kid"):
+        scope_signing.rotate_keypair("kid-new", tmp_path / "duplicate.pem", jwks_path)
+    assert not (tmp_path / "duplicate.pem").exists()
+    assert new_jwk["kid"] == "kid-new"
+
+
+def test_scope_key_rotate_cli(tmp_path):
+    from strix.cli import main
+
+    _, old_jwk = scope_signing.generate_keypair("kid-old")
+    jwks_path = tmp_path / "jwks.json"
+    jwks_path.write_text(json.dumps({"keys": [old_jwk]}))
+    new_path = tmp_path / "new.pem"
+
+    with pytest.raises(SystemExit) as result:
+        main(
+            [
+                "scope-key-rotate",
+                "--kid",
+                "kid-new",
+                "--key",
+                str(new_path),
+                "--jwks",
+                str(jwks_path),
+            ]
+        )
+
+    assert result.value.code == 0
+    assert new_path.stat().st_mode & 0o777 == 0o600
+    assert [entry["kid"] for entry in json.loads(jwks_path.read_text())["keys"]] == ["kid-old", "kid-new"]
+
+
 def test_field_order_does_not_matter(keypair):
     key_path, jwk = keypair
     configure_signing({"keys": [jwk]})

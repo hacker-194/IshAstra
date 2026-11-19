@@ -67,13 +67,13 @@
 
 ### Changed
 
-- The project is explicitly documented as **fully open source under MIT**: no
+- The project is explicitly documented as **fully open source under Apache-2.0**: no
   open-core split, paid edition, billing or feature gating. API tier names
   (`free`, `pro`, `enterprise`) are rate-limit profiles, not paid plans.
 - Live scanner integration tests are opt-in with `STRIX_LIVE_TOOL_TESTS=1`; nmap
   and Nuclei now scan a deterministic loopback lab, and CI installs nmap plus a
   pinned Nuclei v3.11.1 binary and official templates to run both for real.
-- PostgreSQL and Celery remain **opt-in experimental** deployment paths. They
+- PostgreSQL and the `k8s-jobs` queue remain **opt-in experimental** deployment paths. They
   now have single-host worker/cancellation validation, but no HA, multi-node
   scheduling, exactly-once execution or production support commitment.
 - `STRIX_DISABLE_DOCS=1` disables `/docs`, `/redoc` and `/openapi.json` for

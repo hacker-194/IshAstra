@@ -1,338 +1,157 @@
-# Production Deployment
+# Production deployment
 
-# Production Deployment Guide
+This page describes the production topology Strix actually supports today, the
+go-live checklist, and the limits you must accept. It replaces earlier guidance
+that described clustering, leader election and autoscaling that the code does
+not implement.
 
-Enterprise-grade deployment on EKS, GKE, AKS, or self-managed Kubernetes.
+## Status
 
-## Architecture
+Strix is **pilot-grade for a single-tenant, single-host deployment**. The
+authorization core is mature (TLA+-checked, 95% covered, property and
+adversarial tests in CI); the platform around it is deliberately single-writer
+and has no HA story.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Production Cluster                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                     Cloud Load Balancer (ALB/NGINX)                   │  │
-│  │                    TLS Termination + WAF                             │  │
-│  └────────────────────────────────┬─────────────────────────────────────┘  │
-│                                   │                                        │
-│  ┌────────────────────────────────▼─────────────────────────────────────┐  │
-│  │                      Ingress Controller (NGINX)                       │  │
-│  │              Rate Limiting │ Auth │ Canary Routes                     │  │
-│  └────────────────────────────────┬─────────────────────────────────────┘  │
-│                                   │                                        │
-│           ┌───────────────────────┼───────────────────────┐               │
-│           ▼                       ▼                       ▼               │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐      │
-│  │  API Pods (3+)  │    │  Worker Pods    │    │ Scheduler Pods  │      │
-│  │  HPA: 3-50      │    │  HPA: 2-100     │    │  2 Replicas     │      │
-│  │  PDB: min 2     │    │  PDB: min 1     │    │  Leader Election│      │
-│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘      │
-│           │                      │                      │               │
-│           └──────────────────────┼──────────────────────┘               │
-│                                  ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    Scope Gate (Sidecar/Init)                      │  │
-│  │  Default-Deny │ DNS Rebinding Protection │ Pinned Destinations  │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                  │                                      │
-│           ┌──────────────────────┼──────────────────────┐               │
-│           ▼                      ▼                      ▼               │
-│  ┌───────────────┐      ┌───────────────┐      ┌───────────────┐      │
-│  │   PostgreSQL  │      │     Redis     │      │  Object Store │      │
-│  │  (Managed,    │      │  (Managed,    │      │    (S3/GCS/   │      │
-│  │   HA, PITR)   │      │   Cluster)    │      │   Azure Blob) │      │
-│  └───────────────┘      └───────────────┘      └───────────────┘      │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Use this page as the go/no-go reference before pointing Strix at production
+infrastructure.
 
-## Helm Deployment
+## Supported topologies
 
-### Prerequisites
+| Topology | Status | Notes |
+|----------|--------|-------|
+| One process + SQLite (WAL) | **Supported** | Default; best pilot choice |
+| One process + PostgreSQL | Supported, single-host | Tested migrations, SIGTERM, 10-job soak; no HA |
+| Compose stack on one host | Supported | One `strix` service; Redis for shared rate limits |
+| Kubernetes with one replica | Supported | Helm chart renders API/worker/scheduler; run **one** writer |
+| Multiple replicas / autoscaling | **Not supported** | Worker lease is per database; a second process exits |
+| `STRIX_QUEUE_MODE=k8s-jobs` | Experimental | One K8s Job per assessment; no HA queue guarantee |
+| Active/active or automatic failover | **Not supported** | Manual warm-standby promotion only |
+| Object storage (S3/GCS) | **Not implemented** | Findings and reports live in the database and local disk |
 
-- Kubernetes 1.28+
-- Helm 3.12+
-- kubectl configured for target cluster
-- Cert-manager installed (for TLS)
+If you need horizontal scale or an availability SLA today, this is not the
+right deployment — the architecture section below explains what would have to
+change.
 
-### Install
+## Reference deployment (single host)
 
-```bash
-# Add repo (when published)
-helm repo add strix https://charts.strix.dev
-helm repo update
+1. **Provision one host** with CPython 3.12+, 4+ vCPU and 8 GB RAM for a small
+   team, outbound network access, and egress filtering at the host/network
+   layer as defense in depth behind the scope gate.
+2. **Install from a pinned artifact.**
 
-# Or install from local chart
-cd deploy/helm/strix
+   ```bash
+   python3 -m venv /opt/strix/venv
+   /opt/strix/venv/bin/pip install --no-cache-dir -c constraints.txt strix==3.5.0
+   ```
 
-# Production values
-helm install strix . -f values-prod.yaml \
-  --namespace strix-system --create-namespace
+   Containers: build/pull the image and pin it by digest, not by tag.
 
-# Verify
-kubectl get pods -n strix-system -w
-```
+3. **Write `/etc/strix/strix.env`** (mode `0600`, owned by the service user):
 
-### values-prod.yaml Key Settings
+   ```ini
+   STRIX_ENV=production
+   STRIX_API_KEY=<32+ random bytes, base64/urlsafe>
+   STRIX_AUDIT_HMAC_KEY=<different random value>
+   STRIX_ENCRYPTION_KEY=<base64 32-byte AES key>
+   STRIX_SCOPE_FILE=/etc/strix/scope.json
+   STRIX_DB=/var/lib/strix/strix.db
+   STRIX_RETENTION_DAYS=90
+   STRIX_LOG_FORMAT=json
+   STRIX_LOG_LEVEL=INFO
+   STRIX_TRUSTED_PROXIES=127.0.0.1
+   ```
 
-```yaml
-# High Availability
-replicaCount: 3
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 50
-  targetCPUUtilization: 70
+   `STRIX_ENV=production` is fail-closed: it refuses placeholder or short keys
+   and disables `/docs`, `/redoc` and `/openapi.json`.
 
-# Pod Disruption Budget
-podDisruptionBudget:
-  minAvailable: 2
+4. **Load a signed scope document.** Generate the signing key, publish the
+   JWKS, and sign `scope.json` (`strix scope-keygen`, `strix scope-sign`). An
+   unsigned or expired document is refused. Keep the private key in the signing
+   system, not on the API host.
 
-# Security
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  fsGroup: 1000
-  seccompProfile:
-    type: RuntimeDefault
+5. **Run one process** under systemd (see `DEPLOYMENT.md` §4) behind a TLS
+   reverse proxy. Do not add a second process pointed at the same database.
 
-containerSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop: ["ALL"]
-  readOnlyRootFilesystem: true
+6. **Probe `/api/ready`** from the load balancer and alert on it. `/api/health`
+   is liveness only.
 
-# Network Policies
-networkPolicy:
-  enabled: true
-  ingress:
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            name: ingress-nginx
-      ports:
-      - protocol: TCP
-        port: 8000
+## Capacity guidance
 
-# Resources
-resources:
-  limits:
-    cpu: "2000m"
-    memory: "4Gi"
-  requests:
-    cpu: "500m"
-    memory: "1Gi"
+Scale vertically: add CPU/RAM and raise `STRIX_WORKERS` (adapter threads) on
+the one host. SQLite WAL handles API/worker contention on a single node.
 
-# Database (External Managed)
-postgresql:
-  enabled: false
-externalDatabase:
-  host: "your-rds-instance.xyz.us-east-1.rds.amazonaws.com"
-  port: 5432
-  database: "strix"
-  sslMode: "require"
+| Load | Sizing |
+|------|--------|
+| 1–5 concurrent assessments, web/api profiles | 4 vCPU / 8 GB |
+| 5–20 concurrent, mixed profiles | 8 vCPU / 16 GB |
+| Deep crawls + nuclei | add CPU and disk; external tools dominate |
 
-# Redis (External Managed)
-redis:
-  enabled: false
-externalRedis:
-  host: "your-elasticache.xyz.use1.cache.amazonaws.com"
-  port: 6379
-  tls: true
+Job throughput is bounded by the slowest external tool, not by the API. Measure
+before promising numbers to anyone.
 
-# Monitoring
-monitoring:
-  prometheus:
-    enabled: true
-    serviceMonitor: true
-  grafana:
-    enabled: true
-    dashboards: true
+## Backups, RTO, RPO
 
-# TLS
-ingress:
-  enabled: true
-  className: "nginx"
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-  hosts:
-    - host: api.yourdomain.com
-      paths: ["/"]
-  tls:
-    - secretName: strix-tls
-      hosts: [api.yourdomain.com]
-```
+- Back up with `strix backup` (consistent SQLite snapshot) or `pg_dump` for
+  PostgreSQL; ship off-host.
+- Default hourly cron gives **RPO ≤ 1 hour**. Shorten the interval if the
+  business needs less.
+- **RTO** is the restore plus promotion time; measured at a few seconds for a
+  2 GB SQLite database (`strix standby-promote`), plus DNS/load-balancer
+  switchover.
+- Rehearse one restore before go-live and record the date. An unrehearsed
+  backup is not a backup.
 
-## Secrets Management
+## Monitoring
 
-### SealedSecrets (GitOps)
+Scrape `/api/metrics` (admin key) or run the bundled Prometheus/Grafana stack.
+Alert on:
 
-```bash
-# Install controller
-kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.0/controller.yaml
+| Signal | Why |
+|--------|-----|
+| `/api/ready` failing | Process cannot serve |
+| `strix_scope_gate_decisions_total{decision="deny"}` spike | Misconfigured scope or attack |
+| Queue depth / oldest queued job | Worker stalled |
+| Audit chain verification failure | Integrity incident |
+| Disk usage on the database volume | SQLite needs headroom |
 
-# Seal a secret
-kubeseal --format yaml < secrets.yaml > sealed-secrets.yaml
+Runbooks live in `docs/runbooks/`.
 
-# Commit sealed-secrets.yaml to git
-git add sealed-secrets.yaml
-git commit -m "Add sealed API keys"
-```
+## Upgrades and rollback
 
-### External Secrets Operator (AWS/GCP/Azure)
+1. Back up first.
+2. Deploy the new version; schema migrations run at startup and are additive.
+3. Verify `/api/ready`, `/api/audit/verify`, and one assessment end to end.
+4. Roll back the binary, not the database, unless the release notes say a
+   migration is irreversible. If it is, restore the pre-upgrade backup.
 
-```yaml
-# values-prod.yaml addition
-externalSecrets:
-  enabled: true
-  provider: aws  # or gcp, azure
-  secretStore:
-    name: aws-secretsmanager
-    provider:
-      aws:
-        service: SecretsManager
-        region: us-east-1
-        auth:
-          jwt:
-            serviceAccountRef:
-              name: external-secrets-sa
-```
+## Go-live checklist
 
-## Database Setup
+- [ ] Exactly one writer process against the database
+- [ ] TLS everywhere; HTTP only on loopback
+- [ ] Secrets from a manager, rotated after bootstrap
+- [ ] Signed, unexpired scope document; test a denial
+- [ ] Egress filtering behind the scope gate
+- [ ] Backup taken, restore rehearsed, RTO recorded
+- [ ] `/api/ready` alerted to a human; runbook link in the alert
+- [ ] Retention configured (`STRIX_RETENTION_DAYS`)
+- [ ] Image pinned by digest; SBOM/scan artifact stored
+- [ ] Written answer to "what do we do at 3 a.m.?"
 
-### PostgreSQL (Managed)
+## What CI proves (and what it does not)
 
-```sql
--- Create database and user
-CREATE DATABASE strix;
-CREATE USER strix WITH ENCRYPTED PASSWORD 'strong-password';
-GRANT ALL PRIVILEGES ON DATABASE strix TO strix;
+Proven on every change: 1500+ tests, scope gate coverage floor, TLA+ model
+check, property tests, DNS-offline denial, schema/wheel packaging, Helm lint.
 
--- Enable extensions
-\c strix
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-```
+Not proven by CI: multi-node behaviour (there is none), PostgreSQL on a managed
+service, container runtime smoke on your orchestrator, or an independent
+security audit. Treat those as deployment acceptance tests you own.
 
-### Run Migrations
+## Roadmap (no dates)
 
-```bash
-# As Kubernetes Job
-kubectl apply -f - <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: strix-migrate
-  namespace: strix-system
-spec:
-  template:
-    spec:
-      containers:
-      - name: migrate
-        image: ghcr.io/strix/strix:3.5.0
-        command: ["alembic", "upgrade", "head"]
-        envFrom:
-        - secretRef:
-            name: strix-secrets
-      restartPolicy: OnFailure
-  backoffLimit: 3
-EOF
-```
+- Distributed queue with a single-scheduler guarantee
+- PostgreSQL as a first-class multi-process backend
+- Object storage for evidence and reports
+- Published, signed container images with SLSA provenance
 
-## Monitoring & Alerting
-
-### Key Metrics to Alert On
-
-| Metric | Warning | Critical |
-|--------|---------|----------|
-| `scope_gate_check_duration_seconds` | > 100ms | > 500ms |
-| `scope_gate_denials_total` | > 10/min | > 100/min |
-| `api_request_duration_seconds` | > 1s | > 5s |
-| `worker_queue_depth` | > 100 | > 1000 |
-| `db_connections_active` | > 80% | > 95% |
-
-### Grafana Dashboards
-
-Import from `deploy/monitoring/grafana/dashboards/`:
-- Strix Overview
-- Scope Gate Performance
-- Assessment Pipeline
-- Infrastructure Health
-
-## Backup & Disaster Recovery
-
-### Database Backup
-
-```bash
-# Automated (managed service)
-# AWS RDS: Automated backups + PITR
-# GCP Cloud SQL: Automated backups + PITR
-# Azure Database: Automated backups + PITR
-
-# Manual
-pg_dump -h $DB_HOST -U strix strix | gzip > strix-$(date +%F).sql.gz
-```
-
-### Restore Procedure
-
-```bash
-# 1. Restore database
-gunzip -c strix-2024-01-15.sql.gz | psql -h $DB_HOST -U strix strix
-
-# 2. Verify Scope Gate
-kubectl exec -n strix-system deploy/strix-api -- python -c "
-from strix.core.scope import ScopeGate
-gate = ScopeGate()
-print('Scope Gate:', 'OK' if gate.validate_config() else 'FAIL')
-"
-
-# 3. Smoke test
-curl https://api.yourdomain.com/health
-```
-
-## Rollback
-
-```bash
-# Helm rollback
-helm rollback strix -n strix-system
-
-# Or specific revision
-helm rollback strix 3 -n strix-system
-
-# Verify
-kubectl rollout status deploy/strix-api -n strix-system
-```
-
-## Security Hardening Checklist
-
-- [ ] Network policies restrict inter-pod traffic
-- [ ] Pod Security Standards: restricted profile
-- [ ] All containers run as non-root
-- [ ] Read-only root filesystem
-- [ ] No privileged containers
-- [ ] Secrets in SealedSecrets/External Secrets (not ConfigMaps)
-- [ ] TLS 1.2+ everywhere (ingress, DB, Redis, inter-service)
-- [ ] API rate limiting enabled
-- [ ] Audit logging to SIEM
-- [ ] Image scanning in CI (Trivy/Griffeye)
-- [ ] SLSA Level 3 provenance for images
-
-## Capacity Planning
-
-| Component | Baseline | Scale Trigger | Max |
-|-----------|----------|---------------|-----|
-| API Pods | 3 | CPU > 70% | 50 |
-| Workers | 5 | Queue > 50 | 100 |
-| PostgreSQL | db.r6g.xlarge | Connections > 80% | db.r6g.4xlarge |
-| Redis | cache.r6g.xlarge | Memory > 70% | cache.r6g.4xlarge |
-
-## Compliance
-
-- **SOC 2 Type II**: Audit logs, access controls, encryption
-- **ISO 27001**: Asset management, incident response, crypto
-- **NIST 800-53**: AC-3, AC-6, AU-2, SC-7, SC-8, SI-4
-- **PCI DSS**: Network segmentation, encryption, logging
-
-See [Compliance Mapping](../compliance/overview.md).
+Until those land, the honest statement is: **single host, one writer, manual
+failover.**

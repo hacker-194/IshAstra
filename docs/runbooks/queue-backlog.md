@@ -68,7 +68,8 @@ kubectl scale deployment strix-worker -n strix-system --replicas=10
 helm upgrade strix ./kubernetes/helm/strix -n strix-system --set worker.replicas=10
 
 # Enable HPA (if not enabled)
-kubectl autoscale deployment strix-worker -n strix-system --min=3 --max=20 --cpu-percent=70
+# Do not autoscale: one process owns the database lease. Add CPU/RAM or raise
+# STRIX_WORKERS instead (see docs/quickstart/production.md).
 ```
 
 ## Escalation

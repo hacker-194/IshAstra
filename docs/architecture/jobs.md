@@ -14,7 +14,7 @@ How Strix manages assessment workflows, scheduling, and worker pools.
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐         │
 │  │   Scheduler     │    │   Job Queue     │    │  Worker Pool    │         │
 │  │  (Cron/Interval)│───▶│  (Priority +    │◀───│  (Threaded/     │         │
-│  │  Leader Election│    │   Redis/In-Mem) │    │   Async)        │         │
+│  │  Single writer  │    │   In-Process)   │    │   Async)        │         │
 │  └─────────────────┘    └────────┬────────┘    └────────┬────────┘         │
 │                                   │                      │                  │
 │                                   ▼                      │                  │
@@ -262,41 +262,16 @@ class ComplianceScheduler:
         return False
 ```
 
-### Leader Election
+### Scheduling and the single-writer rule
 
-**File**: `src/strix/core/scheduler.py` — `LeaderElection`
+Schedules are polled by the one process that owns the worker lease. There is no
+leader election and no distributed lock: a second process pointed at the same
+`STRIX_DB` exits instead of double-running jobs (see
+[`DEPLOYMENT.md`](../../DEPLOYMENT.md) §10).
 
-```python
-class LeaderElection:
-    def __init__(self, redis: Redis, lock_name: str, ttl: int = 30):
-        self.redis = redis
-        self.lock_name = f"strix:leader:{lock_name}"
-        self.ttl = ttl
-        self._lock = None
-
-    async def acquire(self, identity: str) -> bool:
-        # Try to acquire lock
-        self._lock = self.redis.lock(self.lock_name, timeout=self.ttl)
-        acquired = await self._lock.acquire(blocking=False)
-        if acquired:
-            # Start heartbeat
-            asyncio.create_task(self._heartbeat(identity))
-        return acquired
-
-    async def _heartbeat(self, identity: str):
-        while self._lock and self._lock.locked():
-            await self.redis.setex(
-                f"{self.lock_name}:heartbeat",
-                self.ttl * 2,
-                json.dumps({"identity": identity, "ts": time.time()})
-            )
-            await asyncio.sleep(self.ttl // 3)
-
-    async def release(self):
-        if self._lock:
-            await self._lock.release()
-            self._lock = None
-```
+Do not run a second scheduler against one database, and do not treat
+`k8s-jobs` as an HA queue — it is experimental. For more throughput, raise
+`STRIX_WORKERS` (adapter threads) on the same host rather than adding replicas.
 
 ---
 
@@ -391,39 +366,12 @@ curl -X POST -H "Authorization: Bearer $KEY" \
 
 ## Scaling
 
-### Horizontal Pod Autoscaler (K8s)
+### Scaling
 
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: strix-worker-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: strix-worker
-  minReplicas: 2
-  maxReplicas: 100
-  metrics:
-  - type: External
-    external:
-      metric:
-        name: strix_queue_depth
-      target:
-        type: AverageValue
-        averageValue: "50"  # 1 worker per 50 queued jobs
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 60
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 60
-    scaleDown:
-      stabilizationWindowSeconds: 300
-```
-
+Strix does not support autoscaling. One process owns the database's worker lease,
+so a second replica exits instead of sharing work. Raise `STRIX_WORKERS`
+(adapter threads) and add CPU/RAM on the same host; do not apply the HPA
+manifests that older revisions of this page suggested.
 ### Queue Depth Metric
 
 ```python
@@ -529,10 +477,10 @@ k6 run load-test/job-orchestration.js
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| Jobs stuck in QUEUED | No workers running | Check worker pods, scaling |
+| Jobs stuck in QUEUED | Worker process not running | Check the single service and `/api/ready` |
 | Jobs FAILED repeatedly | Adapter error, Scope Gate | Check logs, scope config |
-| Scheduler not running | Leader election lost | Check Redis, network |
-| High queue depth | Workers saturated | Scale workers, check resources |
+| Scheduler not running | Process not running | Check the service logs; there is no leader election |
+| High queue depth | Adapter threads saturated | Raise `STRIX_WORKERS`, add CPU/RAM |
 | DLQ growing | Permanent failures | Investigate root cause |
 
 ### Debug Commands

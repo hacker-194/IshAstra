@@ -15,7 +15,7 @@ strix/
 │   ├── _helpers.tpl        # Template helpers
 │   ├── deployment-api.yaml # Strix API deployment
 │   ├── deployment-scheduler.yaml # Scheduler deployment
-│   ├── deployment-worker.yaml    # Celery worker deployment
+│   ├── deployment-worker.yaml    # worker deployment (one writer per database)
 │   ├── service-api.yaml        # API service
 │   ├── service-scheduler.yaml  # Scheduler service
 │   ├── service-headless.yaml   # Redis headless service
@@ -146,8 +146,8 @@ kubectl create configmap strix-config \
 |-----------|-------------|-----------------|
 | **strix-api** | FastAPI + Uvicorn workers | 3 (HPA: 3-20) |
 | **strix-scheduler** | APScheduler for recurring assessments | 2 (HPA: 2-5) |
-| **strix-worker** | Celery workers for distributed queue | 4 (HPA: 4-50) |
-| **redis** | Caching, rate limiting, distributed locks | 1 master + 2 replicas |
+| **strix-worker** | Assessment worker; one writer per database (see production guide) | 1 |
+| **redis** | Rate-limit counters (jobs are in-process) | 1 |
 | **postgresql** | Multi-tenant database (optional) | 1 primary |
 | **prometheus** | Metrics collection | 1 |
 | **grafana** | Dashboards and visualization | 1 |
@@ -208,7 +208,7 @@ helm uninstall strix -n strix-prod
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `api.enabled` | Enable API deployment | `true` |
-| `api.replicaCount` | Number of replicas | `3` |
+| `api.replicaCount` | Number of replicas (one writer per database) | `1` |
 | `api.resources` | CPU/Memory limits/requests | See values.yaml |
 | `api.hpa.enabled` | Enable HPA | `true` |
 | `api.ingress.enabled` | Enable Ingress | `true` |

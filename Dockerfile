@@ -41,13 +41,20 @@ FROM python:3.12-slim AS runtime
 # Shared libraries (XML/SAML, WeasyPrint) plus the external scanners the
 # adapters require: without these every assessment reports "no usable coverage".
 ARG NUCLEI_VERSION=3.11.1
+ARG NUCLEI_TEMPLATES_VERSION=10.5.2
+ARG NIKTO_VERSION=2.5.0
 ARG TARGETARCH=amd64
+# nikto is not packaged in Debian bookworm; install the pinned upstream release
+# and its Perl dependencies instead of letting apt fail the whole build.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     nmap \
-    nikto \
     sqlmap \
+    perl \
+    libwww-perl \
+    libnet-ssleay-perl \
+    libjson-perl \
     libxml2 \
     libxslt1.1 \
     libxmlsec1 \
@@ -59,6 +66,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /tmp/nikto.tar.gz \
+      "https://github.com/sullo/nikto/archive/refs/tags/${NIKTO_VERSION}.tar.gz" \
+    && mkdir -p /opt/nikto \
+    && tar -xzf /tmp/nikto.tar.gz -C /opt/nikto --strip-components=1 \
+    && ln -sf /opt/nikto/program/nikto.pl /usr/local/bin/nikto \
+    && rm -f /tmp/nikto.tar.gz
 
 # Nuclei releases ship as a zip; pin the version CI uses.
 RUN curl -fsSL -o /tmp/nuclei.zip \
@@ -74,7 +88,14 @@ RUN groupadd -r -g 10001 strix \
 
 # The nuclei adapter reads ${HOME}/nuclei-templates; bake the official set in so
 # a scan does not depend on egress at run time.
-RUN HOME=/var/lib/strix nuclei -update-templates -disable-update-check \
+# Bake the pinned official template set; `nuclei -update-templates` exits 0
+# without writing anything when it cannot reach the release API, which made the
+# build fail later at chown. Downloading the tagged archive is deterministic.
+RUN curl -fsSL -o /tmp/nuclei-templates.tar.gz \
+      "https://github.com/projectdiscovery/nuclei-templates/archive/refs/tags/v${NUCLEI_TEMPLATES_VERSION}.tar.gz" \
+    && mkdir -p /var/lib/strix/nuclei-templates \
+    && tar -xzf /tmp/nuclei-templates.tar.gz -C /var/lib/strix/nuclei-templates --strip-components=1 \
+    && rm -f /tmp/nuclei-templates.tar.gz \
     && chown -R strix:strix /var/lib/strix/nuclei-templates
 
 COPY --from=builder /opt/venv /opt/venv

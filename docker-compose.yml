@@ -20,7 +20,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U strix -d strix"]
       interval: 10s
@@ -39,7 +39,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -59,7 +59,7 @@ services:
     container_name: strix-scope-gate
     image: strix/scope-gate:dev
     environment:
-      - STRIX_DATABASE_URL=postgresql://strix:strix_dev_password@postgres:5432/strix
+      - STRIX_DATABASE_URL=postgresql://strix:${POSTGRES_PASSWORD:-strix_dev_password}@postgres:5432/strix
       - STRIX_REDIS_URL=redis://redis:6379/0
       - STRIX_SCOPE_DIR=/etc/strix/scopes
       - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
@@ -77,7 +77,7 @@ services:
       - ./examples/jwks:/etc/strix:ro
       - ./src:/app/src:ro  # Hot reload for development
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,40 +100,8 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # =============================================================================
-  # Worker for Background Jobs
-  # =============================================================================
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
-    container_name: strix-worker
-    image: strix/worker:dev
-    command: ["python", "-m", "strix", "serve", "--host", "0.0.0.0", "--port", "8000"]
-    environment:
-      - STRIX_DATABASE_URL=postgresql://strix:strix_dev_password@postgres:5432/strix
-      - STRIX_REDIS_URL=redis://redis:6379/0
-      - STRIX_SCOPE_DIR=/etc/strix/scopes
-      - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
-      - STRIX_LOG_LEVEL=INFO
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./examples/scopes:/etc/strix/scopes:ro
-      - ./examples/jwks:/etc/strix:ro
-      - ./src:/app/src:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - strix-network
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
+  # One Strix process only: the worker takes an exclusive lease on the
+  # database, so a second service would refuse to start.
 
   # =============================================================================
   # Prometheus for Metrics
@@ -150,7 +118,7 @@ services:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - strix-network
 
@@ -170,7 +138,7 @@ services:
       - ./deploy/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
     networks:
@@ -186,9 +154,9 @@ services:
       - COLLECTOR_OTLP_ENABLED=true
       - SPAN_STORAGE_TYPE=badger
     ports:
-      - "16686:16686"  # UI
-      - "4317:4317"    # OTLP gRPC
-      - "4318:4318"    # OTLP HTTP
+      - "127.0.0.1:16686:16686"  # UI
+      - "127.0.0.1:4317:4317"    # OTLP gRPC
+      - "127.0.0.1:4318:4318"    # OTLP HTTP
     volumes:
       - jaeger_data:/var/lib/jaeger
     networks:
@@ -226,7 +194,7 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     ports:
-      - "8180:8180"
+      - "127.0.0.1:8180:8180"
     volumes:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data

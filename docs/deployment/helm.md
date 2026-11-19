@@ -2,7 +2,12 @@
 
 # Helm Deployment
 
-Deploy Strix using the official Helm chart with production-ready defaults.
+Deploy Strix using the official Helm chart.
+
+> **Scaling warning:** Strix is single-writer. Run one API/worker process per
+> database and leave `hpa.enabled` / `autoscaling.enabled` off. Values files
+> that raise `replicaCount` or enable autoscaling describe an unsupported
+> topology; see [Production deployment](../quickstart/production.md).
 
 ## Chart Overview
 

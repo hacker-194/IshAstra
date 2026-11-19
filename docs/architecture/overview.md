@@ -202,22 +202,24 @@ Partner (MSSP)
 
 ## Deployment Topologies
 
-| Topology | Use Case | Scope Gate |
-|----------|----------|------------|
-| **Sidecar** | K8s pods | Per-pod, shared config |
-| **Init Container** | Short-lived jobs | Pre-fetch + cache |
-| **Library** | Embedded in adapters | In-process, zero latency |
-| **DaemonSet** | Node-level gate | Host-network, eBPF |
+| Integration | Status | Notes |
+|-------------|--------|-------|
+| **In-process library** | Supported | Adapters call `checked_destination()`; the only supported integration |
+| **Sidecar proxy** | Not implemented | No sidecar image or proxy protocol exists |
+| **DaemonSet / eBPF** | Not implemented | No eBPF component exists |
 
 ## Scaling Characteristics
 
-| Component | Scaling Trigger | Max Observed |
-|-----------|-----------------|--------------|
-| API Pods | CPU > 70%, RPS > 1000 | 50 replicas |
-| Workers | Queue depth > 50 | 100 replicas |
-| Scope Gate Check | < 1ms p99 | 12k ops/s |
-| PostgreSQL | Connections > 80% | 5000 conn (PgBouncer) |
-| Redis | Memory > 70% | Cluster mode |
+Strix is single-writer by design. These are the real limits, not aspirational
+capacity numbers:
+
+| Component | Scaling approach | Tested |
+|-----------|------------------|--------|
+| API + worker | Vertical: more CPU/RAM, `STRIX_WORKERS` threads | Single host |
+| Job queue | In-process by default; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
+| PostgreSQL | Single writer against a managed instance | Single host |
+| Redis | Shared rate-limit counters | Single node |
+| Scope gate check | In-process, sub-millisecond on pinned destinations | 95% covered, TLA+-checked |
 
 ## Failure Modes & Mitigations
 
@@ -227,8 +229,8 @@ Partner (MSSP)
 | DNS rebinding | Layer 2/3 mismatch | Pinned destinations, TTL=0 |
 | Cross-tenant leak | RLS policy test, ContextVar audit | Integration tests, static analysis |
 | Worker OOM | Memory limits, metrics | Chunked processing, backpressure |
-| DB overload | Connection pool exhaustion | PgBouncer, read replicas, circuit breaker |
-| Redis failover | Sentinel/Cluster health | Multi-AZ, persistent queues |
+| DB overload | Connection pool exhaustion | Slow down submissions, add CPU/RAM; no PgBouncer or read replicas in the supported topology |
+| Redis loss | Rate-limit backend errors | Rate limiting fails closed; Redis holds counters only, not jobs |
 
 ## Related Documentation
 

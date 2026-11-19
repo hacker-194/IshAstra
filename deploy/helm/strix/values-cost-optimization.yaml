@@ -233,7 +233,7 @@ api:
 # ============================================================================
 scheduler:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   priorityClass: "strix-system"
   tolerations:
     - key: "workload-type"

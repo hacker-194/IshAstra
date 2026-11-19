@@ -194,8 +194,9 @@ api:
     minAvailable: 1
   # Horizontal Pod Autoscaler
   hpa:
-    enabled: false  # SQLite backs one pod; enable with postgresql.enabled
-    minReplicas: 2
+    # One writer per database: this stays off even with PostgreSQL.
+    enabled: false
+    minReplicas: 1
     maxReplicas: 10
     behavior:
       scaleDown:
@@ -377,7 +378,8 @@ scheduler:
 # ============================================================================
 worker:
   enabled: false
-  replicaCount: 2
+  # One writer per database when enabled.
+  replicaCount: 1
   service:
     port: 8000
   updateStrategy:
@@ -480,9 +482,9 @@ worker:
                     - strix
             topologyKey: kubernetes.io/hostname
   hpa:
-    enabled: true
-    minReplicas: 2
-    maxReplicas: 20
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
     behavior:
       scaleDown:
         stabilizationWindowSeconds: 300
@@ -1008,7 +1010,7 @@ environments:
 
   staging:
     api:
-      replicaCount: 2
+      replicaCount: 1
       resources:
         limits:
           cpu: "2000m"
@@ -1017,9 +1019,9 @@ environments:
           cpu: "500m"
           memory: "1Gi"
       hpa:
-        enabled: true
-        minReplicas: 2
-        maxReplicas: 5
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 1
     scheduler:
       replicaCount: 1
       resources:
@@ -1066,7 +1068,7 @@ environments:
 
   production:
     api:
-      replicaCount: 3
+      replicaCount: 1
       resources:
         limits:
           cpu: "4000m"
@@ -1075,11 +1077,11 @@ environments:
           cpu: "2000m"
           memory: "2Gi"
       hpa:
-        enabled: true
-        minReplicas: 3
-        maxReplicas: 20
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 1
     scheduler:
-      replicaCount: 2
+      replicaCount: 1
       resources:
         limits:
           cpu: "2000m"

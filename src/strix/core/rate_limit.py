@@ -211,7 +211,7 @@ async def get_distributed_rate_limiter() -> DistributedRateLimiter:
     """Dependency: Get or create the distributed rate limiter."""
     global _rate_limiter
     if _rate_limiter is None:
-        from strix.api.dependencies import get_redis
+        from strix.api.deps import get_redis
 
         redis_client = await get_redis()
         _rate_limiter = DistributedRateLimiter(redis_client)

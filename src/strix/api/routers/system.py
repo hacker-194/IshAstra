@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from strix import __version__
-from strix.api import dependencies as deps
+from strix.api import deps
 from strix.api.deps import Tenant, managed_mode_async, require_auth
 from strix.core import policies, scope, store
 from strix.core.adapters import ADAPTERS, PROFILES

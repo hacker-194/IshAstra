@@ -199,7 +199,7 @@ async def store_with_broad_scope(temp_db: str, scope_file_broad_network: str):
 async def app_with_db(temp_db: str, scope_file: str):
     """Create test app with configured database and scope."""
     # Reset module-level singletons for test isolation
-    from strix.api.dependencies import reset_settings
+    from strix.api.deps import reset_settings
     from strix.api.security import api_keys
 
     reset_settings()
@@ -216,9 +216,9 @@ async def app_with_db(temp_db: str, scope_file: str):
 
     # Manually run bootstrap (lifespan doesn't run until first request)
     from strix.api import app as app_module
-    from strix.api import dependencies as deps
+    from strix.api import deps
     from strix.api.app import _bootstrap_admin_key_async
-    from strix.api.dependencies import init_http_client
+    from strix.api.deps import init_http_client
     from strix.core import policies
 
     async def bootstrap():

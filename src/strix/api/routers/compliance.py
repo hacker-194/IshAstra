@@ -355,7 +355,7 @@ async def trigger_evidence_pack_generation(
     _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
     """Manually trigger monthly evidence pack generation for all tenants."""
-    from strix.api.dependencies import get_audit_chain
+    from strix.api.deps import get_audit_chain
     from strix.core.evidence import generate_monthly_evidence_packs
 
     try:

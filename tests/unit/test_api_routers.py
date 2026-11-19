@@ -15,7 +15,7 @@ from strix.core import store
 @pytest.fixture
 def app():
     """Create test app with overrides."""
-    from strix.api.dependencies import reset_settings
+    from strix.api.deps import reset_settings
     from strix.api.security import api_keys
     from strix.core import scope
 
@@ -73,9 +73,9 @@ def app():
     app = create_app()
 
     async def bootstrap():
-        from strix.api import dependencies as deps
+        from strix.api import deps
         from strix.api.app import _bootstrap_admin_key_async
-        from strix.api.dependencies import init_http_client
+        from strix.api.deps import init_http_client
         from strix.core import policies
         from strix.core.scheduler import create_scheduler
 

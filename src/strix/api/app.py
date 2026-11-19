@@ -21,7 +21,7 @@ from strix import __version__
 from strix.api import deps
 from strix.api.body_depth import BodyLimitMiddleware
 from strix.api.csrf import CSRFMiddleware
-from strix.api.dependencies import (
+from strix.api.deps import (
     close_http_client,
     close_redis,
     get_audit_chain,
@@ -32,7 +32,7 @@ from strix.api.dependencies import (
     init_http_client,
     init_redis,
 )
-from strix.api.dependencies import (
+from strix.api.deps import (
     settings as deps_settings,
 )
 from strix.api.middleware import SecurityHeadersMiddleware
@@ -41,7 +41,6 @@ from strix.api.routers import auth as auth_router
 from strix.api.routers import compliance as compliance_router
 from strix.api.routers import mssp as mssp_router
 from strix.api.routers import organizations_v2 as organizations_v2_router
-from strix.api.routers import orgs as orgs_router
 from strix.api.routers import policies as policies_router
 from strix.api.routers import pricing as pricing_router
 from strix.api.routers import proof as proof_router
@@ -71,7 +70,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 _retention_worker: RetentionWorker | None = None
 _scheduler: Scheduler | None = None
 _compliance_scheduler: ComplianceScheduler | None = None
-_ha_manager = None  # HA manager for multi-node deployments
 
 
 async def _bootstrap_admin_key_async() -> None:
@@ -176,56 +174,26 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     global _retention_worker
     _retention_worker = RetentionWorker(deps_settings.retention_days)
 
-    # Initialize HA manager (handles leader election, health checks, graceful shutdown)
-    global _ha_manager
-    ha_mode = os.environ.get("STRIX_HA_MODE", "false").lower() == "true"
-    if ha_mode and deps_settings.db_path.startswith(("postgresql://", "postgres://")):
-        from strix.core.ha import LeaderElectionConfig, create_ha_manager
-
-        _ha_manager = await create_ha_manager(
-            settings=deps_settings,
-            audit_chain=get_audit_chain(),
-            election_config=LeaderElectionConfig(
-                lock_name="strix_leader_election",
-                ttl_seconds=30,
-                retry_interval=5.0,
-            ),
-            drain_timeout=30.0,
-        )
-        log.info("HA mode enabled: node_id=%s, is_leader=%s", _ha_manager.node_id, _ha_manager.is_leader)
-    else:
-        if ha_mode:
-            log.warning("HA mode requested but requires PostgreSQL; running in single-node mode")
-        _ha_manager = None
-        log.info("Running in single-node mode")
-
-    # Initialize scheduler (only on leader in HA mode, always in single-node)
+    # Strix is single-writer per database: the worker lease already refuses a
+    # second process pointed at the same database, so there is no leader to
+    # elect. The background schedulers run in the one process that owns it.
     global _scheduler
-    is_leader = _ha_manager is None or _ha_manager.is_leader
-    if is_leader:
-        _scheduler = await create_scheduler(
-            audit_chain=get_audit_chain(),
-            monitor=get_monitor(),
-            settings=deps_settings,
-            job_timeout=300.0,
-            scope_mode=deps_settings.scope_mode,
-        )
-        log.info("Scheduler initialized on leader node")
-    else:
-        _scheduler = None
-        log.info("Scheduler not started on standby node")
+    _scheduler = await create_scheduler(
+        audit_chain=get_audit_chain(),
+        monitor=get_monitor(),
+        settings=deps_settings,
+        job_timeout=300.0,
+        scope_mode=deps_settings.scope_mode,
+    )
+    log.info("Scheduler initialized")
 
-    # Initialize compliance scheduler (only on leader in HA mode)
     global _compliance_scheduler
-    if is_leader:
-        _compliance_scheduler = await create_compliance_scheduler(
-            audit_chain=get_audit_chain(),
-            monitor=get_monitor(),
-            settings=deps_settings,
-        )
-        log.info("Compliance scheduler initialized on leader node")
-    else:
-        _compliance_scheduler = None
+    _compliance_scheduler = await create_compliance_scheduler(
+        audit_chain=get_audit_chain(),
+        monitor=get_monitor(),
+        settings=deps_settings,
+    )
+    log.info("Compliance scheduler initialized")
 
     # Skip Redis initialization in tests (STRIX_SKIP_REDIS_INIT=1)
     if not os.environ.get("STRIX_SKIP_REDIS_INIT"):
@@ -271,9 +239,6 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         await store.close_db_pool()
         await close_http_client()
         await close_redis()
-        # Shutdown HA manager (releases leadership lock)
-        if _ha_manager:
-            await _ha_manager.stop()
         # Shutdown OpenTelemetry
         shutdown_opentelemetry()
 
@@ -404,13 +369,6 @@ def create_app() -> FastAPI:
     async def prometheus_metrics(_: Any = Depends(deps.require_admin)):
         return metrics_endpoint()
 
-    # HA status endpoint
-    @app.get("/api/ha/status", include_in_schema=False)
-    async def ha_status(_: Any = Depends(deps.require_admin)):
-        if _ha_manager is None:
-            return {"ha_mode": False, "message": "HA mode not enabled"}
-        return await _ha_manager.get_status()
-
     for module in (
         system,
         assessments,
@@ -424,7 +382,6 @@ def create_app() -> FastAPI:
         proof_router,
         scheduler_router,
         compliance_router,
-        orgs_router,
         organizations_v2_router,
         auth_router,
         scim_router,

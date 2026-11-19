@@ -221,9 +221,14 @@ class K8sAssessmentQueue:
             ),
         )
 
-        # Add auth config if present
-        if job.policy.get("encrypted_auth_config"):
-            pod_template.spec.containers[0].env.append(
+        # Add auth config if present. The generated pod spec always has a
+        # container; the guards keep a partial template from crashing the run.
+        spec = pod_template.spec
+        if job.policy.get("encrypted_auth_config") and spec and spec.containers:
+            container = spec.containers[0]
+            if container.env is None:
+                container.env = []
+            container.env.append(
                 client.V1EnvVar(
                     name="STRIX_AUTH_CONFIG",
                     value=json.dumps(job.policy["encrypted_auth_config"]),
@@ -537,9 +542,11 @@ class K8sAssessmentQueue:
                     await self._finish_job(job_id)
                 continue
 
-            if k8s_job.status.succeeded and k8s_job.status.succeeded > 0:
+            status = k8s_job.status
+            backoff_limit = k8s_job.spec.backoff_limit if k8s_job.spec else 0
+            if status and status.succeeded and status.succeeded > 0:
                 await self._finish_job(job_id)
-            elif k8s_job.status.failed and k8s_job.status.failed > k8s_job.spec.backoff_limit:
+            elif status and status.failed and status.failed > (backoff_limit or 0):
                 job.state = JobState.FAILED
                 job.error = "K8s Job failed after retries"
                 job.finished_at = time.time()
@@ -566,13 +573,19 @@ def get_k8s_assessment_queue(
     queue_max: int | None = None,
 ) -> K8sAssessmentQueue:
     """Factory for K8s Jobs queue."""
+    image = os.environ.get("STRIX_K8S_IMAGE", "").strip() or (
+        f"{os.environ.get('STRIX_K8S_IMAGE_REPOSITORY', 'ghcr.io/your-org/strix')}"
+        f":{os.environ.get('STRIX_K8S_IMAGE_TAG', '3.5.0')}"
+    )
+    if os.environ.get("STRIX_ENV", "").strip().lower() == "production" and "your-org/strix" in image:
+        raise ValueError(
+            "Configure STRIX_K8S_IMAGE or STRIX_K8S_IMAGE_REPOSITORY with the "
+            "published Strix image before enabling production k8s-jobs mode"
+        )
+
     config = K8sJobConfig(
         namespace=os.environ.get("STRIX_K8S_NAMESPACE", "strix-assessments"),
-        image=os.environ.get("STRIX_K8S_IMAGE", "")
-        or (
-            f"{os.environ.get('STRIX_K8S_IMAGE_REPOSITORY', 'ghcr.io/your-org/strix')}"
-            f":{os.environ.get('STRIX_K8S_IMAGE_TAG', '3.5.0')}"
-        ),
+        image=image,
         service_account=os.environ.get("STRIX_K8S_SERVICE_ACCOUNT", "strix"),
         runtime_class=os.environ.get("STRIX_K8S_RUNTIME_CLASS", "gvisor") or None,
         priority_class=os.environ.get("STRIX_K8S_PRIORITY_CLASS") or None,

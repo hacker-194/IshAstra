@@ -677,6 +677,24 @@ def _run_scope_keygen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_scope_key_rotate(args: argparse.Namespace) -> int:
+    """Create a new signing key while keeping the published overlap set."""
+    from strix.core import scope_signing
+
+    try:
+        jwk = scope_signing.rotate_keypair(
+            args.kid,
+            Path(args.key).expanduser().resolve(),
+            Path(args.jwks).expanduser().resolve(),
+        )
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"private key: {Path(args.key).expanduser()} (0600; retain in the signing system)")
+    print(f"public key set: {Path(args.jwks).expanduser()} (new kid={jwk['kid']}; previous keys retained)")
+    return 0
+
+
 # Emergency issuance is bounded by the tool, not by the operator's judgement.
 BREAK_GLASS_MAX = timedelta(hours=4)
 
@@ -770,11 +788,17 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
             [int(p.strip()) for p in args.ports.split(",") if p.strip()] if args.ports else [80, 443]
         )
 
+        # Coerce the argparse strings once: the base document is untrusted
+        # JSON, so a non-string field must not reach Scope as-is.
+        program = str(args.program or base_document.get("program") or "break-glass")
+        authorized_by = str(args.authorized_by or base_document.get("authorized_by") or "break-glass")
+        authorization_ref = str(args.ref or base_document.get("authorization_ref") or "break-glass")
+
         # Build scope document
         scope_document = {
-            "program": args.program or base_document.get("program") or "break-glass",
-            "authorized_by": args.authorized_by or base_document.get("authorized_by") or "break-glass",
-            "authorization_ref": args.ref or base_document.get("authorization_ref") or "break-glass",
+            "program": program,
+            "authorized_by": authorized_by,
+            "authorization_ref": authorization_ref,
             "include": include_hosts,
             "exclude": exclude_hosts,
             "authorized_networks": authorized_networks,
@@ -787,14 +811,14 @@ def _run_scope_breakglass(args: argparse.Namespace) -> int:
         from strix.core.scope import Scope
 
         Scope(
-            program=scope_document["program"],
-            authorized_by=scope_document["authorized_by"],
-            authorization_ref=scope_document["authorization_ref"],
-            include=tuple(scope_document["include"]),
-            exclude=tuple(scope_document["exclude"]),
-            authorized_networks=tuple(scope_document["authorized_networks"]),
-            allowed_ports=tuple(scope_document["allowed_ports"]),
-            allow_broad_networks=scope_document["allow_broad_networks"],
+            program=program,
+            authorized_by=authorized_by,
+            authorization_ref=authorization_ref,
+            include=tuple(include_hosts),
+            exclude=tuple(exclude_hosts),
+            authorized_networks=tuple(authorized_networks),
+            allowed_ports=tuple(allowed_ports),
+            allow_broad_networks=False,
         )
 
         # Create break-glass scope
@@ -2091,6 +2115,17 @@ def main(argv: list[str] | None = None) -> None:
         "--new-set", action="store_true", help="Replace the key set instead of adding this key to it"
     )
 
+    scope_key_rotate_parser = subparsers.add_parser(
+        "scope-key-rotate", help="Create a new signing key and retain existing JWKS keys"
+    )
+    scope_key_rotate_parser.add_argument("--kid", required=True, help="Unique key id for the new key")
+    scope_key_rotate_parser.add_argument(
+        "--key", required=True, help="New private key output path (written 0600)"
+    )
+    scope_key_rotate_parser.add_argument(
+        "--jwks", default="scope-jwks.json", help="Existing public key set to extend"
+    )
+
     scope_sign_parser = subparsers.add_parser("scope-sign", help="Sign a scope document with an Ed25519 key")
     scope_sign_parser.add_argument(
         "--scope", default="scope.json", help="Scope document to sign (default: scope.json)"
@@ -2365,6 +2400,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(_run_scope_wizard(args))
     elif args.command == "scope-keygen":
         sys.exit(_run_scope_keygen(args))
+    elif args.command == "scope-key-rotate":
+        sys.exit(_run_scope_key_rotate(args))
     elif args.command == "scope-sign":
         sys.exit(_run_scope_sign(args))
     elif args.command == "scope-breakglass":

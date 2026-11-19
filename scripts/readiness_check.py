@@ -13,6 +13,7 @@ observed value, and exits 1.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import secrets
@@ -106,6 +107,7 @@ def main() -> int:
     gate_port = free_port()
     api_key = secrets.token_urlsafe(32)
     hmac_key = secrets.token_urlsafe(32)
+    encryption_key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     processes: list[subprocess.Popen] = []
 
     scope_path = work / "scope.json"
@@ -128,6 +130,7 @@ def main() -> int:
         "STRIX_ENV": "production",
         "STRIX_API_KEY": api_key,
         "STRIX_AUDIT_HMAC_KEY": hmac_key,
+        "STRIX_ENCRYPTION_KEY": encryption_key,
         "STRIX_DB": str(work / "strix.db"),
         "STRIX_SCOPE_FILE": str(scope_path),
         "STRIX_SCOPE_MODE": "global",

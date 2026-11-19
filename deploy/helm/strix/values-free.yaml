@@ -1,0 +1,132 @@
+# values-free.yaml — Strix Helm values for $0/month free tier stack
+#
+# Usage:
+#   helm upgrade --install strix ./deploy/helm/strix -n strix --create-namespace \
+#     -f ./deploy/helm/strix/values-free.yaml \
+#     --set secrets.createSecrets=false \
+#     --set-file configMap.scopeJson=/path/to/scope.json \
+#     --wait --timeout 10m
+#
+# This configuration assumes:
+# - k0s on Oracle Cloud Always Free (2x VM.Standard.A1.Flex)
+# - Neon PostgreSQL (free tier)
+# - Upstash Redis (free tier)
+# - SealedSecrets for secret management
+# - Cloudflare Tunnel for ingress (no public IP)
+# - cert-manager + Let's Encrypt for TLS
+# - GHCR for container images
+
+global:
+  image:
+    repository: ghcr.io/your-org/strix
+    tag: sha-<GREEN_SHA>
+    pullPolicy: IfNotPresent
+  enableK8sJobs: false
+  enableHA: false
+
+api:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  autoscaling:
+    enabled: false
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  env:
+    - name: STRIX_WORKERS
+      value: "2"
+    - name: STRIX_SKIP_REDIS_INIT
+      value: "false"
+
+scheduler:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+
+worker:
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+secrets:
+  enabled: true
+  createSecrets: false
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "strix-secrets"
+
+monitoring:
+  prometheus:
+    enabled: true
+    retention: 7d
+    storageSize: 5Gi
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+  alertmanager:
+    enabled: false
+
+otel:
+  enabled: true
+  collector:
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+networkPolicy:
+  enabled: true
+
+podSecurityPolicy:
+  enabled: true
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - strix
+        topologyKey: kubernetes.io/hostname
+
+tolerations:
+- key: "kubernetes.io/arch"
+  operator: "Equal"
+  value: "arm64"
+  effect: "NoSchedule"

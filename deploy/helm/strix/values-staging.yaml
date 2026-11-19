@@ -6,6 +6,8 @@ global:
     repository: ghcr.io/your-org/strix
     tag: "3.5.0"
     pullPolicy: IfNotPresent
+    pullSecrets:
+      - name: ghcr-secret
   labels:
     app.kubernetes.io/name: strix
     app.kubernetes.io/version: "3.5.0"

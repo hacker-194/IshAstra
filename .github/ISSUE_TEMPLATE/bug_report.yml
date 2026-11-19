@@ -1,55 +1,63 @@
-name: Bug report
-description: Report a defect in Strix. Do not include credentials or customer data.
-title: "bug: "
+# GitHub Issue Template: Bug Report
+# Process: GitHub Actions / GitHub UI reads this when user creates new issue
+# Effect: Pre-populates bug report form with structured fields
+# No secrets written in plain text
+# User instruction: "update all"
+
+name: Bug Report
+description: Report a bug
+title: "[BUG]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: |
-        Security vulnerabilities must be reported privately through the
-        repository's **Security → Report a vulnerability** form, not as a
-        public issue. See `SECURITY.md`.
+      value: "Thanks for reporting! Please fill out below."
   - type: textarea
-    id: summary
+    id: description
     attributes:
-      label: Summary
-      description: What happened, and what did you expect instead?
+      label: Description
+      description: What happened?
     validations:
       required: true
   - type: textarea
-    id: steps
+    id: reproduction
     attributes:
-      label: Reproduction steps
-      description: The smallest sequence that reproduces the problem.
-      placeholder: |
-        1. Start Strix with ...
-        2. Submit ...
-        3. Observe ...
+      label: Reproduction Steps
+      description: Steps to reproduce
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Strix version
-      description: Output of `strix --version` or the container tag.
-    validations:
-      required: true
+      label: Strix Version
+      description: Output of `strix --version`
   - type: dropdown
-    id: mode
+    id: component
     attributes:
-      label: Authorization mode
+      label: Component
       options:
-        - auto
-        - global
-        - managed
-        - not applicable
+        - Scope Gate
+        - API
+        - Adapters
+        - Workers
+        - Scheduler
+        - CLI
+        - Helm Chart
+        - Documentation
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Relevant logs
-      description: Redact credentials, API keys, targets and customer data.
-      render: shell
-    validations:
-      required: false
+      label: Relevant Logs
+      description: Paste relevant logs (sanitized)
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I've searched existing issues
+          required: true
+        - label: I've tested on latest main branch
+          required: true

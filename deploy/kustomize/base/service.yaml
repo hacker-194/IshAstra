@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: strix-api
+  labels:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: strix-platform
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: strix
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

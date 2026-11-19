@@ -1,0 +1,49 @@
+{
+  "realm": "strix",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "user"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "strix-local",
+      "name": "Strix local development",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "strix-local-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8000/api/auth/oidc/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:8000"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "strix-local-user",
+      "enabled": true,
+      "email": "strix-local-user@example.local",
+      "emailVerified": true,
+      "firstName": "Strix",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-only-change-me",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ]
+    }
+  ]
+}

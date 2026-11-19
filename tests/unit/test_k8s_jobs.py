@@ -14,7 +14,12 @@ import pytest
 pytest.importorskip("kubernetes")
 
 from strix.core import jobs  # noqa: E402
-from strix.core.k8s_queue import K8sAssessmentQueue, K8sJobConfig, _job_name  # noqa: E402
+from strix.core.k8s_queue import (
+    K8sAssessmentQueue,
+    K8sJobConfig,
+    _job_name,
+    get_k8s_assessment_queue,
+)  # noqa: E402
 from strix.core.scope import Scope  # noqa: E402
 
 
@@ -23,6 +28,14 @@ def test_job_name_is_an_rfc1123_subdomain():
     assert _job_name("job_" + "x" * 100) == ("strix-assess-job-" + "x" * 100)[:63]
     # every emitted name satisfies the DNS-1123 subdomain rule
     assert all(c.islower() or c.isdigit() or c in "-." for c in _job_name("job_A_B"))
+
+
+def test_production_k8s_queue_rejects_placeholder_image(monkeypatch):
+    monkeypatch.setenv("STRIX_ENV", "production")
+    monkeypatch.delenv("STRIX_K8S_IMAGE", raising=False)
+    monkeypatch.delenv("STRIX_K8S_IMAGE_REPOSITORY", raising=False)
+    with pytest.raises(ValueError, match="published Strix image"):
+        get_k8s_assessment_queue()
 
 
 def test_job_manifest_carries_the_authorized_scope():

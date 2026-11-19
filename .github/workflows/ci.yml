@@ -7,6 +7,19 @@ on:
   pull_request:
     branches: [main, master, "release/*"]
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Manual operation
+        required: true
+        type: choice
+        default: validate
+        options:
+          - validate
+          - deploy-staging
+          - deploy-production
+          - rollback-staging
+          - rollback-production
+          - soak
   schedule:
     # Nightly soak tests at 2 AM UTC
     - cron: '0 2 * * *'
@@ -154,6 +167,8 @@ jobs:
     name: Test PostgreSQL (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      STRIX_TEST_PG_DSN: postgresql://postgres:postgres@localhost:5432/strix_test
     strategy:
       fail-fast: false
       matrix:
@@ -240,6 +255,24 @@ jobs:
               tests/unit/test_scope.py tests/unit/test_scope_gate.py
           fi
 
+  test-scope-properties:
+    name: Property tests - scope authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+          cache-dependency-path: |
+            constraints.txt
+            pyproject.toml
+      - name: Install test dependencies
+        run: pip install -e ".[test]" -c constraints.txt
+      - name: Run scope property tests
+        run: python -m pytest -q -o addopts= tests/security/test_scope_properties.py
+
   formal-verification:
     name: TLA+ model check (address policy)
     runs-on: ubuntu-latest
@@ -273,7 +306,7 @@ jobs:
   mutation-scope:
     name: Mutation testing - scope authorization
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -639,6 +672,27 @@ jobs:
             exit 1
           fi
 
+  deployment-ref-check:
+    name: Validate deployment tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+            if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match package version $version"
+              exit 1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] &&
+               { [ "$OPERATION" = "deploy-staging" ] || [ "$OPERATION" = "deploy-production" ]; }; then
+            echo "::error::Deployments must be dispatched from a v* release tag"
+            exit 1
+          fi
+        env:
+          OPERATION: ${{ inputs.operation }}
+
   docker:
     name: Build container
     runs-on: ubuntu-latest
@@ -665,6 +719,7 @@ jobs:
           docker run -d --name strix-smoke -p 18000:8000 \
             -e STRIX_API_KEY=smoke-test-key-0123456789abcdef \
             -e STRIX_AUDIT_HMAC_KEY=c21va2UtaG1hYy1rZXktMDEyMzQ1Njc4OQ== \
+            -e STRIX_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
             strix:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18000/api/health >/dev/null 2>&1; then
@@ -705,6 +760,40 @@ jobs:
         run: |
           trivy config --exit-code 1 --severity HIGH,CRITICAL ./deploy/helm/strix/
 
+  publish-container:
+    name: Publish release container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [container-scan, deployment-ref-check]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve image name
+        id: image
+        run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "name=$image" >> "$GITHUB_OUTPUT"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish immutable release tags
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.ref_name }}
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+
   slsa-provenance:
     name: SLSA Level 3 Provenance
     runs-on: ubuntu-latest
@@ -729,30 +818,80 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [docker, container-scan, security-gate, readiness-check, detection-benchmark, slsa-provenance]
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: [docker, container-scan, publish-container, security-gate, readiness-check, detection-benchmark, slsa-provenance, deployment-ref-check]
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.operation == 'deploy-staging' || inputs.operation == 'deploy-production')
     environment: staging
     permissions:
       contents: read
       id-token: write
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      STRIX_API_HOST: ${{ vars.STRIX_API_HOST }}
+      STRIX_SCOPE_JSON: ${{ secrets.STRIX_SCOPE_JSON }}
+      STRIX_NAMESPACE: strix-staging
     steps:
       - uses: actions/checkout@v4
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          test -n "$STRIX_INGRESS_HOST" || { echo "::error::Set the staging STRIX_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$STRIX_API_HOST" || { echo "::error::Set the staging STRIX_API_HOST environment variable"; exit 1; }
+          test -n "$STRIX_SCOPE_JSON" || { echo "::error::Set the approved staging STRIX_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$STRIX_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$STRIX_INGRESS_HOST" "$STRIX_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          import json, re, sys
+          for host in sys.argv[1:3]:
+              if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
+                  raise SystemExit(f"Invalid deployment hostname: {host!r}")
+              if host == "example.com" or host.endswith(".example.com"):
+                  raise SystemExit("Replace example.com deployment hostnames")
+          scope = json.load(open(sys.argv[3], encoding="utf-8"))
+          if not scope.get("include") or not scope.get("authorized_by") or not scope.get("authorization_ref"):
+              raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
+          PY
       - name: Set up kubectl
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Verify provisioned production prerequisites
+        run: |
+          set -euo pipefail
+          for secret in ghcr-secret strix-secrets strix-redis-secret strix-postgresql-secret; do
+            kubectl get secret "$secret" -n "$STRIX_NAMESPACE" >/dev/null
+          done
+          for key in STRIX_API_KEY STRIX_AUDIT_HMAC_KEY STRIX_ENCRYPTION_KEY; do
+            if ! kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::strix-secrets is missing $key"
+              exit 1
+            fi
+          done
+          kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o 'jsonpath={.data.STRIX_ENCRYPTION_KEY}' \
+            | base64 -d \
+            | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
+          kubectl get secret strix-postgresql-secret -n "$STRIX_NAMESPACE" \
+            -o 'jsonpath={.data.database-url}' | grep -q .
+          kubectl get secret strix-redis-secret -n "$STRIX_NAMESPACE" \
+            -o 'jsonpath={.data.redis-password}' | grep -q .
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: v3.14.0
       - name: Deploy to Staging
         run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           helm upgrade --install strix-staging ./deploy/helm/strix \
             --namespace strix-staging \
             --create-namespace \
             -f ./deploy/helm/strix/values-staging.yaml \
-            --set global.image.tag=${{ github.sha }} \
+            --set-string "global.image.repository=$image" \
+            --set-string "global.image.tag=sha-$GITHUB_SHA" \
+            --set-string "api.ingress.hosts[0].host=$STRIX_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$STRIX_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$STRIX_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$STRIX_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$STRIX_INGRESS_HOST\\,$STRIX_API_HOST" \
+            --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
             --wait --timeout 10m
 
   smoke-tests-staging:
@@ -760,8 +899,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [deploy-staging]
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.operation == 'deploy-staging' || inputs.operation == 'deploy-production')
     environment: staging
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up kubectl
@@ -772,34 +913,25 @@ jobs:
       - name: Wait for rollout
         run: |
           kubectl rollout status deployment/strix-strix-api -n strix-staging --timeout=5m
-      - name: Run health checks
+      - name: Verify externally reachable API behavior
         run: |
           kubectl run smoke-test-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix-staging.example.com/api/health
-      - name: Run readiness checks
-        run: |
-          kubectl run ready-test-staging --rm -i --restart=Never \
-            --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix-staging.example.com/api/ready
-      - name: Run comprehensive smoke tests
-        run: |
-          # Test core API endpoints
-          kubectl run smoke-comprehensive-staging --rm -i --restart=Never \
-            --image=curlimages/curl:8.7.1 \
-            -- sh -c '
-              BASE="https://strix-staging.example.com"
-              echo "Testing /api/health..."
-              curl -sf "$BASE/api/health"
-              echo "Testing /api/ready..."
-              curl -sf "$BASE/api/ready"
-              echo "Testing /api/metrics (should require auth)..."
-              curl -sf "$BASE/api/metrics" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 401"
-              echo "Testing /api/findings (should require auth)..."
-              curl -sf "$BASE/api/findings" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 401"
-              echo "Testing /docs (should be disabled in production)..."
-              curl -sf "$BASE/docs" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 404"
-              echo "All smoke tests passed!"
+            --env="BASE_URL=https://$STRIX_INGRESS_HOST" \
+            -- sh -ec '
+              expect_status() {
+                expected="$1"
+                path="$2"
+                actual="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$BASE_URL$path")"
+                if [ "$actual" != "$expected" ]; then
+                  echo "$path expected HTTP $expected, got $actual" >&2
+                  exit 1
+                fi
+              }
+              expect_status 200 /api/health
+              expect_status 200 /api/ready
+              expect_status 401 /api/metrics
+              expect_status 401 /api/findings
             '
 
   deploy-production:
@@ -807,29 +939,80 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [smoke-tests-staging]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-production' && startsWith(github.ref, 'refs/tags/v')
     environment: production
     permissions:
       contents: read
       id-token: write
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      STRIX_API_HOST: ${{ vars.STRIX_API_HOST }}
+      STRIX_SCOPE_JSON: ${{ secrets.STRIX_SCOPE_JSON }}
+      STRIX_NAMESPACE: strix-production
     steps:
       - uses: actions/checkout@v4
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          test -n "$STRIX_INGRESS_HOST" || { echo "::error::Set the production STRIX_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$STRIX_API_HOST" || { echo "::error::Set the production STRIX_API_HOST environment variable"; exit 1; }
+          test -n "$STRIX_SCOPE_JSON" || { echo "::error::Set the approved production STRIX_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$STRIX_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$STRIX_INGRESS_HOST" "$STRIX_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          import json, re, sys
+          for host in sys.argv[1:3]:
+              if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
+                  raise SystemExit(f"Invalid deployment hostname: {host!r}")
+              if host == "example.com" or host.endswith(".example.com"):
+                  raise SystemExit("Replace example.com deployment hostnames")
+          scope = json.load(open(sys.argv[3], encoding="utf-8"))
+          if not scope.get("include") or not scope.get("authorized_by") or not scope.get("authorization_ref"):
+              raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
+          PY
       - name: Set up kubectl
         uses: azure/k8s-set-context@v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+      - name: Verify provisioned production prerequisites
+        run: |
+          set -euo pipefail
+          for secret in ghcr-secret strix-secrets strix-redis-secret strix-postgresql-secret; do
+            kubectl get secret "$secret" -n "$STRIX_NAMESPACE" >/dev/null
+          done
+          for key in STRIX_API_KEY STRIX_AUDIT_HMAC_KEY STRIX_ENCRYPTION_KEY; do
+            if ! kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::strix-secrets is missing $key"
+              exit 1
+            fi
+          done
+          kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o 'jsonpath={.data.STRIX_ENCRYPTION_KEY}' \
+            | base64 -d \
+            | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
+          kubectl get secret strix-postgresql-secret -n "$STRIX_NAMESPACE" \
+            -o 'jsonpath={.data.database-url}' | grep -q .
+          kubectl get secret strix-redis-secret -n "$STRIX_NAMESPACE" \
+            -o 'jsonpath={.data.redis-password}' | grep -q .
+          kubectl get --raw /apis/external.metrics.k8s.io/v1beta1 >/dev/null
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: v3.14.0
       - name: Deploy to Production
         run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           helm upgrade --install strix-prod ./deploy/helm/strix \
             --namespace strix-production \
             --create-namespace \
             -f ./deploy/helm/strix/values-prod.yaml \
-            --set global.image.tag=${{ github.sha }} \
+            --set-string "global.image.repository=$image" \
+            --set-string "global.image.tag=sha-$GITHUB_SHA" \
+            --set-string "api.ingress.hosts[0].host=$STRIX_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$STRIX_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$STRIX_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$STRIX_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$STRIX_INGRESS_HOST\\,$STRIX_API_HOST" \
+            --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
             --wait --timeout 10m
 
   smoke-tests-production:
@@ -837,8 +1020,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [deploy-production]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-production' && startsWith(github.ref, 'refs/tags/v')
     environment: production
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up kubectl
@@ -849,40 +1034,33 @@ jobs:
       - name: Wait for rollout
         run: |
           kubectl rollout status deployment/strix-strix-api -n strix-production --timeout=5m
-      - name: Run health checks
+      - name: Verify externally reachable API behavior
         run: |
           kubectl run smoke-test-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix.example.com/api/health
-      - name: Run readiness checks
-        run: |
-          kubectl run ready-test-prod --rm -i --restart=Never \
-            --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix.example.com/api/ready
-      - name: Run comprehensive smoke tests
-        run: |
-          kubectl run smoke-comprehensive-prod --rm -i --restart=Never \
-            --image=curlimages/curl:8.7.1 \
-            -- sh -c '
-              BASE="https://strix.example.com"
-              echo "Testing /api/health..."
-              curl -sf "$BASE/api/health"
-              echo "Testing /api/ready..."
-              curl -sf "$BASE/api/ready"
-              echo "Testing /api/metrics (should require auth)..."
-              curl -sf "$BASE/api/metrics" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 401"
-              echo "Testing /api/findings (should require auth)..."
-              curl -sf "$BASE/api/findings" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 401"
-              echo "Testing /docs (should be disabled in production)..."
-              curl -sf "$BASE/docs" && echo "UNEXPECTED SUCCESS" || echo "EXPECTED 404"
-              echo "All smoke tests passed!"
+            --env="BASE_URL=https://$STRIX_INGRESS_HOST" \
+            -- sh -ec '
+              expect_status() {
+                expected="$1"
+                path="$2"
+                actual="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$BASE_URL$path")"
+                if [ "$actual" != "$expected" ]; then
+                  echo "$path expected HTTP $expected, got $actual" >&2
+                  exit 1
+                fi
+              }
+              expect_status 200 /api/health
+              expect_status 200 /api/ready
+              expect_status 401 /api/metrics
+              expect_status 401 /api/findings
+              expect_status 404 /docs
             '
 
   rollback-staging:
     name: Rollback Staging
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-staging'
     environment: staging
     permissions:
       contents: read
@@ -907,8 +1085,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [rollback-staging]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-staging'
     environment: staging
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up kubectl
@@ -923,12 +1103,12 @@ jobs:
         run: |
           kubectl run rollback-verify-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix-staging.example.com/api/health
+            -- curl -sf "https://$STRIX_INGRESS_HOST/api/health"
       - name: Verify readiness after rollback
         run: |
           kubectl run rollback-ready-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix-staging.example.com/api/ready
+            -- curl -sf "https://$STRIX_INGRESS_HOST/api/ready"
       - name: Verify revision
         run: |
           REVISION=$(helm status strix-staging -n strix-staging -o json | jq -r .revision)
@@ -942,7 +1122,7 @@ jobs:
     name: Rollback Production
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-production'
     environment: production
     permissions:
       contents: read
@@ -967,8 +1147,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [rollback-production]
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-production'
     environment: production
+    env:
+      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up kubectl
@@ -983,12 +1165,12 @@ jobs:
         run: |
           kubectl run rollback-verify-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix.example.com/api/health
+            -- curl -sf "https://$STRIX_INGRESS_HOST/api/health"
       - name: Verify readiness after rollback
         run: |
           kubectl run rollback-ready-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf https://strix.example.com/api/ready
+            -- curl -sf "https://$STRIX_INGRESS_HOST/api/ready"
       - name: Verify revision
         run: |
           REVISION=$(helm status strix-prod -n strix-production -o json | jq -r .revision)
@@ -1004,7 +1186,7 @@ jobs:
   soak-assessment-load:
     name: Soak - Assessment Load (~500 jobs, 2h)
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
@@ -1032,7 +1214,7 @@ jobs:
   soak-sigterm:
     name: Soak - SIGTERM Mid-Assessment
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -1057,7 +1239,7 @@ jobs:
   soak-backup-restore:
     name: Soak - Backup/Restore Round-Trip
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

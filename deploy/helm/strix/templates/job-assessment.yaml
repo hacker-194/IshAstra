@@ -65,7 +65,7 @@ spec:
         {{- else }}
         {{- include "strix.podSecurityContext" . | nindent 8 }}
         {{- end }}
-      {{- include "strix.imagePullSecrets" . }}
+      {{- include "strix.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: assessment
           image: "{{ .Values.k8sJobs.image | default (printf "%s:%s" .Values.global.image.repository .Values.global.image.tag) }}"

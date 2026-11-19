@@ -58,3 +58,9 @@ docs/tla/states/
 *.db-shm
 security-audit-reports/
 .claude/worktrees/
+
+# Local deployment secrets and generated security artefacts (never commit)
+prod-secrets/
+security-reports/
+site/
+kubeseal

@@ -24,6 +24,8 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import os
+import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -92,6 +94,68 @@ def generate_keypair(kid: str) -> tuple[bytes, dict[str, str]]:
         "kid": kid.strip(),
         "x": _b64url_encode(public_raw),
     }
+
+
+def rotate_keypair(kid: str, private_key_path: Path | str, jwks_path: Path | str) -> dict[str, str]:
+    """Create a new key and atomically append its public JWK to an existing JWKS.
+
+    Previous public keys are deliberately retained so already-issued scope
+    documents remain verifiable until an operator explicitly retires them.
+    """
+    private_path = Path(private_key_path)
+    public_path = Path(jwks_path)
+    if private_path.resolve() == public_path.resolve():
+        raise ValueError("private key and JWKS paths must be different")
+    if private_path.exists():
+        raise ValueError(f"private key already exists: {private_path}")
+    try:
+        jwks = json.loads(public_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"JWKS {public_path} cannot be read: {exc}") from None
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"JWKS {public_path} is not valid JSON: {exc.msg}") from None
+    keys = parse_jwks(jwks)
+    pem, jwk = generate_keypair(kid)
+    if jwk["kid"] in keys:
+        raise ValueError(f"JWKS already contains kid {jwk['kid']!r}")
+    private_path.parent.mkdir(parents=True, exist_ok=True)
+    public_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_private_key_exclusive(private_path, pem)
+    _write_jwks(public_path, {**jwks, "keys": [*jwks["keys"], jwk]})
+    return jwk
+
+
+def _write_private_key_exclusive(path: Path, data: bytes) -> None:
+    """Install a private key with owner-only permissions, refusing replacement."""
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temp_path = Path(temporary)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temp_path, 0o600)
+        os.link(temp_path, path)
+    except FileExistsError:
+        raise ValueError(f"private key already exists: {path}") from None
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def _write_jwks(path: Path, jwks: dict[str, Any]) -> None:
+    """Replace the public key set atomically so readers never see partial JSON."""
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temp_path = Path(temporary)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(jwks, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temp_path, 0o644)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def parse_jwks(data: Any) -> dict[str, Ed25519PublicKey]:

@@ -418,7 +418,7 @@ class TestValidateIDToken:
                         "exp": time.time() + 3600,
                         "iat": time.time(),
                     },
-                ):
+                ) as mock_decode:
                     claims = validate_id_token(
                         id_token="valid.id.token",
                         provider=provider,
@@ -428,6 +428,7 @@ class TestValidateIDToken:
 
                     assert claims["sub"] == "user-123"
                     assert claims["email"] == "user@example.com"
+                    assert mock_decode.call_args.kwargs["issuer"] == provider.issuer
 
     @pytest.mark.asyncio
     async def test_validate_id_token_missing_kid(self):

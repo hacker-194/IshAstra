@@ -932,8 +932,8 @@ class Scope:
             _annotate_span(span, self, denial)
         return denial, reason
 
-    def _record_decision(self, denial: str) -> None:
-        """Count this decision for the gate metrics (never affects the verdict)."""
+    def _record_decision(self, denial: str, elapsed: float) -> None:
+        """Record decision count and latency (never affects the verdict)."""
         from strix import metrics
 
         metrics.record_scope_decision(
@@ -941,13 +941,15 @@ class Scope:
             denial or "allowed",
             self.tenant_id or "global",
         )
+        metrics.observe_scope_decision("blocked" if denial else "allowed", elapsed)
 
     def check(self, url: str) -> tuple[str, str]:
         """Return ("", "") when the target may be contacted, else (denial, reason)."""
+        started = time.perf_counter()
         with _gate_span("address") as span:
             denial, reason = self._check(url)
             _annotate_span(span, self, denial)
-        self._record_decision(denial)
+        self._record_decision(denial, time.perf_counter() - started)
         return denial, reason
 
     def _check(self, url: str) -> tuple[str, str]:
@@ -969,10 +971,11 @@ class Scope:
         nothing else: connecting anywhere else re-resolves the name and reopens
         DNS rebinding between validation and use.
         """
+        started = time.perf_counter()
         with _gate_span("address") as span:
             denial, reason, dest = self._destination(url)
             _annotate_span(span, self, denial)
-        self._record_decision(denial)
+        self._record_decision(denial, time.perf_counter() - started)
         return denial, reason, dest
 
     def _destination(self, url: str) -> tuple[str, str, Destination | None]:
@@ -1002,10 +1005,11 @@ class Scope:
 
     async def destination_async(self, url: str) -> tuple[str, str, Destination | None]:
         """Async version of destination for use in async contexts."""
+        started = time.perf_counter()
         with _gate_span("address") as span:
             denial, reason, dest = await self._destination_async(url)
             _annotate_span(span, self, denial)
-        self._record_decision(denial)
+        self._record_decision(denial, time.perf_counter() - started)
         return denial, reason, dest
 
     async def _destination_async(self, url: str) -> tuple[str, str, Destination | None]:
@@ -1125,6 +1129,9 @@ def current() -> Scope | None:
 # because it cannot be verified. STRIX_SCOPE_JWKS supplies the set when nothing
 # was configured explicitly.
 _signing_keys: dict[str, Any] | None = None
+_signing_file: str | None = None
+_signing_file_identity: tuple[int, int, int] | None = None
+_signing_explicit = False
 # A signature proves authorship, not recency: without a freshness limit a saved
 # copy of an older valid document could be replayed after the source was
 # revoked or narrowed.
@@ -1144,9 +1151,13 @@ def configure_signing(
     signed document may be, in seconds; ``None`` disables the freshness check
     and reopens replay of an older signed document.
     """
-    global _signing_keys, _signing_max_age
+    global _signing_keys, _signing_max_age, _signing_file, _signing_file_identity, _signing_explicit
     _signing_keys = None if jwks is None else scope_signing.key_set(jwks)
     _signing_max_age = max_age
+    _signing_file = str(jwks) if isinstance(jwks, (str, Path)) else None
+    stat = Path(_signing_file).stat() if _signing_file else None
+    _signing_file_identity = (stat.st_mtime_ns, stat.st_size, stat.st_ino) if stat else None
+    _signing_explicit = jwks is not None and _signing_file is None
 
 
 def _signing_key_set() -> dict[str, Any] | None:
@@ -1156,15 +1167,18 @@ def _signing_key_set() -> dict[str, Any] | None:
     to "no signing": an unreadable key file must not widen who can author a
     scope document.
     """
-    global _signing_keys, _signing_max_age
-    if _signing_keys is None:
-        path = os.environ.get("STRIX_SCOPE_JWKS", "").strip()
-        if path:
-            keys = scope_signing.load_jwks(path)
+    global _signing_keys, _signing_max_age, _signing_file, _signing_file_identity
+    path = _signing_file or os.environ.get("STRIX_SCOPE_JWKS", "").strip()
+    if path and not _signing_explicit:
+        stat = Path(path).stat()
+        identity = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+        if path != _signing_file or identity != _signing_file_identity:
+            _signing_keys = scope_signing.load_jwks(path)
+            _signing_file = path
+            _signing_file_identity = identity
             raw_age = os.environ.get("STRIX_SCOPE_MAX_AGE_SECONDS", "").strip()
             if raw_age:
                 _signing_max_age = int(raw_age)  # invalid values fail the load
-            _signing_keys = keys
     return _signing_keys
 
 
@@ -1655,8 +1669,9 @@ class ScopeGate:
     @staticmethod
     def validate_outbound(target: str, scope: Scope) -> ValidationResult:
         """Validate an outbound target and count the decision for metrics."""
+        started = time.perf_counter()
         result = ScopeGate._validate_outbound(target, scope)
-        scope._record_decision(result.denial_code)
+        scope._record_decision(result.denial_code, time.perf_counter() - started)
         return result
 
     @staticmethod
@@ -1666,12 +1681,13 @@ class ScopeGate:
         The local scope is judged first, so an out-of-scope target never reaches
         the external service; a service that is down, slow or malformed denies.
         """
+        started = time.perf_counter()
         result = ScopeGate._validate_outbound(target, scope)
         if result.allowed:
             denial, reason = await _jit_denial_async(scope, target, result.host, result.port)
             if denial:
                 result = replace(result, allowed=False, denial_code=denial, reason=reason)
-        scope._record_decision(result.denial_code)
+        scope._record_decision(result.denial_code, time.perf_counter() - started)
         return result
 
     @staticmethod

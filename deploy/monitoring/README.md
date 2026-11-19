@@ -84,6 +84,7 @@ Every series below is defined in `src/strix/metrics.py`:
 | `strix_http_request_duration_seconds` | histogram | `method`, `endpoint` |
 | `strix_http_requests_in_progress` | gauge | `method`, `endpoint` |
 | `strix_scope_gate_decisions_total` | counter | `decision`, `reason`, `tenant` |
+| `strix_scope_gate_decision_duration_seconds` | histogram | `decision` |
 | `strix_rate_limit_hits_total` | counter | `route_class`, `tier`, `allowed` |
 | `strix_rate_limit_exceeded_total` | counter | `route_class`, `tier`, `identity_type` |
 | `strix_jobs_total` | counter | `state`, `tenant` |
@@ -116,6 +117,22 @@ Every series below is defined in `src/strix/metrics.py`:
 Celery and Kubernetes queue modes do not emit queue/worker gauges yet. **Not exported**: compliance scoring (`strix_compliance_*`) and the
 `strix_assessment_*` Kubernetes job gauges. Panels built on those have no data
 source; the compliance alert was removed rather than left firing on nothing.
+
+## Custom-metric autoscaling
+
+The Helm chart's API and worker HPAs use the recording metrics
+`strix_scope_gate_decision_latency_seconds_p95` and
+`strix_assessment_queue_pending`. Prometheus rules for both are included in the
+chart. HPA custom metrics require the Prometheus Adapter (or another provider
+that exposes `external.metrics.k8s.io`); example values for the
+`prometheus-community/prometheus-adapter` chart are in
+`prometheus-adapter-values.yaml`. Set its Prometheus URL to your in-cluster
+Prometheus service, install it before enabling custom-metric HPAs, and verify
+the metrics API with:
+
+```bash
+kubectl get --raw /apis/external.metrics.k8s.io/v1beta1/namespaces/strix/strix_assessment_queue_pending
+```
 
 ## Enabling OpenTelemetry
 

@@ -1,0 +1,166 @@
+# MkDocs Configuration for Strix Documentation
+# Process: GitHub Actions / mkdocs reads this to build documentation site
+# Effect: Generates static docs site deployed to GitHub Pages
+# No secrets written in plain text
+# User instruction: "update all"
+
+site_name: Strix Documentation
+site_description: Authorization-First Security Assessment Platform
+site_url: https://strix.dev
+site_author: Strix Contributors
+repo_url: https://github.com/strix/strix
+repo_name: strix/strix
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2024 Strix Contributors — Apache-2.0
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    logo: material/shield-check
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+      enable_git_follow: false
+      fallback_to_build_date: true
+  - minify:
+      minify_html: true
+  - glightbox
+  - mermaid2
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+      title: On this page
+
+nav:
+  - Home: index.md
+  - Quick Start:
+      - Overview: quickstart/overview.md
+      - Free Tier: quickstart/free-tier.md
+      - Local Dev: quickstart/local-dev.md
+      - Production: quickstart/production.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Scope Gate: architecture/scope-gate.md
+      - Adapters: architecture/adapters.md
+      - Job Orchestration: architecture/jobs.md
+      - Proof Chain: architecture/proof-chain.md
+  - Scope Gate:
+      - Concepts: scope-gate/concepts.md
+      - Configuration: scope-gate/configuration.md
+      - Policies: scope-gate/policies.md
+      - Break Glass: scope-gate/break-glass.md
+      - TLA+ Verification: scope-gate/tla-verification.md
+  - Adapters:
+      - Built-in: adapters/built-in.md
+      - External Tools: adapters/external.md
+      - Custom Adapters: adapters/custom.md
+      - SDK: adapters/sdk.md
+  - Deployment:
+      - Kubernetes: deployment/kubernetes.md
+      - Helm: deployment/helm.md
+      - Free Tier: deployment/free-tier.md
+      - Docker Compose: deployment/docker-compose.md
+      - Monitoring: deployment/monitoring.md
+      - Runbooks:
+          - API Down: runbooks/api-down.md
+          - Certificate Expiry: runbooks/certificate-expiry.md
+          - Database Connections: runbooks/db-connections.md
+          - Queue Backlog: runbooks/queue-backlog.md
+          - Scope Gate Denials: runbooks/scope-gate-denials.md
+          - Worker OOM: runbooks/worker-oom.md
+  - API Reference:
+      - Authentication: api/authentication.md
+      - Assessments: api/assessments.md
+      - Findings: api/findings.md
+      - Scope Management: api/scope-management.md
+      - Webhooks: api/webhooks.md
+  - Compliance:
+      - Overview: compliance/overview.md
+      - NIST 800-53: compliance/nist.md
+      - ISO 27001: compliance/iso27001.md
+      - SOC 2: compliance/soc2.md
+      - PCI DSS: compliance/pci-dss.md
+  - Security:
+      - Security Review: security-review.md
+  - Contributing:
+      - Development: contributing/development.md
+      - Code Style: contributing/code-style.md
+      - Testing: contributing/testing.md
+      - Releasing: contributing/releasing.md
+  - Changelog: changelog.md
+  - License: license.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/strix/strix
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/strix
+    - icon: fontawesome/brands/slack
+      link: https://slack.strix.dev
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/strix_security
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js

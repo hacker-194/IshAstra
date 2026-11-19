@@ -8,7 +8,7 @@ The tests connect as a non-superuser role: a superuser bypasses row-level
 security entirely, so the previous version of this suite could not have proved
 anything even if it had created the schema.
 
-Requires PostgreSQL. Set STRIX_TEST_PG_DSN (defaults to the CI database).
+Requires PostgreSQL. Set STRIX_TEST_PG_DSN to run this suite.
 """
 
 from __future__ import annotations
@@ -20,7 +20,10 @@ import pytest
 
 from strix.core import store
 
-ADMIN_DSN = os.environ.get("STRIX_TEST_PG_DSN", "postgresql://postgres:postgres@localhost:5432/strix_test")
+ADMIN_DSN = os.environ.get("STRIX_TEST_PG_DSN")
+if not ADMIN_DSN:
+    pytest.skip("Set STRIX_TEST_PG_DSN to run PostgreSQL RLS tests", allow_module_level=True)
+
 APP_ROLE = "strix_rls_test"
 # A global admin used only to seed rows: policies let a global admin write
 # across tenants, which is how real bootstrap rows (api_keys, orgs) get in.

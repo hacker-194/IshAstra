@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: strix-regions
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - region: us-east
+            cluster: us-east
+          - region: eu-west
+            cluster: eu-west
+          - region: ap-south
+            cluster: ap-south
+  template:
+    metadata:
+      name: strix-{{region}}
+      labels:
+        app.kubernetes.io/part-of: strix-platform
+        topology.kubernetes.io/region: '{{region}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/usestrix/strix.git
+        targetRevision: main
+        path: deploy/kustomize/overlays/{{region}}
+      destination:
+        name: '{{cluster}}'
+        namespace: strix-{{region}}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

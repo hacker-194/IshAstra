@@ -2,6 +2,9 @@
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.hypothesis/
+build/
+dist/
 __pycache__/
 *.pyc
 *.pyo
@@ -45,6 +48,15 @@ config/
 certbot/
 deploy/
 scripts/
+docs/
+tests/
+examples/
+k8s/
+migrations/
+monitoring/
+graphify-out/
+.claude/
+.freebuff/
 
 # Database files
 *.db

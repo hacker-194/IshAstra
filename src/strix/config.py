@@ -165,6 +165,10 @@ class Settings:
             raise ValueError("STRIX_SCOPE_MODE must be one of: auto, global, managed")
         database_url = os.environ.get("STRIX_DATABASE_URL", "").strip()
         api_key = _secret("STRIX_API_KEY", os.environ.get("STRIX_API_KEY", "").strip())
+        encryption_key = _secret(
+            "STRIX_ENCRYPTION_KEY",
+            os.environ.get("STRIX_ENCRYPTION_KEY", "").strip(),
+        )
         audit_hmac_key_b64 = os.environ.get("STRIX_AUDIT_HMAC_KEY", "").strip()
         audit_hmac_key = ""
         if audit_hmac_key_b64:
@@ -181,6 +185,7 @@ class Settings:
                 for name, value in (
                     ("STRIX_API_KEY", api_key),
                     ("STRIX_AUDIT_HMAC_KEY", audit_hmac_key),
+                    ("STRIX_ENCRYPTION_KEY", encryption_key),
                 )
                 if not value
             ]
@@ -188,6 +193,16 @@ class Settings:
                 raise ValueError(
                     "STRIX_ENV=production requires " + ", ".join(missing) + "; refusing to start without them"
                 )
+            from strix.crypto import EncryptionError, decode_key
+
+            try:
+                decode_key(encryption_key)
+            except EncryptionError as exc:
+                raise ValueError("STRIX_ENCRYPTION_KEY must be base64-encoded 32-byte key material") from exc
+            if os.environ.get("STRIX_DEBUG", "").strip() == "1":
+                raise ValueError("STRIX_DEBUG must be disabled in production")
+            if os.environ.get("STRIX_RATE_LIMIT_DISABLED", "").strip() == "1":
+                raise ValueError("STRIX_RATE_LIMIT_DISABLED must be disabled in production")
         docs_disabled = environment == "production" or os.environ.get(
             "STRIX_DISABLE_DOCS", ""
         ).strip().lower() in {"1", "true", "yes"}
@@ -239,10 +254,7 @@ class Settings:
             redis_url=os.environ.get("STRIX_REDIS_URL", "redis://localhost:6379/0"),
             worker_memory_mb=_int("STRIX_WORKER_MEMORY_MB", 1024, minimum=0),
             database_url=database_url,
-            encryption_key=_secret(
-                "STRIX_ENCRYPTION_KEY",
-                os.environ.get("STRIX_ENCRYPTION_KEY", "").strip(),
-            ),
+            encryption_key=encryption_key,
             oidc_issuer=os.environ.get("STRIX_OIDC_ISSUER", "").strip(),
             oidc_client_id=os.environ.get("STRIX_OIDC_CLIENT_ID", "").strip(),
             oidc_client_secret=_secret(

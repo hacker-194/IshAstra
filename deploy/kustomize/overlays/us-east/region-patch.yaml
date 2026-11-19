@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strix-api
+  labels:
+    topology.kubernetes.io/region: us-east
+spec:
+  template:
+    metadata:
+      labels:
+        topology.kubernetes.io/region: us-east
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: STRIX_REGION
+              value: us-east

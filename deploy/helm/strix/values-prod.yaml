@@ -133,6 +133,13 @@ api:
           target:
             type: Utilization
             averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: strix_scope_gate_decision_latency_seconds_p95
+          target:
+            type: Value
+            value: "0.5"
   ingress:
     enabled: true
     className: "nginx"
@@ -376,6 +383,13 @@ worker:
           target:
             type: Utilization
             averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: strix_assessment_queue_pending
+          target:
+            type: AverageValue
+            averageValue: "10"
 
 # Redis - Replication mode for HA
 redis:
@@ -512,9 +526,6 @@ secrets:
     vault.hashicorp.com/agent-inject: "true"
     vault.hashicorp.com/role: "strix"
     vault.hashicorp.com/secret-path: "secret/data/strix/production"
-  rotation:
-    enabled: true
-    schedule: "0 3 * * *"  # Daily at 3 AM UTC
 
 # ConfigMap - Production scope (to be replaced with actual signed scope)
 configMap:

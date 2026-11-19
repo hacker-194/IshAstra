@@ -1,7 +1,4 @@
 # Runbook: Assessment Queue Backlog
-# Supersedes: No previous runbook existed
-# Linked from: docs/deployment/monitoring.md (PrometheusRule StrixQueueDepthHigh)
-# User instruction: "update all"
 
 # Runbook: Assessment Queue Backlog
 

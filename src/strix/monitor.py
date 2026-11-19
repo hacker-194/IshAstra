@@ -270,19 +270,30 @@ class Monitor:
         self._baseline_order = list(self._baseline.keys())
         existing = {getattr(sink, "name", "") for sink in self.alert_sinks}
         for row in asyncio.run(store.load_webhook_sinks()):
-            # Decrypt URL if encryption is enabled
-            url = row["url"]
-            if self.encryption_key and url:
-                try:
-                    url = decrypt(url, self.encryption_key)
-                except EncryptionError:
-                    log.warning("failed to decrypt webhook sink %s, skipping", row["name"])
+            if not self.encryption_key:
+                raise RuntimeError("STRIX_ENCRYPTION_KEY is required to load persisted webhook sinks")
+            stored_url = row["url"]
+            migrated = False
+            try:
+                url = decrypt(stored_url, self.encryption_key)
+            except EncryptionError:
+                url = stored_url
+                migrated = True
+                if parse_url(url) is None:
+                    log.warning("failed to decrypt persisted webhook sink %s, skipping", row["name"])
                     continue
-            parsed = parse_url(url)
+            parsed = parse_url(url) if url else None
             if parsed is None or parsed.username or parsed.password or has_sensitive_query_params(url):
                 log.warning("discarding unsafe persisted webhook sink %s", row["name"])
                 asyncio.run(store.delete_webhook_sink(row["name"]))
                 continue
+            if migrated:
+                try:
+                    encrypted_url = encrypt(url, self.encryption_key)
+                    asyncio.run(store.save_webhook_sink(row["name"], encrypted_url))
+                except EncryptionError:
+                    log.exception("failed to encrypt legacy webhook sink %s", row["name"])
+                    raise
             if row["name"] in existing:
                 continue
             self.alert_sinks.append(WebhookAlertSink(name=row["name"], url=url, secret=self.webhook_secret))
@@ -307,19 +318,30 @@ class Monitor:
         self._baseline_order = list(self._baseline.keys())
         existing = {getattr(sink, "name", "") for sink in self.alert_sinks}
         for row in await store.load_webhook_sinks():
-            # Decrypt URL if encryption is enabled
-            url = row["url"]
-            if self.encryption_key and url:
-                try:
-                    url = decrypt(url, self.encryption_key)
-                except EncryptionError:
-                    log.warning("failed to decrypt webhook sink %s, skipping", row["name"])
+            if not self.encryption_key:
+                raise RuntimeError("STRIX_ENCRYPTION_KEY is required to load persisted webhook sinks")
+            stored_url = row["url"]
+            migrated = False
+            try:
+                url = decrypt(stored_url, self.encryption_key)
+            except EncryptionError:
+                url = stored_url
+                migrated = True
+                if parse_url(url) is None:
+                    log.warning("failed to decrypt persisted webhook sink %s, skipping", row["name"])
                     continue
-            parsed = parse_url(url)
+            parsed = parse_url(url) if url else None
             if parsed is None or parsed.username or parsed.password or has_sensitive_query_params(url):
                 log.warning("discarding unsafe persisted webhook sink %s", row["name"])
                 await store.delete_webhook_sink(row["name"])
                 continue
+            if migrated:
+                try:
+                    encrypted_url = encrypt(url, self.encryption_key)
+                    await store.save_webhook_sink(row["name"], encrypted_url)
+                except EncryptionError:
+                    log.exception("failed to encrypt legacy webhook sink %s", row["name"])
+                    raise
             if row["name"] in existing:
                 continue
             self.alert_sinks.append(WebhookAlertSink(name=row["name"], url=url, secret=self.webhook_secret))
@@ -338,15 +360,14 @@ class Monitor:
             if any(existing.name == sink.name for existing in self.alert_sinks):
                 raise ValueError(f"alert sink {sink.name!r} already exists")
             if isinstance(sink, WebhookAlertSink):
+                if not self.encryption_key:
+                    raise RuntimeError("STRIX_ENCRYPTION_KEY is required to persist webhook sinks")
                 # Validate and pin at creation time to fail fast and prevent DNS rebinding
                 asyncio.run(sink._ensure_pinned())
                 # Save first: persistence errors must not leave a phantom sink
                 # that is active only until the next process restart.
-                if self.encryption_key:
-                    encrypted_url = encrypt(sink.url, self.encryption_key)
-                    asyncio.run(store.save_webhook_sink(sink.name, encrypted_url))
-                else:
-                    asyncio.run(store.save_webhook_sink(sink.name, sink.url))
+                encrypted_url = encrypt(sink.url, self.encryption_key)
+                asyncio.run(store.save_webhook_sink(sink.name, encrypted_url))
             self.alert_sinks.append(sink)
 
     @async_locked
@@ -356,13 +377,12 @@ class Monitor:
             if any(existing.name == sink.name for existing in self.alert_sinks):
                 raise ValueError(f"alert sink {sink.name!r} already exists")
             if isinstance(sink, WebhookAlertSink):
+                if not self.encryption_key:
+                    raise RuntimeError("STRIX_ENCRYPTION_KEY is required to persist webhook sinks")
                 # Validate and pin at creation time to fail fast and prevent DNS rebinding
                 await sink._ensure_pinned()
-                if self.encryption_key:
-                    encrypted_url = encrypt(sink.url, self.encryption_key)
-                    await store.save_webhook_sink(sink.name, encrypted_url)
-                else:
-                    await store.save_webhook_sink(sink.name, sink.url)
+                encrypted_url = encrypt(sink.url, self.encryption_key)
+                await store.save_webhook_sink(sink.name, encrypted_url)
             self.alert_sinks.append(sink)
 
     def set_targets(self, targets: list[str]) -> None:

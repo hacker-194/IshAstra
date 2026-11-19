@@ -227,6 +227,13 @@ api:
           target:
             type: Utilization
             averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: strix_scope_gate_decision_latency_seconds_p95
+          target:
+            type: Value
+            value: "0.5"
 
 # ============================================================================
 # Strix Scheduler (APScheduler) - Separate Deployment
@@ -476,6 +483,23 @@ worker:
     enabled: true
     minReplicas: 2
     maxReplicas: 20
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 15
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 4
+            periodSeconds: 30
+        selectPolicy: Max
     metrics:
       - type: Resource
         resource:
@@ -489,6 +513,13 @@ worker:
           target:
             type: Utilization
             averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: strix_assessment_queue_pending
+          target:
+            type: AverageValue
+            averageValue: "10"
 
 # ============================================================================
 # Redis (Bitnami) - Caching, Rate Limiting, Distributed Locks
@@ -725,25 +756,54 @@ configMap:
   additionalConfigs: {}
 
 # ============================================================================
+# Scope signing key rotation (requires a pre-provisioned RWX PVC)
+# ============================================================================
+scopeSigning:
+  enabled: false
+  existingClaim: ""
+  jwksFile: "scope-jwks.json"
+  publicDirectory: "public"
+  privateDirectory: "private"
+  rotation:
+    enabled: false
+    schedule: "0 3 1 * *"
+    image: ""
+
+# ============================================================================
 # Secrets - API Keys, Encryption Keys, HMAC Keys
 # ============================================================================
 secrets:
   enabled: true
-  # These should be populated via External Secrets Operator, Vault Agent, or manual creation
-  # Values below are placeholders - REPLACE IN PRODUCTION
-  # With createSecrets: false, the operator-supplied secret must also carry
-  # `database-url` alongside `postgresql-password` when postgresql.enabled.
-  createSecrets: true
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ SECURITY CRITICAL: DO NOT COMMIT ACTUAL SECRET VALUES TO GIT           │
+  # │                                                                         │
+  # │ Generate secrets with:                                                  │
+  # │   python3 scripts/generate-secrets.py --output-dir ./secrets \\         │
+  # │     --k8s-manifest --env-file                                           │
+  # │                                                                         │
+  # │ Then store in a secret manager (Vault, AWS Secrets Manager, GCP        │
+  # │ Secret Manager, Azure Key Vault) and sync to Kubernetes via:           │
+  # │   - External Secrets Operator (recommended)                            │
+  # │   - SealedSecrets (Bitnami)                                            │
+  # │   - Vault Agent Injector                                               │
+  # │   - Manual `kubectl create secret` (dev only)                          │
+  # │                                                                         │
+  # │ Set createSecrets: false when using an operator. The operator must     │
+  # │ supply a Secret named `strix-secrets` with keys:                       │
+  # │   STRIX_API_KEY, STRIX_AUDIT_HMAC_KEY, STRIX_WEBHOOK_SECRET,          │
+  # │   STRIX_ENCRYPTION_KEY, STRIX_DATABASE_URL                             │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  createSecrets: false  # Set true ONLY for dev/test without secret manager
   strixSecrets:
-    # Bootstrap admin API key (16+ chars, no placeholders)
+    # Bootstrap admin API key (sk_live_ prefix, 32+ chars)
     STRIX_API_KEY: ""
-    # HMAC key for audit chain integrity (32+ bytes base64)
+    # HMAC key for audit chain integrity (32 bytes base64)
     STRIX_AUDIT_HMAC_KEY: ""
-    # HMAC key for webhook signatures (32+ bytes base64)
+    # HMAC key for webhook signatures (32 bytes base64)
     STRIX_WEBHOOK_SECRET: ""
-    # Encryption key for webhook secrets at rest (32 bytes base64, AES-GCM)
+    # Field-encryption key for webhook URLs and persisted assessment auth configs (32 bytes base64, AES-GCM)
     STRIX_ENCRYPTION_KEY: ""
-    # Database URL for PostgreSQL (if enabled)
+    # Database URL for PostgreSQL (if postgresql.enabled: true)
     STRIX_DATABASE_URL: ""
   redisSecret:
     # Redis password (generated if not provided)

@@ -39,6 +39,7 @@ RATE_LIMIT_EXCEEDED: Counter | None = None
 
 
 SCOPE_GATE_DECISIONS: Counter | None = None
+SCOPE_GATE_DECISION_DURATION: Histogram | None = None
 
 # Job metrics
 JOBS_TOTAL: Counter | None = None
@@ -90,7 +91,7 @@ def init_metrics() -> CollectorRegistry:
     global _registry, REQUEST_COUNT, REQUEST_LATENCY, REQUEST_IN_PROGRESS
     global REPORTS_TOTAL
     global RATE_LIMIT_HITS, RATE_LIMIT_EXCEEDED
-    global SCOPE_GATE_DECISIONS
+    global SCOPE_GATE_DECISIONS, SCOPE_GATE_DECISION_DURATION
     global BREAK_GLASS_ACTIVATIONS
     global JOBS_TOTAL, JOBS_ACTIVE, JOB_DURATION, JOB_QUEUE_DURATION, JOB_TRANSITIONS
     global QUEUE_DEPTH, WORKERS_TOTAL, WORKER_BUSY
@@ -155,6 +156,13 @@ def init_metrics() -> CollectorRegistry:
         "strix_scope_gate_decisions_total",
         "Scope gate decisions by outcome, denial reason and tenant",
         ["decision", "reason", "tenant"],
+        registry=_registry,
+    )
+    SCOPE_GATE_DECISION_DURATION = Histogram(
+        "strix_scope_gate_decision_duration_seconds",
+        "End-to-end authorization decision latency",
+        ["decision"],
+        buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
         registry=_registry,
     )
 
@@ -431,6 +439,12 @@ def record_scope_decision(decision: str, reason: str, tenant: str) -> None:
     """
     if m := _metric("SCOPE_GATE_DECISIONS"):
         m.labels(decision=decision, reason=reason, tenant=tenant).inc()
+
+
+def observe_scope_decision(decision: str, seconds: float) -> None:
+    """Observe time spent authorizing a target."""
+    if m := _metric("SCOPE_GATE_DECISION_DURATION"):
+        m.labels(decision=decision).observe(max(0.0, seconds))
 
 
 def tenant_label(tenant: str | None) -> str:

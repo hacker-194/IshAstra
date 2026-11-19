@@ -204,6 +204,7 @@ def validate_id_token(
         key,
         algorithms=["RS256"],
         audience=client_id,
+        issuer=provider.issuer,
         options={"verify_exp": True, "verify_iat": True, "verify_nbf": True},
     )
 

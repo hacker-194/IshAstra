@@ -3,7 +3,7 @@
 This module provides data models for MSSP partnerships, customer management,
 and billing integration points for future premium features.
 
-All features remain MIT-licensed and open-source. No payment processing —
+All features remain Apache-2.0-licensed and open-source. No payment processing —
 just the data models and API structure.
 """
 

@@ -2,7 +2,7 @@
 
 **Version:** 3.5.0  
 **Last Updated:** 2026-11-16  
-**License:** MIT (fully open source)
+**License:** Apache-2.0 (fully open source)
 
 ---
 
@@ -303,7 +303,7 @@ trivy fs --format json --output trivy.json .
 - [OWASP ASVS 4.0](https://owasp.org/www-project-application-security-verification-standard/)
 - [CWE Top 25](https://cwe.mitre.org/top25/)
 - [CVSS 3.1 Calculator](https://www.first.org/cvss/calculator/3.1)
-- [MIT License](LICENSE)
+- [Apache License 2.0](LICENSE)
 
 ---
 
@@ -315,4 +315,4 @@ trivy fs --format json --output trivy.json .
 
 ---
 
-*Strix is fully open source under the MIT License. No open-core split, no paid edition, no proprietary add-ons.*
+*Strix is fully open source under the Apache License 2.0. No open-core split, no paid edition, no proprietary add-ons.*

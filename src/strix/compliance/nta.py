@@ -1,7 +1,7 @@
 """NTA (Nepal Telecommunications Authority) Compliance Controls.
 
 Maps Strix findings to NTA Cybersecurity Byelaw 2078 controls.
-All mappings are MIT-licensed and open for audit.
+All mappings are Apache-2.0-licensed and open for audit.
 """
 
 from __future__ import annotations

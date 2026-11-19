@@ -4,11 +4,11 @@ Strix is an authorized security assessment platform. All contributions must pres
 
 ## License
 
-Strix is fully open source under the **MIT License** (`LICENSE`). Every feature is
-in the MIT project; there is no proprietary edition or feature gated behind a
-commercial plan. By contributing, you agree that your contribution is licensed
-under the same MIT terms. There is no contributor license agreement and no
-copyright assignment.
+Strix is fully open source under the **Apache License 2.0** (`LICENSE`). Every
+feature is in the open-source project; there is no proprietary edition or
+feature gated behind a commercial plan. By contributing, you agree that your
+contribution is licensed under the same Apache-2.0 terms. There is no
+contributor license agreement and no copyright assignment.
 
 ## Development Setup
 

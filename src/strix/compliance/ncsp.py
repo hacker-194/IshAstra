@@ -1,7 +1,7 @@
 """NCSP (National Cyber Security Policy 2080) Compliance Controls.
 
 Maps Strix findings to Nepal's National Cyber Security Policy 2080 controls.
-All mappings are MIT-licensed and open for audit.
+All mappings are Apache-2.0-licensed and open for audit.
 """
 
 from __future__ import annotations

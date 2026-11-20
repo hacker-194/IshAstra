@@ -1,7 +1,7 @@
 # Strix — Authorization-First Security Assessment Platform
 
-[![License](https://img.shields.io/github/license/strix/strix)](LICENSE)
-[![CI](https://github.com/strix/strix/actions/workflows/ci.yml/badge.svg)](https://github.com/strix/strix/actions)
+[![License](https://img.shields.io/github/license/ishastra/ishastra)](LICENSE)
+[![CI](https://github.com/ishastra/ishastra/actions/workflows/ci.yml/badge.svg)](https://github.com/ishastra/ishastra/actions)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![Kubernetes](https://img.shields.io/badge/k8s-1.28+-blue)](https://kubernetes.io)
 
@@ -27,12 +27,53 @@
 | **Free-tier deployable** | ✅ | ✅ | ✅ | ❌ | ❌ |
 | **TLA+ formally verified** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
+## Try It In One Command
+
+```bash
+pip install ishastra
+ishastra demo
+```
+
+The demo writes its own Ed25519-signed scope (localhost only), generates an
+admin key, uses SQLite, and prints the URL plus the key you paste into the top
+bar. Nothing outside `.ishastra-demo/` is touched.
+
+In CI, the bundled action runs a scoped assessment and uploads SARIF:
+
+```yaml
+- uses: ishastra/ishastra@v1
+  with:
+    target: https://staging.example.com
+    scope-file: scope.json          # signed; the gate refuses anything else
+    profile: web-deep
+    fail-on-findings: "true"
+```
+
+Third-party adapters plug in without forking the project. Publish one under the
+`ishastra.adapters` entry-point group and it becomes available to profiles:
+
+```toml
+[project.entry-points."ishastra.adapters"]
+my-probe = "my_package.adapters:MyProbe"
+```
+
+A plugin can add an adapter id but cannot replace a built-in one.
+
+## Signed Evidence Bundles
+
+`ishastra bundle` packages a job's result, its findings as SARIF, the rendered HTML report, the audit-chain entries and the exact scope document into a zip whose manifest is Ed25519-signed and whose members are SHA-256 pinned. Verification is offline, and any member that was edited, added or removed after signing is rejected.
+
+```bash
+ishastra bundle --job <job-id> --scope scope.json --key scope-signing-key.pem --kid <kid> -o evidence.zip
+ishastra bundle --verify evidence.zip --jwks jwks.json
+```
+
 ## Quick Start (Free Tier — $0/month)
 
 ```bash
 # One-shot bootstrap on Oracle Cloud Always Free
-git clone https://github.com/strix/strix
-cd strix
+git clone https://github.com/ishastra/ishastra
+cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
 ```
@@ -97,14 +138,14 @@ docker-compose up -d
 
 ## Core Innovations
 
-### 1. Scope Gate — Default-Deny Authorization (`src/strix/core/scope.py`)
+### 1. Scope Gate — Default-Deny Authorization (`src/ishastra/core/scope.py`)
 - **Layer 1 (URL/Host)**: Validates structure, host against include/exclude, port against allowed_ports — no DNS
 - **Layer 2 (DNS/IP)**: Resolves hostname, validates every IP against authorized_networks, denies special-use addresses (loopback, link-local, private, multicast) unless explicitly authorized
 - **Layer 3 (Pinned Destination)**: Returns single `Destination` (scheme, host, port, IP) — prevents DNS rebinding
 - **ContextVar isolation**: Per-task scope binding for multi-tenant safety
 - **TLA+ verified**: 6 invariants, 21.4M states model-checked
 
-### 2. Break-Glass Dual Approval (`src/strix/core/scope_breakglass.py`)
+### 2. Break-Glass Dual Approval (`src/ishastra/core/scope_breakglass.py`)
 - Emergency authorization with dual approval workflow
 - Time-bounded, audited, metrics-instrumented
 
@@ -116,6 +157,10 @@ docker-compose up -d
 - HTTP Probe, Crawler, Dynamic Validation
 - External: nmap, Nuclei, SQLMap, Nikto
 - All adapters re-check Scope Gate internally
+
+## Job Notifications
+
+Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, verdict, severity counts) whenever a job finishes. The same body carries Slack `text` and `blocks`, so a Slack incoming webhook renders it as a formatted card while other receivers read the structured fields. Destinations must be public https URLs; set `ISHASTRA_WEBHOOK_SECRET` to add an `X-Strix-Signature: sha256=…` HMAC header, so the receiver can verify the payload.
 
 ## Documentation
 
@@ -158,9 +203,9 @@ Apache-2.0 — see [LICENSE](LICENSE)
 
 ## Community
 
-- **Questions and ideas**: [GitHub Discussions](https://github.com/strix/strix/discussions)
-- **Issues**: [GitHub Issues](https://github.com/strix/strix/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/strix/strix/discussions)
+- **Questions and ideas**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
+- **Issues**: [GitHub Issues](https://github.com/ishastra/ishastra/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
 
 ---
 

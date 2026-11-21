@@ -22,5 +22,22 @@ spec:
     {{- toYaml .Values.api.ingress.tls | nindent 4 }}
   {{- end }}
   rules:
-    {{- toYaml .Values.api.ingress.hosts | nindent 4 }}
+{{- if .Values.api.ingress.hosts }}
+{{- $fn := include "ishastra.fullname" . -}}
+{{- $svcPort := .Values.api.service.port | default 8000 -}}
+{{- range .Values.api.ingress.hosts }}
+  - host: {{ .host }}
+    http:
+      paths:
+{{- range .http.paths }}
+        - path: {{ .path }}
+          pathType: {{ .pathType | default "Prefix" }}
+          backend:
+            service:
+              name: {{ $fn }}-api
+              port:
+                number: {{ $svcPort }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}

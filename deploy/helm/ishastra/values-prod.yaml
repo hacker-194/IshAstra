@@ -156,59 +156,15 @@ api:
       external-dns.alpha.kubernetes.io/hostname: "ishastra.example.com,api.ishastra.example.com"
     hosts:
       - host: ishastra.example.com
-        paths:
-          - path: /
-            pathType: Prefix
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
       - host: api.ishastra.example.com
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: ishastra-tls-prod
-        hosts:
-          - ishastra.example.com
-          - api.ishastra.example.com
-  env:
-    ISHASTRA_LOG_LEVEL: "INFO"
-    ISHASTRA_LOG_FORMAT: "json"
-    ISHASTRA_DEBUG: "0"
-    ISHASTRA_WORKER_MEMORY_MB: "2048"
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-                - key: app.kubernetes.io/name
-                  operator: In
-                  values:
-                    - ishastra
-            topologyKey: kubernetes.io/hostname
-        - weight: 50
-          podAffinityTerm:
-            labelSelector:
-              matchExpressions:
-                - key: app.kubernetes.io/name
-                  operator: In
-                  values:
-                    - ishastra
-            topologyKey: topology.kubernetes.io/zone
-  topologySpreadConstraints:
-    - maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
-      labelSelector:
-        matchLabels:
-          app.kubernetes.io/name: ishastra
-    - maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-      labelSelector:
-        matchLabels:
-          app.kubernetes.io/name: ishastra
-
-
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
 scheduler:
   enabled: true
   pdb:

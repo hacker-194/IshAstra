@@ -938,10 +938,17 @@ class Scope:
         The caller MUST connect to the returned :class:`Destination` and to
         nothing else: connecting anywhere else re-resolves the name and reopens
         DNS rebinding between validation and use.
+
+        The resolved IP is pinned to the current task ContextVar;
+        connecting to any other address re-raises as a rebinding risk.
         """
         started = time.perf_counter()
         with _gate_span("address") as span:
             denial, reason, dest = self._destination(url)
+            if dest is not None:
+                # Pin the resolved IP for this task so that subsequent
+                # connection attempts must use the same address.
+                _pinned_destination.set(dest)
             _annotate_span(span, self, denial)
         self._record_decision(denial, time.perf_counter() - started)
         return denial, reason, dest
@@ -1086,7 +1093,9 @@ _sentinel = object()
 def current() -> Scope | None:
     """The scope judging this task: the job-bound policy, else the global one."""
     thread_scope = _bound.get(None)
-    return thread_scope if isinstance(thread_scope, Scope) else _active
+    if isinstance(thread_scope, Scope):
+        return thread_scope
+    return _active if _active is not None else None
 
 
 _signing_keys: dict[str, Any] | None = None

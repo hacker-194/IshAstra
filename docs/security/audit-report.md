@@ -9,7 +9,7 @@ unresolved. It is an internal review, not an independent penetration test.
 
 ## Findings
 
-### H-1 — PostgreSQL RLS is not wired into API requests
+### H-1 — PostgreSQL RLS API wiring (fixed)
 
 - **Files:** `src/ishastra/api/app.py`, `src/ishastra/api/middleware/rls.py`,
   `src/ishastra/core/store.py`
@@ -29,7 +29,7 @@ unresolved. It is an internal review, not an independent penetration test.
   `TenantStateMiddleware`, replace the thread-local tenant with a `ContextVar`,
   and apply/reset `set_app_current_tenant()` in `transaction()`. Add a
   two-tenant API integration test against PostgreSQL.
-- **Status:** unresolved. No unsafe workaround was added.
+- **Status:** fixed. `RLSTenantMiddleware` is registered after identity resolution; the tenant is a `ContextVar`; every PostgreSQL transaction applies `set_config(..., true)` so it resets at commit/rollback. `tests/test_rls.py` covers transaction propagation.
 
 ### H-2 — Nikto and SQLMap could resolve the hostname independently
 
@@ -42,11 +42,24 @@ unresolved. It is an internal review, not an independent penetration test.
 - **Expected behaviour:** external scanners receive the pinned IP, preserve the
   authorized Host header, and do not follow redirects.
 - **Fix:** Nikto now uses `-host <pinned IP> -vhost <authorized Host>`; SQLMap
-  uses the pinned-IP URL, `--host`, and `--ignore-redirects`, and `--force-ssl`
-  for HTTPS targets.
+  uses the pinned-IP URL, `--host`, and `--ignore-redirects` for HTTP targets.
+  HTTPS is refused unless `ISHASTRA_SQLMAP_PROXY` points at an operator-controlled
+  egress proxy that preserves Host/SNI and pins the destination.
 - **Regression test:** `tests/unit/test_adapters.py::TestExternalScannerPinning`.
 
-### M-1 — SQLMap TLS/SNI remains best-effort
+### H-3 — Stale `cryptography` pin carried known CVEs (fixed)
+
+- **File:** `constraints.txt`
+- **Evidence:** `pip-audit -r constraints.txt` reported `cryptography 46.0.5`
+  against PYSEC-2026-35, PYSEC-2026-36, PYSEC-2026-3552, PYSEC-2026-3553,
+  PYSEC-2026-3554, and GHSA-537c-gmf6-5ccf. The advisories cover certificate
+  name-constraint validation, non-contiguous buffer handling, and PKCS#7
+  decrypt error reporting; fixed releases range from 46.0.6 to 50.0.0.
+- **Fix:** pinned `cryptography==50.0.2`; `pyproject.toml` already allowed
+  `<51.0`, so no interface change was needed.
+- **Verification:** `pip-audit -r constraints.txt` reports no vulnerabilities.
+
+### M-1 — SQLMap HTTPS path (mitigated)
 
 - **File:** `src/ishastra/core/adapters.py`
 - **Evidence:** SQLMap connects to an IP URL with a Host header; the TLS
@@ -55,9 +68,9 @@ unresolved. It is an internal review, not an independent penetration test.
   use a different SNI than the authenticated target.
 - **Expected behaviour:** an in-process egress proxy that pins the destination
   while preserving Host/SNI.
-- **Status:** unresolved trade-off. The pinning prevents DNS rebinding, but the
-  TLS identity mismatch must be fixed with a proxy before claiming full
-  HTTPS coverage.
+- **Status:** mitigated. HTTPS without `ISHASTRA_SQLMAP_PROXY` is refused; with a
+  proxy, the original hostname is preserved and the operator is responsible for
+  pinning at the proxy.
 
 ### M-2 — Documentation claimed features the code does not provide
 
@@ -71,9 +84,10 @@ unresolved. It is an internal review, not an independent penetration test.
   browser sessions; there is no MFA implementation, no JWT exchange, and no
   staffed security team or bounty.
 - **Fix:** rewrote the security-review and authentication pages, corrected the
-  architecture overview and README, and added a non-certification/non-MFA
-  notice to the compliance mappings. Compliance tables still describe target
-  controls; treat them as mappings only.
+  architecture overview and README, added a non-certification/non-MFA notice to
+  the compliance mappings, and removed the remaining annual third-party pentest
+  claims. Compliance tables still describe target controls; treat them as
+  mappings only.
 
 ### M-3 — Queue-mode documentation contradicted the code
 
@@ -111,24 +125,49 @@ unresolved. It is an internal review, not an independent penetration test.
 - External tool output is bounded, deadlined, and nmap XML uses `defusedxml`.
 - Scope signing supports operator-driven key rotation; this is not JWT rotation.
 
+## Scanner review
+
+Bandit reports 0 HIGH and 21 MEDIUM findings. The MEDIUM findings were reviewed:
+
+- `B608` (17): dynamic `SET`/`IN` fragments are built only from fixed column
+  names or fixed placeholder counts; values remain bound parameters.
+- `B104` (3): binding `0.0.0.0` is intentional for container health/metrics
+  endpoints and is not exposed by the default host configuration.
+- `B310` (1): the collaboration client URL is constructed with a hardcoded
+  `http://` scheme; it cannot select `file:` or a custom scheme.
+- `B108` (1): the operator webhook certificate path is the standard Kubernetes
+  mount point, not a world-writable temporary directory.
+
+Semgrep was not installed in the local environment, so the Semgrep job was not
+re-run locally. CI runs it through `scripts/security_audit.py`.
+
 ## Unresolved risks
 
-1. PostgreSQL RLS API wiring (H-1).
-2. SQLMap HTTPS SNI/certificate identity (M-1).
-3. No MFA, no independent security audit, no bug bounty, no HA/failover.
-4. Plugin adapters execute in-process and are trusted code; they can open
-   sockets without `checked_destination()`. Only install plugins you trust.
-5. Compliance tables still contain target-state control language; they are
+1. SQLMap HTTPS requires an operator-provided pinning proxy (no built-in proxy).
+2. No MFA, no independent security audit, no bug bounty, no HA/failover.
+3. Plugin adapters are opt-in (`ISHASTRA_ALLOW_PLUGINS=1`), but once enabled
+   they execute in-process and are trusted code.
+4. Compliance tables still contain target-state control language; they are
    mappings, not evidence of certification.
-6. Local validation did not run the PostgreSQL suite (no test DSN) or
-   kubeconform (not installed).
+
+## Validation
+
+- `python3 -m pytest -q --no-cov`: 1626 passed, 13 skipped.
+- PostgreSQL RLS suite in `postgres:16-alpine`: 16 passed.
+- Redis queue suite in `redis:7-alpine`: 2 passed.
+- `ruff check src tests`, `ruff format --check src tests`, `mypy src/ishastra`: pass.
+- Helm lint production/staging/dev and `docker compose config -q`: pass.
+- `mkdocs build --strict`: pass.
+- `pip-audit -r constraints.txt`: no vulnerabilities after the `cryptography` bump.
+- `kubeconform` is not installed locally; the CI job installs it.
 
 ## Reproduce
 
 ```bash
-python3 -m pytest -q tests/unit/test_adapters.py --no-cov
+python3 -m pytest -q tests/unit/test_adapters.py tests/unit/test_app_rls.py --no-cov
 python3 -m pytest -q tests/security/test_scope_gate_adversarial.py --no-cov
 python3 -m pytest -q --no-cov
+pip-audit -r constraints.txt
 ruff check src tests
 ruff format --check src tests
 mypy src/ishastra

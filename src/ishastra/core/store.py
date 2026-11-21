@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import hashlib
 import json
 import logging
@@ -1431,36 +1432,26 @@ class PostgreSQLDatabase(Database):
         self._pool_loops: dict[int, asyncio.AbstractEventLoop] = {}
         self._pool_lock = threading.Lock()
 
-        self._tenant_context: threading.local = threading.local()
+        # ContextVar, not threading.local: concurrent async requests on one
+        # event loop must not overwrite each other's tenant.
+        self._tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+            "ishastra_db_tenant", default=None
+        )
 
     def set_tenant_context(self, tenant_id: str | None) -> None:
-        """Set the current tenant context for RLS policies.
-
-        This should be called at the start of each request/operation.
-        """
-        self._tenant_context.tenant_id = tenant_id
+        """Set the tenant for transactions created in this task/context."""
+        self._tenant_context.set(tenant_id)
 
     def get_tenant_context(self) -> str | None:
-        """Get the current tenant context."""
-        return getattr(self._tenant_context, "tenant_id", None)
-
-    async def _init_connection(self, conn: asyncpg.Connection) -> None:
-        """Initialize a new connection with tenant context if available.
-
-        This is called as a pool init callback when connections are created.
-        The actual tenant is set per-request via set_tenant_context.
-        """
-        tenant_id = self.get_tenant_context()
-        if tenant_id:
-            await conn.execute("SELECT set_app_current_tenant($1)", tenant_id)
+        """The tenant for this task/context, if any."""
+        return self._tenant_context.get()
 
     async def _create_pool_with_rls(self) -> asyncpg.Pool:
-        """Create a pool with RLS init callback."""
+        """Create the pool; tenant context is applied per transaction."""
         return await asyncpg.create_pool(
             self.dsn,
             min_size=self.min_size,
             max_size=self.max_size,
-            init=self._init_connection,
         )
 
     def _get_loop_id(self) -> int:
@@ -1502,10 +1493,15 @@ class PostgreSQLDatabase(Database):
 
         acquire_started = time.monotonic()
         pool = await self._ensure_pool()
+        tenant_id = self.get_tenant_context()
         async with pool.acquire() as conn, conn.transaction():
             metrics.observe_db_acquire("postgres", time.monotonic() - acquire_started)
             idle = getattr(pool, "get_idle_size", lambda: 0)()
             metrics.record_db_pool("postgres", pool.get_size(), idle)
+            if tenant_id:
+                # is_local=true makes PostgreSQL reset this at transaction end,
+                # so a pooled connection can never leak the tenant to the next user.
+                await conn.execute("SELECT set_config('app.current_tenant', $1, true)", tenant_id)
             yield conn
 
     @asynccontextmanager
@@ -1552,12 +1548,8 @@ class PostgreSQLDatabase(Database):
             pool = await self._ensure_pool()
             async with pool.acquire() as conn, conn.transaction():
                 if tenant_id:
-                    await conn.execute("SELECT set_app_current_tenant($1)", tenant_id)
-                try:
-                    yield conn
-                finally:
-                    if tenant_id:
-                        await conn.execute("SELECT set_app_current_tenant(NULL)")
+                    await conn.execute("SELECT set_config('app.current_tenant', $1, true)", tenant_id)
+                yield conn
 
         return _ctx()
 

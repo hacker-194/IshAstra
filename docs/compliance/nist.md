@@ -1,8 +1,8 @@
 > **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
-> or PCI DSS attestation and no paid bug bounty. MFA is enforced by an external
-> identity provider when configured; Ishastra does not implement MFA. API
+> or PCI DSS attestation and no paid bug bounty. MFA at IdP is enforced by an external
+> identity provider when configured; Ishastra does not implement MFA at IdP. API
 > authentication is API keys plus OIDC/SAML browser sessions; there is no
-> API-key-to-JWT exchange. TLS is terminated by the operator. PostgreSQL RLS is
+> API-key-to-OIDC session exchange. TLS is terminated by the operator. PostgreSQL RLS is
 > tested at the database layer and is not a substitute for application tenant
 > filters. High availability is not provided.
 
@@ -26,7 +26,7 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | AC-1 | Policy & Procedures | ✅ | Policy-as-Code, documented in repo |
-| AC-2 | Account Management | ✅ | API keys with expiry, RBAC, MFA |
+| AC-2 | Account Management | ✅ | API keys with expiry, RBAC, MFA at IdP |
 | AC-3 | Access Enforcement | ✅ | Scope Gate default-deny per request |
 | AC-4 | Information Flow Enforcement | ✅ | 3-layer validation, tenant isolation |
 | AC-5 | Separation of Duties | ✅ | Break-glass dual approval required |
@@ -34,9 +34,9 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | AC-7 | Unsuccessful Logon | ✅ | Rate limiting, lockout after 5 failures |
 | AC-8 | System Use Notification | ⏳ | Banner on API endpoints (planned) |
 | AC-11 | Device Lock | ❌ N/A | Cloud provider responsibility |
-| AC-12 | Session Termination | ✅ | JWT TTL 1hr, API key revocation |
+| AC-12 | Session Termination | ✅ | OIDC session TTL 1hr, API key revocation |
 | AC-14 | Permitted Actions | ✅ | Adapter allowlist, scope-bound targets |
-| AC-17 | Remote Access | ✅ | TLS 1.3, mTLS for internal services |
+| AC-17 | Remote Access | ✅ | TLS at proxy, network policy for internal services |
 | AC-19 | Access Control for Mobile | ❌ N/A | No mobile component |
 | AC-20 | Use of External Systems | ✅ | Webhook verification, external adapter sandboxing |
 | AC-22 | Publicly Accessible Content | ⏳ | Public API docs, no sensitive data |
@@ -75,13 +75,13 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | CA-1 | Policy & Procedures | ✅ | Security review process documented |
-| CA-2 | Control Assessment | ✅ | TLA+ verification, penetration testing |
+| CA-2 | Control Assessment | 🔄 | TLA+ verification; no independent assessment |
 | CA-3 | Information Exchange | 🔄 | API for evidence export (partial) |
 | CA-5 | Plan of Action & Milestones | ✅ | GitHub Issues with compliance labels |
 | CA-6 | Authorization | ✅ | Scope Gate authorization per request |
 | CA-7 | Continuous Monitoring | ✅ | Real-time Scope Gate, health checks |
-| CA-8 | Penetration Testing | ✅ | Annual third-party, continuous automated |
-| CA-9 | Internal System Connections | ✅ | mTLS, network policies, Scope Gate |
+| CA-8 | Penetration Testing | 🔄 | No independent annual test; continuous automated scans only |
+| CA-9 | Internal System Connections | ✅ | network policy, network policies, Scope Gate |
 
 ## Configuration Management (CM)
 
@@ -119,14 +119,14 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | IA-1 | Policy & Procedures | ✅ | Auth middleware documented |
-| IA-2 | Identifier Management | ✅ | API keys, JWT subjects, scoped |
+| IA-2 | Identifier Management | ✅ | API keys, OIDC session subjects, scoped |
 | IA-3 | Device Identification | ❌ N/A | No device auth |
 | IA-4 | Identifier Management | ✅ | Unique key IDs, rotation |
 | IA-5 | Authenticator Management | ✅ | 256-bit keys, 90-day rotation |
 | IA-6 | Authenticator Feedback | ✅ | No echo, constant-time compare |
-| IA-7 | Cryptographic Module | ✅ | Ed25519, TLS 1.3, FIPS mode |
-| IA-8 | Replay Resistance | ✅ | Nonce in JWT, timestamp in webhooks |
-| IA-11 | Re-Authentication | ✅ | Break-glass requires fresh MFA |
+| IA-7 | Cryptographic Module | ✅ | Ed25519, TLS at proxy, operator-provided crypto |
+| IA-8 | Replay Resistance | ✅ | Nonce in OIDC session, timestamp in webhooks |
+| IA-11 | Re-Authentication | ✅ | Break-glass requires fresh MFA at IdP |
 
 ## Incident Response (IR)
 
@@ -148,7 +148,7 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | MA-1 | Policy & Procedures | ✅ | Maintenance windows documented |
 | MA-2 | Controlled Maintenance | ✅ | Rolling updates, PDBs, drain |
 | MA-3 | Maintenance Tools | ✅ | kubectl, Helm, ArgoCD |
-| MA-4 | Nonlocal Maintenance | ✅ | VPN, mTLS, break-glass |
+| MA-4 | Nonlocal Maintenance | ✅ | VPN, network policy, break-glass |
 | MA-5 | Maintenance Personnel | ✅ | RBAC, audit trail |
 
 ## Media Protection (MP)
@@ -159,7 +159,7 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 | MP-2 | Media Access | ✅ | IAM on object store, RLS on DB |
 | MP-3 | Media Marking | 🔄 | Classification tags (partial) |
 | MP-4 | Media Storage | ✅ | Encrypted volumes, TLS transit |
-| MP-5 | Media Transport | ✅ | TLS 1.3, signed URLs |
+| MP-5 | Media Transport | ✅ | TLS at proxy, signed URLs |
 | MP-6 | Media Sanitization | ✅ | Cryptographic erase, key rotation |
 | MP-7 | Media Use | ✅ | No removable media in prod |
 
@@ -228,24 +228,24 @@ Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 |---------|-------|--------|---------------------|
 | SC-1 | Policy & Procedures | ✅ | Network policies documented |
 | SC-2 | Application Partitioning | ✅ | Multi-tenancy RLS, network policies |
-| SC-3 | Security Function Isolation | ✅ | Separate services, mTLS |
+| SC-3 | Security Function Isolation | ✅ | Separate services, network policy |
 | SC-4 | Information in Shared Resources | ✅ | Tenant isolation, no shared state |
 | SC-5 | Denial-of-Service Protection | ✅ | Rate limits, queue limits, K8s HPA |
 | SC-7 | Boundary Protection | ✅ | Scope Gate (default-deny), network policies |
-| SC-8 | Transmission Confidentiality | ✅ | TLS 1.3 everywhere |
-| SC-9 | Transmission Integrity | ✅ | TLS 1.3, mTLS internal |
+| SC-8 | Transmission Confidentiality | ✅ | TLS at proxy everywhere |
+| SC-9 | Transmission Integrity | ✅ | TLS at proxy, network policy internal |
 | SC-10 | Network Disconnect | ✅ | Network policies, pod termination |
-| SC-12 | Cryptographic Key Establishment | ✅ | Ed25519, JWKS rotation |
+| SC-12 | Cryptographic Key Establishment | ✅ | Ed25519, scope-key rotation |
 | SC-13 | Cryptographic Protection | ✅ | AES-256-GCM, ChaCha20-Poly1305 |
 | SC-15 | Collaborative Computing | ❌ N/A | No collaborative features |
-| SC-16 | Transmission of Security Attributes | ✅ | JWT claims, Scope Gate context |
+| SC-16 | Transmission of Security Attributes | ✅ | OIDC session claims, Scope Gate context |
 | SC-17 | Public Key Infrastructure | ✅ | cert-manager, JWKS endpoint |
 | SC-18 | Mobile Code | ✅ | Adapter sandboxing, no arbitrary code |
 | SC-19 | Voice Over IP | ❌ N/A | Not applicable |
 | SC-20 | Secure Name/Address Resolution | ✅ | DNS over HTTPS, pinned resolvers |
 | SC-21 | Secure Resource Allocation | ✅ | Resource quotas, priority classes |
 | SC-22 | Architecture & Provisioning | ✅ | IaC, GitOps, immutable infra |
-| SC-23 | Session Authenticity | ✅ | JWT, API keys, mTLS |
+| SC-23 | Session Authenticity | ✅ | OIDC session, API keys, network policy |
 | SC-24 | Fail in Known State | ✅ | Default-deny, graceful degradation |
 | SC-25 | Thin Nodes | ✅ | Distroless, minimal attack surface |
 | SC-26 | Honeypots | ⏳ | Canary deployments (planned) |

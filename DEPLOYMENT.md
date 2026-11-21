@@ -186,7 +186,8 @@ If a release introduces regressions:
 2. **Code rollback (previous tagged release):**
    ```bash
    # In the venv, reinstall the previous tag
-   /opt/ishastra/venv/bin/pip install -c constraints.txt ishastra==0.1.0
+   # From the previous release checkout/artifact (PyPI publication pending)
+   /opt/ishastra/venv/bin/pip install -c constraints.txt /path/to/ishastra-3.5.0
    systemctl restart ishastra
    ```
    - Schema migrations are **forward-only**. The database at the new version

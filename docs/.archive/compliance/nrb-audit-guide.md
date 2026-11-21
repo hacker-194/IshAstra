@@ -369,7 +369,7 @@ export ISHASTRA_RETENTION_DAYS=2555
 - [ISO 27001](https://iso.org/27001) - Information Security Management
 - [NIST CSF](https://nist.gov/cyberframework) - Cybersecurity Framework
 - [PCI DSS](https://pcisecuritystandards.org) - Payment Card Industry DSS
-- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
+- [Ishastra Source](https://github.com/hacker-194/IshAstra) - Apache-2.0 licensed
 
 ---
 

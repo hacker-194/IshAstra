@@ -293,7 +293,10 @@ class TestEncryptedAuthConfig:
         import base64
 
         decoded = base64.b64decode(encrypted_config.encrypted_config)
-        corrupted = decoded[:-1] + b"X"
+        # Flip the last byte deterministically. Appending b"X" was a no-op
+        # whenever the final byte already happened to be 0x58, making the
+        # test fail roughly once in 256 runs.
+        corrupted = decoded[:-1] + bytes([decoded[-1] ^ 0xFF])
         encrypted_config.encrypted_config = base64.b64encode(corrupted).decode()
 
         with pytest.raises(AuthConfigError, match="failed to decrypt auth config"):

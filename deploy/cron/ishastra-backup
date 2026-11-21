@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ISHASTRA_BIN="${ISHASTRA_BIN:-ishastra}"
-export ISHASTRA_DB="${ISHASTRA_DB:-/var/lib/strix/strix.db}"
+export ISHASTRA_DB="${ISHASTRA_DB:-/var/lib/ishastra/ishastra.db}"
 backup_dir="${ISHASTRA_BACKUP_DIR:-/backups}"
 retain_days="${ISHASTRA_BACKUP_RETAIN_DAYS:-14}"
 

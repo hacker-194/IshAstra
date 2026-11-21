@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ishastra"
 version = "3.5.0"
 description = "Authorized security assessment platform: scope gate, adapters, findings and evidence"
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
@@ -14,10 +14,14 @@ keywords = ["security", "pentest", "authorization", "sarif", "scope-gate"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+    "Typing :: Typed",
 ]
 dependencies = [
     "fastapi>=0.162,<1.0",

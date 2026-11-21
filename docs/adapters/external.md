@@ -605,3 +605,78 @@ securityContext:
 - [Adapter SDK](../adapters/sdk.md)
 - [Architecture: Adapters](../architecture/adapters.md)
 - [Scope Gate](../scope-gate/concepts.md)
+
+---
+
+## Plugin Safety Design Note
+
+### Third-Party Adapter Security Model
+
+Third-party adapters (published under the `ishastra.adapters` entry-point group) run **in-process** and have the same privileges as built-in adapters. This design enables flexibility but introduces security considerations that operators must understand.
+
+### Trust Boundary
+
+| Component | Trust Level | Scope Gate Enforcement |
+|-----------|-------------|------------------------|
+| Built-in adapters | Trusted | ✅ Re-checks Scope Gate internally |
+| External tools (nmap, nuclei, etc.) | Trusted | ✅ Re-checks Scope Gate internally |
+| Third-party adapters (plugins) | **Untrusted by default** | ❌ **No automatic re-check** |
+
+### Why Plugins Bypass Automatic Scope Gate Re-Checks
+
+Built-in and external adapters are developed within the Ishastra codebase and **explicitly call** the Scope Gate (`scope.check()` / `scope.destination()`) before every outbound connection. Third-party plugins:
+
+1. **Run in the same process** — no sandbox isolation
+2. **Can open arbitrary network connections** — no syscall filtering
+3. **Have full access to tenant data** — including credentials in scope documents
+4. **Cannot be forced to call Scope Gate** — Python has no compile-time enforcement
+
+### Mitigations
+
+1. **Opt-in only**: Set `ISHASTRA_ALLOW_PLUGINS=1` only for packages you explicitly trust
+2. **Code review**: Audit plugin source before enabling — verify it calls `ishastra.core.scope.check()` or `destination()` before connections
+3. **Network policy**: Deploy workers with egress network policies that deny by default (Kubernetes NetworkPolicy, cloud firewall)
+4. **Process isolation**: Run untrusted plugins in separate containers with `--user` and seccomp profiles
+5. **Supply chain**: Pin plugin versions, verify signatures, use SLSA provenance
+
+### Recommended Plugin Pattern
+
+If you develop a third-party adapter, follow this pattern to maintain Scope Gate compliance:
+
+```python
+from ishastra.core.adapter_base import BaseAdapter
+from ishastra.core.scope import check as scope_check, destination as scope_destination
+
+class MyPluginAdapter(BaseAdapter):
+    name = "my-plugin"
+    
+    async def run(self) -> AsyncIterator[Finding]:
+        # ALWAYS call Scope Gate FIRST
+        dest = await self._authorize_connection(self.config.target)
+        
+        # Use pinned destination ONLY
+        # dest.ip, dest.host, dest.port, dest.scheme
+        
+        # ... your logic here ...
+```
+
+### Operator Checklist
+
+Before enabling `ISHASTRA_ALLOW_PLUGINS=1`:
+
+- [ ] Plugin source code reviewed and verified to call Scope Gate
+- [ ] Plugin from trusted publisher with signed releases
+- [ ] Worker deployment has egress network policy (deny by default)
+- [ ] Plugin version pinned in deployment manifest
+- [ ] Audit log monitoring for unexpected outbound connections
+
+### Scope Gate Invariants (TLA+ Verified)
+
+The core Scope Gate invariants **do not apply** to third-party plugin connections:
+
+1. **Layer 1 (URL/Host)** — Plugin may connect to any host
+2. **Layer 2 (DNS/IP)** — Plugin may resolve and connect to any IP
+3. **Layer 3 (Pinned Destination)** — Plugin may re-resolve DNS at any time
+4. **DNS Rebinding Protection** — **NOT enforced** for plugin connections
+
+This is a deliberate design trade-off: **flexibility vs. isolation**. Operators requiring full isolation must not enable plugins, or must deploy plugins in separately sandboxed processes.

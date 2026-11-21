@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 
-import asyncpg
 import pytest
 
 from ishastra.core import store
@@ -23,6 +22,8 @@ from ishastra.core import store
 ADMIN_DSN = os.environ.get("ISHASTRA_TEST_PG_DSN")
 if not ADMIN_DSN:
     pytest.skip("Set ISHASTRA_TEST_PG_DSN to run PostgreSQL RLS tests", allow_module_level=True)
+
+asyncpg = pytest.importorskip("asyncpg")
 
 APP_ROLE = "strix_rls_test"
 

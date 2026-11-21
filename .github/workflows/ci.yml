@@ -133,7 +133,7 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -e ".[dev,otel]" -c constraints.txt
+        run: pip install -e ".[dev,otel,k8s-jobs]" -c constraints.txt
       - name: Run mypy
         run: mypy src/
 
@@ -160,7 +160,7 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -e ".[dev,otel]" -c constraints.txt
+        run: pip install -e ".[dev,otel,k8s-jobs]" -c constraints.txt
       - name: Run tests
         run: pytest -q
       - name: Scope authorization coverage gate
@@ -211,7 +211,7 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -e ".[dev,otel,postgres]" -c constraints.txt
+        run: pip install -e ".[dev,otel,postgres,k8s-jobs]" -c constraints.txt
       - name: Wait for PostgreSQL
         run: |
           for i in {1..30}; do
@@ -366,7 +366,7 @@ jobs:
       - name: Run live nmap and nuclei tests
         env:
           ISHASTRA_LIVE_TOOL_TESTS: "1"
-        run: pytest -q --no-cov tests/integration/test_adapters.py -k "nmap or nuclei"
+        run: pytest -q --no-cov tests/unit/test_adapters.py -k "nmap or nuclei"
 
   e2e-tests:
     name: E2E Tests (Playwright)
@@ -483,7 +483,7 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Install dependencies
-        run: pip install -e ".[dev,otel]" -c constraints.txt
+        run: pip install -e ".[dev,otel,k8s-jobs]" -c constraints.txt
       - name: Run readiness check
         run: python scripts/readiness_check.py
 
@@ -554,11 +554,15 @@ jobs:
           with open('licenses.json') as f:
               licenses = json.load(f)
           
+          # Normalized, space-separated license names; pip-licenses returns
+          # free-text strings, not only SPDX identifiers.
           allowed_licenses = {
-              'MIT', 'BSD', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD-4-Clause',
-              'Apache-2.0', 'Apache 2.0', 'ISC', 'Python-2.0', 'MPL-2.0',
-              'PSF-2.0', 'Zlib', 'Unlicense', 'CC0-1.0', 'CC-BY-4.0', 'CC-BY-SA-4.0',
-              'OFL-1.1', 'BSL-1.0'
+              'mit', 'bsd', 'bsd 2 clause', 'bsd 3 clause', 'bsd 4 clause',
+              'apache 2.0', 'apache software license', 'isc',
+              'python 2.0', 'python software foundation license',
+              'mpl 2.0', 'mozilla public license 2.0', 'psf 2.0', 'zlib',
+              'unlicense', 'cc0 1.0', 'cc by 4.0', 'cc by sa 4.0',
+              'ofl 1.1', 'bsl 1.0'
           }
           
 
@@ -571,10 +575,11 @@ jobs:
               name = pkg.get('Name', '')
           
 
-              license_normalized = license_text.replace(' ', '-').replace('(', '').replace(')', '')
-          
-
-              is_allowed = any(allowed.lower() in license_text.lower() for allowed in allowed_licenses)
+              normalized = ' '.join(
+                  license_text.lower().replace('(', ' ').replace(')', ' ')
+                  .replace('-', ' ').replace('_', ' ').split()
+              )
+              is_allowed = any(allowed in normalized for allowed in allowed_licenses)
           
               if not is_allowed and license_text:
                   failures.append(f'{name}: {license_text}')

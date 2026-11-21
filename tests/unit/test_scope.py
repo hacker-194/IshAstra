@@ -360,14 +360,15 @@ class TestScopeDestination:
         is set. This test documents the expected behavior; the implementation
         should be fixed to only allow IPs in authorized_networks.
         """
+        # Literal IP: this test runs inside an offline network namespace.
         scope = configure(
             program="Test",
             authorized_by="Me",
             authorization_ref="REF-1",
-            include=["example.com"],
+            include=["8.8.8.8"],
             authorized_networks=["10.0.0.0/8"],
         )
-        denial, reason, dest = scope.destination("https://example.com/")
+        denial, reason, dest = scope.destination("https://8.8.8.8/")
 
         if denial == "out_of_scope":
             assert dest is None

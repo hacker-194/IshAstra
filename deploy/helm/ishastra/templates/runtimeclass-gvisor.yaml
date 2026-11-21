@@ -8,8 +8,7 @@ metadata:
     {{- include "ishastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: runtimeclass
 handler: runsc
-scheduling:
-  podOverhead:
-    podFixed:
-      memory: "120Mi"
-      cpu: "300m"
+podOverhead:
+  podFixed:
+    memory: "120Mi"
+    cpu: "300m"

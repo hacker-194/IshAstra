@@ -1,5 +1,5 @@
 {{- if .Values.api.ingress.enabled }}
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "ishastra.fullname" . }}-api
@@ -8,19 +8,31 @@ metadata:
     {{- include "ishastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
   annotations:
-    {{- include "ishastra.annotations" . | nindent 4 }}
-    {{- if .Values.api.ingress.annotations }}
-    {{- toYaml .Values.api.ingress.annotations | nindent 4 }}
-    {{- end }}
+    {{- with .Values.api.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
     {{- if .Values.api.ingress.className }}
     kubernetes.io/ingress.class: {{ .Values.api.ingress.className }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.api.ingress.className }}
-  {{- if .Values.api.ingress.tls }}
+  {{- with .Values.api.ingress.tls }}
   tls:
-    {{- toYaml .Values.api.ingress.tls | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
-    {{- toYaml .Values.api.ingress.hosts | nindent 4 }}
+    {{- range .Values.api.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .http.paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "ishastra.fullname" $ }}-api
+                port:
+                  number: {{ $.Values.api.service.port }}
+          {{- end }}
+    {{- end }}
 {{- end }}

@@ -151,11 +151,10 @@ before decommissioning anything.
   for a deliberate recovery, never for a key mismatch.
 - Wrong encryption key: existing encrypted values cannot be decrypted.
 
-The Kubernetes manifests in this repository still use the `STRIX_*` variable
-names from an earlier release. Map them to what the runtime reads
-(`STRIX_API_KEY` → `ISHASTRA_API_KEY`, and so on) and drop
-`STRIX_DATABASE_URL` entirely — this stack is SQLite-only, and pointing it at
-PostgreSQL makes startup fail while parsing the old DSN.
+The Kubernetes manifests in this repository use the `ISHASTRA_*` variable
+names the runtime reads. Drop `ISHASTRA_DATABASE_URL` entirely — this stack is
+SQLite-only, and pointing it at PostgreSQL makes startup fail while parsing
+the DSN.
 
 ## 5. Operate
 

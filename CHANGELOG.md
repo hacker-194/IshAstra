@@ -16,7 +16,7 @@
   does the same for hosts.
 - `ishastra standby-promote` restores a PostgreSQL dump as well as a SQLite
   snapshot, so a DB-agnostic failover exists.
-- PostgreSQL pool size is configurable (`STRIX_PG_POOL_MIN`/`STRIX_PG_POOL_MAX`,
+- PostgreSQL pool size is configurable (`ISHASTRA_PG_POOL_MIN`/`ISHASTRA_PG_POOL_MAX`,
   defaults 1/5) instead of the hard-coded 10 that would exhaust a 100-connection
   server once workers scale out.
 - Scope gate: ASN and country (geo-fencing) policy on scope documents and
@@ -88,7 +88,7 @@
 - The project is explicitly documented as **fully open source under Apache-2.0**: no
   open-core split, paid edition, billing or feature gating. API tier names
   (`free`, `pro`, `enterprise`) are rate-limit profiles, not paid plans.
-- Live scanner integration tests are opt-in with `STRIX_LIVE_TOOL_TESTS=1`; nmap
+- Live scanner integration tests are opt-in; nmap
   and Nuclei now scan a deterministic loopback lab, and CI installs nmap plus a
   pinned Nuclei v3.11.1 binary and official templates to run both for real.
 - PostgreSQL and the `k8s-jobs` queue remain **opt-in experimental** deployment paths. They

@@ -199,7 +199,7 @@ helm uninstall ishastra -n ishastra-prod
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.image.repository` | Image repository | `ghcr.io/your-org/ishastra` |
+| `global.image.repository` | Image repository | `ghcr.io/hacker-194/ishastra` |
 | `global.image.tag` | Image tag | `3.5.0` |
 | `global.podSecurityStandard` | Pod Security Standard | `restricted` |
 

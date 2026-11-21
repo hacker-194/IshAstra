@@ -43,10 +43,11 @@ Ishastra is an **authorized security assessment platform** that enforces authori
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The queue shown as in-process is the default: `ISHASTRA_QUEUE_MODE` selects
-`inprocess` (a thread pool inside the API process) or `k8s-jobs` (one
-Kubernetes Job per assessment, for fleet deployments) — see
-`docs/architecture/jobs.md`. These are the only two modes the code accepts.
+The queue shown as in-process is the default. `ISHASTRA_QUEUE_MODE` selects
+`inprocess` (a thread pool inside the API process), `redis-streams` (a durable
+Redis Stream shared by worker processes), or `k8s-jobs` (one Kubernetes Job per
+assessment, experimental) — see `docs/architecture/jobs.md`. These are the only
+three modes the code accepts.
 
 ## Core Components
 
@@ -249,7 +250,7 @@ GET /api/assess/{id} → coverage, findings, verdict
 ## Deployment Constraints
 
 - **Single host by default** — SQLite is the supported pilot backend; one worker lease per database
-- **In-process queue by default** — Redis can share rate limits; k8s-jobs mode adds a distributed queue and durable cancellation but remains experimental
+- **In-process queue by default** — `redis-streams` adds a durable queue shared by workers; `k8s-jobs` adds one Job per assessment and durable cancellation, but remains experimental
 - **PostgreSQL is experimental** — loop-aware pools and a single-host worker path are tested; no HA or multi-node support
 - **No multi-node guarantee** — multi-node scheduling, exactly-once execution and automated failover are not supported
 - **TLS termination** — Ishastra speaks HTTP; put behind reverse proxy, set `ISHASTRA_TRUSTED_PROXIES`

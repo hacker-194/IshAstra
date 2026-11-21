@@ -20,7 +20,7 @@ application Secret (`ishastra-secrets`) are local to each region. They are not
 replicated by these manifests. Maintain verified backups and restore the
 selected backup in the target region before routing traffic. Verify that the
 configured image repository is accessible in all three clusters. The base image
-uses the chart's `ghcr.io/your-org/ishastra:3.5.0` placeholder; set it to the
+uses the chart's `ghcr.io/hacker-194/ishastra:3.5.0` placeholder; set it to the
 organization's published image before syncing.
 
 ## Prerequisites

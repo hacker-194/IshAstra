@@ -33,7 +33,7 @@ class SlsaProvenance:
 class BuildDefinition:
     """Build definition for SLSA provenance."""
 
-    buildType: str = "https://github.com/ishastra/ishastra/builder@v1"
+    buildType: str = "https://github.com/hacker-194/IshAstra/builder@v1"
     externalParameters: dict[str, Any] = field(default_factory=dict)
     internalParameters: dict[str, Any] = field(default_factory=dict)
     resolvedDependencies: list[dict[str, Any]] = field(default_factory=list)
@@ -179,7 +179,7 @@ def generate_slsa_provenance(
     builder_id = builder_id or os.getenv("ISHASTRA_SLSA_BUILDER_ID", "local")
 
     build_def = BuildDefinition(
-        buildType="https://github.com/ishastra/ishastra/builder@v1",
+        buildType="https://github.com/hacker-194/IshAstra/builder@v1",
         externalParameters={
             "git": git_info,
             "environment": build_env,

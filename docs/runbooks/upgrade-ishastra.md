@@ -147,10 +147,10 @@ kubectl scale deployment ishastra-api -n ishastra --replicas=3
 ```bash
 # 1. Update image tag in deployment
 kubectl set image deployment/ishastra-api -n ishastra \
-  ishastra-api=ghcr.io/your-org/ishastra:3.5.1
+  ishastra-api=ghcr.io/hacker-194/ishastra:3.5.1
 
 kubectl set image deployment/ishastra-scheduler -n ishastra \
-  ishastra-scheduler=ghcr.io/your-org/ishastra:3.5.1
+  ishastra-scheduler=ghcr.io/hacker-194/ishastra:3.5.1
 
 # 2. Wait for rollout
 kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s

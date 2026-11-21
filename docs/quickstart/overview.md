@@ -17,7 +17,7 @@ Get Ishastra running in under 5 minutes.
 Deploy to Oracle Cloud Always Free + Neon + Upstash + Cloudflare in one command:
 
 ```bash
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
@@ -37,7 +37,7 @@ See [Free Tier Deployment](free-tier.md) for details.
 ### Option 2: Local Development (Docker Compose)
 
 ```bash
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 docker-compose up -d
 ```

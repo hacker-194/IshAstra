@@ -1,118 +1,73 @@
 # Security Review Process
 
-# Security Review Process
+Ishastra is a community project. This page describes the reviews that actually
+happen in the repository; it is not a claim of a staffed security team, a paid
+bug bounty, or an independent audit.
 
-Ishastra follows a structured security review process for all code changes, releases, and operational procedures.
+## Review types
 
-## Review Types
+### Every pull request
 
-### 1. Code Review (Every PR)
+- Authentication and authorization changes require a second reviewer.
+- Scope Gate changes require a second reviewer and must keep the adversarial,
+  property, and TLA+ checks green.
+- New adapters must call `checked_destination()` before any network operation
+  and must not resolve a target independently of the gate.
+- Crypto, secret handling, and redaction changes require a reviewer familiar
+  with those modules.
 
-All changes require security-focused code review:
+### Before a release
 
-- **Authentication/Authorization changes** - Mandatory review by security team
-- **Scope Gate modifications** - Dual approval required
-- **Crypto operations** - Review by cryptography-knowledgeable reviewer
-- **New adapters** - Scope Gate integration verification
+CI is the evidence, not a separate attestation:
 
-### 2. Pre-Release Security Review
+- `ruff`, `mypy`, and the SQLite/PostgreSQL test suites
+- Scope Gate unit, adversarial, property, DNS-variation, and mutation tests
+- TLA+ model checking (bounded state exploration, not a proof)
+- `bandit`, `semgrep`, `safety`, and `pip-audit`
+- container image scans and dependency review
+- Helm lint and kubeconform validation
 
-Before each release:
+The exact commands and thresholds are in `.github/workflows/ci.yml` and
+`.github/workflows/security-scan.yml`.
 
-- Dependency vulnerability scan (`cargo audit`, `pip-audit`, `safety`)
-- SAST scan (bandit, semgrep, codeql)
-- Container image scan (trivy, grype)
-- Scope Gate invariant verification (TLA+ model re-check)
+## Review checklist
 
-### 3. Periodic Security Audits
+### Authentication and authorization
 
-- **Quarterly**: Full architecture review
-- **Annually**: Third-party penetration test
-- **Continuous**: Bug bounty program
+- [ ] Every non-public endpoint uses `require_auth` or `require_admin`.
+- [ ] Write requests require a write-scoped key; read-only keys cannot mutate.
+- [ ] Tenant identity comes from a validated API key, never a request header.
+- [ ] Every outbound adapter path goes through `checked_destination()`.
+- [ ] External scanners receive the pinned IP, not a hostname they can resolve
+      independently; redirects are disabled or ignored.
+- [ ] Background jobs re-check that the bound policy is still valid.
 
-## Security Review Checklist
+### Data protection
 
-### Authentication & Authorization
+- [ ] Tenant predicates are present on every application query.
+- [ ] PostgreSQL RLS is enabled only with a non-superuser application role; see
+      `DEPLOYMENT.md`.
+- [ ] Secrets and credentials never appear in logs, findings, or SARIF.
+- [ ] Encryption keys and HMAC keys come from the environment/secret manager.
+- [ ] Backups are verified and one restore is rehearsed.
 
-- [ ] All endpoints require authentication
-- [ ] Role-based access control enforced
-- [ ] Scope Gate validation on every outbound request
-- [ ] Break-glass requires dual approval + MFA
-- [ ] JWT validation uses JWKS rotation
+### Input and execution
 
-### Data Protection
+- [ ] API bodies are bounded by size and nesting depth.
+- [ ] SQL is parameterized.
+- [ ] External tools run with argument arrays, a minimal environment, a
+      deadline, and process-group termination.
+- [ ] Tool output is size-bounded and parsed defensively (for example,
+      `defusedxml` for nmap XML).
 
-- [ ] Secrets never in logs or error messages
-- [ ] API keys hashed with bcrypt/scrypt
-- [ ] Database uses Row-Level Security
-- [ ] Encryption at rest (AES-256) and in transit (TLS 1.3)
-- [ ] PII handling compliance (GDPR, CCPA)
+## Vulnerability reporting
 
-### Input Validation
+Use GitHub's private advisory flow described in [`SECURITY.md`](https://github.com/hacker-194/IshAstra/blob/master/SECURITY.md).
+There is no paid bounty and no contractual response SLA. Do not send reports to
+an address that is not listed there.
 
-- [ ] All inputs validated at API boundary
-- [ ] JSON schema validation for all payloads
-- [ ] Path traversal prevention
-- [ ] SSRF prevention via Scope Gate
-- [ ] SQL injection prevention (parameterized queries)
+## Compliance pages
 
-### Cryptography
-
-- [ ] Ed25519 for signatures (no RSA)
-- [ ] TLS 1.3 minimum
-- [ ] Key rotation implemented
-- [ ] No hardcoded secrets or keys
-- [ ] Secure random sources (OS CSPRNG)
-
-### Operational Security
-
-- [ ] Audit logging for all security events
-- [ ] Alerting on auth failures, scope violations
-- [ ] Incident response runbooks current
-- [ ] Backup encryption and access control
-- [ ] Disaster recovery tested quarterly
-
-## Vulnerability Management
-
-### Reporting
-
-Report security issues to: **security@ishastra.dev**
-
-- PGP key: Available at https://ishastra.dev/.well-known/pgp-key
-- Response SLA: 48 hours acknowledgment
-- Disclosure: Coordinated disclosure preferred
-
-### Severity Classification
-
-| Severity | CVSS | Response Time | Example |
-|----------|------|---------------|---------|
-| Critical | 9.0-10.0 | 24 hours | RCE, auth bypass, Scope Gate bypass |
-| High | 7.0-8.9 | 72 hours | SQLi, SSRF, privilege escalation |
-| Medium | 4.0-6.9 | 2 weeks | XSS, info disclosure, DoS |
-| Low | 0.1-3.9 | Next release | Minor info leaks, config issues |
-
-### Remediation Process
-
-1. **Triage** - Confirm, classify, assign
-2. **Contain** - Mitigate if actively exploited
-3. **Fix** - Develop and test patch
-4. **Verify** - Regression tests + security tests
-5. **Release** - Coordinated disclosure timeline
-6. **Postmortem** - Root cause, process improvements
-
-## Compliance Mapping
-
-Security reviews validate against:
-
-- **NIST 800-53** - See [NIST Mapping](compliance/nist.md)
-- **ISO 27001** - See [ISO Mapping](compliance/iso27001.md)
-- **SOC 2 Type II** - See [SOC 2 Mapping](compliance/soc2.md)
-- **PCI DSS** - See [PCI DSS Mapping](compliance/pci-dss.md)
-
-## Related
-
-- [API Authentication](api/authentication.md)
-- [Scope Gate Concepts](scope-gate/concepts.md)
-- [Break Glass](scope-gate/break-glass.md)
-- [Compliance Overview](compliance/overview.md)
-- [Contributing: Development](contributing/development.md)
+`docs/compliance/*` contains control mappings. It is **not** a certification,
+attestation, or independent audit. MFA, TLS termination, and high availability
+are deployment responsibilities, not features Ishastra implements itself.

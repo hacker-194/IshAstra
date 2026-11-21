@@ -238,6 +238,6 @@ from ishastra.adapters.http_probe import HTTPProbeAdapter  # new
 
 ## Links
 
-- [GitHub Releases](https://github.com/ishastra/ishastra/releases)
+- [GitHub Releases](https://github.com/hacker-194/IshAstra/releases)
 - [Release Process](contributing/releasing.md)
 - [Migration Guides](#migration-guides)

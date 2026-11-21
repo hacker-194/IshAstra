@@ -1,3 +1,5 @@
+# NOTE: Ishastra does not implement MFA; enforce it at your identity provider.
+
 # Scope Gate Configuration
 
 # Scope Gate Configuration
@@ -69,7 +71,6 @@ Complete reference for configuring the Scope Gate authorization engine.
           "minItems": 2
         },
         "max_duration": {"type": "string", "pattern": "^\\d+[hm]$"},
-        "require_mfa": {"type": "boolean", "default": true}
       }
     },
     "signing": {
@@ -183,14 +184,12 @@ Complete reference for configuring the Scope Gate authorization engine.
 - **enabled**: Enable emergency access
 - **approvers**: Minimum 2 email addresses for dual approval
 - **max_duration**: Duration string (e.g., `"4h"`, `"30m"`, `"1d"`)
-- **require_mfa**: Require MFA for approvers
 
 ```json
 "break_glass": {
   "enabled": true,
   "approvers": ["security-lead@example.com", "cto@example.com", "ciso@example.com"],
   "max_duration": "4h",
-  "require_mfa": true
 }
 ```
 
@@ -319,7 +318,6 @@ jsonschema -i scope.json schemas/scope-v2.json
     "enabled": true,
     "approvers": ["security-lead@example.com", "cto@example.com"],
     "max_duration": "4h",
-    "require_mfa": true
   }
 }
 ```
@@ -370,7 +368,6 @@ jsonschema -i scope.json schemas/scope-v2.json
     "enabled": true,
     "approvers": ["security-lead@example.com", "cto@example.com", "ciso@example.com"],
     "max_duration": "2h",
-    "require_mfa": true
   }
 }
 ```

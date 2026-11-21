@@ -96,8 +96,8 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/ishastra/ishastra:${{ github.ref_name }}
-            ghcr.io/ishastra/ishastra:latest
+            ghcr.io/hacker-194/ishastra:${{ github.ref_name }}
+            ghcr.io/hacker-194/ishastra:latest
           platforms: linux/amd64,linux/arm64
       - name: Build Python package
         run: make build-python
@@ -212,7 +212,7 @@ curl https://api.ishastra.dev/health
 
 | Artifact | Location | Signature |
 |----------|----------|-----------|
-| Docker Images | `ghcr.io/ishastra/ishastra:v3.6.0` | Cosign |
+| Docker Images | `ghcr.io/hacker-194/ishastra:v3.6.0` | Cosign |
 | Python Wheel | PyPI `ishastra-3.6.0-py3-none-any.whl` | Cosign |
 | Rust Crates | crates.io `ishastra-core-3.6.0.crate` | Cargo sign |
 | Helm Chart | `oci://ghcr.io/ishastra/charts/ishastra-3.6.0.tgz` | Cosign |
@@ -222,7 +222,7 @@ curl https://api.ishastra.dev/health
 
 ```bash
 # Verify Docker image
-cosign verify ghcr.io/ishastra/ishastra:v3.6.0 \
+cosign verify ghcr.io/hacker-194/ishastra:v3.6.0 \
   --certificate-identity-regexp ".*" \
   --certificate-oidc-issuer-regexp ".*"
 
@@ -255,7 +255,7 @@ cosign verify oci://ghcr.io/ishastra/charts/ishastra:v3.6.0
 3. Verify: `kubectl get pods -n ishastra`
 
 ## Full Changelog
-https://github.com/ishastra/ishastra/releases/tag/v3.6.0
+https://github.com/hacker-194/IshAstra/releases/tag/v3.6.0
 ```
 
 ## Related

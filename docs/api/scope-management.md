@@ -1,3 +1,5 @@
+# NOTE: Ishastra does not implement MFA; enforce it at your identity provider.
+
 # Scope Management API
 
 # Scope Management API
@@ -34,7 +36,6 @@ https://api.ishastra.dev/api/v1
     "enabled": true,
     "approvers": ["security-lead@company.com", "cto@company.com"],
     "max_duration": 3600,
-    "require_mfa": true,
     "notification_webhook": "https://company.slack.com/webhook"
   },
   "signing": {
@@ -80,7 +81,6 @@ POST /scopes
     "enabled": true,
     "approvers": ["security-lead@company.com", "cto@company.com"],
     "max_duration": 3600,
-    "require_mfa": true
   }
 }
 ```
@@ -472,7 +472,6 @@ The `break_glass` field in scope documents configures emergency access:
     "enabled": true,
     "approvers": ["security-lead@company.com", "cto@company.com"],
     "max_duration": 3600,
-    "require_mfa": true,
     "notification_webhook": "https://company.slack.com/webhook"
   }
 }
@@ -483,7 +482,6 @@ The `break_glass` field in scope documents configures emergency access:
 | `enabled` | bool | Yes | Enable break-glass for this scope |
 | `approvers` | string[] | Yes | Minimum 2 email addresses for dual approval |
 | `max_duration` | int | Yes | Maximum access duration in seconds (max: 86400) |
-| `require_mfa` | bool | No | Require MFA for approvers (default: true) |
 | `notification_webhook` | string | No | Webhook URL for break-glass events |
 
 ### Break-Glass API Endpoints

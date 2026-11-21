@@ -1,3 +1,11 @@
+> **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
+> or PCI DSS attestation and no paid bug bounty. MFA is enforced by an external
+> identity provider when configured; Ishastra does not implement MFA. API
+> authentication is API keys plus OIDC/SAML browser sessions; there is no
+> API-key-to-JWT exchange. TLS is terminated by the operator. PostgreSQL RLS is
+> tested at the database layer and is not a substitute for application tenant
+> filters. High availability is not provided.
+
 # SOC 2 Type II Mapping
 
 # SOC 2 Type II Control Mapping

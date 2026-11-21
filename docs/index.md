@@ -82,7 +82,7 @@ Ishastra is a security assessment platform built on a **default-deny authorizati
 
 ```bash
 # Quick start with Docker Compose
-git clone https://github.com/ishastra/ishastra.git
+git clone https://github.com/hacker-194/IshAstra.git
 cd ishastra
 cp .env.example .env
 docker compose up -d
@@ -92,7 +92,7 @@ curl http://localhost:8000/health
 
 ## Community
 
-- **GitHub**: [github.com/ishastra/ishastra](https://github.com/ishastra/ishastra)
+- **GitHub**: [github.com/hacker-194/IshAstra](https://github.com/hacker-194/IshAstra)
 - **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
 - **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
 - **Twitter**: [@strix_security](https://twitter.com/strix_security)

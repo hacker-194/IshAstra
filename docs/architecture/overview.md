@@ -78,10 +78,10 @@ High-level system design and data flows.
 
 ### 1. API Gateway (`src/ishastra/api/`)
 - **FastAPI** with async request handling
-- **Authentication**: API keys, OIDC, mTLS
+- **Authentication**: API keys; OIDC/SAML browser sessions (no mTLS in the app)
 - **Authorization**: RBAC with org/partner/tenant hierarchy
 - **Rate Limiting**: Token bucket per tenant
-- **Multi-tenancy**: Row-level security via PostgreSQL RLS
+- **Multi-tenancy**: application-level tenant filters on every backend; PostgreSQL RLS is defense-in-depth where tenant context is set
 - **Observability**: OpenTelemetry, Prometheus metrics, structured logging
 
 ### 2. Scope Gate (`src/ishastra/core/scope.py`)
@@ -97,13 +97,13 @@ The **authorization engine** — default-deny for every outbound connection.
 **Key Properties:**
 - **ContextVar isolation**: Per-task scope binding prevents cross-tenant leakage
 - **Observer pattern**: Every decision receipted for Ishastra Proof audit chain
-- **TLA+ verified**: 6 invariants, 21.4M states model-checked
+- **TLA+ model-checked**: 6 invariants, 21.4M states explored; this is not a formal proof
 
 ### 3. Job Orchestration (`src/ishastra/core/scheduler.py`, `worker.py`)
-- **In-memory queue** (dev) / **Redis queue** (prod)
+- **In-process queue** (default), **Redis Streams** (durable), or **Kubernetes Jobs** (experimental)
 - **Threaded worker pool** with configurable concurrency
 - **Priority queues**: Critical > High > Normal > Low
-- **Retry with exponential backoff** + dead letter queue
+- **Retries with backoff** in the supported queue paths; no claim of exactly-once execution
 - **Scheduler**: Cron + interval triggers in the single writer process
 
 ### 4. Adapter Framework (`src/ishastra/core/adapters.py`)
@@ -132,7 +132,7 @@ Cryptographic audit chain for every gate decision:
 ```
 Grant (scope doc signed) → Gate (decision) → Proof (receipt) → Verify (offline)
 ```
-- Ed25519 signatures with JWKS rotation
+- Ed25519 signatures; scope-signing keys can be rotated by the operator
 - Tamper-evident Merkle tree
 - Offline verification capability
 
@@ -184,7 +184,7 @@ Partner (MSSP)
 ```
 
 **Isolation Mechanisms:**
-- **Database**: Row-Level Security (RLS) policies on all tables
+- **Database**: application filters on every backend; PostgreSQL RLS policies are defense-in-depth (SQLite has no RLS)
 - **Runtime**: ContextVar-bound scope per worker task
 - **API**: Tenant-scoped endpoints, org-admin/partner-admin roles
 - **Secrets**: Per-tenant encryption keys
@@ -193,12 +193,12 @@ Partner (MSSP)
 
 | Boundary | Protection |
 |----------|------------|
-| Internet → API | Cloudflare WAF, TLS 1.3, Rate limiting, Auth |
-| API → Workers | Internal network, mTLS, Scope Gate sidecar |
+| Internet → API | Operator-provided TLS reverse proxy, rate limiting, auth |
+| API → Workers | Same process by default; network policy when deployed separately |
 | Workers → Targets | Scope Gate (default-deny), Pinned destinations |
-| Workers → DB | RLS, Prepared statements, Connection pooling |
-| Workers → Redis | ACLs, TLS, Separate databases per tenant |
-| Inter-service | Network policies, mTLS, SPIFFE identities |
+| Workers → DB | Parameterized SQL, tenant filters, optional PostgreSQL RLS |
+| Workers → Redis | Operator-provided ACLs/TLS; logical separation only where configured |
+| Inter-service | Kubernetes network policies; no SPIFFE/mTLS implementation |
 
 ## Deployment Topologies
 
@@ -216,7 +216,7 @@ capacity numbers:
 | Component | Scaling approach | Tested |
 |-----------|------------------|--------|
 | API + worker | Vertical: more CPU/RAM, `ISHASTRA_WORKERS` threads | Single host |
-| Job queue | In-process by default; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
+| Job queue | In-process by default; `redis-streams` durable queue; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
 | PostgreSQL | Single writer against a managed instance | Single host |
 | Redis | Shared rate-limit counters | Single node |
 | Scope gate check | In-process, sub-millisecond on pinned destinations | 95% covered, TLA+-checked |
@@ -227,7 +227,7 @@ capacity numbers:
 |---------|-----------|------------|
 | Scope Gate misconfig | Startup validation, health check | Fail-fast, default-deny |
 | DNS rebinding | Layer 2/3 mismatch | Pinned destinations, TTL=0 |
-| Cross-tenant leak | RLS policy test, ContextVar audit | Integration tests, static analysis |
+| Cross-tenant leak | Tenant-filter tests, optional PostgreSQL RLS | Integration tests, static analysis |
 | Worker OOM | Memory limits, metrics | Chunked processing, backpressure |
 | DB overload | Connection pool exhaustion | Slow down submissions, add CPU/RAM; no PgBouncer or read replicas in the supported topology |
 | Redis loss | Rate-limit backend errors | Rate limiting fails closed; Redis holds counters only, not jobs |

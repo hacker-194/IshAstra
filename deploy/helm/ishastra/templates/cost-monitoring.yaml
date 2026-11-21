@@ -347,7 +347,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: cost-exporter
-          image: {{ .Values.monitoringExtras.cost.exporter.image.repository | default "ghcr.io/your-org/ishastra-cost-exporter" }}:{{ .Values.monitoringExtras.cost.exporter.image.tag | default "v1.0.0" }}
+          image: {{ .Values.monitoringExtras.cost.exporter.image.repository | default "ghcr.io/hacker-194/ishastra-cost-exporter" }}:{{ .Values.monitoringExtras.cost.exporter.image.tag | default "v1.0.0" }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - name: metrics

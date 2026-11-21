@@ -170,7 +170,7 @@ class Settings:
 
     slsa_provenance_enabled: bool = False
     slsa_builder_id: str = (
-        "https://github.com/ishastra/ishastra/.github/workflows/release.yml@refs/heads/main"
+        "https://github.com/hacker-194/IshAstra/.github/workflows/release.yml@refs/heads/master"
     )
     slsa_provenance_output: str = "./provenance"
 
@@ -331,7 +331,7 @@ class Settings:
             in {"1", "true", "yes"},
             slsa_builder_id=os.environ.get(
                 "ISHASTRA_SLSA_BUILDER_ID",
-                "https://github.com/ishastra/ishastra/.github/workflows/release.yml@refs/heads/main",
+                "https://github.com/hacker-194/IshAstra/.github/workflows/release.yml@refs/heads/master",
             ).strip(),
             slsa_provenance_output=os.environ.get("ISHASTRA_SLSA_PROVENANCE_OUTPUT", "./provenance").strip(),
         )

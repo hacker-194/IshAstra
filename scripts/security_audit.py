@@ -455,7 +455,7 @@ def generate_sarif(report: AuditReport) -> str:
                     "driver": {
                         "name": "Ishastra Security Audit",
                         "version": report.version,
-                        "informationUri": "https://github.com/useishastra/ishastra",
+                        "informationUri": "https://github.com/hacker-194/IshAstra",
                         "rules": [],
                     }
                 },

@@ -29,6 +29,15 @@ httpx==0.28.1
 redis==6.4.0
 cryptography==50.0.2
 prometheus-client==0.25.0
+jsonschema==4.26.0
+apscheduler==3.11.3
+pytz==2024.2
+weasyprint==61.2
+PyJWT==2.15.1
+python3-saml==1.16.0
+
+# Optional: postgres extra
+asyncpg==0.32.0
 
 # Test and development
 pytest==9.1.1

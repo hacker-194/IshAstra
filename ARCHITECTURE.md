@@ -150,7 +150,7 @@ three modes the code accepts.
 
 ### 5. Persistence (`src/ishastra/core/store.py`)
 
-**Backend**: SQLite (async via aiosqlite) — single-process, owner-only files (0600).
+**Backend**: SQLite by default (async via aiosqlite) — single-process, owner-only files (0600). PostgreSQL is supported with `ISHASTRA_DB=postgresql://...` and the `postgres` extra; it remains experimental (see Deployment Constraints).
 
 **Tables**:
 - `jobs` — job records with coverage JSON

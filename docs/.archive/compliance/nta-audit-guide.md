@@ -375,7 +375,7 @@ export ISHASTRA_RETENTION_DAYS=2555  # 7 years
 - [3GPP TS 33.210](https://3gpp.org) - 3G/4G/5G security architecture
 - [3GPP TS 33.501](https://3gpp.org) - 5G security
 - [ISO 27001](https://iso.org/27001) - ISMS
-- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
+- [Ishastra Source](https://github.com/hacker-194/IshAstra) - Apache-2.0 licensed
 
 ---
 

@@ -408,7 +408,7 @@ export ISHASTRA_RETENTION_DAYS=2555  # 7 years minimum
 - [IEC 62443](https://iec.ch/62443) - Industrial Automation Security
 - [NIST SSDF](https://csrc.nist.gov/Projects/ssdf) - Secure Software Development Framework
 - [SLSA](https://slsa.dev) - Supply Chain Levels for Software Artifacts
-- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
+- [Ishastra Source](https://github.com/hacker-194/IshAstra) - Apache-2.0 licensed
 
 ---
 

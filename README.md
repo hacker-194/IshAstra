@@ -29,8 +29,13 @@
 
 ## Try It In One Command
 
+The package is not yet published to PyPI; install from the repository:
+
 ```bash
-pip install ishastra
+git clone https://github.com/hacker-194/IshAstra
+cd IshAstra
+python3 -m venv .venv && . .venv/bin/activate
+pip install -c constraints.txt -e .
 ishastra demo
 ```
 
@@ -94,9 +99,11 @@ chmod +x scripts/bootstrap-free.sh
 ## Local Development (Docker Compose)
 
 ```bash
-docker-compose up -d
+cp .env.example .env
+# Set POSTGRES_PASSWORD, GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD in .env
+docker compose up -d
 # API at http://localhost:8000
-# Grafana at http://localhost:3000 (admin/admin)
+# Grafana at http://localhost:3000 (log in with GRAFANA_PASSWORD)
 ```
 
 ## Architecture
@@ -107,8 +114,8 @@ docker-compose up -d
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │   REST API   │    │   Job Queue  │    │   Assessment Worker  │  │
-│  │  (FastAPI)   │───▶│  (In-Memory) │───▶│  (Threaded Pool)     │  │
+│  │   REST API   │    │  Job Queue  │    │   Assessment Worker  │  │
+│  │  (FastAPI)   │───▶│ in-process   │───▶│  (Threaded Pool)     │  │
 │  └──────────────┘    └──────────────┘    └──────────┬───────────┘  │
 │       │                                             │              │
 │       │                    ┌────────────────────────┼────────┐     │
@@ -184,8 +191,19 @@ Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, ve
 |-------------|---------|------|
 | **Free Tier (Oracle)** | `./scripts/bootstrap-free.sh` | $0/month |
 | **Single-host production** | systemd or Compose, one writer | Low |
-| **Local Dev** | `docker compose up -d` | Free |
+| **Local Dev** | `docker compose up -d` (after setting the required passwords) | Free |
 | **Kind/Minikube** | `./scripts/bootstrap-kind.sh` | Free |
+
+### Data backend and queue modes
+
+- **SQLite** is the default and the supported single-host pilot backend.
+- **PostgreSQL** is available with `ISHASTRA_DB=postgresql://...` and the
+  `postgres` extra. It is experimental: schema, RLS and a single-host worker
+  path are tested, but there is no HA or multi-node failover.
+- **Queue:** `in-process` (default) holds queued work in memory, so a restart
+  loses queued jobs. Use `ISHASTRA_QUEUE_MODE=redis-streams` with
+  `ISHASTRA_REDIS_URL` for durable work shared by workers; `k8s-jobs` is
+  experimental. See [ARCHITECTURE.md](ARCHITECTURE.md#deployment-constraints).
 
 ## Contributing
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This runbook covers automated backup procedures for Strix platform components including SQLite database, configurations, and secrets.
+This runbook covers automated backup procedures for Ishastra platform components including SQLite database, configurations, and secrets.
 
 **Backup Schedule:**
 - Database: Hourly WAL + Daily full snapshots
@@ -16,9 +16,9 @@ This runbook covers automated backup procedures for Strix platform components in
 
 - **Access:** AWS/GCP/Azure credentials with S3/GCS bucket write access
 - **Tools:** `aws cli` / `gcloud` / `az cli`, `sqlite3`, `kubectl`, `vault` (if using HashiCorp Vault)
-- **Environment:** `STRIX_BACKUP_BUCKET`, `STRIX_DB_PATH`, `STRIX_AUDIT_HMAC_KEY` configured
+- **Environment:** `ISHASTRA_BACKUP_BUCKET`, `ISHASTRA_DB_PATH`, `ISHASTRA_AUDIT_HMAC_KEY` configured
 - **Permissions:** Read access to database, configs, secrets; write access to backup bucket
-- **Schedule:** Cron/systemd timer running as `strix-backup` service account
+- **Schedule:** Cron/systemd timer running as `ishastra-backup` service account
 
 ---
 
@@ -26,9 +26,9 @@ This runbook covers automated backup procedures for Strix platform components in
 
 | Component | Source | Frequency | Method | Destination |
 |-----------|--------|-----------|--------|-------------|
-| SQLite Database (live) | `/var/lib/strix/strix.db` | Hourly (WAL) | SQLite backup API | `s3://bucket/db/hourly/` |
-| SQLite Database (full) | `/var/lib/strix/strix.db` | Daily 02:00 UTC | SQLite backup API | `s3://bucket/db/daily/` |
-| Scope Config | ConfigMap `strix-config` | On change + Daily | kubectl export | `s3://bucket/config/` |
+| SQLite Database (live) | `/var/lib/ishastra/ishastra.db` | Hourly (WAL) | SQLite backup API | `s3://bucket/db/hourly/` |
+| SQLite Database (full) | `/var/lib/ishastra/ishastra.db` | Daily 02:00 UTC | SQLite backup API | `s3://bucket/db/daily/` |
+| Scope Config | ConfigMap `ishastra-config` | On change + Daily | kubectl export | `s3://bucket/config/` |
 | Kubernetes Manifests | Git repository | On commit | Git push | Git remote |
 | Secrets (encrypted) | Vault / SealedSecrets | On change | Vault API / kubectl | Vault / `s3://bucket/secrets/` |
 | Redis AOF/RDB | Redis pod | Every 60s (AOF) | Redis BGSAVE | `s3://bucket/redis/` |
@@ -42,13 +42,13 @@ This runbook covers automated backup procedures for Strix platform components in
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/backup-database.sh
-# Runs hourly via cron: 0 * * * * /opt/strix/scripts/backup-database.sh
+# /opt/ishastra/scripts/backup-database.sh
+# Runs hourly via cron: 0 * * * * /opt/ishastra/scripts/backup-database.sh
 
 set -euo pipefail
 
-DB_PATH="${STRIX_DB_PATH:-/var/lib/strix/strix.db}"
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+DB_PATH="${ISHASTRA_DB_PATH:-/var/lib/ishastra/ishastra.db}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
 HOUR_DIR=$(date -u +%H)
@@ -66,7 +66,7 @@ sqlite3 "$DB_PATH" "PRAGMA integrity_check;" | grep -q "ok" || {
 }
 
 # Create backup using SQLite backup API (consistent snapshot)
-BACKUP_FILE="/tmp/strix-${TIMESTAMP}.db"
+BACKUP_FILE="/tmp/ishastra-${TIMESTAMP}.db"
 sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'"
 
 # Verify backup
@@ -77,49 +77,49 @@ sqlite3 "$BACKUP_FILE" "PRAGMA integrity_check;" | grep -q "ok" || {
 }
 
 # Upload to hourly bucket (WAL-style incremental)
-aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/hourly/${DATE_DIR}/${HOUR_DIR}/strix-${TIMESTAMP}.db" \
+aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/hourly/${DATE_DIR}/${HOUR_DIR}/ishastra-${TIMESTAMP}.db" \
     --storage-class STANDARD_IA \
-    --metadata "source=strix,type=hourly,timestamp=${TIMESTAMP}"
+    --metadata "source=ishastra,type=hourly,timestamp=${TIMESTAMP}"
 
 # Daily full backup at 02:00 UTC
 if [[ $(date -u +%H) == "02" && $(date -u +%M) -lt 10 ]]; then
-    aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/strix-${TIMESTAMP}.db" \
+    aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/ishastra-${TIMESTAMP}.db" \
         --storage-class STANDARD_IA \
-        --metadata "source=strix,type=daily,timestamp=${TIMESTAMP}"
+        --metadata "source=ishastra,type=daily,timestamp=${TIMESTAMP}"
 fi
 
 # Cleanup local temp
 rm -f "$BACKUP_FILE"
 
-echo "Database backup completed: strix-${TIMESTAMP}.db"
+echo "Database backup completed: ishastra-${TIMESTAMP}.db"
 ```
 
 ### 2. Configuration Backup (On Change + Daily)
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/backup-config.sh
+# /opt/ishastra/scripts/backup-config.sh
 # Runs daily + triggered by ConfigMap change webhook
 
 set -euo pipefail
 
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
 
 # Export ConfigMaps
-kubectl get configmap strix-config -n strix -o yaml > /tmp/strix-config-${TIMESTAMP}.yaml
-kubectl get configmap strix-rules -n strix -o yaml > /tmp/strix-rules-${TIMESTAMP}.yaml 2>/dev/null || true
+kubectl get configmap ishastra-config -n ishastra -o yaml > /tmp/ishastra-config-${TIMESTAMP}.yaml
+kubectl get configmap ishastra-rules -n ishastra -o yaml > /tmp/ishastra-rules-${TIMESTAMP}.yaml 2>/dev/null || true
 
 # Verify exports
-[[ -s /tmp/strix-config-${TIMESTAMP}.yaml ]] || { echo "ERROR: ConfigMap export empty"; exit 1; }
+[[ -s /tmp/ishastra-config-${TIMESTAMP}.yaml ]] || { echo "ERROR: ConfigMap export empty"; exit 1; }
 
 # Upload
-aws s3 cp /tmp/strix-config-${TIMESTAMP}.yaml "s3://${BACKUP_BUCKET}/config/${DATE_DIR}/strix-config-${TIMESTAMP}.yaml"
-aws s3 cp /tmp/strix-rules-${TIMESTAMP}.yaml "s3://${BACKUP_BUCKET}/config/${DATE_DIR}/strix-rules-${TIMESTAMP}.yaml" 2>/dev/null || true
+aws s3 cp /tmp/ishastra-config-${TIMESTAMP}.yaml "s3://${BACKUP_BUCKET}/config/${DATE_DIR}/ishastra-config-${TIMESTAMP}.yaml"
+aws s3 cp /tmp/ishastra-rules-${TIMESTAMP}.yaml "s3://${BACKUP_BUCKET}/config/${DATE_DIR}/ishastra-rules-${TIMESTAMP}.yaml" 2>/dev/null || true
 
 # Cleanup
-rm -f /tmp/strix-config-${TIMESTAMP}.yaml /tmp/strix-rules-${TIMESTAMP}.yaml
+rm -f /tmp/ishastra-config-${TIMESTAMP}.yaml /tmp/ishastra-rules-${TIMESTAMP}.yaml
 
 echo "Configuration backup completed"
 ```
@@ -128,35 +128,35 @@ echo "Configuration backup completed"
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/backup-secrets.sh
+# /opt/ishastra/scripts/backup-secrets.sh
 # Triggered by ExternalSecret/Vault change event
 
 set -euo pipefail
 
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
-ENCRYPTION_KEY="${STRIX_BACKUP_ENCRYPTION_KEY}"  # Age/GPG key for encrypting secrets
+ENCRYPTION_KEY="${ISHASTRA_BACKUP_ENCRYPTION_KEY}"  # Age/GPG key for encrypting secrets
 
 # Option A: Vault-backed secrets
 if command -v vault &>/dev/null && [[ -n "${VAULT_ADDR:-}" ]]; then
-    vault kv get -format=json secret/strix > /tmp/strix-secrets-${TIMESTAMP}.json
+    vault kv get -format=json secret/ishastra > /tmp/ishastra-secrets-${TIMESTAMP}.json
     
     # Encrypt before upload
-    age -r "$ENCRYPTION_KEY" -e /tmp/strix-secrets-${TIMESTAMP}.json > /tmp/strix-secrets-${TIMESTAMP}.json.age
+    age -r "$ENCRYPTION_KEY" -e /tmp/ishastra-secrets-${TIMESTAMP}.json > /tmp/ishastra-secrets-${TIMESTAMP}.json.age
     
-    aws s3 cp /tmp/strix-secrets-${TIMESTAMP}.json.age "s3://${BACKUP_BUCKET}/secrets/${DATE_DIR}/strix-secrets-${TIMESTAMP}.json.age"
+    aws s3 cp /tmp/ishastra-secrets-${TIMESTAMP}.json.age "s3://${BACKUP_BUCKET}/secrets/${DATE_DIR}/ishastra-secrets-${TIMESTAMP}.json.age"
     
-    rm -f /tmp/strix-secrets-${TIMESTAMP}.json /tmp/strix-secrets-${TIMESTAMP}.json.age
+    rm -f /tmp/ishastra-secrets-${TIMESTAMP}.json /tmp/ishastra-secrets-${TIMESTAMP}.json.age
 fi
 
 # Option B: SealedSecrets / Kubernetes secrets (encrypted at rest in etcd)
-kubectl get secret strix-secrets -n strix -o yaml > /tmp/strix-secrets-k8s-${TIMESTAMP}.yaml
-kubectl get secret strix-redis-secret -n strix -o yaml > /tmp/strix-redis-secret-${TIMESTAMP}.yaml 2>/dev/null || true
-kubectl get secret strix-postgresql-secret -n strix -o yaml > /tmp/strix-postgresql-secret-${TIMESTAMP}.yaml 2>/dev/null || true
+kubectl get secret ishastra-secrets -n ishastra -o yaml > /tmp/ishastra-secrets-k8s-${TIMESTAMP}.yaml
+kubectl get secret ishastra-redis-secret -n ishastra -o yaml > /tmp/ishastra-redis-secret-${TIMESTAMP}.yaml 2>/dev/null || true
+kubectl get secret ishastra-postgresql-secret -n ishastra -o yaml > /tmp/ishastra-postgresql-secret-${TIMESTAMP}.yaml 2>/dev/null || true
 
 # These are already encrypted in etcd, but encrypt again for bucket storage
-for f in /tmp/strix-secrets-k8s-${TIMESTAMP}.yaml /tmp/strix-redis-secret-${TIMESTAMP}.yaml /tmp/strix-postgresql-secret-${TIMESTAMP}.yaml; do
+for f in /tmp/ishastra-secrets-k8s-${TIMESTAMP}.yaml /tmp/ishastra-redis-secret-${TIMESTAMP}.yaml /tmp/ishastra-postgresql-secret-${TIMESTAMP}.yaml; do
     [[ -f "$f" ]] || continue
     age -r "$ENCRYPTION_KEY" -e "$f" > "${f}.age"
     aws s3 cp "${f}.age" "s3://${BACKUP_BUCKET}/secrets/${DATE_DIR}/$(basename "${f}.age")"
@@ -170,15 +170,15 @@ echo "Secrets backup completed"
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/backup-redis.sh
+# /opt/ishastra/scripts/backup-redis.sh
 # Runs every 60s via Redis AOF + daily RDB snapshot
 
 set -euo pipefail
 
-REDIS_HOST="${STRIX_REDIS_HOST:-redis-master}"
-REDIS_PORT="${STRIX_REDIS_PORT:-6379}"
-REDIS_PASSWORD="${STRIX_REDIS_PASSWORD}"
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+REDIS_HOST="${ISHASTRA_REDIS_HOST:-redis-master}"
+REDIS_PORT="${ISHASTRA_REDIS_PORT:-6379}"
+REDIS_PASSWORD="${ISHASTRA_REDIS_PASSWORD}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
 
@@ -213,12 +213,12 @@ echo "Redis backup completed"
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/verify-backups.sh
+# /opt/ishastra/scripts/verify-backups.sh
 # Runs daily at 03:00 UTC via cron
 
 set -euo pipefail
 
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 
 echo "=== Backup Verification Started $(date) ==="
 
@@ -238,7 +238,7 @@ python scripts/operational_check.py --db /tmp/verify.db --out /tmp/verify-copy.d
 sqlite3 /tmp/verify.db "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM findings; SELECT COUNT(*) FROM audit_chain;"
 
 # 2. Verify latest config backup
-LATEST_CONFIG=$(aws s3 ls "s3://${BACKUP_BUCKET}/config/" --recursive | grep strix-config | sort | tail -n 1 | awk '{print $4}')
+LATEST_CONFIG=$(aws s3 ls "s3://${BACKUP_BUCKET}/config/" --recursive | grep ishastra-config | sort | tail -n 1 | awk '{print $4}')
 [[ -n "$LATEST_CONFIG" ]] || { echo "WARNING: No config backup found"; }
 aws s3 cp "s3://${BACKUP_BUCKET}/config/${LATEST_CONFIG}" /tmp/verify-config.yaml
 [[ -s /tmp/verify-config.yaml ]] || { echo "ERROR: Config backup empty"; exit 1; }
@@ -260,7 +260,7 @@ rm -f /tmp/verify.db /tmp/verify-config.yaml
 ### Automated Verification (Daily Cron)
 - Database integrity: `PRAGMA integrity_check`
 - Audit chain: `scripts/operational_check.py` verifies the restored chain using
-  `STRIX_AUDIT_HMAC_KEY` from the protected environment
+  `ISHASTRA_AUDIT_HMAC_KEY` from the protected environment
 - Table row counts: jobs, findings, audit_chain > 0
 - Config file: non-empty YAML
 - Secrets: decryptable with age/GPG key
@@ -269,36 +269,36 @@ rm -f /tmp/verify.db /tmp/verify-config.yaml
 
 ```bash
 # Check backup freshness
-aws s3 ls s3://strix-backups/db/daily/ --recursive --human-readable --summarize | tail -5
+aws s3 ls s3://ishastra-backups/db/daily/ --recursive --human-readable --summarize | tail -5
 
 # Verify specific backup
-aws s3 cp s3://strix-backups/db/daily/2024/01/15/strix-20240115-020000.db /tmp/test.db
+aws s3 cp s3://ishastra-backups/db/daily/2024/01/15/ishastra-20240115-020000.db /tmp/test.db
 sqlite3 /tmp/test.db "PRAGMA integrity_check;"
 sqlite3 /tmp/test.db "SELECT COUNT(*) FROM jobs, findings, audit_chain;"
 
 # Check config backup
-aws s3 cp s3://strix-backups/config/2024/01/15/strix-config-20240115-020000.yaml /tmp/test-config.yaml
+aws s3 cp s3://ishastra-backups/config/2024/01/15/ishastra-config-20240115-020000.yaml /tmp/test-config.yaml
 head -20 /tmp/test-config.yaml
 
 # Verify encryption key works
-age -d -i /path/to/private-key s3://strix-backups/secrets/.../strix-secrets-...json.age | jq .
+age -d -i /path/to/private-key s3://ishastra-backups/secrets/.../ishastra-secrets-...json.age | jq .
 ```
 
 ### Grafana Alerts
 
 | Alert | Condition | Severity |
 |-------|-----------|----------|
-| `StrixBackupMissing` | No daily backup in 25h | critical |
-| `StrixBackupVerificationFailed` | Verification cron exits non-zero | critical |
-| `StrixBackupSizeAnomaly` | Backup size deviates >50% from 7-day avg | warning |
+| `IshastraBackupMissing` | No daily backup in 25h | critical |
+| `IshastraBackupVerificationFailed` | Verification cron exits non-zero | critical |
+| `IshastraBackupSizeAnomaly` | Backup size deviates >50% from 7-day avg | warning |
 
 ---
 
 ## Rollback
 
 ### If Backup Job Fails
-1. Check cron logs: `journalctl -u strix-backup-cron -n 50`
-2. Re-run failed script manually: `/opt/strix/scripts/backup-database.sh`
+1. Check cron logs: `journalctl -u ishastra-backup-cron -n 50`
+2. Re-run failed script manually: `/opt/ishastra/scripts/backup-database.sh`
 3. Verify manually uploaded backup passes verification
 4. Alert on-call if repeated failures
 

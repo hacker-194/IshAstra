@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+
 """
-Strix Integration Connectors - Usage Examples
+Ishastra Integration Connectors - Usage Examples
 
 This script demonstrates how to use the various integration connectors
 for sending findings to SIEMs, creating tickets, sending chat alerts,
@@ -9,7 +9,7 @@ triggering CI/CD pipelines, and managing secrets.
 
 import threading
 
-from strix.integrations import (
+from ishastra.integrations import (
     DatadogConfig,
     ElasticConfig,
     GitHubActionsConfig,
@@ -26,7 +26,7 @@ from strix.integrations import (
     get_connector,
 )
 
-# Sample finding payload (as produced by Strix)
+
 SAMPLE_FINDING = {
     "finding": {
         "category": "sql_injection",
@@ -49,7 +49,7 @@ SAMPLE_FINDING = {
     "job": {
         "id": "job-2024-001",
         "profile": "owasp-top-10",
-        "actor": "strix-scanner-01",
+        "actor": "ishastra-scanner-01",
         "policy": {
             "policy_id": "pol-security-baseline",
             "tenant_id": "tenant-acme",
@@ -62,10 +62,10 @@ SAMPLE_FINDING = {
 
 def create_siem_payloads():
     """Create sample payloads for SIEM connectors."""
-    # Single finding
+
     single = SAMPLE_FINDING.copy()
 
-    # Multiple findings (batch)
+
     batch = {
         "findings": [
             SAMPLE_FINDING["finding"],
@@ -94,7 +94,7 @@ async def example_siem_connectors():
     single, batch = create_siem_payloads()
     cancel = threading.Event()
 
-    # Splunk HEC
+
     print("1. Splunk HEC:")
     splunk_config = SplunkHECConfig(
         enabled=True,
@@ -108,7 +108,7 @@ async def example_siem_connectors():
     )
     splunk = get_connector("splunk_hec")
     if splunk:
-        # Reconfigure with actual credentials
+
         splunk.config = splunk_config
         try:
             result = splunk.send(batch, timeout=30.0, cancel=cancel)
@@ -118,13 +118,13 @@ async def example_siem_connectors():
         except Exception as e:
             print(f"   Error (expected without real Splunk): {e}")
 
-    # Elasticsearch
+
     print("\n2. Elasticsearch (ECS format):")
     elastic_config = ElasticConfig(
         enabled=True,
         hosts=["https://elasticsearch.example.com:9200"],
         api_key="your-base64-api-key",
-        index="strix-findings",
+        index="ishastra-findings",
         verify_ssl=True,
     )
     elastic = get_connector("elastic")
@@ -136,15 +136,15 @@ async def example_siem_connectors():
         except Exception as e:
             print(f"   Error (expected without real Elastic): {e}")
 
-    # Datadog
+
     print("\n3. Datadog Logs:")
     datadog_config = DatadogConfig(
         enabled=True,
         api_key="your-datadog-api-key",
         site="datadoghq.com",
-        ddsource="strix",
+        ddsource="ishastra",
         ddtags="env:prod,team:security",
-        service="strix",
+        service="ishastra",
     )
     datadog = get_connector("datadog")
     if datadog:
@@ -155,14 +155,14 @@ async def example_siem_connectors():
         except Exception as e:
             print(f"   Error (expected without real Datadog): {e}")
 
-    # Azure Sentinel
+
     print("\n4. Azure Sentinel:")
     import base64
     sentinel_config = SentinelConfig(
         enabled=True,
         workspace_id="your-workspace-id",
         shared_key=base64.b64encode(b"your-32-byte-shared-key-here==").decode(),
-        log_type="StrixFindings",
+        log_type="IshastraFindings",
     )
     sentinel = get_connector("sentinel")
     if sentinel:
@@ -181,7 +181,7 @@ async def example_ticketing_connectors():
     single, batch = create_siem_payloads()
     cancel = threading.Event()
 
-    # Jira
+
     print("1. Jira:")
     jira_config = JiraConfig(
         enabled=True,
@@ -191,7 +191,7 @@ async def example_ticketing_connectors():
         project_key="SEC",
         issue_type="Task",
         default_priority="High",
-        labels=["strix", "critical", "sql-injection"],
+        labels=["ishastra", "critical", "sql-injection"],
     )
     jira = get_connector("jira")
     if jira:
@@ -203,14 +203,14 @@ async def example_ticketing_connectors():
         except Exception as e:
             print(f"   Error (expected without real Jira): {e}")
 
-    # GitHub Issues
+
     print("\n2. GitHub Issues:")
     github_config = GitHubIssuesConfig(
         enabled=True,
         token="ghp_your-github-token",
         owner="myorg",
         repo="security-tracking",
-        labels=["strix", "critical", "sql-injection"],
+        labels=["ishastra", "critical", "sql-injection"],
         assignees=["security-lead"],
     )
     github = get_connector("github_issues")
@@ -223,14 +223,14 @@ async def example_ticketing_connectors():
         except Exception as e:
             print(f"   Error (expected without real GitHub): {e}")
 
-    # GitLab Issues
+
     print("\n3. GitLab Issues:")
     gitlab_config = GitLabIssuesConfig(
         enabled=True,
         base_url="https://gitlab.com",
         token="glpat_your-gitlab-token",
         project_id="mygroup/myproject",
-        labels=["strix", "critical", "sql-injection"],
+        labels=["ishastra", "critical", "sql-injection"],
         assignee_ids=[12345],
     )
     gitlab = get_connector("gitlab_issues")
@@ -243,15 +243,15 @@ async def example_ticketing_connectors():
         except Exception as e:
             print(f"   Error (expected without real GitLab): {e}")
 
-    # ServiceNow
+
     print("\n4. ServiceNow (with CMDB linking):")
     servicenow_config = ServiceNowConfig(
         enabled=True,
         instance_url="https://company.service-now.com",
-        username="strix.integration",
+        username="ishastra.integration",
         password="your-servicenow-password",
         table="incident",
-        caller_id="strix.integration",
+        caller_id="ishastra.integration",
         assignment_group="Security Operations",
         category="security",
         subcategory="vulnerability",
@@ -276,13 +276,13 @@ async def example_chatops_connectors():
     single, _ = create_siem_payloads()
     cancel = threading.Event()
 
-    # Slack
+
     print("1. Slack (Webhook):")
     slack_config = SlackConfig(
         enabled=True,
         webhook_url="https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>",
         default_channel="#security-alerts",
-        username="strix",
+        username="ishastra",
         icon_emoji=":shield:",
     )
     slack = get_connector("slack")
@@ -294,7 +294,7 @@ async def example_chatops_connectors():
         except Exception as e:
             print(f"   Error (expected without real Slack): {e}")
 
-    # Microsoft Teams
+
     print("\n2. Microsoft Teams:")
     teams_config = TeamsConfig(
         enabled=True,
@@ -309,12 +309,12 @@ async def example_chatops_connectors():
         except Exception as e:
             print(f"   Error (expected without real Teams): {e}")
 
-    # Mattermost
+
     print("\n3. Mattermost:")
     mattermost_config = MattermostConfig(
         enabled=True,
         webhook_url="https://mattermost.example.com/hooks/xxx",
-        username="strix",
+        username="ishastra",
         channel="security-alerts",
     )
     mattermost = get_connector("mattermost")
@@ -333,7 +333,7 @@ async def example_cicd_connectors():
 
     cancel = threading.Event()
 
-    # Sample payload for CI/CD (they need findings to work)
+
     cicd_payload = {
         "findings": [{
             "category": "sql_injection",
@@ -349,14 +349,14 @@ async def example_cicd_connectors():
         "job": {
             "id": "job-2024-001",
             "profile": "owasp-top-10",
-            "actor": "strix-scanner-01",
+            "actor": "ishastra-scanner-01",
             "policy": {"policy_id": "pol-security", "tenant_id": "tenant-acme"},
         },
         "target": "https://api.example.com",
         "timestamp": 1700000000.0,
     }
 
-    # GitHub Actions
+
     print("1. GitHub Actions:")
     gh_actions_config = GitHubActionsConfig(
         enabled=True,
@@ -379,7 +379,7 @@ async def example_cicd_connectors():
         except Exception as e:
             print(f"   Error (expected without real GitHub): {e}")
 
-    # GitLab CI
+
     print("\n2. GitLab CI:")
     gitlab_ci_config = GitLabCIConfig(
         enabled=True,

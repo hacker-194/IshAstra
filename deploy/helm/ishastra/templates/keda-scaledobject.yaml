@@ -1,0 +1,155 @@
+{{- if and .Values.worker.enabled .Values.workerCostOptimization.keda.enabled }}
+---
+
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "ishastra.fullname" . }}-worker-keda
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keda-scaledobject
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ishastra.fullname" . }}-worker
+  pollingInterval: {{ .Values.workerCostOptimization.keda.pollingInterval | default 15 }}
+  cooldownPeriod: {{ .Values.workerCostOptimization.keda.cooldownPeriod | default 300 }}
+  minReplicaCount: {{ .Values.workerCostOptimization.keda.minReplicas | default 0 }}
+  maxReplicaCount: {{ .Values.workerCostOptimization.keda.maxReplicas | default 50 }}
+  {{- if .Values.workerCostOptimization.keda.fallback }}
+  fallback:
+    {{- toYaml .Values.workerCostOptimization.keda.fallback | nindent 4 }}
+  {{- end }}
+  advanced:
+    {{- if .Values.workerCostOptimization.keda.restoreToOriginalReplicaCount }}
+    restoreToOriginalReplicaCount: {{ .Values.workerCostOptimization.keda.restoreToOriginalReplicaCount }}
+    {{- end }}
+    {{- if .Values.workerCostOptimization.keda.horizontalPodAutoscalerConfig }}
+    horizontalPodAutoscalerConfig:
+      {{- toYaml .Values.workerCostOptimization.keda.horizontalPodAutoscalerConfig | nindent 6 }}
+    {{- end }}
+  triggers:
+
+    - type: redis-streams
+      metadata:
+        address: {{ .Values.workerCostOptimization.keda.redis.address | default (printf "redis://%s-redis-master:6379/1" (include "ishastra.fullname" .)) }}
+        username: ""
+        passwordFromEnv: REDIS_PASSWORD
+        dbIndex: "1"
+        stream: {{ .Values.workerCostOptimization.keda.redis.stream | default "ishastra:assessments" }}
+        consumerGroup: {{ .Values.workerCostOptimization.keda.redis.consumerGroup | default "ishastra-workers" }}
+        pendingEntriesCount: "{{ .Values.workerCostOptimization.keda.redis.pendingEntriesCount | default "10" }}"
+        enableTLS: "{{ .Values.workerCostOptimization.keda.redis.enableTLS | default "false" }}"
+      authenticationRef:
+        name: {{ include "ishastra.fullname" . }}-keda-redis-auth
+
+    {{- if .Values.workerCostOptimization.keda.prometheus.enabled }}
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.workerCostOptimization.keda.prometheus.serverAddress | default "http://prometheus-operated.monitoring.svc.cluster.local:9090" }}
+        metricName: {{ .Values.workerCostOptimization.keda.prometheus.metricName | default "ishastra_assessment_queue_pending" }}
+        threshold: "{{ .Values.workerCostOptimization.keda.prometheus.threshold | default "5" }}"
+        query: {{ .Values.workerCostOptimization.keda.prometheus.query | default "ishastra_assessment_queue_pending" }}
+        authModes: "{{ .Values.workerCostOptimization.keda.prometheus.authModes | default "none" }}"
+      {{- if .Values.workerCostOptimization.keda.prometheus.authRef }}
+      authenticationRef:
+        name: {{ .Values.workerCostOptimization.keda.prometheus.authRef }}
+      {{- end }}
+    {{- end }}
+
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "{{ .Values.workerCostOptimization.keda.cpu.threshold | default "70" }}"
+      metricType: {{ .Values.workerCostOptimization.keda.cpu.metricType | default "Utilization" }}
+    - type: memory
+      metadata:
+        type: Utilization
+        value: "{{ .Values.workerCostOptimization.keda.memory.threshold | default "80" }}"
+      metricType: {{ .Values.workerCostOptimization.keda.memory.metricType | default "Utilization" }}
+---
+
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "ishastra.fullname" . }}-keda-redis-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keda-triggerauth
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ .Values.workerCostOptimization.keda.redis.secretName | default (printf "%s-redis-secret" (include "ishastra.fullname" .)) }}
+      key: {{ .Values.workerCostOptimization.keda.redis.secretKey | default "redis-password" }}
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ishastra.fullname" . }}-keda-metrics-reader
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keda-rbac
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - nodes/metrics
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - pods
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - custom.metrics.k8s.io
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - external.metrics.k8s.io
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-keda-metrics-reader-binding
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keda-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ishastra.fullname" . }}-keda-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: keda-operator
+    namespace: keda
+  - kind: ServiceAccount
+    name: {{ include "ishastra.fullname" . }}-worker
+    namespace: {{ .Release.Namespace }}
+{{- end }}

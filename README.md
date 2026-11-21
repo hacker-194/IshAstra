@@ -1,4 +1,4 @@
-# Strix — Authorization-First Security Assessment Platform
+# Ishastra — Authorization-First Security Assessment Platform
 
 [![License](https://img.shields.io/github/license/ishastra/ishastra)](LICENSE)
 [![CI](https://github.com/ishastra/ishastra/actions/workflows/ci.yml/badge.svg)](https://github.com/ishastra/ishastra/actions)
@@ -13,9 +13,9 @@
 > [Production deployment](docs/quickstart/production.md) before promising
 > uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
 
-## Why Strix?
+## Why Ishastra?
 
-| Feature | Strix | Nuclei | Trivy | OWASP ZAP | OpenVAS |
+| Feature | Ishastra | Nuclei | Trivy | OWASP ZAP | OpenVAS |
 |---------|-------|--------|-------|-----------|---------|
 | **Default-deny authorization** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **API-key tenant isolation** | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -79,13 +79,13 @@ chmod +x scripts/bootstrap-free.sh
 ```
 
 **What you get:**
-- 2-node k0s cluster on Oracle Always Free (2x ARM 4OCPU/24GB); add a third node for control-plane quorum
+- k0s cluster on Oracle Always Free Arm (2 OCPU / 12GB total, halved by Oracle in June 2026); add a third controller for quorum
 - Neon PostgreSQL (serverless, 0.5GB free)
 - Upstash Redis (serverless, 256MB free)
 - Cloudflare Tunnel ingress (zero public IP, DDoS protection)
 - SealedSecrets for git-safe secret management
 - Prometheus + Grafana monitoring
-- Full Strix ScopeGate API at `https://api.yourdomain.com`
+- Full Ishastra ScopeGate API at `https://api.yourdomain.com`
 
 ## Local Development (Docker Compose)
 
@@ -99,7 +99,7 @@ docker-compose up -d
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Strix Platform                                │
+│                        Ishastra Platform                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
@@ -113,7 +113,7 @@ docker-compose up -d
 │  │                    Scope Gate (Authorization)                  │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │  │
 │  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer      │   │  │
-│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Strix Proof)    │   │  │
+│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Ishastra Proof)    │   │  │
 │  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                  │   │  │
 │  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
@@ -149,7 +149,7 @@ docker-compose up -d
 - Emergency authorization with dual approval workflow
 - Time-bounded, audited, metrics-instrumented
 
-### 3. Strix Proof — Cryptographic Audit Chain
+### 3. Ishastra Proof — Cryptographic Audit Chain
 - Every gate decision receipted: `grant → gate → proof → verify`
 - Tamper-evident, offline verifiable, compliance-ready
 
@@ -160,7 +160,7 @@ docker-compose up -d
 
 ## Job Notifications
 
-Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, verdict, severity counts) whenever a job finishes. The same body carries Slack `text` and `blocks`, so a Slack incoming webhook renders it as a formatted card while other receivers read the structured fields. Destinations must be public https URLs; set `ISHASTRA_WEBHOOK_SECRET` to add an `X-Strix-Signature: sha256=…` HMAC header, so the receiver can verify the payload.
+Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, verdict, severity counts) whenever a job finishes. The same body carries Slack `text` and `blocks`, so a Slack incoming webhook renders it as a formatted card while other receivers read the structured fields. Destinations must be public https URLs; set `ISHASTRA_WEBHOOK_SECRET` to add an `X-Ishastra-Signature: sha256=…` HMAC header, so the receiver can verify the payload.
 
 ## Documentation
 

@@ -1,5 +1,5 @@
 """
-Production-ready httpx transport adapter for Strix ScopeGate.
+Production-ready httpx transport adapter for Ishastra ScopeGate.
 
 This transport intercepts ALL outbound HTTP requests and validates them
 through ScopeGate before allowing the connection. It prevents DNS rebinding
@@ -14,7 +14,7 @@ from typing import Optional
 import httpx
 from httpx import Request, Response
 
-from strix.core.scope import Scope, ScopeGate
+from ishastra.core.scope import Scope, ScopeGate
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ScopeValidatingTransport(httpx.BaseTransport):
         """Validate a request synchronously."""
         url = str(request.url)
         
-        # Skip validation for non-HTTP(S) URLs
+
         if not url.startswith(("http://", "https://")):
             logger.debug(f"Skipping validation for non-HTTP URL: {url}")
             return True, None
@@ -68,15 +68,15 @@ class ScopeValidatingTransport(httpx.BaseTransport):
             )
             return False, response
         
-        # Pin to resolved IP to prevent DNS rebinding
+
         if result.resolved_ips:
             pinned_ip = result.resolved_ips[0]
             original_host = request.url.host
             
-            # Preserve original host for SNI and virtual hosting
+
             request.headers["Host"] = original_host
             
-            # Rewrite URL to use pinned IP
+
             request.url = request.url.copy_with(host=pinned_ip)
             
             logger.debug(f"Pinned {original_host} -> {pinned_ip} for {url}")
@@ -141,7 +141,7 @@ class MultiTenantScopeTransport(httpx.BaseTransport):
     
     def __init__(
         self,
-        scope_resolver,  # Callable[[Request], Scope]
+        scope_resolver,
         wrapped: Optional[httpx.BaseTransport] = None,
     ):
         self.scope_resolver = scope_resolver
@@ -185,9 +185,9 @@ class MultiTenantScopeTransport(httpx.BaseTransport):
         return await self.wrapped.handle_async_request(request)
 
 
-# =============================================================================
-# Factory Functions
-# =============================================================================
+
+
+
 
 def create_scoped_client(
     scope: Scope,
@@ -247,35 +247,35 @@ def create_multi_tenant_client(
     )
 
 
-# =============================================================================
-# Usage Examples
-# =============================================================================
+
+
+
 
 async def example_basic_usage():
     """Basic usage with a single scope."""
-    from strix.core.scope import load
+    from ishastra.core.scope import load
     
-    scope = load("/etc/strix/scope.json")
+    scope = load("/etc/ishastra/scope.json")
     client = create_scoped_client(scope)
     
     try:
-        # This request will be validated
+
         response = await client.get("https://api.example.com/health")
         print(f"Status: {response.status_code}")
         
-        # This will be blocked if not in scope
+
         response = await client.get("https://evil.com/")
-        print(f"Status: {response.status_code}")  # 403
+        print(f"Status: {response.status_code}")
     finally:
         await client.aclose()
 
 
 async def example_multi_tenant():
     """Multi-tenant usage with per-request scope resolution."""
-    from strix.core.scope import load
+    from ishastra.core.scope import load
     from pathlib import Path
     
-    SCOPE_DIR = Path("/etc/strix/scopes")
+    SCOPE_DIR = Path("/etc/ishastra/scopes")
     scopes = {}
     
     def get_scope(request: Request) -> Scope:
@@ -291,7 +291,7 @@ async def example_multi_tenant():
     client = create_multi_tenant_client(get_scope)
     
     try:
-        # Requests with different tenants
+
         response = await client.get(
             "https://api.acmecorp.com/",
             headers={"X-Tenant-ID": "acme-corp"}
@@ -309,13 +309,13 @@ async def example_multi_tenant():
 
 async def example_with_retries():
     """Client with retry logic and scope validation."""
-    from strix.core.scope import load
+    from ishastra.core.scope import load
     from httpx import Retry
     
-    scope = load("/etc/strix/scope.json")
+    scope = load("/etc/ishastra/scope.json")
     transport = ScopeValidatingTransport(scope)
     
-    # Wrap with retry transport
+
     retry_transport = httpx.AsyncRetryTransport(
         transport,
         retry=Retry(total=3, backoff_factor=0.5),

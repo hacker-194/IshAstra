@@ -1,18 +1,18 @@
 # Scaling Procedures Runbook
 
 > **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
-> is defined in `src/strix/metrics.py` and has a data source.
+> is defined in `src/ishastra/metrics.py` and has a data source.
 > `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
 
 
 ## Overview
 
-This runbook covers horizontal and vertical scaling procedures for Strix platform components.
+This runbook covers horizontal and vertical scaling procedures for Ishastra platform components.
 
 **Current Architecture:**
 - **Queue Mode:** In-process (default) or Kubernetes Jobs (distributed)
 - **Database:** SQLite (single-writer) or PostgreSQL (multi-writer)
-- **Workers:** `STRIX_WORKERS` per API pod
+- **Workers:** `ISHASTRA_WORKERS` per API pod
 - **Rate Limiting:** In-memory (single) or Redis (distributed)
 
 ---
@@ -55,21 +55,21 @@ This runbook covers horizontal and vertical scaling procedures for Strix platfor
 
 set -euo pipefail
 
-NAMESPACE="strix"
+NAMESPACE="ishastra"
 
 # 1. Check current resource usage
 echo "=== Current Resource Usage ==="
-kubectl top pods -n $NAMESPACE -l app.kubernetes.io/name=strix
+kubectl top pods -n $NAMESPACE -l app.kubernetes.io/name=ishastra
 kubectl top nodes
 
 # 2. Update resource requests/limits
 # For Deployment (API, Scheduler)
-kubectl patch deployment strix-api -n $NAMESPACE -p '{
+kubectl patch deployment ishastra-api -n $NAMESPACE -p '{
   "spec": {
     "template": {
       "spec": {
         "containers": [{
-          "name": "strix-api",
+          "name": "ishastra-api",
           "resources": {
             "requests": {"cpu": "2000m", "memory": "4Gi"},
             "limits": {"cpu": "4000m", "memory": "8Gi"}
@@ -80,12 +80,12 @@ kubectl patch deployment strix-api -n $NAMESPACE -p '{
   }
 }'
 
-kubectl patch deployment strix-scheduler -n $NAMESPACE -p '{
+kubectl patch deployment ishastra-scheduler -n $NAMESPACE -p '{
   "spec": {
     "template": {
       "spec": {
         "containers": [{
-          "name": "strix-scheduler",
+          "name": "ishastra-scheduler",
           "resources": {
             "requests": {"cpu": "1000m", "memory": "2Gi"},
             "limits": {"cpu": "2000m", "memory": "4Gi"}
@@ -97,13 +97,13 @@ kubectl patch deployment strix-scheduler -n $NAMESPACE -p '{
 }'
 
 # 3. Increase worker count per pod
-kubectl patch deployment strix-api -n $NAMESPACE -p '{
+kubectl patch deployment ishastra-api -n $NAMESPACE -p '{
   "spec": {
     "template": {
       "spec": {
         "containers": [{
-          "name": "strix-api",
-          "env": [{"name": "STRIX_WORKERS", "value": "2"}]
+          "name": "ishastra-api",
+          "env": [{"name": "ISHASTRA_WORKERS", "value": "2"}]
         }]
       }
     }
@@ -111,13 +111,13 @@ kubectl patch deployment strix-api -n $NAMESPACE -p '{
 }'
 
 # 4. Increase queue max
-kubectl patch deployment strix-api -n $NAMESPACE -p '{
+kubectl patch deployment ishastra-api -n $NAMESPACE -p '{
   "spec": {
     "template": {
       "spec": {
         "containers": [{
-          "name": "strix-api",
-          "env": [{"name": "STRIX_QUEUE_MAX", "value": "64"}]
+          "name": "ishastra-api",
+          "env": [{"name": "ISHASTRA_QUEUE_MAX", "value": "64"}]
         }]
       }
     }
@@ -125,21 +125,21 @@ kubectl patch deployment strix-api -n $NAMESPACE -p '{
 }'
 
 # 5. Rollout restart
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n $NAMESPACE
-kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=300s
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n $NAMESPACE
+kubectl rollout status deployment/ishastra-api -n $NAMESPACE --timeout=300s
 
 # 6. Verify
 echo "=== Post-Scale Verification ==="
-kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=strix -o wide
-kubectl exec -n $NAMESPACE strix-api-0 -- env | grep -E 'STRIX_(WORKERS|QUEUE_MAX)'
+kubectl get pods -n $NAMESPACE -l app.kubernetes.io/name=ishastra -o wide
+kubectl exec -n $NAMESPACE ishastra-api-0 -- env | grep -E 'ISHASTRA_(WORKERS|QUEUE_MAX)'
 ```
 
 ### Vertical Scaling Limits
 
 | Resource | Limit | Reason |
 |----------|-------|--------|
-| `STRIX_WORKERS` | 4 | SQLite write contention, GIL |
-| `STRIX_QUEUE_MAX` | 100 | Memory for job metadata |
+| `ISHASTRA_WORKERS` | 4 | SQLite write contention, GIL |
+| `ISHASTRA_QUEUE_MAX` | 100 | Memory for job metadata |
 | CPU per pod | 4 cores | Diminishing returns |
 | RAM per pod | 8 GB | Tool output buffers, SQLite cache |
 
@@ -149,27 +149,27 @@ kubectl exec -n $NAMESPACE strix-api-0 -- env | grep -E 'STRIX_(WORKERS|QUEUE_MA
 
 Assessments scale by running each one as a Kubernetes Job, so the API process only
 submits work. The Job manifest and the supported values are in
-`docs/k8s-jobs-architecture.md` and `deploy/helm/strix/values-k8s-jobs.yaml`.
+`docs/k8s-jobs-architecture.md` and `deploy/helm/ishastra/values-k8s-jobs.yaml`.
 
 ### Prerequisites for Horizontal Scaling
 
 - [ ] **PostgreSQL** deployed (HA recommended)
-- [ ] **Kubernetes Jobs** permitted for the `strix` service account
+- [ ] **Kubernetes Jobs** permitted for the `ishastra` service account
 - [ ] **Idempotency keys** implemented for all jobs
-- [ ] **STRIX_QUEUE_MODE=k8s-jobs** configured
+- [ ] **ISHASTRA_QUEUE_MODE=k8s-jobs** configured
 
 ### Enable k8s-jobs Mode
 
 ```bash
-helm upgrade strix deploy/helm/strix -n strix \
-  -f deploy/helm/strix/values-prod.yaml \
-  -f deploy/helm/strix/values-k8s-jobs.yaml
+helm upgrade ishastra deploy/helm/ishastra -n ishastra \
+  -f deploy/helm/ishastra/values-prod.yaml \
+  -f deploy/helm/ishastra/values-k8s-jobs.yaml
 ```
 
 ### Scale the API
 
 ```bash
-kubectl scale deployment strix-api -n strix --replicas=10
+kubectl scale deployment ishastra-api -n ishastra --replicas=10
 ```
 
 Job concurrency is bounded by the cluster, not by API replicas.
@@ -186,44 +186,44 @@ Job concurrency is bounded by the cluster, not by API replicas.
 
 set -euo pipefail
 
-NAMESPACE="strix"
+NAMESPACE="ishastra"
 PG_HOST="postgresql"
-PG_DB="strix"
+PG_DB="ishastra"
 PG_USER="postgres"
 PG_PASS="$POSTGRES_PASSWORD"
 
 # 1. Stop writers
-kubectl scale deployment strix-api -n $NAMESPACE --replicas=0
-kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=0
+kubectl scale deployment ishastra-api -n $NAMESPACE --replicas=0
+kubectl scale deployment ishastra-scheduler -n $NAMESPACE --replicas=0
 
 # 2. Dump SQLite
-kubectl exec -n $NAMESPACE strix-api-0 -- sqlite3 /var/lib/strix/strix.db .dump > /tmp/strix-sqlite-dump.sql
+kubectl exec -n $NAMESPACE ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db .dump > /tmp/ishastra-sqlite-dump.sql
 
 # 3. Convert for PostgreSQL (adjust types, sequences)
 # This is simplified - use proper migration tool in production
-sed -i 's/AUTOINCREMENT/SERIAL/g' /tmp/strix-sqlite-dump.sql
-sed -i 's/INTEGER PRIMARY KEY/BIGSERIAL PRIMARY KEY/g' /tmp/strix-sqlite-dump.sql
+sed -i 's/AUTOINCREMENT/SERIAL/g' /tmp/ishastra-sqlite-dump.sql
+sed -i 's/INTEGER PRIMARY KEY/BIGSERIAL PRIMARY KEY/g' /tmp/ishastra-sqlite-dump.sql
 
 # 4. Load into PostgreSQL
-kubectl cp /tmp/strix-sqlite-dump.sql $NAMESPACE/postgresql-0:/tmp/dump.sql
+kubectl cp /tmp/ishastra-sqlite-dump.sql $NAMESPACE/postgresql-0:/tmp/dump.sql
 kubectl exec -n $NAMESPACE postgresql-0 -- psql -U $PG_USER -d $PG_DB -f /tmp/dump.sql
 
 # 5. Verify row counts match
-SQLITE_JOBS=$(kubectl exec -n $NAMESPACE strix-api-0 -- sqlite3 /var/lib/strix/strix.db "SELECT COUNT(*) FROM jobs;")
+SQLITE_JOBS=$(kubectl exec -n $NAMESPACE ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "SELECT COUNT(*) FROM jobs;")
 PG_JOBS=$(kubectl exec -n $NAMESPACE postgresql-0 -- psql -U $PG_USER -d $PG_DB -t -c "SELECT COUNT(*) FROM jobs;")
 echo "SQLite jobs: $SQLITE_JOBS, PostgreSQL jobs: $PG_JOBS"
 
 # 6. Update config to use PostgreSQL
-kubectl patch configmap strix-config -n $NAMESPACE -p '{
+kubectl patch configmap ishastra-config -n $NAMESPACE -p '{
   "data": {
-    "STRIX_DATABASE_URL": "postgresql://postgres:password@postgresql:5432/strix"
+    "ISHASTRA_DATABASE_URL": "postgresql://postgres:password@postgresql:5432/ishastra"
   }
 }'
 
 # 7. Restart with PostgreSQL
-kubectl scale deployment strix-api -n $NAMESPACE --replicas=3
-kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=1
-kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=300s
+kubectl scale deployment ishastra-api -n $NAMESPACE --replicas=3
+kubectl scale deployment ishastra-scheduler -n $NAMESPACE --replicas=1
+kubectl rollout status deployment/ishastra-api -n $NAMESPACE --timeout=300s
 
 echo "Migration to PostgreSQL complete"
 ```
@@ -232,7 +232,7 @@ echo "Migration to PostgreSQL complete"
 
 ```bash
 # Add read replica to Bitnami PostgreSQL
-helm upgrade postgresql bitnami/postgresql -n strix \
+helm upgrade postgresql bitnami/postgresql -n ishastra \
   --set replication.enabled=true \
   --set replication.replicaCount=2 \
   --set primary.persistence.enabled=true
@@ -249,7 +249,7 @@ helm upgrade postgresql bitnami/postgresql -n strix \
 
 ```bash
 # Upgrade to Redis Cluster (6+ shards)
-helm upgrade redis bitnami/redis -n strix \
+helm upgrade redis bitnami/redis -n ishastra \
   --set cluster.enabled=true \
   --set cluster.slaveCount=1 \
   --set cluster.nodes=6 \
@@ -261,7 +261,7 @@ helm upgrade redis bitnami/redis -n strix \
 
 ```bash
 # For non-cluster HA
-helm upgrade redis bitnami/redis -n strix \
+helm upgrade redis bitnami/redis -n ishastra \
   --set architecture=replication \
   --set sentinel.enabled=true \
   --set sentinel.replicaCount=3
@@ -275,28 +275,28 @@ helm upgrade redis bitnami/redis -n strix \
 
 ```bash
 # When scaling beyond single API pod
-kubectl patch configmap strix-config -n strix -p '{
+kubectl patch configmap ishastra-config -n ishastra -p '{
   "data": {
-    "STRIX_REDIS_URL": "redis://:password@redis-master:6379/0",
-    "STRIX_REDIS_REQUIRED": "true"
+    "ISHASTRA_REDIS_URL": "redis://:password@redis-master:6379/0",
+    "ISHASTRA_REDIS_REQUIRED": "true"
   }
 }'
 
-kubectl rollout restart deployment/strix-api -n strix
+kubectl rollout restart deployment/ishastra-api -n ishastra
 ```
 
 ### Rate Limit Tier Configuration
 
 ```bash
 # Adjust tier limits via ConfigMap
-kubectl patch configmap strix-config -n strix -p '{
+kubectl patch configmap ishastra-config -n ishastra -p '{
   "data": {
-    "STRIX_RATE_LIMIT_FREE_RPM": "10",
-    "STRIX_RATE_LIMIT_FREE_ASSESSMENTS": "10",
-    "STRIX_RATE_LIMIT_PRO_RPM": "120",
-    "STRIX_RATE_LIMIT_PRO_ASSESSMENTS": "40",
-    "STRIX_RATE_LIMIT_ENTERPRISE_RPM": "600",
-    "STRIX_RATE_LIMIT_ENTERPRISE_ASSESSMENTS": "120"
+    "ISHASTRA_RATE_LIMIT_FREE_RPM": "10",
+    "ISHASTRA_RATE_LIMIT_FREE_ASSESSMENTS": "10",
+    "ISHASTRA_RATE_LIMIT_PRO_RPM": "120",
+    "ISHASTRA_RATE_LIMIT_PRO_ASSESSMENTS": "40",
+    "ISHASTRA_RATE_LIMIT_ENTERPRISE_RPM": "600",
+    "ISHASTRA_RATE_LIMIT_ENTERPRISE_ASSESSMENTS": "120"
   }
 }'
 ```
@@ -322,18 +322,18 @@ kubectl patch configmap strix-config -n strix -p '{
 ```yaml
 # scaling-alerts.yaml
 groups:
-- name: strix-scaling
+- name: ishastra-scaling
   rules:
-  - alert: StrixQueueDepthHigh
+  - alert: IshastraQueueDepthHigh
     expr: strix_queue_depth > 20
     for: 5m
     labels:
       severity: warning
     annotations:
       summary: "Queue depth high ({{ $value }})"
-      description: "Consider scaling workers or increasing STRIX_WORKERS"
+      description: "Consider scaling workers or increasing ISHASTRA_WORKERS"
 
-  - alert: StrixJobDurationHigh
+  - alert: IshastraJobDurationHigh
     expr: histogram_quantile(0.95, rate(strix_job_duration_seconds_bucket[5m])) > 300
     for: 5m
     labels:
@@ -341,7 +341,7 @@ groups:
     annotations:
       summary: "Job duration p95 > 5 minutes"
 
-  - alert: StrixWorkerDown
+  - alert: IshastraWorkerDown
     expr: time() - strix_worker_heartbeat_timestamp > 120
     for: 1m
     labels:
@@ -349,7 +349,7 @@ groups:
     annotations:
       summary: "Worker {{ $labels.worker_id }} heartbeat lost"
 
-  - alert: StrixRateLimitExceeded
+  - alert: IshastraRateLimitExceeded
     expr: rate(strix_rate_limit_exceeded_total[5m]) > 0.16
     for: 2m
     labels:
@@ -370,8 +370,8 @@ groups:
 
 set -euo pipefail
 
-API_URL="http://strix.example.com"
-ADMIN_KEY="${STRIX_API_KEY}"
+API_URL="http://ishastra.example.com"
+ADMIN_KEY="${ISHASTRA_API_KEY}"
 
 echo "=== Post-Scale Verification ==="
 
@@ -417,19 +417,19 @@ echo "=== Verification Complete ==="
 
 ```bash
 # Revert resource limits and worker count
-kubectl patch deployment strix-api -n strix -p '{
+kubectl patch deployment ishastra-api -n ishastra -p '{
   "spec": {
     "template": {
       "spec": {
         "containers": [{
-          "name": "strix-api",
+          "name": "ishastra-api",
           "resources": {
             "requests": {"cpu": "1000m", "memory": "2Gi"},
             "limits": {"cpu": "2000m", "memory": "4Gi"}
           },
           "env": [
-            {"name": "STRIX_WORKERS", "value": "1"},
-            {"name": "STRIX_QUEUE_MAX", "value": "32"}
+            {"name": "ISHASTRA_WORKERS", "value": "1"},
+            {"name": "ISHASTRA_QUEUE_MAX", "value": "32"}
           ]
         }]
       }
@@ -437,16 +437,16 @@ kubectl patch deployment strix-api -n strix -p '{
   }
 }'
 
-kubectl rollout restart deployment/strix-api -n strix
+kubectl rollout restart deployment/ishastra-api -n ishastra
 ```
 
 ### Rollback Horizontal Scale
 
 ```bash
 # Drop back to the in-process queue
-helm upgrade strix deploy/helm/strix -n strix -f deploy/helm/strix/values-prod.yaml
+helm upgrade ishastra deploy/helm/ishastra -n ishastra -f deploy/helm/ishastra/values-prod.yaml
 
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n ishastra
 ```
 
 ### Rollback Database Migration
@@ -454,15 +454,15 @@ kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
 ```bash
 # If PostgreSQL migration fails
 # 1. Revert ConfigMap to SQLite
-kubectl patch configmap strix-config -n strix -p '{
+kubectl patch configmap ishastra-config -n ishastra -p '{
   "data": {
-    "STRIX_DATABASE_URL": "sqlite:///var/lib/strix/strix.db"
+    "ISHASTRA_DATABASE_URL": "sqlite:///var/lib/ishastra/ishastra.db"
   }
 }'
 
 # 2. Restore from SQLite backup (see restore.md)
 # 3. Scale up API with SQLite
-kubectl scale deployment strix-api -n strix --replicas=3
+kubectl scale deployment ishastra-api -n ishastra --replicas=3
 ```
 
 ---

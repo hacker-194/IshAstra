@@ -2,7 +2,7 @@
 
 # Quick Start Overview
 
-Get Strix running in under 5 minutes.
+Get Ishastra running in under 5 minutes.
 
 ## Prerequisites
 
@@ -17,33 +17,33 @@ Get Strix running in under 5 minutes.
 Deploy to Oracle Cloud Always Free + Neon + Upstash + Cloudflare in one command:
 
 ```bash
-git clone https://github.com/strix/strix
-cd strix
+git clone https://github.com/ishastra/ishastra
+cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
 ```
 
 **What you get:**
-- HA k0s Kubernetes cluster on 2x Oracle ARM instances (4 OCPU, 24GB RAM each)
+- k0s Kubernetes cluster on 2x Oracle ARM instances (1 OCPU, 6GB RAM each: the free Arm allowance is 2 OCPU / 12GB total)
 - Neon serverless PostgreSQL (0.5 GB free tier)
 - Upstash serverless Redis (256 MB free tier)
 - Cloudflare Tunnel ingress (zero public IP, automatic DDoS protection)
 - SealedSecrets for git-safe secret management
 - Prometheus + Grafana monitoring stack
-- Full Strix API at `https://api.yourdomain.com`
+- Full Ishastra API at `https://api.yourdomain.com`
 
 See [Free Tier Deployment](free-tier.md) for details.
 
 ### Option 2: Local Development (Docker Compose)
 
 ```bash
-git clone https://github.com/strix/strix
-cd strix
+git clone https://github.com/ishastra/ishastra
+cd ishastra
 docker-compose up -d
 ```
 
 **Services started:**
-- Strix API: http://localhost:8000
+- Ishastra API: http://localhost:8000
 - Grafana: http://localhost:3000 (admin/admin)
 - Prometheus: http://localhost:9090
 - PostgreSQL: localhost:5432
@@ -55,7 +55,7 @@ docker-compose up -d
 ./scripts/bootstrap-kind.sh
 ```
 
-Creates a local Kind cluster with all Strix components.
+Creates a local Kind cluster with all Ishastra components.
 
 ## Verify Installation
 
@@ -85,7 +85,7 @@ EOF
 # Submit assessment
 curl -X POST http://localhost:8000/api/v1/assessments \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -d '{"scope_path": "my-scope.json", "targets": ["https://api.example.com"]}'
 ```
 

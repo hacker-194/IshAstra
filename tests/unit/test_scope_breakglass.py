@@ -10,12 +10,12 @@ from typing import Any
 
 import pytest
 
-from strix.core import scope_breakglass, scope_signing
+from ishastra.core import scope_breakglass, scope_signing
 
 
 def _create_test_jwks(temp_dir: Path) -> tuple[Path, Path, Path]:
     """Create a JWKS with two test keys and return (jwks_path, key1_path, key2_path)."""
-    # Generate two keypairs
+
     pem1, jwk1 = scope_signing.generate_keypair("approver1")
     pem2, jwk2 = scope_signing.generate_keypair("approver2")
 
@@ -71,7 +71,6 @@ class TestBreakGlassCreation:
                 duration="4h",
             )
 
-            # Verify structure
             assert "signatures" in result
             assert len(result["signatures"]) == 2
             assert result["metadata"]["break_glass"] == "true"
@@ -99,7 +98,7 @@ class TestBreakGlassCreation:
                     jwks_path=str(jwks_path),
                     tenant_id="tenant-123",
                     reason="Emergency",
-                    duration="5h",  # Exceeds 4h max
+                    duration="5h",
                 )
 
             assert "exceeds maximum" in str(exc_info.value)
@@ -116,7 +115,7 @@ class TestBreakGlassCreation:
                     scope_document=base_scope,
                     approver1_key_path=str(key1_path),
                     approver1_kid="approver1",
-                    approver2_key_path=str(key1_path),  # Same key!
+                    approver2_key_path=str(key1_path),
                     approver2_kid="approver1",
                     jwks_path=str(jwks_path),
                     tenant_id="tenant-123",
@@ -139,7 +138,7 @@ class TestBreakGlassCreation:
                     approver1_key_path=str(key1_path),
                     approver1_kid="approver1",
                     approver2_key_path=str(key2_path),
-                    approver2_kid="nonexistent",  # Not in JWKS
+                    approver2_kid="nonexistent",
                     jwks_path=str(jwks_path),
                     tenant_id="tenant-123",
                     reason="Emergency",
@@ -171,7 +170,6 @@ class TestBreakGlassVerification:
                 duration="4h",
             )
 
-            # Verify
             valid, msg, meta = scope_breakglass.verify_break_glass_scope(signed, str(jwks_path))
 
             assert valid is True
@@ -189,7 +187,6 @@ class TestBreakGlassVerification:
             jwks_path, key1_path, key2_path = _create_test_jwks(temp_dir)
             base_scope = _create_base_scope()
 
-            # Sign normally (not break-glass)
             key = scope_signing.load_private_key_file(key1_path)
             signed = scope_signing.sign_document(base_scope, key, "approver1")
 
@@ -206,7 +203,6 @@ class TestBreakGlassVerification:
             jwks_path, key1_path, key2_path = _create_test_jwks(temp_dir)
             base_scope = _create_base_scope()
 
-            # Create a valid break-glass scope
             signed = scope_breakglass.create_break_glass_scope(
                 scope_document=base_scope,
                 approver1_key_path=str(key1_path),
@@ -219,9 +215,6 @@ class TestBreakGlassVerification:
                 duration="4h",
             )
 
-            # Manually set expires_at to the past (simulating an expired document)
-            # Note: This changes the document content, so signatures will be invalid.
-            # But we check expiry FIRST, so it should fail with "expired" before signature check.
             signed["expires_at"] = "2020-01-01T00:00:00+00:00"
             signed["metadata"]["break_glass_expires_at"] = "2020-01-01T00:00:00+00:00"
 
@@ -237,7 +230,6 @@ class TestBreakGlassVerification:
             jwks_path, key1_path, key2_path = _create_test_jwks(temp_dir)
             base_scope = _create_base_scope()
 
-            # Create with only one signature
             signed = scope_breakglass.create_break_glass_scope(
                 scope_document=base_scope,
                 approver1_key_path=str(key1_path),
@@ -250,7 +242,6 @@ class TestBreakGlassVerification:
                 duration="4h",
             )
 
-            # Remove one signature
             signed["signatures"] = [signed["signatures"][0]]
 
             valid, msg, meta = scope_breakglass.verify_break_glass_scope(signed, str(jwks_path))
@@ -277,7 +268,6 @@ class TestBreakGlassVerification:
                 duration="4h",
             )
 
-            # Tamper with the include list
             signed["include"] = ["evil.com"]
 
             valid, msg, meta = scope_breakglass.verify_break_glass_scope(signed, str(jwks_path))
@@ -308,7 +298,6 @@ class TestBreakGlassRevocation:
                 duration="4h",
             )
 
-            # Revoke
             revoked = scope_breakglass.revoke_break_glass_scope(
                 document=signed,
                 jwks=str(jwks_path),
@@ -321,7 +310,7 @@ class TestBreakGlassRevocation:
             assert revoked["metadata"]["revocation_reason"] == "Incident resolved"
             assert "revoked_at" in revoked["metadata"]
             assert revoked["revoked"] is True
-            # Signatures should be removed
+
             assert "signatures" not in revoked
 
     def test_revoke_invalid_document_fails(self) -> None:
@@ -331,7 +320,6 @@ class TestBreakGlassRevocation:
             jwks_path, key1_path, key2_path = _create_test_jwks(temp_dir)
             base_scope = _create_base_scope()
 
-            # Create non-break-glass document
             key = scope_signing.load_private_key_file(key1_path)
             signed = scope_signing.sign_document(base_scope, key, "approver1")
 
@@ -354,16 +342,16 @@ class TestBreakGlassCLI:
         import sys
         from io import StringIO
 
-        from strix.cli import main
+        from ishastra.cli import main
 
         old_argv = sys.argv
         old_stdout = sys.stdout
         try:
-            sys.argv = ["strix", "scope-breakglass", "--help"]
+            sys.argv = ["ishastra", "scope-breakglass", "--help"]
             sys.stdout = StringIO()
             with pytest.raises(SystemExit) as exc_info:
                 main()
-            # Help exits with 0
+
             assert exc_info.value.code == 0
         finally:
             sys.argv = old_argv
@@ -374,12 +362,12 @@ class TestBreakGlassCLI:
         import sys
         from io import StringIO
 
-        from strix.cli import main
+        from ishastra.cli import main
 
         old_argv = sys.argv
         old_stderr = sys.stderr
         try:
-            sys.argv = ["strix", "scope-breakglass"]
+            sys.argv = ["ishastra", "scope-breakglass"]
             sys.stderr = StringIO()
             with pytest.raises(SystemExit) as exc_info:
                 main()
@@ -400,7 +388,7 @@ class TestScopeHash:
         hash2 = scope_breakglass._compute_scope_hash(doc)
 
         assert hash1 == hash2
-        assert len(hash1) == 64  # SHA-256 hex
+        assert len(hash1) == 64
 
     def test_scope_hash_changes_with_content(self) -> None:
         """Test that scope hash changes when content changes."""

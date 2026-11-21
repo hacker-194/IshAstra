@@ -1,4 +1,4 @@
-"""Unit tests for Strix Compliance Reporting."""
+"""Unit tests for Ishastra Compliance Reporting."""
 
 import asyncio
 import csv
@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from strix.audit import AuditChain
-from strix.config import Settings
-from strix.core import store
-from strix.core.compliance_report import (
+from ishastra.audit import AuditChain
+from ishastra.config import Settings
+from ishastra.core import store
+from ishastra.core.compliance_report import (
     ComplianceSchedule,
     ComplianceScheduler,
     ReportFrequency,
@@ -25,7 +25,7 @@ from strix.core.compliance_report import (
     get_frequency_cron,
     list_compliance_reports,
 )
-from strix.core.evidence import (
+from ishastra.core.evidence import (
     build_evidence_pack,
     generate_monthly_evidence_packs,
     load_mappings,
@@ -34,9 +34,9 @@ from strix.core.evidence import (
     to_csv,
     to_oscal,
 )
-from strix.core.findings import Finding, regulatory_summary
-from strix.core.jobs import Job, JobState
-from strix.monitor import Monitor
+from ishastra.core.findings import Finding, regulatory_summary
+from ishastra.core.jobs import Job, JobState
+from ishastra.monitor import Monitor
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ async def sample_findings():
             title="Missing Multi-Factor Authentication",
             severity="high",
             confidence="high",
-            detector="strix-auth",
+            detector="ishastra-auth",
             detector_version="1.0.0",
             evidence="Admin panel accessible without MFA",
             location="https://example.com/admin",
@@ -87,7 +87,7 @@ async def sample_findings():
             title="Weak TLS Configuration",
             severity="medium",
             confidence="high",
-            detector="strix-tls",
+            detector="ishastra-tls",
             detector_version="1.0.0",
             evidence="TLS 1.0 and 1.1 supported on public endpoint",
             location="https://example.com:443",
@@ -103,7 +103,7 @@ async def sample_findings():
             title="Potential SQL Injection",
             severity="critical",
             confidence="medium",
-            detector="strix-sast",
+            detector="ishastra-sast",
             detector_version="1.0.0",
             evidence="User input concatenated into SQL query",
             location="https://example.com/search?q=test",
@@ -119,7 +119,7 @@ async def sample_findings():
             title="SS7 Vulnerability",
             severity="critical",
             confidence="high",
-            detector="strix-telecom",
+            detector="ishastra-telecom",
             detector_version="1.0.0",
             evidence="SS7 signaling vulnerability detected",
             location="signaling",
@@ -135,7 +135,7 @@ async def sample_findings():
             title="No npCERT Integration",
             severity="high",
             confidence="high",
-            detector="strix-policy",
+            detector="ishastra-policy",
             detector_version="1.0.0",
             evidence="No integration with national CERT",
             location="policy",
@@ -191,7 +191,6 @@ class TestCSVExportFormat:
     def test_csv_export_header_columns(self):
         """Test CSV export has correct header columns."""
 
-        # Create mock findings
         findings = [
             Finding(
                 asset="https://example.com/",
@@ -199,7 +198,7 @@ class TestCSVExportFormat:
                 title="Missing MFA",
                 severity="high",
                 confidence="high",
-                detector="strix-auth",
+                detector="ishastra-auth",
                 detector_version="1.0",
                 evidence="No MFA on admin",
                 location="https://example.com/admin",
@@ -219,11 +218,9 @@ class TestCSVExportFormat:
             frequency=ReportFrequency.QUARTERLY,
         )
 
-        # We can't easily test the private method, so let's test the CSV format logic
         output = StringIO()
         writer = csv.writer(output)
 
-        # Header (same as in _generate_csv_export)
         writer.writerow(
             [
                 "Report ID",
@@ -272,7 +269,7 @@ class TestCSVExportFormat:
         csv_content = output.getvalue()
         lines = csv_content.strip().split("\n")
 
-        assert len(lines) == 2  # header + 1 data row
+        assert len(lines) == 2
         header = lines[0].rstrip("\r").split(",")
         assert header[0] == "Report ID"
         assert header[1] == "Tenant"
@@ -299,7 +296,7 @@ class TestCSVExportFormat:
                 title="SQL Injection",
                 severity="critical",
                 confidence="high",
-                detector="strix-sast",
+                detector="ishastra-sast",
                 detector_version="1.0",
                 evidence="Direct SQL concatenation",
                 location="https://example.com/search",
@@ -389,7 +386,7 @@ class TestCSVExportFormat:
                 title="Missing MFA",
                 severity="high",
                 confidence="high",
-                detector="strix-auth",
+                detector="ishastra-auth",
                 detector_version="1.0",
                 evidence="No MFA",
                 location="https://example.com/admin",
@@ -402,7 +399,7 @@ class TestCSVExportFormat:
                 title="SS7 Vulnerability",
                 severity="critical",
                 confidence="high",
-                detector="strix-telecom",
+                detector="ishastra-telecom",
                 detector_version="1.0",
                 evidence="SS7 exploit",
                 location="signaling",
@@ -411,7 +408,6 @@ class TestCSVExportFormat:
             ),
         ]
 
-        # Schedule only includes NRB framework
         schedule = ComplianceSchedule(
             tenant="test-tenant",
             cron_expression="0 6 1 */3 *",
@@ -469,7 +465,6 @@ class TestCSVExportFormat:
         csv_content = output.getvalue()
         lines = csv_content.strip().split("\n")
 
-        # Should only have 1 data row (NRB finding), not 2
         assert len(lines) == 2
         data_row = lines[1].split(",")
         assert data_row[2] == "NRB"
@@ -484,7 +479,6 @@ class TestTrendCalculation:
         """Test regulatory summary calculation from findings."""
         summary = regulatory_summary(sample_findings)
 
-        # The actual regulatory_summary returns these keys
         assert "total_frameworks" in summary
         assert "active_frameworks" in summary
         assert "coverage_percent" in summary
@@ -493,16 +487,11 @@ class TestTrendCalculation:
         assert "high_priority_findings" in summary
         assert "total_findings" in summary
 
-        # Check severity counts from gap_severity_distribution
-        # With asset_criticality="medium" (default), critical findings get gap_severity="high"
         assert summary["gap_severity_distribution"]["critical"] == 0
-        assert (
-            summary["gap_severity_distribution"]["high"] == 4
-        )  # missing_mfa, sqli, ss7_vulns, no_cert_integration
-        assert summary["gap_severity_distribution"]["medium"] == 1  # weak_tls
+        assert summary["gap_severity_distribution"]["high"] == 4
+        assert summary["gap_severity_distribution"]["medium"] == 1
         assert summary["gap_severity_distribution"]["low"] == 0
 
-        # Check framework counts - uses full compliance refs as keys
         assert "NRB-DIR-002" in summary["framework_counts"]
         assert "NRB-DIR-004" in summary["framework_counts"]
         assert "NRB-DIR-005" in summary["framework_counts"]
@@ -510,12 +499,9 @@ class TestTrendCalculation:
         assert "NTA-BYL-002" in summary["framework_counts"]
         assert "NCSP-2080-01" in summary["framework_counts"]
 
-        # Check high priority findings
-        # Note: high_priority_findings uses _COMPLIANCE_WEIGHTS which doesn't include Nepal frameworks
         assert "high_priority_findings" in summary
         assert isinstance(summary["high_priority_findings"], list)
 
-        # Check total findings
         assert summary["total_findings"] == 5
 
     @pytest.mark.asyncio
@@ -557,7 +543,6 @@ class TestTrendCalculation:
         assert report_id.startswith("compliance_report_test-tenant_")
         assert "compliance_report_" in report_id
 
-        # Verify report was saved - skip due to implementation bug
         try:
             report = await get_compliance_report(report_id, "test-tenant")
             assert report is not None
@@ -581,10 +566,8 @@ class TestTrendCalculation:
             frequency=ReportFrequency.QUARTERLY,
         )
 
-        # Generate a report
         await compliance_scheduler._generate_trend_report(schedule, sample_findings, time.time())
 
-        # List reports - skip due to implementation bug
         try:
             reports = await list_compliance_reports("test-tenant", limit=10)
             assert len(reports) >= 1
@@ -610,7 +593,6 @@ class TestTrendCalculation:
 
         report_id = await compliance_scheduler._generate_trend_report(schedule, sample_findings, time.time())
 
-        # Skip due to implementation bug
         try:
             report = await get_compliance_report(report_id, "test-tenant")
             assert report is not None
@@ -634,7 +616,7 @@ class TestEvidencePackGeneration:
         """Test loading mappings for single framework."""
         mappings = load_mappings(["nrb"])
 
-        assert len(mappings) == 8  # 8 NRB directives
+        assert len(mappings) == 8
         for key in mappings:
             assert key.startswith("NRB-DIR-")
 
@@ -643,17 +625,14 @@ class TestEvidencePackGeneration:
         mappings = load_mappings(["nrb"])
         control_results = match_findings_to_controls(sample_findings, mappings)
 
-        # Should have results for all NRB controls
         assert len(control_results) == 8
 
-        # Check that NRB-DIR-002 (Access Control) is matched with missing_mfa
         assert "NRB-DIR-002" in control_results
         nrb_002 = control_results["NRB-DIR-002"]
         assert nrb_002["status"] == "fail"
         assert len(nrb_002["matched_findings"]) == 1
         assert nrb_002["matched_findings"][0]["category"] == "missing_mfa"
 
-        # Check that NRB-DIR-005 (Data Protection) is matched with weak_tls
         assert "NRB-DIR-005" in control_results
         nrb_005 = control_results["NRB-DIR-005"]
         assert nrb_005["status"] == "fail"
@@ -672,18 +651,15 @@ class TestEvidencePackGeneration:
         assert "findings" in pack
         assert "audit_chain" in pack
 
-        # Check metadata
         assert pack["metadata"]["target"] == "https://example.com/"
         assert pack["metadata"]["job_id"] == "test-job-compliance"
         assert pack["metadata"]["scope_program"] == "Test Compliance Program"
 
-        # Check summary - sample_job has 5 findings now (3 original + 2 added)
         assert pack["summary"]["total_controls_assessed"] > 0
         assert pack["summary"]["controls_with_gaps"] > 0
         assert pack["summary"]["total_findings"] == 5
         assert "compliance_score" in pack["summary"]
 
-        # Check by_framework
         assert "nrb" in pack["by_framework"]
         assert "nta" in pack["by_framework"]
         assert "ncsp" in pack["by_framework"]
@@ -696,9 +672,8 @@ class TestEvidencePackGeneration:
         csv_content = to_csv(pack)
 
         lines = csv_content.strip().split("\n")
-        assert len(lines) > 1  # header + data rows
+        assert len(lines) > 1
 
-        # Check header (handle potential \r line endings)
         header = lines[0].strip().split(",")
         assert header[0] == "Control ID"
         assert header[1] == "Framework"
@@ -711,11 +686,9 @@ class TestEvidencePackGeneration:
         assert header[8] == "Gap Details"
         assert header[9] == "Evidence Required"
 
-        # Check data rows have expected content
-        # Number of columns can vary based on CSV content
         for line in lines[1:]:
             cols = line.strip().split(",")
-            # At minimum we need the key columns
+
             assert len(cols) >= 10
             assert cols[5] in ("pass", "fail")
 
@@ -734,7 +707,6 @@ class TestEvidencePackGeneration:
         assert "results" in oscal["assessment-results"]
         assert "back-matter" in oscal["assessment-results"]
 
-        # Check results
         assert len(oscal["assessment-results"]["results"]) > 0
         for result in oscal["assessment-results"]["results"]:
             assert "title" in result
@@ -753,7 +725,7 @@ class TestEvidencePackGeneration:
         assert "Compliance Evidence Pack" in html
         assert "https://example.com/" in html
         assert "test-job-compliance" in html
-        # Framework badges use lowercase in class names
+
         assert "framework-nrb" in html
         assert "framework-nta" in html
         assert "framework-ncsp" in html
@@ -765,7 +737,6 @@ class TestEvidencePackGeneration:
 
         generated = await generate_monthly_evidence_packs(audit_chain, tenant="test-tenant")
 
-        # Should generate at least one pack
         assert isinstance(generated, list)
         for pack_info in generated:
             assert "pack_id" in pack_info
@@ -784,8 +755,8 @@ class TestEvidencePackGeneration:
 
         for pack_info in generated:
             pack_id = pack_info["pack_id"]
-            # Verify it can be retrieved
-            from strix.core.evidence import get_evidence_pack
+
+            from ishastra.core.evidence import get_evidence_pack
 
             pack = await get_evidence_pack(pack_id, "test-tenant")
             assert pack is not None
@@ -883,7 +854,7 @@ class TestComplianceScheduler:
 
         updated = await compliance_scheduler.update_schedule(
             created.id,
-            cron_expression="0 6 1 1 *",  # Yearly
+            cron_expression="0 6 1 1 *",
             frameworks=["nrb", "nta"],
             frequency=ReportFrequency.YEARLY,
         )
@@ -915,11 +886,9 @@ class TestComplianceScheduler:
             frameworks=["nrb"],
         )
 
-        # Disable
         disabled = await compliance_scheduler.disable_schedule(created.id)
         assert disabled.enabled is False
 
-        # Enable
         enabled = await compliance_scheduler.enable_schedule(created.id)
         assert enabled.enabled is True
 
@@ -959,14 +928,11 @@ class TestComplianceScheduler:
         Note: The implementation has a bug where it uses conn.execute directly
         instead of store._execute. This test verifies the function interface.
         """
-        # This test mainly verifies the function runs without error
-        # The actual implementation uses incorrect aiosqlite API
+
         try:
             deleted = await delete_old_compliance_reports(retention_days=2555)
             assert isinstance(deleted, int)
         except Exception as e:
-            # Implementation bug - conn.execute doesn't exist on aiosqlite connection
-            # The function should use store._execute instead
             pytest.skip(f"Implementation bug: {e}")
 
 
@@ -1014,8 +980,6 @@ class TestComplianceReportAPI:
             csv_content = await get_compliance_export("non-existent-report", "test-tenant", "csv")
             assert csv_content is None
         except Exception as e:
-            # Implementation bug - conn.fetchone doesn't exist on aiosqlite connection
-            # The function should use store._fetchone instead
             pytest.skip(f"Implementation bug: {e}")
 
 
@@ -1095,15 +1059,13 @@ class TestComplianceScheduleValidation:
         """Test next run computation."""
         schedule = ComplianceSchedule(
             tenant="test-tenant",
-            cron_expression="0 6 1 */3 *",  # Quarterly at 6 AM on 1st of Jan, Apr, Jul, Oct
+            cron_expression="0 6 1 */3 *",
             timezone="UTC",
         )
 
-        # Test from a known date
-        from_time = 1704067200  # 2024-01-01 00:00:00 UTC
+        from_time = 1704067200
         next_run = schedule.compute_next_run(from_time)
 
-        # Should be 2024-01-01 06:00:00 UTC (same day, next 6 AM)
         assert next_run == 1704088800
 
     def test_schedule_to_dict_from_dict(self):
@@ -1133,24 +1095,20 @@ class TestModuleLevelCallbacks:
 
     def test_run_compliance_report_job_no_scheduler(self):
         """Test _run_compliance_report_job when scheduler is not initialized."""
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
-        # Ensure global is None
         cr_module._compliance_scheduler_instance = None
 
-        # Should not raise, just log warning
         cr_module._run_compliance_report_job("test-tenant", "test-schedule")
 
     def test_run_compliance_report_job_no_event_loop(self):
         """Test _run_compliance_report_job when no event loop is running."""
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
-        # Create a mock scheduler
         mock_scheduler = MagicMock()
         mock_scheduler._run_compliance_report_async = AsyncMock()
         cr_module._compliance_scheduler_instance = mock_scheduler
 
-        # Mock asyncio.get_event_loop to raise RuntimeError
         import asyncio
 
         original_get_event_loop = asyncio.get_event_loop
@@ -1158,7 +1116,7 @@ class TestModuleLevelCallbacks:
 
         try:
             cr_module._run_compliance_report_job("test-tenant", "test-schedule")
-            # Should not raise
+
         finally:
             asyncio.get_event_loop = original_get_event_loop
             cr_module._compliance_scheduler_instance = None
@@ -1168,7 +1126,7 @@ class TestModuleLevelCallbacks:
         """Test _run_compliance_report_job when event loop is running."""
         from unittest.mock import AsyncMock
 
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
         mock_scheduler = MagicMock()
         mock_scheduler._run_compliance_report_async = AsyncMock()
@@ -1191,16 +1149,15 @@ class TestModuleLevelCallbacks:
 
     def test_run_evidence_pack_job_no_scheduler(self):
         """Test _run_evidence_pack_job when scheduler is not initialized."""
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
         cr_module._compliance_scheduler_instance = None
 
-        # Should not raise, just log warning
         cr_module._run_evidence_pack_job()
 
     def test_run_evidence_pack_job_no_event_loop(self):
         """Test _run_evidence_pack_job when no event loop is running."""
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
         mock_scheduler = MagicMock()
         mock_scheduler._run_evidence_pack_generation_async = AsyncMock()
@@ -1222,7 +1179,7 @@ class TestModuleLevelCallbacks:
         """Test _run_evidence_pack_job when event loop is running."""
         from unittest.mock import AsyncMock
 
-        import strix.core.compliance_report as cr_module
+        import ishastra.core.compliance_report as cr_module
 
         mock_scheduler = MagicMock()
         mock_scheduler._run_evidence_pack_generation_async = AsyncMock()
@@ -1253,19 +1210,17 @@ class TestComplianceScheduleEdgeCases:
             timezone="Invalid/Timezone",
         )
 
-        # Should not raise, should fall back to UTC
-        from_time = 1704067200  # 2024-01-01 00:00:00 UTC
+        from_time = 1704067200
         next_run = schedule.compute_next_run(from_time)
 
-        # Should compute a valid timestamp
         assert next_run > from_time
 
     def test_schedule_pickling(self):
         """Test ComplianceScheduler __getstate__ and __setstate__ for pickling."""
-        import strix.core.compliance_report as cr_module
-        from strix.audit import AuditChain
-        from strix.config import Settings
-        from strix.monitor import Monitor
+        import ishastra.core.compliance_report as cr_module
+        from ishastra.audit import AuditChain
+        from ishastra.config import Settings
+        from ishastra.monitor import Monitor
 
         audit_chain = AuditChain(persistent=False, hmac_key="test-key")
         monitor = Monitor(audit_chain=audit_chain, webhook_secret="test-secret")
@@ -1277,7 +1232,6 @@ class TestComplianceScheduleEdgeCases:
             settings=settings,
         )
 
-        # Test __getstate__ and __setstate__ directly (avoid pickling asyncio.Lock)
         state = scheduler.__getstate__()
         assert "_lock" in state
         assert state["_lock"] is None
@@ -1297,15 +1251,14 @@ class TestComplianceSchedulerSetup:
     @pytest.mark.asyncio
     async def test_setup_scheduler_postgresql(self, temp_db):
         """Test _setup_scheduler with PostgreSQL URL uses MemoryJobStore."""
-        import strix.core.compliance_report as cr_module
-        from strix.audit import AuditChain
-        from strix.config import Settings
-        from strix.monitor import Monitor
+        import ishastra.core.compliance_report as cr_module
+        from ishastra.audit import AuditChain
+        from ishastra.config import Settings
+        from ishastra.monitor import Monitor
 
         audit_chain = AuditChain(persistent=False, hmac_key="test-key")
         monitor = Monitor(audit_chain=audit_chain, webhook_secret="test-secret")
 
-        # Create mock settings with PostgreSQL URL
         settings = MagicMock(spec=Settings)
         settings.db_path = "postgresql://user:pass@localhost/db"
 
@@ -1317,18 +1270,15 @@ class TestComplianceSchedulerSetup:
 
         await scheduler._setup_scheduler()
 
-        # Should create a scheduler without error
         assert scheduler._scheduler is not None
-        # Test that the method handles PostgreSQL URL branch (line 235)
-        # The jobstores are internal, just verify scheduler was created
 
     @pytest.mark.asyncio
     async def test_load_schedules_error_handling(self, initialized_store):
         """Test _load_schedules handles corrupted schedule data gracefully."""
-        import strix.core.compliance_report as cr_module
-        from strix.audit import AuditChain
-        from strix.config import Settings
-        from strix.monitor import Monitor
+        import ishastra.core.compliance_report as cr_module
+        from ishastra.audit import AuditChain
+        from ishastra.config import Settings
+        from ishastra.monitor import Monitor
 
         audit_chain = AuditChain(persistent=False, hmac_key="test-key")
         monitor = Monitor(audit_chain=audit_chain, webhook_secret="test-secret")
@@ -1341,10 +1291,8 @@ class TestComplianceSchedulerSetup:
             settings=settings,
         )
 
-        # Insert corrupted schedule data directly into database
-        from strix.core import store
+        from ishastra.core import store
 
-        # First ensure table exists by initializing a real scheduler
         real_scheduler = cr_module.ComplianceScheduler(
             audit_chain=audit_chain,
             monitor=monitor,
@@ -1352,8 +1300,6 @@ class TestComplianceSchedulerSetup:
         )
         await real_scheduler.initialize()
 
-        # Now insert corrupted data - the validation in from_dict will catch this
-        # and log a warning, but the schedule might still be added
         async with store.get_db_async() as db, db.transaction() as conn:
             await store._execute(
                 conn,
@@ -1363,9 +1309,9 @@ class TestComplianceSchedulerSetup:
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 "corrupt-schedule",
                 "test-tenant",
-                "invalid-cron",  # Invalid cron
+                "invalid-cron",
                 "UTC",
-                '["invalid_framework"]',  # Invalid framework
+                '["invalid_framework"]',
                 "quarterly",
                 1,
                 time.time(),
@@ -1375,21 +1321,16 @@ class TestComplianceSchedulerSetup:
                 0,
             )
 
-        # Should not raise, should log warning
         await scheduler._load_schedules()
 
-        # The method should complete without error even with corrupted data
-        # (the actual validation behavior may vary)
         assert isinstance(scheduler._schedules, dict)
 
     @pytest.mark.asyncio
     async def test_schedule_all_with_evidence_pack(self, compliance_scheduler):
         """Test _schedule_all schedules evidence pack generation."""
-        # The evidence pack job should be scheduled during _schedule_all
-        # which is called during initialize
+
         assert compliance_scheduler._scheduler is not None
 
-        # Check that the evidence pack job exists
         jobs = compliance_scheduler._scheduler.get_jobs()
         job_ids = [job.id for job in jobs]
         assert "compliance_evidence_pack_generation" in job_ids
@@ -1404,10 +1345,8 @@ class TestComplianceSchedulerSetup:
             frameworks=["nrb"],
         )
 
-        # Should not raise, should fall back to UTC and log warning
         await compliance_scheduler._add_job(schedule)
 
-        # Job should be added with UTC timezone
         jobs = compliance_scheduler._scheduler.get_jobs()
         job_ids = [job.id for job in jobs]
         expected_job_id = f"compliance_{schedule.id}"
@@ -1458,8 +1397,7 @@ class TestTrendReportFrequencyBranches:
 
         report_id = await compliance_scheduler._generate_trend_report(schedule, sample_findings, time.time())
 
-        # Verify report was created with framework trends
-        from strix.core.compliance_report import get_compliance_report
+        from ishastra.core.compliance_report import get_compliance_report
 
         try:
             report = await get_compliance_report(report_id, "test-tenant")
@@ -1482,7 +1420,7 @@ class TestRunNowAndExecute:
     @pytest.mark.asyncio
     async def test_execute_compliance_report_error_handling(self, compliance_scheduler):
         """Test _execute_compliance_report handles errors gracefully."""
-        # Create a schedule with a tenant that has no jobs
+
         schedule = ComplianceSchedule(
             tenant="empty-tenant",
             cron_expression="0 6 1 */3 *",
@@ -1490,13 +1428,10 @@ class TestRunNowAndExecute:
             frameworks=["nrb"],
         )
 
-        # Manually add to scheduler
         compliance_scheduler._schedules[schedule.id] = schedule
 
-        # Execute should handle empty tenant gracefully (no findings)
         result = await compliance_scheduler._execute_compliance_report(schedule)
 
-        # Should complete with 0 findings, not fail
         assert result.state in ("completed", "failed")
         assert result.total_findings == 0
 
@@ -1513,13 +1448,12 @@ class TestRunNowAndExecute:
 
         compliance_scheduler._schedules[schedule.id] = schedule
 
-        # Should not raise, should log and return
         await compliance_scheduler._run_compliance_report_async("test-tenant", schedule.id)
 
     @pytest.mark.asyncio
     async def test_run_compliance_report_async_unknown_schedule(self, compliance_scheduler):
         """Test _run_compliance_report_async handles unknown schedule."""
-        # Should not raise, should log warning and return
+
         await compliance_scheduler._run_compliance_report_async("test-tenant", "unknown-schedule")
 
 
@@ -1531,22 +1465,17 @@ class TestEvidencePackGenerationAsync:
         """Test _run_evidence_pack_generation_async handles errors."""
         from unittest.mock import AsyncMock
 
-        # Create a mock audit chain for this test
         mock_audit_chain = AsyncMock()
         original_audit_chain = compliance_scheduler.audit_chain
         compliance_scheduler.audit_chain = mock_audit_chain
 
-        # Mock the generate_monthly_evidence_packs to raise an exception
         with patch(
-            "strix.core.evidence.generate_monthly_evidence_packs",
+            "ishastra.core.evidence.generate_monthly_evidence_packs",
             new_callable=AsyncMock,
             side_effect=Exception("Generation failed"),
         ):
-            # Should not raise, should log error and record in audit chain
             await compliance_scheduler._run_evidence_pack_generation_async()
 
-            # Verify audit chain was called with failure event
-            # Note: The actual exception caught may differ due to internal errors
             mock_audit_chain.append_async.assert_called()
             call_args = mock_audit_chain.append_async.call_args[0][0]
             assert call_args["type"] == "compliance_evidence_pack_generation_failed"
@@ -1561,13 +1490,13 @@ class TestDeleteOldComplianceReports:
     @pytest.mark.asyncio
     async def test_delete_old_compliance_reports_execution(self, initialized_store):
         """Test delete_old_compliance_reports runs without error."""
-        # Insert some old reports
+
         import time
 
-        from strix.core import store
+        from ishastra.core import store
 
-        old_time = time.time() - (365 * 10 * 86400)  # 10 years ago
-        recent_time = time.time() - 86400  # 1 day ago
+        old_time = time.time() - (365 * 10 * 86400)
+        recent_time = time.time() - 86400
 
         async with store.get_db_async() as db, db.transaction() as conn:
             await store._execute(
@@ -1597,15 +1526,14 @@ class TestDeleteOldComplianceReports:
                 recent_time,
             )
 
-        from strix.core.compliance_report import delete_old_compliance_reports
+        from ishastra.core.compliance_report import delete_old_compliance_reports
 
         try:
             deleted = await delete_old_compliance_reports(retention_days=2555)
             assert isinstance(deleted, int)
-            # Should have deleted the old report
+
             assert deleted >= 1
         except Exception as e:
-            # Implementation may have bug with aiosqlite API
             pytest.skip(f"Implementation bug: {e}")
 
 
@@ -1627,7 +1555,7 @@ class TestGetComplianceExport:
 
         try:
             json_content = await get_compliance_export(report_id, "test-tenant", "json")
-            # May be None if not generated, or content if it was
+
             assert json_content is None or isinstance(json_content, str)
         except AttributeError as e:
             pytest.skip(f"Implementation bug in get_compliance_export: {e}")

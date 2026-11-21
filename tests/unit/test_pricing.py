@@ -1,4 +1,4 @@
-"""Unit tests for Strix Pricing Tiers.
+"""Unit tests for Ishastra Pricing Tiers.
 
 Tests cover:
 - Tier limits and feature flags
@@ -9,7 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from strix.core.pricing import (
+from ishastra.core.pricing import (
     FEATURE_DESCRIPTIONS,
     TIER_FEATURES,
     TIER_INFO,
@@ -35,7 +35,7 @@ class TestTierOrdering:
 
     def test_tier_order_values(self):
         """Test tier order values are correct."""
-        from strix.core.pricing import TIER_ORDER
+        from ishastra.core.pricing import TIER_ORDER
 
         assert TIER_ORDER[PricingTier.FREE] == 0
         assert TIER_ORDER[PricingTier.STARTER] == 1
@@ -127,7 +127,7 @@ class TestTierLimits:
         assert limits.assessments_per_month == 10
         limits = get_tier_limits("starter")
         assert limits.assessments_per_month == 100
-        # Unknown tier falls back to FREE
+
         limits = get_tier_limits("unknown")
         assert limits.assessments_per_month == 10
 
@@ -211,7 +211,7 @@ class TestFeatureFlags:
         assert features.web_assessment is True
         features = get_tier_features("pro")
         assert features.saml_sso is True
-        # Unknown tier falls back to FREE
+
         features = get_tier_features("unknown")
         assert features.web_assessment is True
 
@@ -228,7 +228,7 @@ class TestFeatureAccess:
         assert can_access_feature(PricingTier.PRO, "saml_sso") is True
         assert can_access_feature(PricingTier.FREE, "mssp_partner_portal") is False
         assert can_access_feature(PricingTier.ENTERPRISE, "mssp_partner_portal") is True
-        # Unknown feature defaults to False
+
         assert can_access_feature(PricingTier.ENTERPRISE, "unknown_feature") is False
 
     def test_feature_descriptions(self):
@@ -244,18 +244,18 @@ class TestLimitChecks:
 
     def test_check_limit_free(self):
         """Test limit checks for FREE tier."""
-        # Within limits
+
         assert check_limit(PricingTier.FREE, "assessments_per_month", 5) is True
         assert check_limit(PricingTier.FREE, "max_users", 0) is True
-        # At limit (check_limit uses <, so at limit = False)
+
         assert check_limit(PricingTier.FREE, "assessments_per_month", 10) is False
-        # max_users=1 for FREE, so check_limit(1) -> 1 < 1 = False (at capacity)
+
         assert check_limit(PricingTier.FREE, "max_users", 1) is False
         assert check_limit(PricingTier.FREE, "max_users", 0) is True
 
     def test_check_limit_unlimited(self):
         """Test limit checks for ENTERPRISE tier (unlimited = 0)."""
-        # 0 means unlimited
+
         assert check_limit(PricingTier.ENTERPRISE, "assessments_per_month", 10000) is True
         assert check_limit(PricingTier.ENTERPRISE, "max_users", 1000) is True
         assert check_limit(PricingTier.ENTERPRISE, "retention_days", 3650) is True
@@ -311,7 +311,7 @@ class TestTierInfo:
         assert info.tier == PricingTier.FREE
         info = get_tier_info("pro")
         assert info.tier == PricingTier.PRO
-        # Unknown tier falls back to FREE
+
         info = get_tier_info("unknown")
         assert info.tier == PricingTier.FREE
 
@@ -340,7 +340,7 @@ class TestTierModels:
         features = FeatureFlags(web_assessment=True, agent_assessment=False)
         assert features.web_assessment is True
         assert features.agent_assessment is False
-        # Defaults
+
         assert features.api_assessment is True
         assert features.sarif_export is True
 

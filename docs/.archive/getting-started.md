@@ -1,6 +1,6 @@
-# Getting Started with Strix
+# Getting Started with Ishastra
 
-**Strix** is an authorized security assessment platform that enforces **default-deny authorization** before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
+**Ishastra** is an authorized security assessment platform that enforces **default-deny authorization** before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
 
 ---
 
@@ -10,18 +10,18 @@
 - **Linux** (primary platform; macOS/Windows WSL supported)
 - **Authorization document** — a scope.json defining what you are authorized to test
 
-> ⚠️ **Critical**: Strix will **refuse all scans** without a valid authorization document. This is by design — the default-deny model means nothing is assessed without explicit authorization.
+> ⚠️ **Critical**: Ishastra will **refuse all scans** without a valid authorization document. This is by design — the default-deny model means nothing is assessed without explicit authorization.
 
 ---
 
 ## Quick Start (5 Minutes)
 
-### 1. Install Strix
+### 1. Install Ishastra
 
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd strix-v3.5.0-hardened
+cd ishastra-v3.5.0-hardened
 
 # Create virtual environment and install
 python -m venv .venv
@@ -58,7 +58,7 @@ vim scope.json
 
 ```bash
 # For local testing, generate a key
-export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export ISHASTRA_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
 # In production, set this in your environment or .env file
 ```
@@ -67,10 +67,10 @@ export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(3
 
 ```bash
 # Development mode
-strix serve --host 0.0.0.0 --port 8000
+ishastra serve --host 0.0.0.0 --port 8000
 
 # Production (with reverse proxy for TLS)
-strix serve --host 0.0.0.0 --port 8000 --workers 1
+ishastra serve --host 0.0.0.0 --port 8000 --workers 1
 ```
 
 ### 5. Verify It Works
@@ -83,7 +83,7 @@ curl http://localhost:8000/api/health
 open http://localhost:8000/docs
 
 # Run an inline assessment (for testing)
-strix assess --target https://example.com --profile web
+ishastra assess --target https://example.com --profile web
 ```
 
 ---
@@ -92,7 +92,7 @@ strix assess --target https://example.com --profile web
 
 ### Authorization Model
 
-Strix uses a **three-layer scope gate**:
+Ishastra uses a **three-layer scope gate**:
 
 | Layer | Check | Purpose |
 |-------|-------|---------|
@@ -132,10 +132,10 @@ A job is **"clean" (no findings with complete coverage)** ONLY when **every** se
 
 ```bash
 # Simple assessment
-strix assess --target https://example.com --profile web
+ishastra assess --target https://example.com --profile web
 
 # With options
-strix assess \
+ishastra assess \
   --target https://api.example.com \
   --profile api-deep \
   --timeout 300 \
@@ -147,7 +147,7 @@ strix assess \
 ```bash
 # 1. Queue assessment
 curl -X POST http://localhost:8000/api/assess \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://example.com", "profile": "web-deep"}'
 
@@ -155,16 +155,16 @@ curl -X POST http://localhost:8000/api/assess \
 
 # 2. Poll for results
 curl -X GET http://localhost:8000/api/assess/job_abc123 \
-  -H "Authorization: Bearer $STRIX_API_KEY"
+  -H "Authorization: Bearer $ISHASTRA_API_KEY"
 
 # 3. Get SARIF export
 curl -X GET http://localhost:8000/api/assess/job_abc123/sarif \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -o results.sarif
 
 # 4. Get HTML report
 curl -X GET http://localhost:8000/api/assess/job_abc123/report.html \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -o report.html
 ```
 
@@ -177,14 +177,14 @@ For production deployments serving multiple teams/tenants:
 ### 1. Enable Managed Mode
 
 ```bash
-export STRIX_SCOPE_MODE=managed
+export ISHASTRA_SCOPE_MODE=managed
 ```
 
 ### 2. Create Engagement Policy (Admin)
 
 ```bash
 curl -X POST http://localhost:8000/api/policies \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "tenant": "acme-corp",
@@ -204,7 +204,7 @@ curl -X POST http://localhost:8000/api/policies \
 
 ```bash
 curl -X POST http://localhost:8000/api/keys/create \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"tenant": "acme-corp", "tier": "unlimited", "ttl_days": 365}'
 ```
@@ -226,19 +226,19 @@ Key environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STRIX_API_KEY` | (required) | Admin API key for bootstrap |
-| `STRIX_SCOPE_FILE` | `scope.json` | Path to scope document |
-| `STRIX_SCOPE_MODE` | `auto` | `global`, `managed`, or `auto` |
-| `STRIX_DB` | `strix.db` | SQLite database path |
-| `STRIX_DATABASE_URL` | (optional) | PostgreSQL DSN; experimental single-host API+worker |
-| `STRIX_AUDIT_HMAC_KEY` | (warn if missing) | HMAC key for audit chain integrity |
-| `STRIX_WEBHOOK_SECRET` | (warn if missing) | Secret for webhook signatures |
-| `STRIX_REDIS_URL` | `redis://localhost:6379/0` | Redis for shared rate limiting |
-| `STRIX_REDIS_REQUIRED` | `false` | Fail startup if Redis unavailable |
-| `STRIX_WORKERS` | `1` | Concurrent assessment jobs in the in-process worker |
-| `STRIX_QUEUE_MODE` | `inprocess` | `k8s-jobs` enables the experimental distributed queue |
-| `STRIX_DISABLE_DOCS` | `false` | Disable /docs, /redoc, /openapi.json |
-| `STRIX_TRUSTED_PROXIES` | (empty) | Trusted proxy IPs for X-Forwarded-* |
+| `ISHASTRA_API_KEY` | (required) | Admin API key for bootstrap |
+| `ISHASTRA_SCOPE_FILE` | `scope.json` | Path to scope document |
+| `ISHASTRA_SCOPE_MODE` | `auto` | `global`, `managed`, or `auto` |
+| `ISHASTRA_DB` | `ishastra.db` | SQLite database path |
+| `ISHASTRA_DATABASE_URL` | (optional) | PostgreSQL DSN; experimental single-host API+worker |
+| `ISHASTRA_AUDIT_HMAC_KEY` | (warn if missing) | HMAC key for audit chain integrity |
+| `ISHASTRA_WEBHOOK_SECRET` | (warn if missing) | Secret for webhook signatures |
+| `ISHASTRA_REDIS_URL` | `redis://localhost:6379/0` | Redis for shared rate limiting |
+| `ISHASTRA_REDIS_REQUIRED` | `false` | Fail startup if Redis unavailable |
+| `ISHASTRA_WORKERS` | `1` | Concurrent assessment jobs in the in-process worker |
+| `ISHASTRA_QUEUE_MODE` | `inprocess` | `k8s-jobs` enables the experimental distributed queue |
+| `ISHASTRA_DISABLE_DOCS` | `false` | Disable /docs, /redoc, /openapi.json |
+| `ISHASTRA_TRUSTED_PROXIES` | (empty) | Trusted proxy IPs for X-Forwarded-* |
 
 ---
 
@@ -261,7 +261,7 @@ Key environment variables:
 | `Target not in scope` | Verify host matches `include` patterns, port in `allowed_ports` |
 | `DNS resolution failed` | Check network connectivity, authorized_networks includes resolved IP |
 | `Audit chain verification failed` | Database tampered or HMAC key changed — investigate immediately |
-| `Webhook not receiving` | Check `STRIX_WEBHOOK_SECRET` matches, monitor running, targets configured |
+| `Webhook not receiving` | Check `ISHASTRA_WEBHOOK_SECRET` matches, monitor running, targets configured |
 | `PDF generation fails` | Install system deps: `libpango-1.0-0 libharfbuzz0b libpangocairo-1.0-0` |
 
 ---

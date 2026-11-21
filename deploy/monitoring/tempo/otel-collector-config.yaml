@@ -1,5 +1,5 @@
-# OpenTelemetry Collector Configuration for Strix
-# Receives traces from Strix via OTLP and forwards to Tempo
+
+
 
 receivers:
   otlp:
@@ -11,14 +11,14 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: 'strix'
+        - job_name: 'ishastra'
           static_configs:
-            - targets: ['strix:8000']
+            - targets: ['ishastra:8000']
           metrics_path: '/api/metrics'
           scheme: http
           authorization:
             type: Bearer
-            credentials: ${STRIX_API_KEY}
+            credentials: ${ISHASTRA_API_KEY}
 
 processors:
   batch:
@@ -31,10 +31,10 @@ processors:
   resource:
     attributes:
       - key: service.name
-        value: "strix"
+        value: "ishastra"
         action: insert
       - key: service.namespace
-        value: "strix-production"
+        value: "ishastra-production"
         action: insert
       - key: deployment.environment
         value: "production"
@@ -44,7 +44,7 @@ processors:
     pod_association:
       - from: resource_attribute
         name: k8s.pod.ip
-    namespace: "strix"
+    namespace: "ishastra"
     filter:
       node_from_env_var: KUBE_NODE_NAME
   tail_sampling:
@@ -83,7 +83,7 @@ exporters:
       max_elapsed_time: 300s
   prometheus:
     endpoint: 0.0.0.0:8888
-    namespace: strix
+    namespace: ishastra
     send_timestamps: true
   logging:
     loglevel: debug

@@ -1,40 +1,26 @@
-# Strix ScopeGate - Docker Compose for Local Development & Testing
-# 
-# Usage:
-#   docker-compose up -d          # Start all services
-#   docker-compose up -d --build  # Rebuild and start
-#   docker-compose logs -f        # Follow logs
-#   docker-compose down -v        # Stop and remove volumes
-
 services:
-  # =============================================================================
-  # PostgreSQL Database
-  # =============================================================================
   postgres:
     image: postgres:16-alpine
-    container_name: strix-postgres
+    container_name: ishastra-postgres
     environment:
-      POSTGRES_DB: strix
-      POSTGRES_USER: strix
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strix_dev_password}
+      POSTGRES_DB: ishastra
+      POSTGRES_USER: ishastra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ishastra_dev_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U strix -d strix"]
+      test: ["CMD-SHELL", "pg_isready -U ishastra -d ishastra"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # Redis for Caching/Queue
-  # =============================================================================
   redis:
     image: redis:7-alpine
-    container_name: strix-redis
+    container_name: ishastra-redis
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -46,36 +32,33 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # ScopeGate API Service
-  # =============================================================================
   scope-gate:
     build:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    container_name: strix-scope-gate
-    image: strix/scope-gate:dev
+    container_name: ishastra-scope-gate
+    image: ishastra/scope-gate:dev
     environment:
-      - STRIX_DATABASE_URL=postgresql://strix:${POSTGRES_PASSWORD:-strix_dev_password}@postgres:5432/strix
-      - STRIX_REDIS_URL=redis://redis:6379/0
-      - STRIX_SCOPE_DIR=/etc/strix/scopes
-      - STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json
-      - STRIX_SCOPE_MAX_AGE_SECONDS=86400
-      - STRIX_OIDC_ISSUER=${STRIX_OIDC_ISSUER:-}
-      - STRIX_OIDC_CLIENT_ID=${STRIX_OIDC_CLIENT_ID:-}
-      - STRIX_OIDC_CLIENT_SECRET=${STRIX_OIDC_CLIENT_SECRET:-}
-      - STRIX_OIDC_REDIRECT_URI=${STRIX_OIDC_REDIRECT_URI:-}
-      - STRIX_LOG_LEVEL=DEBUG
-      - STRIX_METRICS_ENABLED=true
-      - STRIX_OTEL_ENABLED=false
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:-ishastra_dev_password}@postgres:5432/ishastra
+      - ISHASTRA_REDIS_URL=redis://redis:6379/0
+      - ISHASTRA_SCOPE_DIR=/etc/ishastra/scopes
+      - ISHASTRA_SCOPE_JWKS=/etc/ishastra/scope-jwks.json
+      - ISHASTRA_SCOPE_MAX_AGE_SECONDS=86400
+      - ISHASTRA_OIDC_ISSUER=${ISHASTRA_OIDC_ISSUER:-}
+      - ISHASTRA_OIDC_CLIENT_ID=${ISHASTRA_OIDC_CLIENT_ID:-}
+      - ISHASTRA_OIDC_CLIENT_SECRET=${ISHASTRA_OIDC_CLIENT_SECRET:-}
+      - ISHASTRA_OIDC_REDIRECT_URI=${ISHASTRA_OIDC_REDIRECT_URI:-}
+      - ISHASTRA_LOG_LEVEL=DEBUG
+      - ISHASTRA_METRICS_ENABLED=true
+      - ISHASTRA_OTEL_ENABLED=false
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./examples/scopes:/etc/strix/scopes:ro
-      - ./examples/jwks:/etc/strix:ro
-      - ./src:/app/src:ro  # Hot reload for development
+      - ./examples/scopes:/etc/ishastra/scopes:ro
+      - ./examples/jwks:/etc/ishastra:ro
+      - ./src:/app/src:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -90,7 +73,7 @@ services:
       retries: 3
       start_period: 20s
     networks:
-      - strix-network
+      - ishastra-network
     deploy:
       resources:
         limits:
@@ -100,15 +83,9 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # One Strix process only: the worker takes an exclusive lease on the
-  # database, so a second service would refuse to start.
-
-  # =============================================================================
-  # Prometheus for Metrics
-  # =============================================================================
   prometheus:
     image: prom/prometheus:v2.48.0
-    container_name: strix-prometheus
+    container_name: ishastra-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -120,14 +97,11 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # Grafana for Visualization
-  # =============================================================================
   grafana:
     image: grafana/grafana:10.2.0
-    container_name: strix-grafana
+    container_name: ishastra-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
@@ -142,32 +116,26 @@ services:
     depends_on:
       - prometheus
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # Jaeger for Distributed Tracing
-  # =============================================================================
   jaeger:
     image: jaegertracing/all-in-one:1.50
-    container_name: strix-jaeger
+    container_name: ishastra-jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true
       - SPAN_STORAGE_TYPE=badger
     ports:
-      - "127.0.0.1:16686:16686"  # UI
-      - "127.0.0.1:4317:4317"    # OTLP gRPC
-      - "127.0.0.1:4318:4318"    # OTLP HTTP
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
     volumes:
       - jaeger_data:/var/lib/jaeger
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # NGINX Reverse Proxy (Production-like)
-  # =============================================================================
   nginx:
     image: nginx:alpine
-    container_name: strix-nginx
+    container_name: ishastra-nginx
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
@@ -176,14 +144,11 @@ services:
     depends_on:
       - scope-gate
     networks:
-      - strix-network
+      - ishastra-network
 
-  # =============================================================================
-  # Optional local OIDC/SAML identity provider
-  # =============================================================================
   keycloak:
     image: quay.io/keycloak/keycloak:26.3
-    container_name: strix-keycloak
+    container_name: ishastra-keycloak
     profiles: ["sso"]
     command: ["start-dev", "--http-port=8180", "--import-realm"]
     environment:
@@ -199,23 +164,17 @@ services:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data
     networks:
-      strix-network:
+      ishastra-network:
         aliases:
           - keycloak.localhost
 
-# =============================================================================
-# Networks
-# =============================================================================
 networks:
-  strix-network:
+  ishastra-network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.28.0.0/16
 
-# =============================================================================
-# Volumes
-# =============================================================================
 volumes:
   postgres_data:
   redis_data:

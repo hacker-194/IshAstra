@@ -2,7 +2,7 @@
 
 # Release Process
 
-Strix release workflow from development to production.
+Ishastra release workflow from development to production.
 
 ## Versioning
 
@@ -96,8 +96,8 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/strix/strix:${{ github.ref_name }}
-            ghcr.io/strix/strix:latest
+            ghcr.io/ishastra/ishastra:${{ github.ref_name }}
+            ghcr.io/ishastra/ishastra:latest
           platforms: linux/amd64,linux/arm64
       - name: Build Python package
         run: make build-python
@@ -145,13 +145,13 @@ git checkout -b release/v3.6
 
 # Update versions
 sed -i 's/version = "3.5.0"/version = "3.6.0"/' pyproject.toml
-sed -i 's/version = "3.5.0"/version = "3.6.0"/' src/strix-rust/Cargo.toml
+sed -i 's/version = "3.5.0"/version = "3.6.0"/' src/ishastra-rust/Cargo.toml
 
 # Update changelog
 # Edit CHANGELOG.md - move "Unreleased" to "3.6.0 - YYYY-MM-DD"
 
 # Commit
-git add pyproject.toml src/strix-rust/Cargo.toml CHANGELOG.md
+git add pyproject.toml src/ishastra-rust/Cargo.toml CHANGELOG.md
 git commit -m "chore(release): prepare v3.6.0"
 
 # Push and create PR
@@ -192,53 +192,53 @@ git merge release/v3.5
 
 ```bash
 # Helm rollback (immediate)
-helm rollback strix -n strix
+helm rollback ishastra -n ishastra
 
 # Or specific revision
-helm rollback strix 3 -n strix
+helm rollback ishastra 3 -n ishastra
 
 # Kubernetes rollback
-kubectl rollout undo deployment/strix-api -n strix
-kubectl rollout undo deployment/strix-worker -n strix
+kubectl rollout undo deployment/ishastra-api -n ishastra
+kubectl rollout undo deployment/ishastra-worker -n ishastra
 
 # Database rollback (if migration)
 alembic downgrade -1  # or specific revision
 
 # Verify
-curl https://api.strix.dev/health
+curl https://api.ishastra.dev/health
 ```
 
 ## Release Artifacts
 
 | Artifact | Location | Signature |
 |----------|----------|-----------|
-| Docker Images | `ghcr.io/strix/strix:v3.6.0` | Cosign |
-| Python Wheel | PyPI `strix-3.6.0-py3-none-any.whl` | Cosign |
-| Rust Crates | crates.io `strix-core-3.6.0.crate` | Cargo sign |
-| Helm Chart | `oci://ghcr.io/strix/charts/strix-3.6.0.tgz` | Cosign |
+| Docker Images | `ghcr.io/ishastra/ishastra:v3.6.0` | Cosign |
+| Python Wheel | PyPI `ishastra-3.6.0-py3-none-any.whl` | Cosign |
+| Rust Crates | crates.io `ishastra-core-3.6.0.crate` | Cargo sign |
+| Helm Chart | `oci://ghcr.io/ishastra/charts/ishastra-3.6.0.tgz` | Cosign |
 | SBOM | GitHub Releases `sbom-v3.6.0.spdx.json` | Cosign |
 
 ## Verification
 
 ```bash
 # Verify Docker image
-cosign verify ghcr.io/strix/strix:v3.6.0 \
+cosign verify ghcr.io/ishastra/ishastra:v3.6.0 \
   --certificate-identity-regexp ".*" \
   --certificate-oidc-issuer-regexp ".*"
 
 # Verify Python package
-cosign verify-blob strix-3.6.0-py3-none-any.whl \
-  --signature strix-3.6.0-py3-none-any.whl.sig \
-  --certificate strix-3.6.0-py3-none-any.whl.pem
+cosign verify-blob ishastra-3.6.0-py3-none-any.whl \
+  --signature ishastra-3.6.0-py3-none-any.whl.sig \
+  --certificate ishastra-3.6.0-py3-none-any.whl.pem
 
 # Verify Helm chart
-cosign verify oci://ghcr.io/strix/charts/strix:v3.6.0
+cosign verify oci://ghcr.io/ishastra/charts/ishastra:v3.6.0
 ```
 
 ## Communication Template
 
 ```markdown
-# Strix v3.6.0 Released 🎉
+# Ishastra v3.6.0 Released 🎉
 
 ## Highlights
 - ✨ New feature: Custom adapter SDK
@@ -251,11 +251,11 @@ cosign verify oci://ghcr.io/strix/charts/strix:v3.6.0
 
 ## Upgrade Guide
 1. Update Helm values: `image.tag: v3.6.0`
-2. Run migrations: `helm upgrade strix ... --set migrate=true`
-3. Verify: `kubectl get pods -n strix`
+2. Run migrations: `helm upgrade ishastra ... --set migrate=true`
+3. Verify: `kubectl get pods -n ishastra`
 
 ## Full Changelog
-https://github.com/strix/strix/releases/tag/v3.6.0
+https://github.com/ishastra/ishastra/releases/tag/v3.6.0
 ```
 
 ## Related

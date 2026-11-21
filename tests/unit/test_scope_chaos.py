@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from strix.core import scope as scope_module
+from ishastra.core import scope as scope_module
 
 ALLOW_URL = "https://opa.example/v1/data/scope/allow"
 

@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from strix.core import scope as scope_module
+from ishastra.core import scope as scope_module
 
 
 @pytest.fixture(autouse=True)
@@ -126,7 +126,7 @@ class TestIntelDocumentsAndInheritance:
         assert _scope().inherited_from(_scope(allowed_asns=(15133,))).allowed_asns == (15133,)
 
     def test_a_deployment_without_a_lookup_refuses_to_start(self, tmp_path):
-        from strix.core import scope as module
+        from ishastra.core import scope as module
 
         document = tmp_path / "scope.json"
         document.write_text(

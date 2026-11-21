@@ -6,7 +6,7 @@ import types
 
 import pytest
 
-from strix.core import invitations
+from ishastra.core import invitations
 
 
 def test_token_roundtrip_normalises_email_and_carries_claims():
@@ -49,8 +49,8 @@ def test_missing_signing_key_is_refused():
 
 
 def test_link_uses_public_base_url_when_set():
-    assert invitations.build_invite_link("https://strix.example/", "tok") == (
-        "https://strix.example/accept-invite?token=tok"
+    assert invitations.build_invite_link("https://ishastra.example/", "tok") == (
+        "https://ishastra.example/accept-invite?token=tok"
     )
     assert invitations.build_invite_link("", "tok") == "tok"
 
@@ -61,7 +61,7 @@ def test_message_contains_link_and_role():
         sender="noreply@example.com",
         org_name="Acme",
         role="org_admin",
-        link="https://strix.example/accept-invite?token=tok",
+        link="https://ishastra.example/accept-invite?token=tok",
     )
     assert message["To"] == "a@example.com"
     assert "Acme" in message["Subject"]
@@ -72,7 +72,7 @@ def test_message_contains_link_and_role():
 
 def test_unconfigured_smtp_is_reported_clearly():
     settings = types.SimpleNamespace(smtp_host="", smtp_from="")
-    with pytest.raises(invitations.SMTPNotConfigured, match="STRIX_SMTP_HOST"):
+    with pytest.raises(invitations.SMTPNotConfigured, match="ISHASTRA_SMTP_HOST"):
         invitations.send_invite_email(settings, to="a@example.com", org_name="Acme", role="r", token="t")
 
 
@@ -106,12 +106,12 @@ def test_send_uses_smtp_and_marks_message(monkeypatch):
         smtp_password="pw",
         smtp_from="noreply@example.com",
         smtp_starttls=True,
-        public_base_url="https://strix.example",
+        public_base_url="https://ishastra.example",
     )
     link = invitations.send_invite_email(
         settings, to="a@example.com", org_name="Acme", role="org_member", token="tok"
     )
-    assert link == "https://strix.example/accept-invite?token=tok"
+    assert link == "https://ishastra.example/accept-invite?token=tok"
     assert ("smtp.example.com", 2525) in sent
     assert "starttls" in sent
     assert ("mailer", "pw") in sent

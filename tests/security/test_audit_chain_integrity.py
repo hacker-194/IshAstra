@@ -3,7 +3,7 @@
 These tests directly manipulate the SQLite database to tamper with audit_chain
 and audit_log entries, then verify that the chain verification fails.
 
-Tests both paths: with and without STRIX_AUDIT_HMAC_KEY.
+Tests both paths: with and without ISHASTRA_AUDIT_HMAC_KEY.
 """
 
 import asyncio
@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from strix.audit import GENESIS_HASH, AuditChain
-from strix.core import store
+from ishastra.audit import GENESIS_HASH, AuditChain
+from ishastra.core import store
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def _digest(body: dict, hmac_key: str = "") -> str:
 
 
 class TestAuditChainIntegrityWithoutHMAC:
-    """Test chain integrity verification WITHOUT HMAC key (STRIX_AUDIT_HMAC_KEY not set)."""
+    """Test chain integrity verification WITHOUT HMAC key (ISHASTRA_AUDIT_HMAC_KEY not set)."""
 
     @pytest.fixture
     def chain(self, temp_db):
@@ -66,7 +66,6 @@ class TestAuditChainIntegrityWithoutHMAC:
         """Update a specific chain row in SQLite."""
         db = await store.get_database()
         async with db.transaction() as conn:
-            # First get the current row
             row = await store._fetchone(
                 conn,
                 "SELECT sequence, previous_hash, hash, data FROM audit_chain WHERE sequence = ?",
@@ -122,14 +121,12 @@ class TestAuditChainIntegrityWithoutHMAC:
                     {"event": "test3", "value": "original"},
                 ],
             )
-            # Verify chain is valid initially
+
             ok, reason = await chain.verify_async()
             assert ok is True, f"Initial chain should be valid: {reason}"
 
-            # Tamper with the data of entry 2
             await self._update_chain_row(temp_db, 2, {"data": {"event": "test2", "value": "TAMPERED"}})
 
-            # Verification must fail
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after data tampering"
             assert "Hash mismatch" in reason, f"Expected hash mismatch, got: {reason}"
@@ -151,10 +148,8 @@ class TestAuditChainIntegrityWithoutHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Delete entry 2
             await self._delete_chain_row(temp_db, 2)
 
-            # Verification must fail (sequence gap)
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after entry deletion"
             assert "expected sequence" in reason.lower(), f"Expected sequence gap error, got: {reason}"
@@ -176,19 +171,14 @@ class TestAuditChainIntegrityWithoutHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Swap the DATA of entries 2 and 3 WITHOUT updating their hashes
             rows = await self._get_chain_rows(temp_db)
 
             entry2_data = json.loads(rows[1]["data"])
             entry3_data = json.loads(rows[2]["data"])
-            entry1_hash = rows[0]["hash"]  # hash of entry 1
+            entry1_hash = rows[0]["hash"]
 
-            # Swap data but fix previous_hash in the data to match the position
-            # Entry 2 gets entry 3's data but with correct previous_hash (entry1_hash)
-            # Entry 3 gets entry 2's data but with correct previous_hash (entry2's original hash)
-            entry2_hash = rows[1]["hash"]  # original hash of entry 2
+            entry2_hash = rows[1]["hash"]
 
-            # This breaks the chain because the stored hashes won't match the new data
             await self._update_chain_row(
                 temp_db, 2, {"data": {**entry3_data, "sequence": 2, "previous_hash": entry1_hash}}
             )
@@ -196,7 +186,6 @@ class TestAuditChainIntegrityWithoutHMAC:
                 temp_db, 3, {"data": {**entry2_data, "sequence": 3, "previous_hash": entry2_hash}}
             )
 
-            # Verification must fail (hash mismatch)
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after reordering"
             assert "Hash mismatch" in reason, f"Expected hash mismatch, got: {reason}"
@@ -217,15 +206,12 @@ class TestAuditChainIntegrityWithoutHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Get the tip
             rows = await self._get_chain_rows(temp_db)
             rows[-1]["hash"]
 
-            # Insert a fake entry at sequence 3 with wrong previous_hash
             fake_data = {"event": "fake", "sequence": 3, "previous_hash": "wrong_previous_hash"}
             await self._insert_chain_row(temp_db, 3, "wrong_previous_hash", fake_data)
 
-            # Verification must fail
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after fake append"
             reason_lower = reason.lower()
@@ -248,7 +234,6 @@ class TestAuditChainIntegrityWithoutHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Modify previous_hash of entry 3
             rows = await self._get_chain_rows(temp_db)
             entry3_data = json.loads(rows[2]["data"])
 
@@ -261,7 +246,6 @@ class TestAuditChainIntegrityWithoutHMAC:
                 },
             )
 
-            # Verification must fail
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after previous_hash tampering"
             assert "prev hash mismatch" in reason.lower(), f"Expected prev hash mismatch, got: {reason}"
@@ -283,13 +267,11 @@ class TestAuditChainIntegrityWithoutHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Modify sequence of entry 2 to 5 in the data (but not the row's primary key)
             rows = await self._get_chain_rows(temp_db)
             entry2_data = json.loads(rows[1]["data"])
 
             await self._update_chain_row(temp_db, 2, {"data": {**entry2_data, "sequence": 5}})
 
-            # Verification must fail - hash mismatch because data changed but hash wasn't updated
             ok, reason = await chain.verify_async()
             assert ok is False, "Chain verification should fail after sequence tampering"
             assert "Hash mismatch" in reason, f"Expected hash mismatch, got: {reason}"
@@ -298,7 +280,7 @@ class TestAuditChainIntegrityWithoutHMAC:
 
 
 class TestAuditChainIntegrityWithHMAC:
-    """Test chain integrity verification WITH HMAC key (STRIX_AUDIT_HMAC_KEY set)."""
+    """Test chain integrity verification WITH HMAC key (ISHASTRA_AUDIT_HMAC_KEY set)."""
 
     @pytest.fixture
     def chain(self, temp_db):
@@ -381,7 +363,6 @@ class TestAuditChainIntegrityWithHMAC:
             ok, reason = await chain.verify_async()
             assert ok is True
 
-            # Tamper with the data of entry 2
             await self._update_chain_row(temp_db, 2, {"data": {"event": "test2", "value": "TAMPERED"}})
 
             ok, reason = await chain.verify_async()
@@ -431,11 +412,9 @@ class TestAuditChainIntegrityWithHMAC:
             rows = await self._get_chain_rows(temp_db)
             entry2_data = json.loads(rows[1]["data"])
             entry3_data = json.loads(rows[2]["data"])
-            entry1_hash = rows[0]["hash"]  # hash of entry 1
-            entry2_hash = rows[1]["hash"]  # original hash of entry 2
+            entry1_hash = rows[0]["hash"]
+            entry2_hash = rows[1]["hash"]
 
-            # Swap data but fix previous_hash in the data to match the position
-            # This breaks the chain because the stored hashes won't match the new data
             await self._update_chain_row(
                 temp_db, 2, {"data": {**entry3_data, "sequence": 2, "previous_hash": entry1_hash}}
             )
@@ -466,7 +445,6 @@ class TestAuditChainIntegrityWithHMAC:
             rows = await self._get_chain_rows(temp_db)
             rows[-1]["hash"]
 
-            # Insert fake entry with correct HMAC but wrong previous_hash
             fake_data = {"event": "fake", "sequence": 3, "previous_hash": "wrong_previous_hash"}
             await self._insert_chain_row(temp_db, 3, "wrong_previous_hash", fake_data)
 
@@ -492,7 +470,6 @@ class TestAuditChainIntegrityWithHMAC:
             rows = await self._get_chain_rows(temp_db)
             tip_hash = rows[-1]["hash"]
 
-            # Insert at sequence 4 with correct linkage but it's extra
             fake_data = {"event": "fake", "sequence": 4, "previous_hash": tip_hash}
             await self._insert_chain_row(temp_db, 4, tip_hash, fake_data)
 
@@ -519,10 +496,9 @@ class TestAuditChainIntegrityWithHMAC:
             rows = await self._get_chain_rows(temp_db)
             tip_hash = rows[-1]["hash"]
 
-            # Attacker tries to append without knowing HMAC key (uses empty key)
             fake_data = {"event": "fake", "sequence": 3, "previous_hash": tip_hash}
-            # Insert with NO hmac (attacker doesn't know the key)
-            digest = _digest(fake_data, "")  # Empty key - wrong!
+
+            digest = _digest(fake_data, "")
             db = await store.get_database()
             async with db.transaction() as conn:
                 await store._execute(
@@ -614,7 +590,6 @@ class TestAuditChainInMemoryMode:
         ok, reason = chain.verify()
         assert ok is True
 
-        # Tamper directly
         chain._entries[1]["event"] = "TAMPERED"
 
         ok, reason = chain.verify()
@@ -647,7 +622,6 @@ class TestAuditChainInMemoryMode:
         ok, reason = chain.verify()
         assert ok is True
 
-        # Delete middle entry
         del chain._entries[1]
 
         ok, reason = chain.verify()
@@ -664,9 +638,8 @@ class TestAuditChainInMemoryMode:
         ok, reason = chain.verify()
         assert ok is True
 
-        # Swap entries 1 and 2 (indices 0 and 1)
         chain._entries[0], chain._entries[1] = chain._entries[1], chain._entries[0]
-        # Fix sequence numbers
+
         chain._entries[0]["sequence"] = 1
         chain._entries[1]["sequence"] = 2
 
@@ -690,7 +663,7 @@ class TestAuditLogIntegrity:
 
     def test_audit_log_tamper_does_not_affect_chain(self, temp_db):
         """Tampering with audit_log should not affect audit_chain verification."""
-        from strix.audit import AuditLog
+        from ishastra.audit import AuditLog
 
         async def run_test():
             log = AuditLog(max_entries=100, persistent=True)
@@ -699,7 +672,6 @@ class TestAuditLogIntegrity:
             await log.record_async({"event": "test1", "tenant": "tenant-a"})
             await chain.append_async({"event": "chain1"})
 
-            # Tamper with audit_log directly
             db = await store.get_database()
             async with db.transaction() as conn:
                 await store._execute(
@@ -708,7 +680,6 @@ class TestAuditLogIntegrity:
                     json.dumps({"event": "TAMPERED", "tenant": "tenant-a"}, sort_keys=True),
                 )
 
-            # Chain should still verify
             ok, reason = await chain.verify_async()
             assert ok is True, f"Chain should be valid: {reason}"
 
@@ -716,7 +687,7 @@ class TestAuditLogIntegrity:
 
     def test_audit_log_delete_does_not_affect_chain(self, temp_db):
         """Deleting from audit_log should not affect audit_chain."""
-        from strix.audit import AuditLog
+        from ishastra.audit import AuditLog
 
         async def run_test():
             log = AuditLog(max_entries=100, persistent=True)
@@ -725,12 +696,10 @@ class TestAuditLogIntegrity:
             await log.record_async({"event": "test1", "tenant": "tenant-a"})
             await chain.append_async({"event": "chain1"})
 
-            # Delete from audit_log
             db = await store.get_database()
             async with db.transaction() as conn:
                 await store._execute(conn, "DELETE FROM audit_log WHERE id = (SELECT MAX(id) FROM audit_log)")
 
-            # Chain should still verify
             ok, reason = await chain.verify_async()
             assert ok is True, f"Chain should be valid: {reason}"
 
@@ -770,11 +739,9 @@ class TestEdgeCases:
         chain = AuditChain(persistent=True, hmac_key="test-key")
         asyncio.run(chain.append_async({"event": "test1"}))
 
-        # Verify initial
         ok, reason = asyncio.run(chain.verify_async())
         assert ok is True
 
-        # Try to change first entry's previous_hash
         async def tamper():
             db = await store.get_database()
             async with db.transaction() as conn:
@@ -794,11 +761,9 @@ class TestEdgeCases:
         asyncio.run(chain.append_async({"event": "test1"}))
         asyncio.run(chain.append_async({"event": "test2"}))
 
-        # First verify (caches success)
         ok, _ = chain.verify_cached(max_age=30.0)
         assert ok is True
 
-        # Tamper
         async def tamper():
             db = await store.get_database()
             async with db.transaction() as conn:
@@ -812,11 +777,9 @@ class TestEdgeCases:
 
         asyncio.run(tamper())
 
-        # Cached verify should still return cached (success)
         ok, _ = chain.verify_cached(max_age=30.0)
-        assert ok is True  # Still cached
+        assert ok is True
 
-        # Full verify should fail
         ok, reason = chain.verify()
         assert ok is False
         assert "Hash mismatch" in reason

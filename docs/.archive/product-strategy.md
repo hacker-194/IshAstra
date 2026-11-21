@@ -1,9 +1,9 @@
-# Strix Product Strategy
+# Ishastra Product Strategy
 
 Status: working draft for validation. Date: 2026-11-14. Basis: repository
 inspection of the current working tree (v3.5.0). Everything in "Validated" is
 observable in code; hypotheses are labelled and must not be presented as market
-fact. Strix is a fully open-source MIT project, not a commercial product plan.
+fact. Ishastra is a fully open-source MIT project, not a commercial product plan.
 
 ## 1. The problem
 
@@ -32,41 +32,41 @@ Nepal-focused evidence templates and deployment notes.
 This is an open-source project. There is no buyer, paid seat, sales motion or
 commercial edition. Anyone may adopt, modify or redistribute it under MIT.
 
-## 3. What Strix can do today (validated)
+## 3. What Ishastra can do today (validated)
 
 | Capability | Evidence in repository |
 |---|---|
-| Default-deny scope gate (URL, DNS/IP, pinned destination) | `src/strix/core/scope.py`, tested by `tests/unit/test_scope.py` |
-| Versioned per-tenant engagement policies | `src/strix/core/policies.py`, `/api/policies` |
-| Normalized findings with CWE, CVSS, impact, exploitability, compliance refs | `src/strix/core/findings.py` |
+| Default-deny scope gate (URL, DNS/IP, pinned destination) | `src/ishastra/core/scope.py`, tested by `tests/unit/test_scope.py` |
+| Versioned per-tenant engagement policies | `src/ishastra/core/policies.py`, `/api/policies` |
+| Normalized findings with CWE, CVSS, impact, exploitability, compliance refs | `src/ishastra/core/findings.py` |
 | Finding lifecycle and audited triage | `/api/assess/{id}/findings/{fingerprint}` |
 | Asset inventory and per-finding history | `assets`, `finding_events`, `/api/assets`; derived from assessments |
 | Cross-job finding records | Stable fingerprints aggregated by `/api/findings`, with first/last seen, occurrence history, tenant remediation and resolution |
 | Finding trends | `GET /api/findings/trends` with day/week/month buckets and a 30-day inline chart |
 | Remediation owner, deadline and risk-exception fields | `finding_records`, `/api/findings/{fingerprint}/remediation` and the legacy per-assessment path |
 | Coverage-checked resolution | `/api/findings/{fingerprint}/resolve` requires a later completed job and `ok` detector coverage |
-| SARIF 2.1.0 export | `/api/assess/{id}/sarif`, `strix-code-scan --sarif` |
-| Signed grants, hash-chained receipts, offline proof packs | `src/strix/proof.py`, `strix grant/gate/proof/verify` |
+| SARIF 2.1.0 export | `/api/assess/{id}/sarif`, `ishastra-code-scan --sarif` |
+| Signed grants, hash-chained receipts, offline proof packs | `src/ishastra/proof.py`, `ishastra grant/gate/proof/verify` |
 | JSON, HTML and PDF evidence reports | `/api/report`, `/report.html`, `/report.pdf` |
-| Recurring assessments and new-finding alerts | `src/strix/core/scheduler.py`, `/api/schedules`, monitor webhooks |
-| Multi-tenant API keys, rotation, expiry, read/write scope, audit chain | `src/strix/api/security.py`, `/api/audit` |
+| Recurring assessments and new-finding alerts | `src/ishastra/core/scheduler.py`, `/api/schedules`, monitor webhooks |
+| Multi-tenant API keys, rotation, expiry, read/write scope, audit chain | `src/ishastra/api/security.py`, `/api/audit` |
 | Multiple users per tenant with `admin`/`analyst`/`viewer` roles | `tenant_users`, `/api/users`; the legacy tenant key remains |
-| Advisory AI triage with no tool execution | `src/strix/analyst.py`, `/api/assess/{id}/triage` |
-| SIEM/ticketing/chat/CI connectors | `src/strix/integrations/` |
+| Advisory AI triage with no tool execution | `src/ishastra/analyst.py`, `/api/assess/{id}/triage` |
+| SIEM/ticketing/chat/CI connectors | `src/ishastra/integrations/` |
 | Single-node self-hosted deployment | `Dockerfile`, `docker-compose.yml`, `DEPLOYMENT.md` |
 
 Read/write API key scopes are implemented; a read key is limited to safe HTTP
 methods. Still absent (validated by schema and route inventory): an organization
 entity, per-project/per-endpoint key scopes, organization-level role
 inheritance, SSO, remote repository onboarding, pull-request comments,
-long-term compliance dashboards and multi-node HA. Fail-closed `STRIX_ENV=production` startup is
+long-term compliance dashboards and multi-node HA. Fail-closed `ISHASTRA_ENV=production` startup is
 implemented.
 
 ## 4. Differentiation
 
 1. **Authorization is the product, not a settings page.** Every outbound
    connection is gated, policies are versioned and revocable, jobs are bound to
-   the policy version they ran under, and Strix Proof produces signed grants and
+   the policy version they ran under, and Ishastra Proof produces signed grants and
    receipt chains that a third party can verify offline.
 2. **Evidence over verdicts.** Coverage-aware job states, explicit verification
    levels, redaction at output boundaries, sealed audit history and portable
@@ -85,7 +85,7 @@ coverage or enterprise fleet scale. Do not market on those axes.
 
 - License: MIT, with no proprietary edition and no feature gating.
 - No billing, subscription, seat metering or paid support requirement.
-- Anyone may host Strix, including as part of an independent service; that is a
+- Anyone may host Ishastra, including as part of an independent service; that is a
   right under MIT, not an offering of this project.
 - API tier names are technical rate-limit profiles only.
 

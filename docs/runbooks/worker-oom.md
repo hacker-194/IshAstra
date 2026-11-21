@@ -2,7 +2,7 @@
 
 # Runbook: Worker OOM Killed
 
-**Alert**: `StrixWorkerOOMKilled`
+**Alert**: `IshastraWorkerOOMKilled`
 **Severity**: Critical
 **Team**: Platform
 
@@ -19,36 +19,36 @@
 
 ```bash
 # Check OOM events
-kubectl get events -n strix-system --field-selector reason=OOMKilling
+kubectl get events -n ishastra-system --field-selector reason=OOMKilling
 
 # Pod status
-kubectl get pods -n strix-system -l app=strix-worker -o wide
+kubectl get pods -n ishastra-system -l app=ishastra-worker -o wide
 
 # Recent logs
-kubectl logs -n strix-system -l app=strix-worker --previous --tail=100
+kubectl logs -n ishastra-system -l app=ishastra-worker --previous --tail=100
 ```
 
 ### 2. Check Memory Usage
 
 ```bash
 # Current memory usage
-kubectl top pods -n strix-system -l app=strix-worker
+kubectl top pods -n ishastra-system -l app=ishastra-worker
 
 # Memory limits
-kubectl get deployment strix-worker -n strix-system -o yaml | grep -A 5 "resources:"
+kubectl get deployment ishastra-worker -n ishastra-system -o yaml | grep -A 5 "resources:"
 
 # Container memory metrics
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep container_memory
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep container_memory
 ```
 
 ### 3. Analyze Memory Patterns
 
 ```bash
 # Check for memory leaks in worker logs
-kubectl logs -n strix-system -l app=strix-worker --tail=500 | grep -i "memory\|oom\|alloc"
+kubectl logs -n ishastra-system -l app=ishastra-worker --tail=500 | grep -i "memory\|oom\|alloc"
 
 # Check adapter memory usage
-kubectl logs -n strix-system -l app=strix-worker --tail=500 | grep -E "adapter.*memory|memory.*adapter"
+kubectl logs -n ishastra-system -l app=ishastra-worker --tail=500 | grep -E "adapter.*memory|memory.*adapter"
 ```
 
 ## Common Causes & Fixes
@@ -65,13 +65,13 @@ kubectl logs -n strix-system -l app=strix-worker --tail=500 | grep -E "adapter.*
 
 ```bash
 # Increase memory limit (temporary)
-kubectl patch deployment strix-worker -n strix-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"worker","resources":{"limits":{"memory":"4Gi"}}]}}}}'
+kubectl patch deployment ishastra-worker -n ishastra-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"worker","resources":{"limits":{"memory":"4Gi"}}]}}}}'
 
 # Scale up workers to distribute load
-kubectl scale deployment strix-worker -n strix-system --replicas=15
+kubectl scale deployment ishastra-worker -n ishastra-system --replicas=15
 
 # Drain problematic pods
-kubectl delete pod -n strix-system -l app=strix-worker --field-selector status.phase=Running
+kubectl delete pod -n ishastra-system -l app=ishastra-worker --field-selector status.phase=Running
 ```
 
 ## Permanent Fix
@@ -87,9 +87,9 @@ worker:
   replicas: 5
   env:
     # Limit concurrent adapters per worker
-    STRIX_WORKER_MAX_CONCURRENT_ADAPTERS: "2"
+    ISHASTRA_WORKER_MAX_CONCURRENT_ADAPTERS: "2"
     # Limit targets per assessment
-    STRIX_WORKER_MAX_TARGETS_PER_ASSESSMENT: "50"
+    ISHASTRA_WORKER_MAX_TARGETS_PER_ASSESSMENT: "50"
 ```
 
 ## Escalation

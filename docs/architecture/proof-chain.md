@@ -1,16 +1,16 @@
-# Strix Proof — Cryptographic Audit Chain
+# Ishastra Proof — Cryptographic Audit Chain
 
-# Strix Proof — Cryptographic Audit Chain
+# Ishastra Proof — Cryptographic Audit Chain
 
 Tamper-evident, offline-verifiable audit trail for every Scope Gate decision.
 
 ## Overview
 
-Strix Proof creates a cryptographic chain linking every authorization decision back to the original signed scope document.
+Ishastra Proof creates a cryptographic chain linking every authorization decision back to the original signed scope document.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Strix Proof Chain                                     │
+│                        Ishastra Proof Chain                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐               │
@@ -36,7 +36,7 @@ Strix Proof creates a cryptographic chain linking every authorization decision b
 
 ### 1. Grant Receipt (Scope Document Signature)
 
-**File**: `src/strix/core/scope_signing.py` — `sign_scope_document()`
+**File**: `src/ishastra/core/scope_signing.py` — `sign_scope_document()`
 
 ```python
 @dataclass
@@ -58,7 +58,7 @@ class GrantReceipt:
 
 ### 2. Gate Receipt (Per-Check Decision)
 
-**File**: `src/strix/core/scope.py` — `GateObserver.on_check()`
+**File**: `src/ishastra/core/scope.py` — `GateObserver.on_check()`
 
 ```python
 @dataclass
@@ -93,7 +93,7 @@ class GateReceipt:
 
 ### 3. Proof Receipt (Aggregated Assessment)
 
-**File**: `src/strix/core/proof.py` — `ProofAggregator`
+**File**: `src/ishastra/core/proof.py` — `ProofAggregator`
 
 ```python
 @dataclass
@@ -145,7 +145,7 @@ class ProofReceipt:
 
 ### JWKS (JSON Web Key Set)
 
-**File**: `src/strix/core/scope_signing.py` — `JWKSManager`
+**File**: `src/ishastra/core/scope_signing.py` — `JWKSManager`
 
 ```python
 class JWKSManager:
@@ -206,7 +206,7 @@ def compute_merkle_root(leaves: list[bytes]) -> str:
 
 ### GateObserver Protocol
 
-**File**: `src/strix/core/scope.py` — `GateObserver`
+**File**: `src/ishastra/core/scope.py` — `GateObserver`
 
 ```python
 @runtime_checkable
@@ -221,12 +221,12 @@ class GateObserver(Protocol):
         """Called on resolution/validation errors"""
 ```
 
-### StrixProofObserver
+### IshastraProofObserver
 
-**File**: `src/strix/core/proof.py` — `StrixProofObserver`
+**File**: `src/ishastra/core/proof.py` — `IshastraProofObserver`
 
 ```python
-class StrixProofObserver:
+class IshastraProofObserver:
     def __init__(
         self,
         signer: Ed25519PrivateKey,
@@ -307,7 +307,7 @@ class StrixProofObserver:
 
 ```bash
 # Verify a proof receipt
-strix proof verify proof-receipt.json --jwks jwks.json
+ishastra proof verify proof-receipt.json --jwks jwks.json
 
 # Output:
 # Grant signature: VALID
@@ -320,10 +320,10 @@ strix proof verify proof-receipt.json --jwks jwks.json
 ### Python Verification
 
 ```python
-from strix.core.proof import verify_proof
-from strix.core.scope_signing import load_jwks
+from ishastra.core.proof import verify_proof
+from ishastra.core.scope_signing import load_jwks
 
-jwks = load_jwks("https://api.strix.dev/.well-known/jwks.json")
+jwks = load_jwks("https://api.ishastra.dev/.well-known/jwks.json")
 
 with open("proof-receipt.json") as f:
     proof = ProofReceipt.model_validate_json(f.read())
@@ -391,7 +391,7 @@ def _check_revocation_freshness(proof: ProofReceipt, jwks: JWKS) -> bool:
             return False
 
     # Check revocation status (if revocation endpoint configured)
-    if revocation_url := os.getenv("STRIX_REVOCATION_URL"):
+    if revocation_url := os.getenv("ISHASTRA_REVOCATION_URL"):
         revoked = check_revocation(proof.grant_receipt.key_id, revocation_url)
         if revoked:
             # Allow if revoked after proof completion
@@ -468,7 +468,7 @@ class PostgresProofStorage:
 
 ### NIST 800-53
 
-| Control | Strix Proof Coverage |
+| Control | Ishastra Proof Coverage |
 |---------|---------------------|
 | AU-2 (Audit Events) | Every gate decision logged |
 | AU-3 (Audit Content) | Full context in receipt |
@@ -512,7 +512,7 @@ Response:
   "verification": {
     "valid": true,
     "checked_at": "2024-01-15T10:30:00Z",
-    "jwks_source": "https://api.strix.dev/.well-known/jwks.json"
+    "jwks_source": "https://api.ishastra.dev/.well-known/jwks.json"
   }
 }
 ```
@@ -546,7 +546,7 @@ Content-Type: application/json
 
 {
   "proof": { ... },
-  "jwks_url": "https://api.strix.dev/.well-known/jwks.json"
+  "jwks_url": "https://api.ishastra.dev/.well-known/jwks.json"
 }
 
 Response:
@@ -582,7 +582,7 @@ scopeGate:
 
 ```bash
 # Generate new key
-strix keys rotate
+ishastra keys rotate
 
 # Output: new key ID, JWKS updated
 # Old key retained for verification

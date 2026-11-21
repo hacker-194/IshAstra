@@ -2,7 +2,7 @@
 
 **Auditor-Ready Documentation for Nepal Rastra Bank Cybersecurity Directives**
 
-This guide enables auditors to verify Strix assessment evidence against NRB Directive 7/074 (Information Security Policy), Directive 8/075 (Cyber Resilience Framework), and Directive 11/076 (Digital Banking Security).
+This guide enables auditors to verify Ishastra assessment evidence against NRB Directive 7/074 (Information Security Policy), Directive 8/075 (Cyber Resilience Framework), and Directive 11/076 (Digital Banking Security).
 
 ---
 
@@ -14,7 +14,7 @@ This guide enables auditors to verify Strix assessment evidence against NRB Dire
 | **Directives** | 7/074, 8/075, 11/076 |
 | **Sector** | Banking & Financial Institutions |
 | **Jurisdiction** | Nepal |
-| **Strix Coverage** | 17 controls across 3 directives |
+| **Ishastra Coverage** | 17 controls across 3 directives |
 
 ### Directive Scope
 
@@ -30,7 +30,7 @@ This guide enables auditors to verify Strix assessment evidence against NRB Dire
 
 ### Directive 7/074: Information Security Policy
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NRB-7.1** | Information Security Policy | `missing_security_policy`, `outdated_policy`, `policy_not_board_approved` | Policy document, board approval, review date, version |
 | **NRB-7.2** | Network Security | `open_management_ports`, `missing_segmentation`, `weak_firewall_rules`, `unencrypted_admin`, `exposed_database`, `missing_hsts`, `weak_cipher_suite`, `missing_csp` | Firewall config, network diagram, IDS alerts, TLS config, header analysis |
@@ -41,7 +41,7 @@ This guide enables auditors to verify Strix assessment evidence against NRB Dire
 
 ### Directive 8/075: Cyber Resilience Framework
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NRB-8.1** | Identify | `git_exposure`, `open_tcp_port`, `service_exposure`, `banner_disclosure`, `unidentified_assets`, `shadow_it` | Asset inventory, risk register, exposure assessment |
 | **NRB-8.1.4** | Transport Encryption | `missing_hsts`, `weak_tls_config`, `cleartext_transmission`, `weak_cipher_suite`, `certificate_issues` | TLS configuration, cipher suites, certificate inventory, HSTS preload |
@@ -52,7 +52,7 @@ This guide enables auditors to verify Strix assessment evidence against NRB Dire
 
 ### Directive 11/076: Digital Banking Security
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NRB-11.2** | API Security | `auth_bypass`, `idor`, `rate_limit_bypass`, `broken_object_auth`, `mass_assignment`, `excessive_data_exposure` | API gateway config, auth scheme, rate limits, audit logs, schema validation |
 | **NRB-11.3** | Mobile App Security | `insecure_storage`, `weak_certificate_pinning`, `missing_root_detection`, `debug_code_present`, `weak_obfuscation`, `hardcoded_secrets` | Mobile SAST, pinning verification, storage encryption, anti-tamper test |
@@ -62,7 +62,7 @@ This guide enables auditors to verify Strix assessment evidence against NRB Dire
 
 ## 3. Automated Compliance Checks
 
-Strix runs the following automated verification checks for NRB compliance:
+Ishastra runs the following automated verification checks for NRB compliance:
 
 ### 3.1 Encryption at Rest/In Transit (NRB-7.2.3, NRB-8.1.4)
 
@@ -131,7 +131,7 @@ check_vulnerability_management(job_findings)
 ### 4.1 JSON Evidence Pack
 
 ```bash
-strix evidence --target https://bank.example.com --framework NRB --output nrb-evidence.json
+ishastra evidence --target https://bank.example.com --framework NRB --output nrb-evidence.json
 ```
 
 **Key Sections**:
@@ -146,7 +146,7 @@ strix evidence --target https://bank.example.com --framework NRB --output nrb-ev
 ### 4.2 CSV Export (Auditor Workbook)
 
 ```bash
-strix evidence --target https://bank.example.com --framework NRB --format csv --output nrb-audit.csv
+ishastra evidence --target https://bank.example.com --framework NRB --format csv --output nrb-audit.csv
 ```
 
 **Columns**: Control ID, Framework, Title, Category, Severity, Status, Description, Check Status, Findings Count, Top Finding, Recommendation, Matched Findings, Gaps, Evidence Required, Cross-Refs
@@ -154,7 +154,7 @@ strix evidence --target https://bank.example.com --framework NRB --format csv --
 ### 4.3 OSCAL Assessment Results
 
 ```bash
-strix evidence --target https://bank.example.com --framework NRB --format oscal --output nrb-oscal.json
+ishastra evidence --target https://bank.example.com --framework NRB --format oscal --output nrb-oscal.json
 ```
 
 **Standard**: NIST OSCAL 1.1.3 for GRC tool import (RSA Archer, ServiceNow GRC)
@@ -162,7 +162,7 @@ strix evidence --target https://bank.example.com --framework NRB --format oscal 
 ### 4.4 Bilingual HTML Report (Print to PDF)
 
 ```bash
-strix evidence --target https://bank.example.com --framework NRB --format html --locale ne_NP --output nrb-report.html
+ishastra evidence --target https://bank.example.com --framework NRB --format html --locale ne_NP --output nrb-report.html
 ```
 
 **Features**: English + Nepali, Nepali calendar dates, Devanagari fonts, auditor-ready formatting.
@@ -175,10 +175,10 @@ strix evidence --target https://bank.example.com --framework NRB --format html -
 
 ```bash
 # Verify HMAC audit chain
-strix audit verify --pack nrb-evidence.json
+ishastra audit verify --pack nrb-evidence.json
 
 # Or via API
-curl -X POST https://strix.example.com/api/proof/verify \
+curl -X POST https://ishastra.example.com/api/proof/verify \
   -H "Content-Type: application/json" \
   -d '{"proof": <evidence_pack_proof>}'
 ```
@@ -227,9 +227,9 @@ Review `compliance_checks.nrb` array for 6 automated verifications:
 
 ---
 
-## 6. Strix Feature Coverage for NRB
+## 6. Ishastra Feature Coverage for NRB
 
-| Strix Feature | NRB Controls Covered | Automated Checks |
+| Ishastra Feature | NRB Controls Covered | Automated Checks |
 |---------------|---------------------|------------------|
 | Scope Enforcement | 7.1, 7.3, 8.1 | Scope validation, authorization verification |
 | Audit Chain | 8.3, 8.4 | HMAC integrity, chain verification |
@@ -310,7 +310,7 @@ ssl_prefer_server_ciphers off;
 
 ```bash
 # Create quarterly schedule (NRB requirement)
-curl -X POST https://strix.example.com/api/schedules \
+curl -X POST https://ishastra.example.com/api/schedules \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "target": "https://bank.example.com",
@@ -325,11 +325,11 @@ curl -X POST https://strix.example.com/api/schedules \
 ### 8.2 Webhook for GRC Integration
 
 ```bash
-curl -X POST https://strix.example.com/api/alerts/webhook \
+curl -X POST https://ishastra.example.com/api/alerts/webhook \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "name": "nrb-grc-push",
-    "url": "https://grc.bank.example.com/api/strix/evidence",
+    "url": "https://grc.bank.example.com/api/ishastra/evidence",
     "events": ["evidence_pack_generated"],
     "frameworks": ["nrb"]
   }'
@@ -339,7 +339,7 @@ curl -X POST https://strix.example.com/api/alerts/webhook \
 
 ```bash
 # 7-year retention for NRB compliance
-export STRIX_RETENTION_DAYS=2555
+export ISHASTRA_RETENTION_DAYS=2555
 ```
 
 ---
@@ -347,7 +347,7 @@ export STRIX_RETENTION_DAYS=2555
 ## 9. Auditor Checklist
 
 - [ ] Evidence pack JSON schema validates
-- [ ] HMAC audit chain verification passes (`strix audit verify`)
+- [ ] HMAC audit chain verification passes (`ishastra audit verify`)
 - [ ] All 15 NRB controls assessed (100% coverage)
 - [ ] Finding `compliance_refs` map to correct NRB controls
 - [ ] Automated checks executed (6/6 for NRB)
@@ -369,8 +369,8 @@ export STRIX_RETENTION_DAYS=2555
 - [ISO 27001](https://iso.org/27001) - Information Security Management
 - [NIST CSF](https://nist.gov/cyberframework) - Cybersecurity Framework
 - [PCI DSS](https://pcisecuritystandards.org) - Payment Card Industry DSS
-- [Strix Source](https://github.com/strix-project/strix) - MIT Licensed
+- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
 
 ---
 
-*This guide is part of the Strix open-source compliance evidence pack generator. All mappings and checks are MIT-licensed and auditable.*
+*This guide is part of the Ishastra open-source compliance evidence pack generator. All mappings and checks are MIT-licensed and auditable.*

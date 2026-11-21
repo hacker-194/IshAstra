@@ -1,9 +1,9 @@
-# Prometheus Operator CRDs and Deployment
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f prometheus-operator.yaml
+
+
+
 
 ---
-# Namespace for monitoring stack
+
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -11,11 +11,11 @@ metadata:
   labels:
     name: monitoring
     app.kubernetes.io/name: monitoring
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 
 ---
-# Prometheus Operator CRDs
-# These CRDs are required for Prometheus, Alertmanager, ServiceMonitor, PodMonitor, PrometheusRule
+
+
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -23,7 +23,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -53,7 +53,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -99,7 +99,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -129,7 +129,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -157,7 +157,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -203,7 +203,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -233,7 +233,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -263,7 +263,7 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   group: monitoring.coreos.com
   names:
@@ -302,7 +302,7 @@ spec:
           type: date
 
 ---
-# Prometheus Operator Deployment
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -312,7 +312,7 @@ metadata:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
     app.kubernetes.io/version: "0.75.0"
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: operator
 spec:
   replicas: 1
@@ -325,7 +325,7 @@ spec:
         app: prometheus-operator
         app.kubernetes.io/name: prometheus-operator
         app.kubernetes.io/version: "0.75.0"
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: operator
       annotations:
         prometheus.io/scrape: "true"
@@ -398,7 +398,7 @@ spec:
             optional: true
 
 ---
-# Service for Prometheus Operator metrics and webhook
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -407,7 +407,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   ports:
     - name: http
@@ -422,7 +422,7 @@ spec:
     app: prometheus-operator
 
 ---
-# ServiceAccount and RBAC for Prometheus Operator
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -431,7 +431,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -441,7 +441,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 rules:
   - apiGroups:
       - ""
@@ -562,7 +562,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 subjects:
   - kind: ServiceAccount
     name: prometheus-operator
@@ -573,7 +573,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# Role for namespace-scoped resources
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -582,7 +582,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 rules:
   - apiGroups:
       - ""
@@ -635,7 +635,7 @@ metadata:
   labels:
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 subjects:
   - kind: ServiceAccount
     name: prometheus-operator
@@ -646,7 +646,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# ServiceMonitor for Prometheus Operator self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -656,7 +656,7 @@ metadata:
     release: prometheus
     app: prometheus-operator
     app.kubernetes.io/name: prometheus-operator
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:

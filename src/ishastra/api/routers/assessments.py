@@ -750,6 +750,7 @@ async def build_report(
         "target": job["target"],
         "job_id": job["id"],
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "valid_until": None,
         "state": job["state"],
         "verdict": job["verdict"],
         "coverage": job["coverage"],
@@ -819,6 +820,7 @@ async def get_html_report(job_id: str, tenant: Tenant = Depends(require_auth)) -
         "policy_id": authorized["policy_id"],
         "policy_version": authorized["policy_version"],
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "valid_until": None,
         "integrity": {
             "chain_valid": (await deps.audit_chain.verify_cached_async())[0],
             "chain_hash": "",

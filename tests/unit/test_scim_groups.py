@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from strix.core import scim, store
+from ishastra.core import scim, store
 
 TENANT = "tenant_1"
 TOKEN = "scim-token"

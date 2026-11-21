@@ -1,4 +1,4 @@
-# Strix Public Launch Checklist
+# Ishastra Public Launch Checklist
 
 **Target version:** v3.5.0+
 **Last updated:** 2026-11-18
@@ -12,7 +12,7 @@ This checklist separates **code-complete** items (done) from **infrastructure/de
 All items below are implemented, tested, and committed:
 
 - [x] ScopeGate authorization: default-deny, 260 tests pass, TLA+ verified (6 invariants)
-- [x] Break-glass dual-approval: `src/strix/core/scope_breakglass.py` + 21 tests + CLI + metrics
+- [x] Break-glass dual-approval: `src/ishastra/core/scope_breakglass.py` + 21 tests + CLI + metrics
 - [x] Penetration test report: `docs/penetration-test-report.md` + RoE template
 - [x] Secret generation: `scripts/generate-secrets.py` (Ed25519, AES-256, HMAC, API keys, DB/Redis)
 - [x] Secret management examples: SealedSecrets + ExternalSecrets Operator manifests
@@ -48,7 +48,7 @@ helm repo add external-secrets https://charts.external-secrets.io
 helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
 
 # 2. Create SecretStore pointing to your backend (Vault, AWS, Azure, GCP)
-kubectl apply -f deploy/helm/strix/externalsecrets-example.yaml
+kubectl apply -f deploy/helm/ishastra/externalsecrets-example.yaml
 # Edit SecretStore spec with your Vault/AWS/GCP/Azure config
 
 # 3. Generate production secrets (run ONCE, store in secret manager)
@@ -56,7 +56,7 @@ python3 scripts/generate-secrets.py \
   --output-dir ./prod-secrets \
   --k8s-manifest \
   --env-file \
-  --namespace strix-staging \
+  --namespace ishastra-staging \
   --postgres-host <your-postgres-host> \
   --redis-host <your-redis-host>
 
@@ -66,8 +66,8 @@ python3 scripts/generate-secrets.py \
 
 # 5. Create required cluster secrets manually (not in ExternalSecrets):
 #    - ghcr-secret: docker config for ghcr.io (if image is private)
-#    - strix-redis-secret: redis-password (if not using ExternalSecrets)
-#    - strix-postgresql-secret: postgresql-password + database-url
+#    - ishastra-redis-secret: redis-password (if not using ExternalSecrets)
+#    - ishastra-postgresql-secret: postgresql-password + database-url
 ```
 
 ### 2. Configure GitHub Environments
@@ -78,8 +78,8 @@ In GitHub repo settings → Environments, create two environments:
 
 | Environment | Required Secrets | Required Variables |
 |-------------|------------------|-------------------|
-| `staging` | `STAGING_KUBECONFIG`, `STRIX_SCOPE_JSON` | `STRIX_INGRESS_HOST`, `STRIX_API_HOST` |
-| `production` | `PRODUCTION_KUBECONFIG`, `STRIX_SCOPE_JSON` | `STRIX_INGRESS_HOST`, `STRIX_API_HOST` |
+| `staging` | `STAGING_KUBECONFIG`, `ISHASTRA_SCOPE_JSON` | `ISHASTRA_INGRESS_HOST`, `ISHASTRA_API_HOST` |
+| `production` | `PRODUCTION_KUBECONFIG`, `ISHASTRA_SCOPE_JSON` | `ISHASTRA_INGRESS_HOST`, `ISHASTRA_API_HOST` |
 
 **Scope JSON must include:**
 ```json
@@ -124,8 +124,8 @@ This triggers the full CI pipeline including:
 
 ```bash
 # Set environment variable and run
-export STRIX_E2E_BASE_URL=https://staging-api.your-domain.com
-export STRIX_SCOPE_FILE=/path/to/staging/scope.json
+export ISHASTRA_E2E_BASE_URL=https://staging-api.your-domain.com
+export ISHASTRA_SCOPE_FILE=/path/to/staging/scope.json
 pytest -v tests/e2e/
 ```
 
@@ -134,7 +134,7 @@ pytest -v tests/e2e/
 **Prerequisite:** PostgreSQL 16 available
 
 ```bash
-export STRIX_POSTGRES_DSN="postgresql://user:pass@host:5432/strix"
+export ISHASTRA_POSTGRES_DSN="postgresql://user:pass@host:5432/ishastra"
 pytest -v tests/integration/ tests/soak/ -m "not infrastructure"
 ```
 
@@ -186,7 +186,7 @@ k6 run --vus 50 --duration 5m load-test/k6-load-test.js \
 
 ### Launch (T=0)
 - [ ] Trigger `deploy-production` workflow dispatch from v3.5.0 tag
-- [ ] Monitor deployment rollout: `kubectl rollout status deployment/strix-strix-api -n strix-production --timeout=5m`
+- [ ] Monitor deployment rollout: `kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-production --timeout=5m`
 - [ ] Run production smoke tests (auto-run in workflow)
 - [ ] Verify `/api/health`, `/api/ready`, `/api/metrics` (admin), `/api/findings` (admin) all return expected codes
 - [ ] Verify `/docs` returns 404 (disabled in production)
@@ -200,7 +200,7 @@ k6 run --vus 50 --duration 5m load-test/k6-load-test.js \
 ### Rollback Plan (if needed)
 ```bash
 # Manual rollback (also available via workflow_dispatch)
-helm rollback strix-prod -n strix-production --wait --timeout 5m
+helm rollback ishastra-prod -n ishastra-production --wait --timeout 5m
 # Verify health after rollback
 curl -sf https://api.your-domain.com/api/health
 curl -sf https://api.your-domain.com/api/ready

@@ -203,20 +203,20 @@ Complete reference for configuring the Scope Gate authorization engine.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STRIX_SCOPE_DOC_PATH` | `scope.json` | Path to scope document |
-| `STRIX_SCOPE_CACHE_TTL` | `300` | DNS cache TTL (seconds) |
-| `STRIX_SCOPE_MAX_CACHE_SIZE` | `10000` | Max cached resolutions |
-| `STRIX_DNS_RESOLVER` | `system` | Default DNS resolver |
-| `STRIX_DNS_TIMEOUT` | `5` | Default DNS timeout |
-| `STRIX_BREAK_GLASS_ENABLED` | `false` | Global break-glass enable |
-| `STRIX_REVOCATION_URL` | — | Revocation check endpoint |
-| `STRIX_JWKS_URL` | — | JWKS endpoint for verification |
+| `ISHASTRA_SCOPE_DOC_PATH` | `scope.json` | Path to scope document |
+| `ISHASTRA_SCOPE_CACHE_TTL` | `300` | DNS cache TTL (seconds) |
+| `ISHASTRA_SCOPE_MAX_CACHE_SIZE` | `10000` | Max cached resolutions |
+| `ISHASTRA_DNS_RESOLVER` | `system` | Default DNS resolver |
+| `ISHASTRA_DNS_TIMEOUT` | `5` | Default DNS timeout |
+| `ISHASTRA_BREAK_GLASS_ENABLED` | `false` | Global break-glass enable |
+| `ISHASTRA_REVOCATION_URL` | — | Revocation check endpoint |
+| `ISHASTRA_JWKS_URL` | — | JWKS endpoint for verification |
 
 ## Programmatic Configuration
 
 ```python
-from strix.core.scope import ScopeGate, ScopeDocument
-from strix.core.scope_signing import JWKSManager
+from ishastra.core.scope import ScopeGate, ScopeDocument
+from ishastra.core.scope_signing import JWKSManager
 
 # Create scope document
 scope = ScopeDocument(
@@ -239,7 +239,7 @@ gate = ScopeGate(
     scope=scope,
     cache_ttl=300,
     max_cache_size=10000,
-    observers=[StrixProofObserver(signer, key_id, storage, jwks_manager)],
+    observers=[IshastraProofObserver(signer, key_id, storage, jwks_manager)],
 )
 
 # Or load from file
@@ -265,7 +265,7 @@ if errors:
 
 ```bash
 # Validate against JSON Schema
-python -m strix.core.scope validate scope.json
+python -m ishastra.core.scope validate scope.json
 
 # Or with jsonschema CLI
 jsonschema -i scope.json schemas/scope-v2.json
@@ -412,7 +412,7 @@ Before deploying:
 - [ ] `allowed_ports` are 1-65535
 - [ ] If `dns_resolver: "custom"`, `dns_servers` provided
 - [ ] If `break_glass.enabled`, at least 2 approvers
-- [ ] Scope validates without errors: `python -m strix.core.scope validate scope.json`
+- [ ] Scope validates without errors: `python -m ishastra.core.scope validate scope.json`
 
 ## Related
 

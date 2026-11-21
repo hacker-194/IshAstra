@@ -1,10 +1,10 @@
-"""Tests for strix.crypto module."""
+"""Tests for ishastra.crypto module."""
 
 from __future__ import annotations
 
 import pytest
 
-from strix.crypto import EncryptionError, decrypt, encrypt, generate_key
+from ishastra.crypto import EncryptionError, decrypt, encrypt, generate_key
 
 
 class TestCrypto:
@@ -33,7 +33,7 @@ class TestCrypto:
         """Test empty string encryption (28-byte edge case fix)."""
         key = generate_key()
         encrypted = encrypt("", key)
-        assert encrypted == ""  # Empty plaintext returns empty string
+        assert encrypted == ""
         decrypted = decrypt(encrypted, key)
         assert decrypted == ""
 
@@ -67,12 +67,11 @@ class TestCrypto:
         key = generate_key()
         plaintext = "secret"
         encrypted = encrypt(plaintext, key)
-        # Corrupt the ciphertext
+
         import base64
 
         decoded = base64.b64decode(encrypted)
-        # Flip the last byte rather than overwriting it: writing a constant can
-        # leave the ciphertext unchanged when that byte already holds the value.
+
         corrupted = decoded[:-1] + bytes([decoded[-1] ^ 0xFF])
         corrupted_b64 = base64.b64encode(corrupted).decode()
         with pytest.raises(EncryptionError, match="invalid key or corrupted data"):
@@ -100,7 +99,7 @@ class TestCrypto:
     def test_ciphertext_too_short(self):
         """Test too short ciphertext raises error (28-byte edge case)."""
         key = generate_key()
-        # 28 bytes = 12 byte nonce + 16 byte tag (no ciphertext)
+
         import base64
 
         short_ciphertext = base64.b64encode(b"x" * 28).decode()

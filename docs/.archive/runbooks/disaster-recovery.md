@@ -2,7 +2,7 @@
 
 ## Overview
 
-This runbook covers full disaster recovery procedures for Strix platform.
+This runbook covers full disaster recovery procedures for Ishastra platform.
 
 **RTO (Recovery Time Objective): 4 hours**
 **RPO (Recovery Point Objective): 1 hour**
@@ -14,8 +14,8 @@ This runbook covers full disaster recovery procedures for Strix platform.
 | Scenario | Severity | Detection |
 |----------|----------|-----------|
 | Regional outage | SEV-1 | Cloud provider status, monitoring alerts |
-| Database corruption/loss | SEV-1 | `StrixAuditChainVerificationFailed`, data integrity checks |
-| Kubernetes cluster loss | SEV-1 | All `up{job=~"strix|prometheus|redis"}` == 0 |
+| Database corruption/loss | SEV-1 | `IshastraAuditChainVerificationFailed`, data integrity checks |
+| Kubernetes cluster loss | SEV-1 | All `up{job=~"ishastra|prometheus|redis"}` == 0 |
 | Ransomware/encryption | SEV-1 | Unusual file encryption, ransom notes |
 | Data center destruction | SEV-1 | Physical loss, cloud region unavailable |
 
@@ -27,11 +27,11 @@ This runbook covers full disaster recovery procedures for Strix platform.
 
 | Component | Frequency | Retention | Location |
 |-----------|-----------|-----------|----------|
-| SQLite Database (`strix.db`) | Hourly (WAL) + Daily full | 30 days daily, 1 year monthly | S3/GCS bucket `strix-backups/db` |
-| Scope Configuration (`scope.json`) | On change + Daily | 90 days | S3/GCS bucket `strix-backups/config` |
+| SQLite Database (`ishastra.db`) | Hourly (WAL) + Daily full | 30 days daily, 1 year monthly | S3/GCS bucket `ishastra-backups/db` |
+| Scope Configuration (`scope.json`) | On change + Daily | 90 days | S3/GCS bucket `ishastra-backups/config` |
 | Kubernetes Manifests | On change (Git) | Permanent | Git repository |
 | Secrets (encrypted) | On change | 90 days | Vault / Sealed Secrets |
-| Redis RDB/AOF | Every 60s (AOF) | 7 days | S3/GCS bucket `strix-backups/redis` |
+| Redis RDB/AOF | Every 60s (AOF) | 7 days | S3/GCS bucket `ishastra-backups/redis` |
 | Prometheus Data | Continuous (remote write) | 15 days | Thanos/Cortex or S3 |
 | Grafana Dashboards | On change (Git) | Permanent | Git repository |
 
@@ -42,14 +42,14 @@ This runbook covers full disaster recovery procedures for Strix platform.
 #!/bin/bash
 # verify-backups.sh
 
-LATEST_DB=$(aws s3 ls s3://strix-backups/db/ --recursive | sort | tail -n 1 | awk '{print $4}')
-aws s3 cp s3://strix-backups/db/$LATEST_DB /tmp/verify.db
+LATEST_DB=$(aws s3 ls s3://ishastra-backups/db/ --recursive | sort | tail -n 1 | awk '{print $4}')
+aws s3 cp s3://ishastra-backups/db/$LATEST_DB /tmp/verify.db
 
 # Verify integrity
 sqlite3 /tmp/verify.db "PRAGMA integrity_check;" | grep -q "ok" || exit 1
 
 # Verify audit chain
-export STRIX_AUDIT_HMAC_KEY="$(vault kv get -field=STRIX_AUDIT_HMAC_KEY secret/strix)"
+export ISHASTRA_AUDIT_HMAC_KEY="$(vault kv get -field=ISHASTRA_AUDIT_HMAC_KEY secret/ishastra)"
 python scripts/operational_check.py --db /tmp/verify.db --out /tmp/verify-copy.db
 
 echo "Backup verification PASSED"
@@ -68,10 +68,10 @@ kubectl get pods -A | grep -v Running
 kubectl get pvc -A | grep -v Bound
 
 # Check database accessibility
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
 
 # Check backup availability
-aws s3 ls s3://strix-backups/db/ --recursive | tail -5
+aws s3 ls s3://ishastra-backups/db/ --recursive | tail -5
 ```
 
 ### 2. Determine Recovery Strategy
@@ -93,32 +93,32 @@ aws s3 ls s3://strix-backups/db/ --recursive | tail -5
 #### Step 1: Stop Writers
 ```bash
 # Scale down all writers
-kubectl scale deployment strix-api -n strix --replicas=0
-kubectl scale deployment strix-scheduler -n strix --replicas=0
-kubectl scale deployment strix-worker -n strix --replicas=0  # if exists
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=0
+kubectl scale deployment ishastra-worker -n ishastra --replicas=0  # if exists
 ```
 
 #### Step 2: Identify Latest Good Backup
 ```bash
 # List available backups
-aws s3 ls s3://strix-backups/db/ --recursive --human-readable --summarize | tail -20
+aws s3 ls s3://ishastra-backups/db/ --recursive --human-readable --summarize | tail -20
 
 # Get latest verified backup
-LATEST_BACKUP=$(aws s3 ls s3://strix-backups/db/verified/ --recursive | sort | tail -n 1 | awk '{print $4}')
+LATEST_BACKUP=$(aws s3 ls s3://ishastra-backups/db/verified/ --recursive | sort | tail -n 1 | awk '{print $4}')
 echo "Restoring: $LATEST_BACKUP"
 ```
 
 #### Step 3: Restore Database
 ```bash
 # Download backup
-aws s3 cp s3://strix-backups/db/verified/$LATEST_BACKUP /tmp/strix.db.restored
+aws s3 cp s3://ishastra-backups/db/verified/$LATEST_BACKUP /tmp/ishastra.db.restored
 
 # Verify before restore
-sqlite3 /tmp/strix.db.restored "PRAGMA integrity_check;"
-sqlite3 /tmp/strix.db.restored "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM findings;"
+sqlite3 /tmp/ishastra.db.restored "PRAGMA integrity_check;"
+sqlite3 /tmp/ishastra.db.restored "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM findings;"
 
 # Copy to PVC (if using PVC)
-kubectl cp /tmp/strix.db.restored strix/strix-api-0:/var/lib/strix/strix.db -c strix-api
+kubectl cp /tmp/ishastra.db.restored ishastra/ishastra-api-0:/var/lib/ishastra/ishastra.db -c ishastra-api
 
 # Or if using emptyDir, recreate PVC with backup
 # (requires PVC recreation)
@@ -127,36 +127,36 @@ kubectl cp /tmp/strix.db.restored strix/strix-api-0:/var/lib/strix/strix.db -c s
 #### Step 4: Restore Scope Configuration
 ```bash
 # Get latest scope backup
-LATEST_SCOPE=$(aws s3 ls s3://strix-backups/config/ --recursive | sort | tail -n 1 | awk '{print $4}')
-aws s3 cp s3://strix-backups/config/$LATEST_SCOPE /tmp/scope.json.restored
+LATEST_SCOPE=$(aws s3 ls s3://ishastra-backups/config/ --recursive | sort | tail -n 1 | awk '{print $4}')
+aws s3 cp s3://ishastra-backups/config/$LATEST_SCOPE /tmp/scope.json.restored
 
 # Update ConfigMap
-kubectl create configmap strix-config-restored --from-file=scope.json=/tmp/scope.json.restored -n strix --dry-run=client -o yaml | kubectl apply -f -
-kubectl patch configmap strix-config -n strix -p "$(kubectl get configmap strix-config-restored -n strix -o json | jq -r '.data')"
+kubectl create configmap ishastra-config-restored --from-file=scope.json=/tmp/scope.json.restored -n ishastra --dry-run=client -o yaml | kubectl apply -f -
+kubectl patch configmap ishastra-config -n ishastra -p "$(kubectl get configmap ishastra-config-restored -n ishastra -o json | jq -r '.data')"
 ```
 
 #### Step 5: Restart Services
 ```bash
 # Scale up
-kubectl scale deployment strix-api -n strix --replicas=3
-kubectl scale deployment strix-scheduler -n strix --replicas=1
+kubectl scale deployment ishastra-api -n ishastra --replicas=3
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=1
 
 # Wait for ready
-kubectl rollout status deployment/strix-api -n strix --timeout=300s
-kubectl rollout status deployment/strix-scheduler -n strix --timeout=300s
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s
+kubectl rollout status deployment/ishastra-scheduler -n ishastra --timeout=300s
 ```
 
 #### Step 6: Verify Recovery
 ```bash
 # Health checks
-curl -s http://strix.example.com/api/health
-curl -s http://strix.example.com/api/ready
+curl -s http://ishastra.example.com/api/health
+curl -s http://ishastra.example.com/api/ready
 
 # Audit chain verification
-curl -s -H "Authorization: Bearer $ADMIN_KEY" http://strix.example.com/api/audit/verify | jq .
+curl -s -H "Authorization: Bearer $ADMIN_KEY" http://ishastra.example.com/api/audit/verify | jq .
 
 # Functional test
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TEST_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://example.com", "profile": "web", "wait": true}'
@@ -190,7 +190,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
 ```
 
-#### Step 3: Deploy Strix via ArgoCD / Helm
+#### Step 3: Deploy Ishastra via ArgoCD / Helm
 ```bash
 # Option A: ArgoCD (preferred - declarative)
 # ArgoCD applications already point to Git repo
@@ -198,8 +198,8 @@ helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring
 kubectl apply -k deploy/argocd/overlays/dr-region
 
 # Option B: Helm directly
-helm install strix ./deploy/helm/strix -n strix --create-namespace \
-  -f deploy/helm/strix/values-dr.yaml \
+helm install ishastra ./deploy/helm/ishastra -n ishastra --create-namespace \
+  -f deploy/helm/ishastra/values-dr.yaml \
   --set global.image.tag=3.5.0
 ```
 
@@ -220,13 +220,13 @@ kubectl apply -f deploy/argocd/secrets/external-secrets/
 aws route53 change-resource-record-sets --hosted-zone-id ZXXXXXXXX --change-batch file://dns-failover.json
 
 # Verify DNS propagation
-dig strix.example.com
+dig ishastra.example.com
 ```
 
 #### Step 6: Verify Full Functionality
 ```bash
 # Run smoke tests
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/pytest tests/smoke/ -v
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/pytest tests/smoke/ -v
 
 # Verify monitoring
 curl -s http://prometheus.monitoring.svc.cluster.local:9090/-/healthy
@@ -249,7 +249,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: deny-all-egress
-  namespace: strix
+  namespace: ishastra
 spec:
   podSelector: {}
   policyTypes:
@@ -281,7 +281,7 @@ kubectl get pv -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CLAIM:
 aws ec2 create-snapshot --volume-id vol-xxxx --description "Forensic snapshot $(date)"
 
 # Preserve logs
-kubectl logs -n strix -l app.kubernetes.io/name=strix --all-containers --tail=-1 > /forensics/strix-logs-$(date +%s).txt
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra --all-containers --tail=-1 > /forensics/ishastra-logs-$(date +%s).txt
 ```
 
 ---
@@ -330,8 +330,8 @@ kubectl logs -n strix -l app.kubernetes.io/name=strix --all-containers --tail=-1
 
 ## Grafana Dashboard Links
 
-- **Backup Status**: `https://grafana.example.com/d/strix-backups/backup-status`
-- **DR Readiness**: `https://grafana.example.com/d/strix-dr/dr-readiness`
+- **Backup Status**: `https://grafana.example.com/d/ishastra-backups/backup-status`
+- **DR Readiness**: `https://grafana.example.com/d/ishastra-dr/dr-readiness`
 
 **Key Panels:**
 - Last Successful Backup Timestamp (stat)

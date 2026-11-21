@@ -1,9 +1,9 @@
-"""Pytest configuration and fixtures for Strix.
+"""Pytest configuration and fixtures for Ishastra.
 
 This module provides fixtures for:
 - Unit tests (mocked, fast, no external dependencies)
 - Integration tests (against test targets like httpbin, juice-shop)
-- E2E tests (against running Strix API)
+- E2E tests (against running Ishastra API)
 """
 
 from __future__ import annotations
@@ -18,15 +18,14 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# Set test environment variables BEFORE importing strix modules
-os.environ["STRIX_RATE_LIMIT_DISABLED"] = "1"
-os.environ["STRIX_SKIP_REDIS_INIT"] = "1"
-os.environ["STRIX_DB"] = "/tmp/strix-test.db"
-os.environ["STRIX_SCOPE_FILE"] = "/tmp/scope.json"
-os.environ["STRIX_API_KEY"] = "test-key-12345678901234567890123456789012"
-os.environ["STRIX_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="  # base64 of 32 bytes
-os.environ["STRIX_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
-os.environ["STRIX_WORKERS"] = "1"
+os.environ["ISHASTRA_RATE_LIMIT_DISABLED"] = "1"
+os.environ["ISHASTRA_SKIP_REDIS_INIT"] = "1"
+os.environ["ISHASTRA_DB"] = "/tmp/ishastra-test.db"
+os.environ["ISHASTRA_SCOPE_FILE"] = "/tmp/scope.json"
+os.environ["ISHASTRA_API_KEY"] = "test-key-12345678901234567890123456789012"
+os.environ["ISHASTRA_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
+os.environ["ISHASTRA_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
+os.environ["ISHASTRA_WORKERS"] = "1"
 
 
 def pytest_sessionfinish() -> None:
@@ -34,36 +33,28 @@ def pytest_sessionfinish() -> None:
     import asyncio
     import contextlib
 
-    from strix.core import store
+    from ishastra.core import store
 
     with contextlib.suppress(Exception):
-        # Not _run_async: it temporarily swaps _database to a private pool, so
-        # the close would be a no-op and the aiosqlite thread would survive.
         asyncio.run(store.close_db_pool())
 
 
 @pytest_asyncio.fixture(autouse=True, scope="function")
 async def reset_store_per_test():
     """Reset the database store between each test to prevent connection leaks."""
-    from strix.core import store
-    from strix.core.store import _database
+    from ishastra.core import store
+    from ishastra.core.store import _database
 
     yield
-    # Close the database pool to prevent cross-test contamination
+
     await store.close_database()
     if _database is not None and hasattr(_database, "discard_sync"):
         _database.discard_sync()
 
 
-# Integration test targets (can be overridden via env vars)
-HTTPBIN_URL = os.environ.get("STRIX_HTTPBIN_URL", "https://httpbin.org")
-JUICE_SHOP_URL = os.environ.get("STRIX_JUICE_SHOP_URL", "http://localhost:3000")
-STRIX_API_URL = os.environ.get("STRIX_API_URL", "http://localhost:8000")
-
-
-# ---------------------------------------------------------------------------
-# Scope Fixtures
-# ---------------------------------------------------------------------------
+HTTPBIN_URL = os.environ.get("ISHASTRA_HTTPBIN_URL", "https://httpbin.org")
+JUICE_SHOP_URL = os.environ.get("ISHASTRA_JUICE_SHOP_URL", "http://localhost:3000")
+ISHASTRA_API_URL = os.environ.get("ISHASTRA_API_URL", "http://localhost:8000")
 
 
 @pytest.fixture
@@ -74,7 +65,7 @@ def temp_db() -> Generator[str, None, None]:
     fd, db_path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     yield db_path
-    # Cleanup
+
     Path(db_path).unlink(missing_ok=True)
     Path(db_path + "-shm").unlink(missing_ok=True)
     Path(db_path + "-wal").unlink(missing_ok=True)
@@ -160,20 +151,15 @@ def scope_file_broad_network() -> Generator[str, None, None]:
     Path(scope_path).unlink(missing_ok=True)
 
 
-# ---------------------------------------------------------------------------
-# Store/Database Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest_asyncio.fixture
 async def store_with_scope(temp_db: str, scope_file: str):
     """Initialize store with test scope."""
-    from strix.core import scope, store
+    from ishastra.core import scope, store
 
     store.configure(temp_db)
-    # Initialize the database
-    await store.get_db()
-    # Load scope
+
+    await store.get_database()
+
     scope.load(scope_file)
     yield store
     await store.close_db_pool()
@@ -182,10 +168,10 @@ async def store_with_scope(temp_db: str, scope_file: str):
 @pytest_asyncio.fixture
 async def store_with_scope_no_auth(temp_db: str, scope_file_no_auth: str):
     """Initialize store with test scope (no auth users)."""
-    from strix.core import scope, store
+    from ishastra.core import scope, store
 
     store.configure(temp_db)
-    await store.get_db()
+    await store.get_database()
     scope.load(scope_file_no_auth)
     yield store
     await store.close_db_pool()
@@ -194,45 +180,39 @@ async def store_with_scope_no_auth(temp_db: str, scope_file_no_auth: str):
 @pytest_asyncio.fixture
 async def store_with_broad_scope(temp_db: str, scope_file_broad_network: str):
     """Initialize store with broad network scope."""
-    from strix.core import scope, store
+    from ishastra.core import scope, store
 
     store.configure(temp_db)
-    await store.get_db()
+    await store.get_database()
     scope.load(scope_file_broad_network)
     yield store
     await store.close_db_pool()
 
 
-# ---------------------------------------------------------------------------
-# API Client Fixtures (for E2E tests)
-# ---------------------------------------------------------------------------
-
-
 @pytest_asyncio.fixture
 async def app_with_db(temp_db: str, scope_file: str):
     """Create test app with configured database and scope."""
-    # Reset module-level singletons for test isolation
-    from strix.api.deps import reset_settings
-    from strix.api.security import api_keys
+
+    from ishastra.api.deps import reset_settings
+    from ishastra.api.security import api_keys
 
     reset_settings()
     api_keys.reset()
-    # Override STRIX_DB so lifespan uses the test database
-    os.environ["STRIX_DB"] = temp_db
-    from strix.core import scope, store
+
+    os.environ["ISHASTRA_DB"] = temp_db
+    from ishastra.core import scope, store
 
     store.configure(temp_db)
     scope.load(scope_file)
-    from strix.api.app import create_app
+    from ishastra.api.app import create_app
 
     app = create_app()
 
-    # Manually run bootstrap (lifespan doesn't run until first request)
-    from strix.api import app as app_module
-    from strix.api import deps
-    from strix.api.app import _bootstrap_admin_key_async
-    from strix.api.deps import init_http_client
-    from strix.core import policies
+    from ishastra.api import app as app_module
+    from ishastra.api import deps
+    from ishastra.api.app import _bootstrap_admin_key_async
+    from ishastra.api.deps import init_http_client
+    from ishastra.core import policies
 
     async def bootstrap():
         await init_http_client()
@@ -242,7 +222,6 @@ async def app_with_db(temp_db: str, scope_file: str):
         await deps.monitor.load_async()
         await _bootstrap_admin_key_async()
 
-        # Initialize scheduler
         app_module._scheduler = await deps.create_scheduler(
             audit_chain=deps.audit_chain,
             monitor=deps.monitor,
@@ -255,7 +234,6 @@ async def app_with_db(temp_db: str, scope_file: str):
     await bootstrap()
     yield app
 
-    # Cleanup scheduler
     if app_module._scheduler is not None:
         await app_module._scheduler.stop()
         app_module._scheduler = None
@@ -276,11 +254,6 @@ async def auth_client(app_with_db) -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         client.headers["Authorization"] = "Bearer test-key-12345678901234567890123456789012"
         yield client
-
-
-# ---------------------------------------------------------------------------
-# Integration Test Fixtures (against external targets)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -318,15 +291,10 @@ def test_targets() -> dict[str, str]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Test Data Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def sample_findings() -> list[dict[str, Any]]:
     """Sample findings for testing dedupe, SARIF, etc."""
-    from strix.core.findings import Finding
+    from ishastra.core.findings import Finding
 
     return [
         Finding(
@@ -335,7 +303,7 @@ def sample_findings() -> list[dict[str, Any]]:
             title="Missing Content-Security-Policy header",
             severity="low",
             confidence="medium",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence="HTTP 200 response carries no Content-Security-Policy header",
             location="https://example.com/",
@@ -348,7 +316,7 @@ def sample_findings() -> list[dict[str, Any]]:
             title="Missing Strict-Transport-Security header",
             severity="low",
             confidence="medium",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence="HTTPS response 200 carries no Strict-Transport-Security header",
             location="https://example.com/",
@@ -361,7 +329,7 @@ def sample_findings() -> list[dict[str, Any]]:
             title="Potential SQL injection indicator in request target",
             severity="info",
             confidence="low",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence=(
                 "request-target signature matched; this is an indicator only "
@@ -384,11 +352,6 @@ def mock_adapter_context() -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Crypto Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def encryption_key() -> str:
     """Valid base64-encoded 32-byte encryption key for testing."""
@@ -399,11 +362,6 @@ def encryption_key() -> str:
 def wrong_encryption_key() -> str:
     """Different base64-encoded 32-byte key for negative testing."""
     return "Y5vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
-
-
-# ---------------------------------------------------------------------------
-# Utility Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -418,17 +376,12 @@ def cancel_event() -> Generator[Any, None, None]:
 def reset_singletons():
     """Reset module-level singletons between tests for isolation."""
     yield
-    # Reset any global state that might leak between tests
-    from strix.core import scope
+
+    from ishastra.core import scope
 
     scope._active_scope = None
     scope._bound_scope = None
     scope._pinned_destinations = {}
-
-
-# ---------------------------------------------------------------------------
-# Markers Helpers
-# ---------------------------------------------------------------------------
 
 
 def pytest_configure(config):
@@ -448,18 +401,17 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     """Automatically add markers based on test location/name."""
     for item in items:
-        # Add asyncio marker to async tests
         if "asyncio" in item.keywords:
             item.add_marker(pytest.mark.asyncio)
-        # Add unit marker to tests in unit folder or named test_* without integration/e2e
+
         is_unit_path = "unit" in str(item.fspath)
         is_not_integration_e2e = "integration" not in str(item.fspath) and "e2e" not in str(item.fspath)
         no_integration_e2e_kw = "integration" not in item.keywords and "e2e" not in item.keywords
         if (is_unit_path or is_not_integration_e2e) and no_integration_e2e_kw:
             item.add_marker(pytest.mark.unit)
-        # Add integration marker
+
         if "integration" in str(item.fspath) or "integration" in item.name:
             item.add_marker(pytest.mark.integration)
-        # Add e2e marker
+
         if "e2e" in str(item.fspath) or "e2e" in item.name:
             item.add_marker(pytest.mark.e2e)

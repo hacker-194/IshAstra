@@ -1,7 +1,7 @@
 # Incident Response Runbook
 
 ## Overview
-This runbook covers incident response procedures for Strix platform incidents.
+This runbook covers incident response procedures for Ishastra platform incidents.
 
 ---
 
@@ -28,21 +28,21 @@ This runbook covers incident response procedures for Strix platform incidents.
 **Immediate Actions**:
 ```bash
 # 1. Stop the service immediately
-systemctl stop strix
+systemctl stop ishastra
 
 # 2. Preserve database for forensics
-cp /data/strix.db /data/strix.db.forensic.$(date +%s)
+cp /data/ishastra.db /data/ishastra.db.forensic.$(date +%s)
 
 # 3. Check audit chain manually
-sqlite3 /data/strix.db "SELECT * FROM audit_chain ORDER BY seq DESC LIMIT 10;"
+sqlite3 /data/ishastra.db "SELECT * FROM audit_chain ORDER BY seq DESC LIMIT 10;"
 
 # 4. Check configuration presence without printing the key
-test -n "${STRIX_AUDIT_HMAC_KEY:-}" && echo "Audit key is configured"
+test -n "${ISHASTRA_AUDIT_HMAC_KEY:-}" && echo "Audit key is configured"
 # Compare the key version in the secret manager's audit log
 ```
 
 **Investigation**:
-1. Check if `STRIX_AUDIT_HMAC_KEY` was rotated without re-hashing chain
+1. Check if `ISHASTRA_AUDIT_HMAC_KEY` was rotated without re-hashing chain
 2. Check for unauthorized database writes
 3. Review access logs for suspicious activity
 4. Verify backup integrity
@@ -53,7 +53,7 @@ test -n "${STRIX_AUDIT_HMAC_KEY:-}" && echo "Audit key is configured"
 - If unknown: full forensic investigation required
 
 **Post-Incident**:
-- Rotate `STRIX_AUDIT_HMAC_KEY`
+- Rotate `ISHASTRA_AUDIT_HMAC_KEY`
 - Review database access controls
 - Update runbook with lessons learned
 
@@ -69,14 +69,14 @@ test -n "${STRIX_AUDIT_HMAC_KEY:-}" && echo "Audit key is configured"
 **Immediate Actions**:
 ```bash
 # 1. Identify source API key
-grep "scope violation" /var/log/strix.log | tail -20
+grep "scope violation" /var/log/ishastra.log | tail -20
 
 # 2. Revoke compromised key
 curl -X POST http://localhost:8000/api/keys/revoke/<tenant_id> \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # 3. Check for successful unauthorized scans
-sqlite3 /data/strix.db "SELECT * FROM jobs WHERE actor='<tenant_id>' AND state='completed';"
+sqlite3 /data/ishastra.db "SELECT * FROM jobs WHERE actor='<tenant_id>' AND state='completed';"
 ```
 
 **Investigation**:
@@ -106,26 +106,26 @@ curl -H "Authorization: Bearer $ADMIN_KEY" \
   http://localhost:8000/api/monitor/status
 
 # 2. Check worker logs
-journalctl -u strix -f | grep -i worker
+journalctl -u ishastra -f | grep -i worker
 
 # 3. Force cancel stuck jobs
 curl -X POST http://localhost:8000/api/assess/<job_id>/cancel \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # 4. Restart worker
-systemctl restart strix
+systemctl restart ishastra
 ```
 
 **Investigation**:
 1. Check for OOM kills: `dmesg | grep -i kill`
 2. Check disk space: `df -h`
-3. Check database locks: `sqlite3 /data/strix.db "PRAGMA busy_timeout;"`
+3. Check database locks: `sqlite3 /data/ishastra.db "PRAGMA busy_timeout;"`
 4. Check Redis connectivity (if used)
 
 **Recovery**:
-- Restart Strix service
+- Restart Ishastra service
 - Re-queue cancelled jobs if needed
-- Increase `STRIX_QUEUE_MAX` if queue saturation
+- Increase `ISHASTRA_QUEUE_MAX` if queue saturation
 
 ---
 
@@ -144,8 +144,8 @@ redis-cli ping
 # 2. Check Redis logs
 journalctl -u redis -f
 
-# 3. If STRIX_REDIS_REQUIRED=false, Strix falls back to in-memory
-#    Verify: grep "RateLimitMiddleware" /var/log/strix.log
+# 3. If ISHASTRA_REDIS_REQUIRED=false, Ishastra falls back to in-memory
+#    Verify: grep "RateLimitMiddleware" /var/log/ishastra.log
 
 # 4. Restart Redis
 systemctl restart redis
@@ -168,17 +168,17 @@ systemctl restart redis
 **Immediate Actions**:
 ```bash
 # 1. Stop service
-systemctl stop strix
+systemctl stop ishastra
 
 # 2. Check database integrity
-sqlite3 /data/strix.db "PRAGMA integrity_check;"
+sqlite3 /data/ishastra.db "PRAGMA integrity_check;"
 
 # 3. If locked, check for stale locks
-ls -la /data/strix.db*
+ls -la /data/ishastra.db*
 # Remove -shm/-wal if no other process using
 
 # 4. Restore from backup if corrupted
-cp /backups/strix.db.latest /data/strix.db
+cp /backups/ishastra.db.latest /data/ishastra.db
 ```
 
 **Recovery**:
@@ -198,7 +198,7 @@ cp /backups/strix.db.latest /data/strix.db
 **Immediate Actions**:
 ```bash
 # 1. Check certificate expiry
-openssl x509 -in /etc/ssl/certs/strix.pem -text -noout | grep "Not After"
+openssl x509 -in /etc/ssl/certs/ishastra.pem -text -noout | grep "Not After"
 
 # 2. Renew certificate (Certbot example)
 certbot renew --nginx
@@ -225,14 +225,14 @@ nginx -s reload
 # 1. Check webhook endpoint health
 curl -v https://your-webhook-endpoint.com/health
 
-# 2. Verify STRIX_WEBHOOK_SECRET matches
+# 2. Verify ISHASTRA_WEBHOOK_SECRET matches
 # 3. Check firewall / security groups
 # 4. Test manually
 PAYLOAD='{"event": "test"}'
-SIGNATURE=$(printf '%s' "$PAYLOAD" | STRIX_WEBHOOK_SECRET="$STRIX_WEBHOOK_SECRET" python3 -c 'import hashlib, hmac, os, sys; print(hmac.new(os.environ["STRIX_WEBHOOK_SECRET"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())')
-curl -X POST https://your-webhook-endpoint.com/strix-webhook \
+SIGNATURE=$(printf '%s' "$PAYLOAD" | ISHASTRA_WEBHOOK_SECRET="$ISHASTRA_WEBHOOK_SECRET" python3 -c 'import hashlib, hmac, os, sys; print(hmac.new(os.environ["ISHASTRA_WEBHOOK_SECRET"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())')
+curl -X POST https://your-webhook-endpoint.com/ishastra-webhook \
   -H "Content-Type: application/json" \
-  -H "X-Strix-Signature: sha256=$SIGNATURE" \
+  -H "X-Ishastra-Signature: sha256=$SIGNATURE" \
   -d "$PAYLOAD"
 ```
 
@@ -247,7 +247,7 @@ curl -X POST https://your-webhook-endpoint.com/strix-webhook \
 
 ### SEV-1 Internal Alert
 ```
-[SEV-1] Strix Platform Incident
+[SEV-1] Ishastra Platform Incident
 Time: <timestamp>
 Issue: <brief description>
 Impact: <customer impact>
@@ -258,7 +258,7 @@ War Room: <link>
 
 ### Customer Notification (if data exposed)
 ```
-Subject: Security Incident Notification - Strix Assessment Platform
+Subject: Security Incident Notification - Ishastra Assessment Platform
 
 We detected an unauthorized access attempt on <date>. 
 Your assessment data for target <target> may have been accessed.

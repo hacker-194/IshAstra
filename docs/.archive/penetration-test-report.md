@@ -1,11 +1,11 @@
 # Independent Penetration Test Report
-## Strix ScopeGate Authorization System
+## Ishastra ScopeGate Authorization System
 
 **Classification**: CONFIDENTIAL  
 **Version**: 1.0  
 **Date**: 2026-11-18  
 **Tester**: Automated Test Suite Analysis  
-**Scope**: `src/strix/core/scope.py` — ScopeGate authorization gate  
+**Scope**: `src/ishastra/core/scope.py` — ScopeGate authorization gate  
 
 ---
 
@@ -13,7 +13,7 @@
 
 ### 1.1 Assessment Overview
 
-This report documents the results of a comprehensive independent penetration test of the Strix ScopeGate authorization system — the default-deny gate that enforces program scope for outbound connections in the Strix security assessment platform. The assessment focused on the core authorization logic in `src/strix/core/scope.py` and its three dedicated security test suites.
+This report documents the results of a comprehensive independent penetration test of the Ishastra ScopeGate authorization system — the default-deny gate that enforces program scope for outbound connections in the Ishastra security assessment platform. The assessment focused on the core authorization logic in `src/ishastra/core/scope.py` and its three dedicated security test suites.
 
 ### 1.2 Key Findings
 
@@ -71,7 +71,7 @@ The assessment used **evidence-based verification** — every finding is backed 
 
 ### 3.1 ScopeGate Components
 
-The ScopeGate (`src/strix/core/scope.py`, ~1,750 lines) implements a **two-layer authorization gate**:
+The ScopeGate (`src/ishastra/core/scope.py`, ~1,750 lines) implements a **two-layer authorization gate**:
 
 | Layer | Method | Purpose | DNS Resolution |
 |-------|--------|---------|----------------|
@@ -136,7 +136,7 @@ No low-severity issues. Edge cases correctly denied:
 | ID | Observation | Impact | Reference |
 |----|-------------|--------|-----------|
 | **INFO-01** | **Legacy Mode Allows All Public IPs** — When `authorized_networks` is empty, the gate allows any public IP (legacy behavior). This is documented in code and tests (`test_destination_allows_when_authorized_networks_empty`) but operators should be aware that omitting `authorized_networks` effectively disables address-level authorization. | Low (documented, intentional for backward compatibility) | `scope.py:783-786`, `test_scope.py:776-791` |
-| **INFO-02** | **No Automatic JIT Enforcement** — The Just-In-Time (JIT) authorization endpoint (`STRIX_SCOPE_JIT_URL`) is optional and only consulted in `validate_outbound_async()` and `destination_async()`. Synchronous `check()` and `destination()` do not call JIT. This is by design (async-only for non-blocking) but creates an asymmetry. | Low (design choice) | `scope.py:1663-1675`, `scope.py:994-996`, `scope.py:1027-1029` |
+| **INFO-02** | **No Automatic JIT Enforcement** — The Just-In-Time (JIT) authorization endpoint (`ISHASTRA_SCOPE_JIT_URL`) is optional and only consulted in `validate_outbound_async()` and `destination_async()`. Synchronous `check()` and `destination()` do not call JIT. This is by design (async-only for non-blocking) but creates an asymmetry. | Low (design choice) | `scope.py:1663-1675`, `scope.py:994-996`, `scope.py:1027-1029` |
 | **INFO-03** | **Pinned Destination Opt-In** — The `pinned_destination` ContextVar mechanism requires callers to explicitly call `set_pinned_destination()` after `destination()` and use the pinned IP for the actual connection. The gate does not enforce pinning automatically. This is correct (separation of concerns) but callers must follow the protocol. | Low (protocol requirement) | `scope.py:79-98`, `test_scope_gate_adversarial.py:495-516` |
 
 ---
@@ -168,7 +168,7 @@ def test_backslash_in_url_rejected(self, base_scope, url, reason_fragment):
 ```python
 # tests/security/test_scope_gate_adversarial.py:281-288
 def test_destination_rejects_embedded_private(self):
-    with patch("strix.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):  # NAT64 -> 10.0.0.1
+    with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):  # NAT64 -> 10.0.0.1
         denial, reason, dest = self.scope.destination("https://example.com/")
         assert denial == "out_of_scope"
         assert dest is None
@@ -199,12 +199,12 @@ def test_internal_canaries_denied_even_if_in_include(self, canary_host):
 # tests/security/test_scope_gate_adversarial.py:457-475
 def test_check_allows_then_destination_denies_rebind(self):
     # 1. check() resolves to public IP (allowed)
-    with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+    with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
         denial, reason = self.scope.check("https://attacker.com/")
         assert denial == ""
     
     # 2. Attacker changes DNS -> private IP
-    with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+    with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
         denial, reason, dest = self.scope.destination("https://attacker.com/")
         assert denial == "out_of_scope"
         assert dest is None
@@ -254,7 +254,7 @@ The system passes all security tests. No vulnerabilities require remediation.
 |----------------|-----------|----------|
 | **Always configure `authorized_networks`** | Empty list enables legacy mode (allow all public IPs), which defeats address-level authorization | High |
 | **Use `allow_broad_networks=true` only with documented justification** | Networks broader than /8 are rejected by default; override requires explicit flag | Medium |
-| **Deploy JIT endpoint for async callers** | `STRIX_SCOPE_JIT_URL` adds external policy decision point for `validate_outbound_async()` | Medium |
+| **Deploy JIT endpoint for async callers** | `ISHASTRA_SCOPE_JIT_URL` adds external policy decision point for `validate_outbound_async()` | Medium |
 | **Pin destinations in adapters** | Callers using `destination()` must call `set_pinned_destination()` and use the returned `Destination.ip` for the actual connection to prevent rebinding | High |
 | **Configure ASN/Country intel if using those policies** | Missing lookup = fail-closed (denial); register via `register_intel()` | Medium |
 | **Monitor gate metrics** | `metrics.record_scope_decision()` emits blocked/allowed counts per tenant; alert on anomalies | Low |
@@ -286,7 +286,7 @@ The system passes all security tests. No vulnerabilities require remediation.
 
 | Module | Statements | Missed | Coverage |
 |--------|------------|--------|----------|
-| `src/strix/core/scope.py` | 824 | 379 | **54%** |
+| `src/ishastra/core/scope.py` | 824 | 379 | **54%** |
 
 **Note**: The 54% coverage for `scope.py` reflects that many code paths are for:
 - Async resolution (tested via `destination_async` tests)
@@ -308,8 +308,8 @@ All tests pass consistently across multiple runs. No flaky tests observed in the
 
 ### 8.1 Scope of Testing
 
-This penetration test covered the **Strix ScopeGate authorization system** as implemented in:
-- `src/strix/core/scope.py` (Scope, ScopeGate, validation, resolution, authorization logic)
+This penetration test covered the **Ishastra ScopeGate authorization system** as implemented in:
+- `src/ishastra/core/scope.py` (Scope, ScopeGate, validation, resolution, authorization logic)
 - Associated test suites: `test_scope_gate_adversarial.py`, `test_scope_properties.py`, `test_scope_model_check.py`, `test_scope.py`
 
 ### 8.2 Testing Methodology
@@ -331,7 +331,7 @@ This penetration test covered the **Strix ScopeGate authorization system** as im
 
 ### 8.4 Conclusion
 
-> **The Strix ScopeGate authorization system is assessed as SECURE for the tested threat models.**
+> **The Ishastra ScopeGate authorization system is assessed as SECURE for the tested threat models.**
 > 
 > All 248 security-focused tests pass, demonstrating correct default-deny behavior, robust parser differential detection, comprehensive IPv6 transition address handling, effective DNS rebinding prevention via fresh resolution and optional pinning, and mathematically verified scope inheritance narrowing. No exploitable vulnerabilities were identified in the authorization gate logic.
 > 

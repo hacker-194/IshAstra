@@ -1,11 +1,11 @@
-# Strix Observability Stack
+# Ishastra Observability Stack
 
-This directory contains the complete observability configuration for Strix, including:
+This directory contains the complete observability configuration for Ishastra, including:
 
 ## Components
 
 ### Prometheus (`prometheus.yml`)
-- Scrapes `/api/metrics` from Strix API (requires admin key)
+- Scrapes `/api/metrics` from Ishastra API (requires admin key)
 - Scrapes node-exporter for host-level metrics (disk, CPU, memory)
 - Loads alerting rules from `alerting.yml`
 - Sends alerts to Alertmanager
@@ -31,12 +31,12 @@ Key alert categories:
 - **Service Health**: Component uptime
 
 ### Grafana Dashboards (`grafana/dashboards/`)
-- **Strix Overview** (`strix-overview.json`): High-level service health, latency, success rates
-- **Job Latency** (`strix-job-latency.json`): HTTP request and job duration percentiles
-- **Adapter Success Rates** (`strix-adapter-success-rates.json`): Per-adapter error rates and invocations
-- **Queue Depth** (`strix-queue-depth.json`): Active jobs, backlog, throughput by tenant
-- **Tenant Throughput** (`strix-tenant-throughput.json`): Request rates, findings, reports by tenant
-- **Error Rates** (`strix-error-rates.json`): HTTP, adapter, auth, webhook error rates
+- **Ishastra Overview** (`ishastra-overview.json`): High-level service health, latency, success rates
+- **Job Latency** (`ishastra-job-latency.json`): HTTP request and job duration percentiles
+- **Adapter Success Rates** (`ishastra-adapter-success-rates.json`): Per-adapter error rates and invocations
+- **Queue Depth** (`ishastra-queue-depth.json`): Active jobs, backlog, throughput by tenant
+- **Tenant Throughput** (`ishastra-tenant-throughput.json`): Request rates, findings, reports by tenant
+- **Error Rates** (`ishastra-error-rates.json`): HTTP, adapter, auth, webhook error rates
 
 ### OpenTelemetry (`otel.py`)
 - Distributed tracing with OTLP export
@@ -50,7 +50,7 @@ Key alert categories:
 ```bash
 # Create secrets directory with admin API key
 mkdir -p secrets
-printf '%s' "$STRIX_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
+printf '%s' "$ISHASTRA_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
 
 # Set Grafana password in .env.production
 echo "GRAFANA_PASSWORD=your-secure-password" >> .env.production
@@ -72,19 +72,19 @@ docker compose --env-file .env.production \
 - **Prometheus**: http://localhost:9090 (SSH tunnel)
 - **Alertmanager**: http://localhost:9093 (SSH tunnel)
 - **Grafana**: http://localhost:3000 (admin / $GRAFANA_PASSWORD)
-- **Strix Metrics**: http://localhost:8000/api/metrics (requires admin key)
+- **Ishastra Metrics**: http://localhost:8000/api/metrics (requires admin key)
 
 ## Exported Metrics
 
-Every series below is defined in `src/strix/metrics.py`:
+Every series below is defined in `src/ishastra/metrics.py`:
 
 | Metric | Type | Labels |
 |---|---|---|
 | `strix_http_requests_total` | counter | `method`, `endpoint`, `status` |
 | `strix_http_request_duration_seconds` | histogram | `method`, `endpoint` |
 | `strix_http_requests_in_progress` | gauge | `method`, `endpoint` |
-| `strix_scope_gate_decisions_total` | counter | `decision`, `reason`, `tenant` |
-| `strix_scope_gate_decision_duration_seconds` | histogram | `decision` |
+| `ishastra_scope_gate_decisions_total` | counter | `decision`, `reason`, `tenant` |
+| `ishastra_scope_gate_decision_duration_seconds` | histogram | `decision` |
 | `strix_rate_limit_hits_total` | counter | `route_class`, `tier`, `allowed` |
 | `strix_rate_limit_exceeded_total` | counter | `route_class`, `tier`, `identity_type` |
 | `strix_jobs_total` | counter | `state`, `tenant` |
@@ -121,7 +121,7 @@ source; the compliance alert was removed rather than left firing on nothing.
 ## Custom-metric autoscaling
 
 The Helm chart's API and worker HPAs use the recording metrics
-`strix_scope_gate_decision_latency_seconds_p95` and
+`ishastra_scope_gate_decision_latency_seconds_p95` and
 `strix_assessment_queue_pending`. Prometheus rules for both are included in the
 chart. HPA custom metrics require the Prometheus Adapter (or another provider
 that exposes `external.metrics.k8s.io`); example values for the
@@ -131,7 +131,7 @@ Prometheus service, install it before enabling custom-metric HPAs, and verify
 the metrics API with:
 
 ```bash
-kubectl get --raw /apis/external.metrics.k8s.io/v1beta1/namespaces/strix/strix_assessment_queue_pending
+kubectl get --raw /apis/external.metrics.k8s.io/v1beta1/namespaces/ishastra/strix_assessment_queue_pending
 ```
 
 ## Enabling OpenTelemetry
@@ -140,8 +140,8 @@ Set the OTLP endpoint to enable distributed tracing:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-export OTEL_SERVICE_NAME=strix
-export OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production,cluster=strix-prod
+export OTEL_SERVICE_NAME=ishastra
+export OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production,cluster=ishastra-prod
 ```
 
 Install optional dependencies:
@@ -170,6 +170,6 @@ Each alert includes a `runbook_url` annotation pointing to documentation. Create
 ## Adding New Dashboards
 
 1. Create dashboard JSON in `grafana/dashboards/`
-2. Ensure `uid` matches the filename pattern: `strix-<name>`
-3. Add link to `strix-overview.json` for navigation
+2. Ensure `uid` matches the filename pattern: `ishastra-<name>`
+3. Add link to `ishastra-overview.json` for navigation
 4. Restart Grafana or wait for provisioning reload (30s default)

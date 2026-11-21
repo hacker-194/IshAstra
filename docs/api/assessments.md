@@ -7,7 +7,7 @@ REST API for creating, managing, and monitoring security assessments.
 ## Base URL
 
 ```
-https://api.strix.dev/api/v1
+https://api.ishastra.dev/api/v1
 ```
 
 ## Assessment Object

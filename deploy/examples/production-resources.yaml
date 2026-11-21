@@ -1,0 +1,116 @@
+apiVersion: ishastra.io/v1alpha1
+kind: Tenant
+metadata:
+  name: production-tenant
+spec:
+  name: production-tenant
+  displayName: "Production Tenant"
+  description: "Primary tenant for production assessments"
+  contactEmail: "security@example.com"
+  settings:
+    defaultPolicy: "standard"
+    maxConcurrentAssessments: 10
+    allowedRegions:
+      - "us-east-1"
+      - "eu-west-1"
+    quota:
+      monthlyBudgetUSD: 10000
+      maxAssessmentsPerMonth: 500
+      maxFindingsRetentionDays: 365
+  status: "Active"
+---
+apiVersion: ishastra.io/v1alpha1
+kind: Policy
+metadata:
+  name: standard-policy
+spec:
+  name: standard-policy
+  displayName: "Standard Security Policy"
+  description: "Balanced policy for routine assessments"
+  tier: "professional"
+  checks:
+    network: true
+    web: true
+    ssl: true
+    headers: true
+    cors: true
+    cookies: true
+    dns: true
+    subdomain: true
+  limits:
+    maxTargets: 200
+    maxConcurrentScans: 10
+    maxScanDurationMinutes: 180
+    allowedPorts: [80, 443, 8080, 8443]
+    allowedNetworks: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+    rateLimit:
+      requestsPerSecond: 50
+      burst: 100
+  notifications:
+    webhookUrl: "https://webhook.example.com/ishastra"
+    webhookEvents:
+      - "assessment.started"
+      - "assessment.completed"
+      - "assessment.failed"
+      - "finding.critical"
+      - "finding.high"
+    emailRecipients:
+      - "security-team@example.com"
+  compliance:
+    nist: ["800-53", "800-171"]
+    iso: ["27001", "27002"]
+    pci: ["dss-v4"]
+---
+apiVersion: ishastra.io/v1alpha1
+kind: AssessmentJob
+metadata:
+  name: production-assessment-001
+spec:
+  tenantId: production-tenant
+  scope:
+    program: "production-web"
+    authorized_by: "CISO"
+    authorization_ref: "AUTH-2024-001"
+    include:
+      - "api.example.com"
+      - "app.example.com"
+    exclude:
+      - "admin.example.com"
+    authorized_networks:
+      - "10.0.0.0/8"
+    allowed_ports: [80, 443, 8080, 8443]
+    allow_broad_networks: false
+  policyRef: "standard-policy"
+  priority: "high"
+  ttlSecondsAfterFinished: 86400
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  nodeSelector:
+    workload-type: "security-scanning"
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "security"
+      effect: "NoSchedule"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: "workload-type"
+                operator: In
+                values: ["security-scanning"]
+  env:
+    - name: "ISHASTRA_LOG_LEVEL"
+      value: "INFO"
+    - name: "ISHASTRA_TIMEOUT"
+      value: "3600"
+
+
+
+

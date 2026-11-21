@@ -6,14 +6,14 @@ Real-time event notifications for assessment lifecycle and findings.
 
 ## Overview
 
-Strix sends webhook events for key assessment milestones. Configure webhook endpoints to receive real-time updates.
+Ishastra sends webhook events for key assessment milestones. Configure webhook endpoints to receive real-time updates.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Webhook Flow                                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  Strix Platform                                                              │
+│  Ishastra Platform                                                              │
 │  ┌─────────────┐                                                            │
 │  │ Assessment  │──▶ Event Triggered                                        │
 │  │  Complete   │                                                            │
@@ -66,7 +66,7 @@ POST /api/v1/webhooks
 
 ```json
 {
-  "url": "https://your-app.com/webhooks/strix",
+  "url": "https://your-app.com/webhooks/ishastra",
   "events": [
     "assessment.completed",
     "assessment.failed",
@@ -93,7 +93,7 @@ POST /api/v1/webhooks
 ```json
 {
   "id": "wh_abc123def456",
-  "url": "https://your-app.com/webhooks/strix",
+  "url": "https://your-app.com/webhooks/ishastra",
   "events": ["assessment.completed", "assessment.failed", "finding.critical"],
   "description": "Production webhook for assessment completion",
   "active": true,
@@ -248,7 +248,7 @@ All webhook events follow this structure:
 Each webhook request includes a signature header:
 
 ```
-Strix-Signature: t=1705312800,v1=sha256=abc123...
+Ishastra-Signature: t=1705312800,v1=sha256=abc123...
 ```
 
 ### Verification Code (Python)
@@ -260,11 +260,11 @@ import time
 
 def verify_webhook(payload: bytes, signature_header: str, secret: str, tolerance: int = 300) -> bool:
     """
-    Verify Strix webhook signature.
+    Verify Ishastra webhook signature.
     
     Args:
         payload: Raw request body
-        signature_header: Value of Strix-Signature header
+        signature_header: Value of Ishastra-Signature header
         secret: Webhook secret (whsec_...)
         tolerance: Max timestamp drift in seconds (default: 5 min)
     """
@@ -292,12 +292,12 @@ def verify_webhook(payload: bytes, signature_header: str, secret: str, tolerance
     return hmac.compare_digest(f"sha256={expected}", signature)
 
 # FastAPI example
-@app.post("/webhooks/strix")
+@app.post("/webhooks/ishastra")
 async def strix_webhook(request: Request):
     body = await request.body()
-    signature = request.headers.get("Strix-Signature")
+    signature = request.headers.get("Ishastra-Signature")
     
-    if not verify_webhook(body, signature, settings.STRIX_WEBHOOK_SECRET):
+    if not verify_webhook(body, signature, settings.ISHASTRA_WEBHOOK_SECRET):
         raise HTTPException(401, "Invalid signature")
     
     event = json.loads(body)

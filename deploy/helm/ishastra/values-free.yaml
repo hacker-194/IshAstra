@@ -1,0 +1,132 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+global:
+  image:
+    repository: ghcr.io/your-org/ishastra
+    tag: sha-<GREEN_SHA>
+    pullPolicy: IfNotPresent
+  enableK8sJobs: false
+  enableHA: false
+
+api:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+  hpa:
+
+    enabled: false
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+
+  env:
+    ISHASTRA_WORKERS: "2"
+    ISHASTRA_SKIP_REDIS_INIT: "false"
+
+scheduler:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+
+worker:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+secrets:
+  enabled: true
+  createSecrets: false
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "ishastra-secrets"
+
+monitoring:
+  prometheus:
+    enabled: true
+    retention: 7d
+    storageSize: 5Gi
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+  alertmanager:
+    enabled: false
+
+otel:
+  enabled: true
+  collector:
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+networkPolicy:
+  enabled: true
+
+podSecurityPolicy:
+  enabled: true
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - ishastra
+        topologyKey: kubernetes.io/hostname
+
+tolerations:
+- key: "kubernetes.io/arch"
+  operator: "Equal"
+  value: "arm64"
+  effect: "NoSchedule"

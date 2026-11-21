@@ -6,7 +6,7 @@ Advanced policy engine for network authorization using CIDR, ASN, and geographic
 
 ## Overview
 
-Strix Scope Gate supports three policy dimensions for `authorized_networks`:
+Ishastra Scope Gate supports three policy dimensions for `authorized_networks`:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -136,7 +136,7 @@ AS16509 (Amazon) → 5000+ CIDRs automatically resolved
 
 ### ASN Resolution
 
-**File**: `src/strix/core/policy_asn.py` — `ASNResolver`
+**File**: `src/ishastra/core/policy_asn.py` — `ASNResolver`
 
 ```python
 class ASNResolver:
@@ -268,7 +268,7 @@ Geographic policies authorize based on IP location (country, region, city).
 
 ### Geo Resolution
 
-**File**: `src/strix/core/policy_geo.py` — `GeoResolver`
+**File**: `src/ishastra/core/policy_geo.py` — `GeoResolver`
 
 ```python
 class GeoResolver:
@@ -566,16 +566,16 @@ scope_gate_geo_cache_hits_total
 
 ```bash
 # Test policy match
-strix policy test --ip 35.192.10.5 --scope scope.json
+ishastra policy test --ip 35.192.10.5 --scope scope.json
 
 # Check ASN resolution
-strix policy asn-lookup 35.192.10.5
+ishastra policy asn-lookup 35.192.10.5
 
 # Check Geo resolution
-strix policy geo-lookup 35.192.10.5
+ishastra policy geo-lookup 35.192.10.5
 
 # Show cache stats
-strix policy cache-stats
+ishastra policy cache-stats
 ```
 
 ---

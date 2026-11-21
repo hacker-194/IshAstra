@@ -1,0 +1,202 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: assessmentjobs.ishastra.io
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/managed-by: Helm
+spec:
+  group: ishastra.io
+  names:
+    kind: AssessmentJob
+    listKind: AssessmentJobList
+    plural: assessmentjobs
+    singular: assessmentjob
+    shortNames:
+      - aj
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - tenantId
+                - scope
+                - policyRef
+              properties:
+                tenantId:
+                  type: string
+                  description: "Tenant identifier for multi-tenant isolation"
+                scope:
+                  type: object
+                  description: "Assessment scope configuration"
+                  properties:
+                    program:
+                      type: string
+                    authorized_by:
+                      type: string
+                    authorization_ref:
+                      type: string
+                    include:
+                      type: array
+                      items:
+                        type: string
+                    exclude:
+                      type: array
+                      items:
+                        type: string
+                    authorized_networks:
+                      type: array
+                      items:
+                        type: string
+                    allowed_ports:
+                      type: array
+                      items:
+                        type: integer
+                    allow_broad_networks:
+                      type: boolean
+                    auth:
+                      type: object
+                  required:
+                    - program
+                    - authorized_by
+                    - authorization_ref
+                policyRef:
+                  type: string
+                  description: "Reference to the assessment policy"
+                priority:
+                  type: string
+                  enum: ["low", "normal", "high", "critical"]
+                  default: "normal"
+                  description: "Job priority for scheduling"
+                scheduleAt:
+                  type: string
+                  format: date-time
+                  description: "Optional scheduled start time (RFC3339)"
+                ttlSecondsAfterFinished:
+                  type: integer
+                  default: 3600
+                  description: "Time-to-live for completed jobs"
+                resources:
+                  type: object
+                  description: "Resource requirements for the assessment job pod"
+                  properties:
+                    limits:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                    requests:
+                      type: object
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Node selector for pod placement"
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                  description: "Tolerations for pod scheduling"
+                affinity:
+                  type: object
+                  description: "Affinity rules for pod scheduling"
+                env:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                  description: "Additional environment variables"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Queued", "Running", "Succeeded", "Failed", "Cancelled"]
+                  description: "Current phase of the assessment job"
+                jobId:
+                  type: string
+                  description: "Internal Ishastra job ID"
+                podName:
+                  type: string
+                  description: "Name of the pod running the assessment"
+                startTime:
+                  type: string
+                  format: date-time
+                completionTime:
+                  type: string
+                  format: date-time
+                message:
+                  type: string
+                  description: "Human-readable status message"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                  description: "Detailed condition information"
+                findingsSummary:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                    critical:
+                      type: integer
+                    high:
+                      type: integer
+                    medium:
+                      type: integer
+                    low:
+                      type: integer
+                    info:
+                      type: integer
+                  description: "Summary of findings by severity"
+  additionalPrinterColumns:
+    - name: Tenant
+      type: string
+      jsonPath: .spec.tenantId
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Priority
+      type: string
+      jsonPath: .spec.priority
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

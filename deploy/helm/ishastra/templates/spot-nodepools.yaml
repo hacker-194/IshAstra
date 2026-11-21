@@ -1,0 +1,364 @@
+{{- if .Values.costOptimization.spot.enabled }}
+---
+
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "ishastra-cluster" }}
+  region: {{ .Values.costOptimization.spot.aws.region | default "us-east-1" }}
+  version: "1.28"
+---
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "ishastra-cluster" }}
+managedNodeGroups:
+  - name: ishastra-critical-ondemand
+    instanceType: {{ .Values.costOptimization.spot.aws.critical.instanceType | default "m6i.xlarge" }}
+    desiredCapacity: {{ .Values.costOptimization.spot.aws.critical.desiredCapacity | default 3 }}
+    minSize: {{ .Values.costOptimization.spot.aws.critical.minSize | default 2 }}
+    maxSize: {{ .Values.costOptimization.spot.aws.critical.maxSize | default 10 }}
+    volumeSize: {{ .Values.costOptimization.spot.aws.critical.volumeSize | default 50 }}
+    volumeType: gp3
+    labels:
+      workload-type: critical
+      instance-lifecycle: on-demand
+      ishastra.io/priority-tier: "critical"
+    taints:
+      - key: "workload-type"
+        value: "critical"
+        effect: "NoSchedule"
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        ebs: true
+        efs: true
+    privateNetworking: true
+    tags:
+      k8s.io/cluster-autoscaler/{{ .Values.costOptimization.spot.aws.clusterName }}: "owned"
+      k8s.io/cluster-autoscaler/node-template/label/workload-type: "critical"
+      ishastra.io/cost-center: "security-assessments"
+---
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: {{ .Values.costOptimization.spot.aws.clusterName | default "ishastra-cluster" }}
+managedNodeGroups:
+  - name: ishastra-batch-spot
+    instanceType: {{ .Values.costOptimization.spot.aws.batch.instanceType | default "m6i.2xlarge" }}
+    instancesDistribution:
+      instanceTypes:
+        - {{ .Values.costOptimization.spot.aws.batch.instanceType | default "m6i.2xlarge" }}
+        - m6i.xlarge
+        - m6i.4xlarge
+        - c6i.2xlarge
+        - c6i.xlarge
+        - r6i.xlarge
+      onDemandBaseCapacity: 0
+      onDemandPercentageAboveBaseCapacity: 0
+      spotAllocationStrategy: "capacity-optimized-prioritized"
+    desiredCapacity: {{ .Values.costOptimization.spot.aws.batch.desiredCapacity | default 0 }}
+    minSize: {{ .Values.costOptimization.spot.aws.batch.minSize | default 0 }}
+    maxSize: {{ .Values.costOptimization.spot.aws.batch.maxSize | default 50 }}
+    volumeSize: {{ .Values.costOptimization.spot.aws.batch.volumeSize | default 100 }}
+    volumeType: gp3
+    labels:
+      workload-type: batch
+      instance-lifecycle: spot
+      ishastra.io/priority-tier: "batch"
+    taints:
+      - key: "workload-type"
+        value: "batch"
+        effect: "NoSchedule"
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        autoScaler: true
+        ebs: true
+        efs: true
+    privateNetworking: true
+    tags:
+      k8s.io/cluster-autoscaler/{{ .Values.costOptimization.spot.aws.clusterName }}: "owned"
+      k8s.io/cluster-autoscaler/node-template/label/workload-type: "batch"
+      ishastra.io/cost-center: "security-assessments"
+---
+
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-critical-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - critical
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - on-demand
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "critical"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Equal"
+          value: "on-demand"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.critical.name | default "ishastra-critical" }}
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-batch-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - batch
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - spot
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "batch"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.batch.name | default "ishastra-batch" }}
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-standard-pod-patch
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-patch
+data:
+  patch.yaml: |
+
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 80
+              preference:
+                matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - critical
+            - weight: 50
+              preference:
+                matchExpressions:
+                  - key: instance-lifecycle
+                    operator: In
+                    values:
+                      - on-demand
+            - weight: 30
+              preference:
+                matchExpressions:
+                  - key: workload-type
+                    operator: In
+                    values:
+                      - batch
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "critical"
+          effect: "NoSchedule"
+        - key: "workload-type"
+          operator: "Equal"
+          value: "batch"
+          effect: "NoSchedule"
+        - key: "instance-lifecycle"
+          operator: "Exists"
+          effect: "NoSchedule"
+      priorityClassName: {{ .Values.costOptimization.priorityClasses.standard.name | default "ishastra-standard" }}
+{{- end }}

@@ -1,0 +1,73 @@
+{{- if and .Values.api.enabled .Values.api.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ishastra.fullname" . }}-api-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hpa
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ishastra.fullname" . }}-api
+  minReplicas: {{ .Values.api.hpa.minReplicas }}
+  maxReplicas: {{ .Values.api.hpa.maxReplicas }}
+  {{- if .Values.api.hpa.behavior }}
+  behavior:
+    {{- toYaml .Values.api.hpa.behavior | nindent 4 }}
+  {{- end }}
+  metrics:
+    {{- toYaml .Values.api.hpa.metrics | nindent 4 }}
+{{- end }}
+{{- if and .Values.scheduler.enabled .Values.scheduler.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ishastra.fullname" . }}-scheduler-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hpa
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ishastra.fullname" . }}-scheduler
+  minReplicas: {{ .Values.scheduler.hpa.minReplicas | default 1 }}
+  maxReplicas: {{ .Values.scheduler.hpa.maxReplicas | default 3 }}
+  metrics:
+    {{- toYaml .Values.scheduler.hpa.metrics | nindent 4 }}
+{{- end }}
+{{- if and .Values.worker.enabled .Values.worker.hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ishastra.fullname" . }}-worker-hpa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hpa
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ishastra.fullname" . }}-worker
+  minReplicas: {{ .Values.worker.hpa.minReplicas }}
+  maxReplicas: {{ .Values.worker.hpa.maxReplicas }}
+  {{- if .Values.worker.hpa.behavior }}
+  behavior:
+    {{- toYaml .Values.worker.hpa.behavior | nindent 4 }}
+  {{- end }}
+  metrics:
+    {{- toYaml .Values.worker.hpa.metrics | nindent 4 }}
+{{- end }}

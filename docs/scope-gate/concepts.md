@@ -2,7 +2,7 @@
 
 # Scope Gate Concepts
 
-Core concepts and mental models for Strix's authorization engine.
+Core concepts and mental models for Ishastra's authorization engine.
 
 ## The Problem: Implicit Trust
 
@@ -20,7 +20,7 @@ They connect first, ask questions later. This creates:
 
 ## The Solution: Explicit Authorization
 
-Strix Scope Gate enforces **explicit authorization** — default-deny for every connection:
+Ishastra Scope Gate enforces **explicit authorization** — default-deny for every connection:
 
 ```
 Worker → Scope Gate → Target
@@ -81,7 +81,7 @@ Returns a single `Destination` object that adapters MUST use.
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Traditional:    ALLOW by default, DENY exceptions          │
-│  Strix:          DENY by default, ALLOW explicit            │
+│  Ishastra:          DENY by default, ALLOW explicit            │
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  authorized_networks = ["10.0.0.0/8"]               │   │
@@ -133,10 +133,10 @@ Attacker controls example.com DNS:
 Traditional scanner: Resolves once, caches, connects to changing IPs
 ```
 
-### Strix Defense
+### Ishastra Defense
 
 ```
-Strix resolves ONCE at Layer 2:
+Ishastra resolves ONCE at Layer 2:
   1. Resolve example.com → [10.0.0.1, 169.254.169.254, 127.0.0.1]
   2. Validate EVERY IP against authorized_networks
   3. 169.254.169.254 → DENY (link-local, not authorized)
@@ -206,7 +206,7 @@ async def run_task(task: Task):
 - No global state
 - Testable with `ScopeContext(test_scope)`
 
-## Observer Pattern: Strix Proof
+## Observer Pattern: Ishastra Proof
 
 Every gate decision generates a receipt for the audit chain.
 
@@ -230,7 +230,7 @@ class CheckContext:
 ### Built-in Observer
 
 ```python
-class StrixProofObserver:
+class IshastraProofObserver:
     def on_check(self, ctx: CheckContext, result: AuthResult):
         receipt = GateReceipt(
             task_id=ctx.task_id,

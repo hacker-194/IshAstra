@@ -1,4 +1,4 @@
-"""Unit tests for Strix MSSP Partner Program.
+"""Unit tests for Ishastra MSSP Partner Program.
 
 Tests cover:
 - Partner tier limits
@@ -9,7 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from strix.core.mssp import (
+from ishastra.core.mssp import (
     MSSP_TIER_LIMITS,
     MSSP_TIER_ORDER,
     CustomerStatus,
@@ -23,7 +23,7 @@ from strix.core.mssp import (
     get_customer_effective_limits,
     get_mssp_tier_limits,
 )
-from strix.core.pricing import PricingTier
+from ishastra.core.pricing import PricingTier
 
 
 class TestMSSPTierOrdering:
@@ -82,7 +82,7 @@ class TestMSSPTierLimits:
         """Test get_mssp_tier_limits function."""
         limits = get_mssp_tier_limits(MSSPTier.REGISTERED)
         assert limits.max_customers == 5
-        # Unknown tier falls back to REGISTERED
+
         limits = get_mssp_tier_limits("unknown")
         assert limits.max_customers == 5
 
@@ -186,7 +186,6 @@ class TestCustomerEffectiveLimits:
     def test_registered_partner_free_customer(self):
         """Test effective limits for FREE customer under REGISTERED partner."""
 
-        # Create mock objects
         class MockPartner:
             tier = MSSPTier.REGISTERED
 
@@ -253,8 +252,8 @@ class TestCustomerEffectiveLimits:
         limits = get_customer_effective_limits(customer, partner)
         assert limits["customer_tier"] == "enterprise"
         assert limits["partner_tier"] == "premier"
-        assert limits["assessments_per_month"] == 0  # unlimited
-        assert limits["max_users"] == 0  # unlimited
+        assert limits["assessments_per_month"] == 0
+        assert limits["max_users"] == 0
 
     def test_features_included(self):
         """Test that features are included in effective limits."""
@@ -274,7 +273,7 @@ class TestCustomerEffectiveLimits:
         assert features["web_assessment"] is True
         assert features["agent_assessment"] is True
         assert features["oidc_sso"] is True
-        assert features["saml_sso"] is False  # STARTER doesn't have SAML
+        assert features["saml_sso"] is False
 
 
 class TestMSSPStatusEnums:
@@ -306,16 +305,15 @@ class TestMSSPTierLimitConstraints:
 
     def test_registered_partner_cannot_have_pro_customer(self):
         """Test that REGISTERED partners cannot have PRO customers."""
-        # This is validated in the API layer, but we test the logic here
+
         customer_tier = PricingTier.PRO
 
-        # REGISTERED partners can only have FREE/STARTER
         allowed_tiers = [PricingTier.FREE, PricingTier.STARTER]
         assert customer_tier not in allowed_tiers
 
     def test_authorized_partner_can_have_all_tiers(self):
         """Test that AUTHORIZED partners can have all customer tiers."""
-        # AUTHORIZED partners can have any tier
+
         allowed_tiers = [PricingTier.FREE, PricingTier.STARTER, PricingTier.PRO, PricingTier.ENTERPRISE]
         for tier in allowed_tiers:
             assert tier in allowed_tiers
@@ -323,5 +321,5 @@ class TestMSSPTierLimitConstraints:
     def test_premier_partner_unlimited(self):
         """Test that PREMIER partners have unlimited customers."""
         limits = MSSP_TIER_LIMITS[MSSPTier.PREMIER]
-        assert limits.max_customers == 0  # 0 = unlimited
-        assert limits.max_total_assessments_per_month == 0  # unlimited
+        assert limits.max_customers == 0
+        assert limits.max_total_assessments_per_month == 0

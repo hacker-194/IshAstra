@@ -7,7 +7,7 @@ REST API for managing Scope Gate documents and authorization policies.
 ## Base URL
 
 ```
-https://api.strix.dev/api/v1
+https://api.ishastra.dev/api/v1
 ```
 
 ## Scope Document Object
@@ -38,9 +38,9 @@ https://api.strix.dev/api/v1
     "notification_webhook": "https://company.slack.com/webhook"
   },
   "signing": {
-    "key_id": "strix-2024-01",
+    "key_id": "ishastra-2024-01",
     "algorithm": "Ed25519",
-    "jwks_url": "https://api.strix.dev/.well-known/jwks.json"
+    "jwks_url": "https://api.ishastra.dev/.well-known/jwks.json"
   },
   "created_at": "2024-01-15T10:00:00Z",
   "updated_at": "2024-01-15T10:00:00Z",
@@ -111,9 +111,9 @@ POST /scopes
   "status": "draft",
   "created_at": "2024-01-15T10:00:00Z",
   "signing": {
-    "key_id": "strix-2024-01",
+    "key_id": "ishastra-2024-01",
     "algorithm": "Ed25519",
-    "jwks_url": "https://api.strix.dev/.well-known/jwks.json"
+    "jwks_url": "https://api.ishastra.dev/.well-known/jwks.json"
   }
 }
 ```
@@ -499,16 +499,16 @@ POST /api/v1/break-glass/{request_id}/approve
 GET /api/v1/break-glass/{request_id}
 ```
 
-## Strix Proof Verification {#proof-verification}
+## Ishastra Proof Verification {#proof-verification}
 
 Scope documents are cryptographically signed using Ed25519. The signing configuration:
 
 ```json
 {
   "signing": {
-    "key_id": "strix-2024-01",
+    "key_id": "ishastra-2024-01",
     "algorithm": "Ed25519",
-    "jwks_url": "https://api.strix.dev/.well-known/jwks.json"
+    "jwks_url": "https://api.ishastra.dev/.well-known/jwks.json"
   }
 }
 ```

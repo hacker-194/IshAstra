@@ -4,8 +4,8 @@
 
 | Alert | Severity | Source |
 |-------|----------|--------|
-| `StrixAuthFailureRateHigh` | warning | Auth failures > 10/s |
-| `StrixAuthFailureBurst` | critical | Auth failures > 50/min |
+| `IshastraAuthFailureRateHigh` | warning | Auth failures > 10/s |
+| `IshastraAuthFailureBurst` | critical | Auth failures > 50/min |
 | No direct alert | - | Scope violations logged in application |
 
 ---
@@ -30,17 +30,17 @@
 ### 1. Check Scope Violation Logs
 ```bash
 # Search application logs for scope violations
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=500 | grep -i "scope violation"
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=500 | grep -i "scope violation"
 
 # Check audit log for violations
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT * FROM audit_log
 WHERE action = 'scope_violation'
 ORDER BY timestamp DESC LIMIT 20;
 "
 
 # Check by tenant
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT actor, target, count(*) as violations
 FROM audit_log
 WHERE action = 'scope_violation'
@@ -52,16 +52,16 @@ ORDER BY violations DESC;
 ### 2. Verify Scope Configuration
 ```bash
 # View current scope.json
-kubectl exec -n strix strix-api-xxx -- cat /etc/strix/scope.json | jq .
+kubectl exec -n ishastra ishastra-api-xxx -- cat /etc/ishastra/scope.json | jq .
 
 # Check scope mode
-kubectl exec -n strix strix-api-xxx -- env | grep STRIX_SCOPE_MODE
+kubectl exec -n ishastra ishastra-api-xxx -- env | grep ISHASTRA_SCOPE_MODE
 
 # Validate scope syntax
-kubectl exec -n strix strix-api-xxx -- /usr/local/bin/python -c "
-from strix.scope import Scope
+kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/python -c "
+from ishastra.scope import Scope
 import json
-with open('/etc/strix/scope.json') as f:
+with open('/etc/ishastra/scope.json') as f:
     scope = Scope(**json.load(f))
 print('Scope valid:', scope)
 print('Include:', scope.include)
@@ -73,19 +73,19 @@ print('Networks:', scope.authorized_networks)
 ### 3. Test Scope Gate Logic
 ```bash
 # Test allowed target
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://allowed.example.com", "profile": "web"}'
 
 # Test blocked target (should return 403)
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://evil.com", "profile": "web"}'
 
 # Test with debug to see scope decision
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://test.example.com", "profile": "web", "debug": true}'
@@ -94,12 +94,12 @@ curl -X POST http://strix.example.com/api/assess \
 ### 4. Check API Key & Tenant Status
 ```bash
 # List API keys for tenant
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT id, name, prefix, revoked, created_at FROM api_keys WHERE tenant_id = 'acme-corp';
 "
 
 # Check for compromised key patterns
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=1000 | grep "scope violation" | awk '{print $NF}' | sort | uniq -c | sort -rn
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=1000 | grep "scope violation" | awk '{print $NF}' | sort | uniq -c | sort -rn
 ```
 
 ---
@@ -111,13 +111,13 @@ kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=1000 
 #### 1. Revoke Compromised API Key
 ```bash
 # Via API (requires admin key)
-curl -X POST http://strix.example.com/api/keys/revoke/<TENANT_ID> \
+curl -X POST http://ishastra.example.com/api/keys/revoke/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_prefix": "sk_live_abc123"}'
 
 # Or via database directly
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 UPDATE api_keys SET revoked = 1 WHERE prefix = 'sk_live_abc123';
 "
 ```
@@ -130,11 +130,11 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: deny-malicious-ips
-  namespace: strix
+  namespace: ishastra
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: strix
+      app.kubernetes.io/name: ishastra
   policyTypes:
   - Ingress
   ingress:
@@ -149,7 +149,7 @@ EOF
 #### 3. Tighten Scope Temporarily
 ```bash
 # Restrict scope to known good targets only
-kubectl exec -n strix strix-api-xxx -- cat > /etc/strix/scope.json.emergency <<'SCOPE'
+kubectl exec -n ishastra ishastra-api-xxx -- cat > /etc/ishastra/scope.json.emergency <<'SCOPE'
 {
   "program": "Emergency Restricted Scope",
   "authorized_by": "Security Team",
@@ -164,8 +164,8 @@ kubectl exec -n strix strix-api-xxx -- cat > /etc/strix/scope.json.emergency <<'
 SCOPE
 
 # Apply (requires pod restart or SIGHUP)
-kubectl exec -n strix strix-api-xxx -- cp /etc/strix/scope.json.emergency /etc/strix/scope.json
-kubectl rollout restart deployment/strix-api -n strix
+kubectl exec -n ishastra ishastra-api-xxx -- cp /etc/ishastra/scope.json.emergency /etc/ishastra/scope.json
+kubectl rollout restart deployment/ishastra-api -n ishastra
 ```
 
 ### Root Cause Resolution
@@ -173,10 +173,10 @@ kubectl rollout restart deployment/strix-api -n strix
 #### Cause 1: Overly Broad Scope Configuration
 ```bash
 # Audit scope for wildcard issues
-kubectl exec -n strix strix-api-xxx -- /usr/local/bin/python -c "
-from strix.scope import Scope
+kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/python -c "
+from ishastra.scope import Scope
 import json
-with open('/etc/strix/scope.json') as f:
+with open('/etc/ishastra/scope.json') as f:
     scope = Scope(**json.load(f))
 
 # Check for overly broad patterns
@@ -191,17 +191,17 @@ for net in scope.authorized_networks:
 
 # Fix: Restrict scope to specific domains/networks
 # Update ConfigMap
-kubectl edit configmap strix-config -n strix
+kubectl edit configmap ishastra-config -n ishastra
 ```
 
 #### Cause 2: Credential Leak / Compromise
 ```bash
 # 1. Rotate all keys for affected tenant
-curl -X POST http://strix.example.com/api/keys/rotate/<TENANT_ID> \
+curl -X POST http://ishastra.example.com/api/keys/rotate/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # 2. Force re-authentication
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 DELETE FROM sessions WHERE tenant_id = 'acme-corp';
 "
 
@@ -211,14 +211,14 @@ DELETE FROM sessions WHERE tenant_id = 'acme-corp';
 
 #### Cause 3: Scope Validation Bug
 ```bash
-# Check Strix version for known scope bugs
-kubectl exec -n strix strix-api-xxx -- /usr/local/bin/strix --version
+# Check Ishastra version for known scope bugs
+kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/ishastra --version
 
 # Test edge cases
-kubectl exec -n strix strix-api-xxx -- /usr/local/bin/python -m pytest tests/test_scope.py -v
+kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/python -m pytest tests/test_scope.py -v
 
 # If bug confirmed, apply hotfix or upgrade
-# See upgrade-strix.md
+# See upgrade-ishastra.md
 ```
 
 #### Cause 4: Tenant Misconfiguration
@@ -239,19 +239,19 @@ kubectl exec -n strix strix-api-xxx -- /usr/local/bin/python -m pytest tests/tes
 ### Recovery Verification
 ```bash
 # 1. Verify scope gate blocks unauthorized
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -d '{"target": "https://evil.com", "profile": "web"}'
 # Expect 403
 
 # 2. Verify authorized targets still work
-curl -X POST http://strix.example.com/api/assess \
+curl -X POST http://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -d '{"target": "https://app.example.com", "profile": "web"}'
 # Expect 202
 
 # 3. Monitor for further violations
-# PromQL: sum(rate(strix_scope_gate_decisions_total{decision="blocked"}[5m]))  # expect 0
+# PromQL: sum(rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m]))  # expect 0
 ```
 
 ---
@@ -289,8 +289,8 @@ curl -X POST http://strix.example.com/api/assess \
 
 ## Grafana Dashboard Links
 
-- **Strix Security**: `https://grafana.example.com/d/strix-security/security-overview`
-- **Auth Failures**: `https://grafana.example.com/d/strix-auth/auth-failures`
+- **Ishastra Security**: `https://grafana.example.com/d/ishastra-security/security-overview`
+- **Auth Failures**: `https://grafana.example.com/d/ishastra-auth/auth-failures`
 
 **Key Panels:**
 - Scope Violations by Tenant (time series)
@@ -306,7 +306,7 @@ Use when an authorization was issued to the wrong party, an engagement ended
 early, or a signed scope document may have leaked.
 
 ```python
-from strix.core.scope import revoke_scope
+from ishastra.core.scope import revoke_scope
 
 # A signed document must be re-signed: revocation changes signed fields.
 revoke_scope(
@@ -322,14 +322,14 @@ revoke_scope(
    boundary: `bound` re-checks the snapshot and `is_valid()` refuses a revoked
    scope.
 2. **Re-publish the document.** A verifier that still has the old copy is fine:
-   it was signed with an older `issued_at`, and `STRIX_SCOPE_MAX_AGE_SECONDS`
+   it was signed with an older `issued_at`, and `ISHASTRA_SCOPE_MAX_AGE_SECONDS`
    (default 24h) refuses it as stale once the limit passes. Do not raise that
    limit to keep a verifier working.
 3. **Retire the key if the private key itself leaked.** Remove the `kid` from
    the JWKS, publish the new set, and sign with the replacement `kid`. A
    document signed by a retired `kid` fails with "not in the configured key
    set", not a silent fallback to unsigned.
-4. **Confirm the refusals are visible.** `strix_scope_gate_decisions_total{decision="blocked",reason="revoked"}`
+4. **Confirm the refusals are visible.** `ishastra_scope_gate_decisions_total{decision="blocked",reason="revoked"}`
    must move; a revocation nobody observes is a revocation nobody trusts.
 5. **Leave the trail.** The revocation is auditable from the document itself
    (`revoked`, `revoked_at`, `revoked_by`, `revocation_reason`) and from the
@@ -340,7 +340,7 @@ revoke_scope(
 Temporary widening while an incident is live. It is never a permanent edit.
 
 1. **Mint a short-lived document, not a wider one.**
-   `strix scope-sign --scope scope.json --key scope-signing-key.pem --kid 2026-12 --expires-in 2h`
+   `ishastra scope-sign --scope scope.json --key scope-signing-key.pem --kid 2026-12 --expires-in 2h`
    stamps `expires_at`; the gate refuses the scope after it, with no cleanup
    step to remember.
 2. **Add exact hosts, never networks.** `include` entries are single hostnames
@@ -354,12 +354,12 @@ Temporary widening while an incident is live. It is never a permanent edit.
    forgotten, the freshness bound still retires it; that is a backstop, not the
    plan.
 5. **Never** restore access by disabling signature verification or removing
-   `STRIX_SCOPE_JWKS`: that turns a scoped incident into a global one.
+   `ISHASTRA_SCOPE_JWKS`: that turns a scoped incident into a global one.
 
 ## `policy_unavailable` denials
 
 `reason="policy_unavailable"` means the gate refused because a policy it must
-enforce had no usable data source: `STRIX_SCOPE_JIT_URL` unreachable or answering
+enforce had no usable data source: `ISHASTRA_SCOPE_JIT_URL` unreachable or answering
 non-200, or `allowed_asns` / `allowed_countries` set without a working lookup.
 This is the fail-closed state working as designed. Check the decision point and
 the intel tables first; restoring them clears the denials. Do not clear the

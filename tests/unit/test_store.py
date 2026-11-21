@@ -1,4 +1,4 @@
-"""Unit tests for Strix Store (database operations)."""
+"""Unit tests for Ishastra Store (database operations)."""
 
 import asyncio
 import tempfile
@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from strix.core.findings import Finding
-from strix.core.jobs import Job, JobState
-from strix.core.store import (
+from ishastra.core.findings import Finding
+from ishastra.core.jobs import Job, JobState
+from ishastra.core.store import (
     MIGRATIONS,
     MIGRATIONS_PG,
     JobConflict,
@@ -96,7 +96,7 @@ class TestMigrations:
             assert len(script) > 0
 
     def test_pg_migrations_exist(self):
-        """PostgreSQL migrations are defined."""
+        """PostgreSQL migrations are defined (includes distributed_leases migration 29)."""
         expected_targets = {
             10,
             11,
@@ -117,6 +117,7 @@ class TestMigrations:
             26,
             27,
             28,
+            29,
         }
         assert {target for target, _script in MIGRATIONS_PG} == expected_targets
         for target, script in MIGRATIONS_PG:
@@ -172,7 +173,7 @@ class TestDatabaseLifecycle:
         """Configure creates database file."""
         db = await get_database()
         assert db is not None
-        # Tables should exist
+
         rows = await db.fetchall("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row["name"] for row in rows}
         expected = {
@@ -192,18 +193,18 @@ class TestDatabaseLifecycle:
     async def test_configure_resets_connection(self, temp_db):
         """Reconfiguring resets connection."""
         db1 = await get_database()
-        # Reconfigure with same path
+
         configure(temp_db)
         db2 = await get_database()
-        # New instance created after reconfigure
+
         assert db2 is not None
-        assert db1 is not db2  # Different instance returned after reconfigure
+        assert db1 is not db2
 
     @pytest.mark.asyncio
     async def test_close_database(self, temp_db):
         """Close database releases resources."""
         await close_database()
-        # Should be able to reconfigure after close
+
         configure(temp_db)
         db = await get_database()
         assert db is not None
@@ -273,7 +274,7 @@ class TestJobOperations:
     @pytest.mark.asyncio
     async def test_latest_finished_job(self, temp_db):
         """Get latest finished job for target."""
-        # Create completed job
+
         job = Job(
             id="test-job-finished",
             target="https://example.com/",
@@ -343,7 +344,6 @@ class TestJobOperations:
         claimed = await claim_job("test-job-claim", tenant="test-tenant", worker="worker-1")
         assert claimed is True
 
-        # Second claim should fail
         claimed_again = await claim_job("test-job-claim", tenant="test-tenant", worker="worker-2")
         assert claimed_again is False
 
@@ -370,7 +370,6 @@ class TestJobOperations:
         job_id = await find_job_id_by_idempotency("idem-key-123", tenant="test-tenant")
         assert job_id == "test-job-idempotent"
 
-        # Different tenant should not find it
         job_id2 = await find_job_id_by_idempotency("idem-key-123", tenant="other-tenant")
         assert job_id2 is None
 
@@ -401,8 +400,8 @@ class TestJobAggregations:
     @pytest.mark.asyncio
     async def test_count_findings(self, temp_db, db_with_jobs):
         """Count findings for tenant."""
-        # Add a job with findings
-        from strix.core.findings import Finding
+
+        from ishastra.core.findings import Finding
 
         job = Job(
             id="job-with-findings",
@@ -441,7 +440,7 @@ class TestJobAggregations:
     @pytest.mark.asyncio
     async def test_findings_by_severity(self, temp_db, db_with_jobs):
         """Findings grouped by severity."""
-        # Add findings with different severities - use different locations to avoid dedupe merging
+
         job = Job(
             id="job-severity",
             target="https://severity.com/",
@@ -461,7 +460,7 @@ class TestJobAggregations:
                 detector="test",
                 detector_version="1.0",
                 evidence="evidence",
-                location=f"/path{i}",  # Different location for each finding to avoid fingerprint collision
+                location=f"/path{i}",
             )
             job.findings.append(finding)
         await save_job(job, tenant="test-tenant")
@@ -529,11 +528,10 @@ class TestFindingsOperations:
     @pytest.mark.asyncio
     async def test_update_finding_status(self, temp_db, job_with_findings):
         """Update finding status through lifecycle."""
-        # Get the fingerprint of the first finding
+
         findings = await get_findings("job-findings-test", tenant="test-tenant")
         fingerprint = findings[0].fingerprint
 
-        # Update status
         updated = await update_finding_status(
             "job-findings-test",
             fingerprint,
@@ -544,7 +542,6 @@ class TestFindingsOperations:
         assert updated["status"] == "triaged"
         assert updated["remediation_status"] == "pending"
 
-        # Verify persisted
         findings2 = await get_findings("job-findings-test", tenant="test-tenant")
         updated_finding = next(f for f in findings2 if f.fingerprint == fingerprint)
         assert updated_finding.status == "triaged"
@@ -555,7 +552,6 @@ class TestFindingsOperations:
         findings = await get_findings("job-findings-test", tenant="test-tenant")
         fingerprint = findings[0].fingerprint
 
-        # Try invalid transition: new -> closed (skips required states)
         with pytest.raises(ValueError, match="Invalid transition"):
             await update_finding_status(
                 "job-findings-test",
@@ -602,7 +598,7 @@ class TestAPIKeys:
         assert found is not None
         assert found["key_hash"] == key_hash
         assert found["tier"] == "elevated"
-        assert found["admin"] == 1  # SQLite stores bool as int
+        assert found["admin"] == 1
         assert found["scope"] == "write"
 
 
@@ -667,9 +663,8 @@ class TestRetention:
         """Prune old finished jobs."""
         import time
 
-        old_time = time.time() - 86400 * 30  # 30 days ago
+        old_time = time.time() - 86400 * 30
 
-        # Create old finished job
         job = Job(
             id="old-job",
             target="https://old.com/",
@@ -681,7 +676,6 @@ class TestRetention:
         )
         await save_job(job, tenant="test-tenant")
 
-        # Create recent job
         job2 = Job(
             id="recent-job",
             target="https://recent.com/",
@@ -693,16 +687,13 @@ class TestRetention:
         )
         await save_job(job2, tenant="test-tenant")
 
-        # Prune older than 7 days
         cutoff = time.time() - 86400 * 7
         count = await prune_finished_jobs(cutoff)
         assert count >= 1
 
-        # Old job should be gone
         retrieved = await get_job("old-job", tenant="test-tenant")
         assert retrieved is None
 
-        # Recent job should remain
         retrieved2 = await get_job("recent-job", tenant="test-tenant")
         assert retrieved2 is not None
 
@@ -813,7 +804,7 @@ class TestVacuum:
     @pytest.mark.asyncio
     async def test_vacuum_runs(self, temp_db):
         """Vacuum runs without error."""
-        # Add and delete some data
+
         for i in range(10):
             job = Job(
                 id=f"vac-job-{i}",
@@ -825,13 +816,11 @@ class TestVacuum:
             )
             await save_job(job, tenant="test-tenant")
 
-        # Delete them
         for i in range(10):
             db = await get_database()
             async with db.transaction() as conn:
                 await conn.execute("DELETE FROM jobs WHERE id = ?", (f"vac-job-{i}",))
 
-        # Vacuum should complete
         await vacuum()
 
 
@@ -996,7 +985,6 @@ class TestAssetInventoryAndHistory:
                 decided_by="admin",
             )
 
-        # Observing the fingerprint again reopens the record.
         await self._job("record-job-2", "tenant-1", finished_at=1234569200.0)
         detail = await get_cross_job_finding(tenant="tenant-1", fingerprint=fingerprint)
         assert detail is not None and detail["resolution"]["state"] == "open"

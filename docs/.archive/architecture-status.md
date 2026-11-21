@@ -1,4 +1,4 @@
-# Strix Architecture
+# Ishastra Architecture
 
 Status: describes the implementation in the current working tree (v3.5.0).
 Companion documents: [`ARCHITECTURE.md`](../ARCHITECTURE.md) (detailed
@@ -8,7 +8,7 @@ reference), [`codemaps.md`](codemaps.md) (module map),
 
 ## 1. Shape
 
-Strix is a **modular monolith**: one Python package, one FastAPI process by
+Ishastra is a **modular monolith**: one Python package, one FastAPI process by
 default, one SQLite database, one bounded worker pool in that process. Modules
 have explicit contracts but are not separate services. This is deliberate:
 the operational cost of microservices is not justified before there is a
@@ -37,13 +37,13 @@ Store (SQLite/aiosqlite; optional PostgreSQL) + audit chain
 
 | Component | Responsibility | Code |
 |---|---|---|
-| **Strix Core** | Configuration, scope gate, policies, jobs, worker, store, findings, audit, metrics | `src/strix/config.py`, `src/strix/core/*` |
-| **Strix Scan** | Live-target detection adapters and profiles | `core/adapters.py`, `adapter_base.py`, `probe.py`, `crawler.py`, `ports.py`, `exposure.py`, `signatures.py` |
-| **Strix Intelligence** | Advisory AI triage; monitoring baselines | `analyst.py`, `monitor.py` (trend analytics absent) |
-| **Strix Proof** | Signed grants, receipt chain, offline verification | `proof.py`, `core/collab.py`, CLI `grant/gate/proof/verify` |
-| **Strix Monitor** | Recurring assessments, new-finding alerts | `core/scheduler.py`, `monitor.py`, `/api/schedules` |
-| **Strix Integrations** | SIEM, ticketing, chat, CI/CD, webhooks, vault | `integrations/*` |
-| **Strix Organizations & Access** | Organizations, teams, memberships, roles, SSO, SCIM | Multi-user `admin`/`analyst`/`viewer`, organizations/teams (`/api/v2/orgs`), OIDC + SAML SSO (`/auth/*`) and SCIM 2.0 (`/scim/v2`) implemented |
+| **Ishastra Core** | Configuration, scope gate, policies, jobs, worker, store, findings, audit, metrics | `src/ishastra/config.py`, `src/ishastra/core/*` |
+| **Ishastra Scan** | Live-target detection adapters and profiles | `core/adapters.py`, `adapter_base.py`, `probe.py`, `crawler.py`, `ports.py`, `exposure.py`, `signatures.py` |
+| **Ishastra Intelligence** | Advisory AI triage; monitoring baselines | `analyst.py`, `monitor.py` (trend analytics absent) |
+| **Ishastra Proof** | Signed grants, receipt chain, offline verification | `proof.py`, `core/collab.py`, CLI `grant/gate/proof/verify` |
+| **Ishastra Monitor** | Recurring assessments, new-finding alerts | `core/scheduler.py`, `monitor.py`, `/api/schedules` |
+| **Ishastra Integrations** | SIEM, ticketing, chat, CI/CD, webhooks, vault | `integrations/*` |
+| **Ishastra Organizations & Access** | Organizations, teams, memberships, roles, SSO, SCIM | Multi-user `admin`/`analyst`/`viewer`, organizations/teams (`/api/v2/orgs`), OIDC + SAML SSO (`/auth/*`) and SCIM 2.0 (`/scim/v2`) implemented |
 
 ## 3. Contracts
 
@@ -85,13 +85,13 @@ load soak (10 jobs, 0 failed). Distributed execution runs as Kubernetes Jobs
 | Mode | Trigger | Status |
 |---|---|---|
 | Single process, in-memory queue | Default | Supported |
-| Redis rate limiting | `STRIX_WORKERS>1` or `STRIX_REDIS_REQUIRED=1` | Supported |
-| Kubernetes Jobs queue | `STRIX_QUEUE_MODE=k8s-jobs`, `values-k8s-jobs.yaml` | **Experimental**; chart renders, no cluster apply or multi-node soak |
-| PostgreSQL | `STRIX_DATABASE_URL` plus `asyncpg` extra | **Advanced: tested single-host, no HA** (SIGTERM soak, load soak, audit chain passed) |
+| Redis rate limiting | `ISHASTRA_WORKERS>1` or `ISHASTRA_REDIS_REQUIRED=1` | Supported |
+| Kubernetes Jobs queue | `ISHASTRA_QUEUE_MODE=k8s-jobs`, `values-k8s-jobs.yaml` | **Experimental**; chart renders, no cluster apply or multi-node soak |
+| PostgreSQL | `ISHASTRA_DATABASE_URL` plus `asyncpg` extra | **Advanced: tested single-host, no HA** (SIGTERM soak, load soak, audit chain passed) |
 | Multi-node API + shared queue | k8s-jobs mode | Not production-ready |
 
 As of this change, API routers obtain their queue from
-`core.queue.get_assessment_worker()`, so `STRIX_QUEUE_MODE=k8s-jobs` routes
+`core.queue.get_assessment_worker()`, so `ISHASTRA_QUEUE_MODE=k8s-jobs` routes
 submissions and policy revocations to Kubernetes Jobs instead of silently using
 the in-process worker. Cancellation is persisted in the database; the Job worker
 polls it and stops running jobs cooperatively. Running and queued cancellation

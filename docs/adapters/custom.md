@@ -6,7 +6,7 @@ Build your own security adapters with automatic Scope Gate integration.
 
 ## Overview
 
-Custom adapters integrate seamlessly with Strix's adapter framework:
+Custom adapters integrate seamlessly with Ishastra's adapter framework:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -44,8 +44,8 @@ Custom adapters integrate seamlessly with Strix's adapter framework:
 
 ```python
 # my_adapters/ssh_audit.py
-from strix.core.adapters import BaseAdapter, AdapterConfig, Finding
-from strix.core.scope import Severity
+from ishastra.core.adapters import BaseAdapter, AdapterConfig, Finding
+from ishastra.core.scope import Severity
 import asyncssh
 
 class SSHAuditAdapter(BaseAdapter):
@@ -81,7 +81,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"ciphers": weak},
-                references=["https://strix.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
                 metadata={}
             )
 ```
@@ -90,7 +90,7 @@ class SSHAuditAdapter(BaseAdapter):
 
 ```python
 # In your application startup
-from strix.core.adapters import adapter_registry
+from ishastra.core.adapters import adapter_registry
 from my_adapters.ssh_audit import SSHAuditAdapter
 
 adapter_registry.register(SSHAuditAdapter)
@@ -99,7 +99,7 @@ adapter_registry.register(SSHAuditAdapter)
 ### 3. Use via API
 
 ```bash
-curl -X POST https://api.strix.dev/api/v1/assessments \
+curl -X POST https://api.ishastra.dev/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -215,8 +215,8 @@ class Severity(Enum):
 SSH Security Auditor Adapter
 Checks: weak ciphers, weak MACs, weak KEX, auth methods, host keys
 """
-from strix.core.adapters import BaseAdapter, AdapterConfig, Finding
-from strix.core.scope import Severity
+from ishastra.core.adapters import BaseAdapter, AdapterConfig, Finding
+from ishastra.core.scope import Severity
 import asyncssh
 import re
 
@@ -308,7 +308,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_ciphers": weak, "all_ciphers": ciphers},
-                references=["https://strix.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
                 metadata={"check": "ciphers"}
             )
 
@@ -324,7 +324,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_macs": weak, "all_macs": macs},
-                references=["https://strix.dev/findings/SSH-WEAK-MAC"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-MAC"],
                 metadata={"check": "macs"}
             )
 
@@ -340,7 +340,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_kex": weak, "all_kex": kex},
-                references=["https://strix.dev/findings/SSH-WEAK-KEX"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-KEX"],
                 metadata={"check": "kex"}
             )
 
@@ -359,7 +359,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"key_type": key_type, "key_bits": key_bits},
-                references=["https://strix.dev/findings/SSH-WEAK-HOST-KEY"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-HOST-KEY"],
                 metadata={"check": "host_key"}
             )
 
@@ -374,7 +374,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="auth",
                 location=self.config.target,
                 evidence={"auth_methods": auth_methods},
-                references=["https://strix.dev/findings/SSH-PASSWORD-AUTH"],
+                references=["https://ishastra.dev/findings/SSH-PASSWORD-AUTH"],
                 metadata={"check": "auth_methods"}
             )
 
@@ -404,7 +404,7 @@ class SSHAuditAdapter(BaseAdapter):
 ## SDK Helper Functions
 
 ```python
-from strix.core.adapters import (
+from ishastra.core.adapters import (
     BaseAdapter,
     AdapterConfig,
     Finding,
@@ -481,8 +481,8 @@ async def run_adapter_safely(
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from my_adapters.ssh_audit import SSHAuditAdapter
-from strix.core.adapters import AdapterConfig
-from strix.core.scope import ScopeDocument
+from ishastra.core.adapters import AdapterConfig
+from ishastra.core.scope import ScopeDocument
 
 @pytest.fixture
 def mock_scope():
@@ -571,7 +571,7 @@ async def test_ssh_audit_real_server(test_ssh_server, test_scope):
 ### Project Structure
 
 ```
-my-strix-adapters/
+my-ishastra-adapters/
 ├── pyproject.toml
 ├── src/
 │   └── my_strix_adapters/
@@ -589,16 +589,16 @@ my-strix-adapters/
 
 ```toml
 [project]
-name = "my-strix-adapters"
+name = "my-ishastra-adapters"
 version = "1.0.0"
-description = "Custom Strix security adapters"
+description = "Custom Ishastra security adapters"
 requires-python = ">=3.12"
 dependencies = [
-    "strix-core>=3.5.0",
+    "ishastra-core>=3.5.0",
     "asyncssh>=2.14",
 ]
 
-[project.entry-points."strix.adapters"]
+[project.entry-points."ishastra.adapters"]
 ssh_audit = "my_strix_adapters.ssh_audit:SSHAuditAdapter"
 tls_check = "my_strix_adapters.tls_check:TLSCheckAdapter"
 dns_audit = "my_strix_adapters.dns_audit:DNSAuditAdapter"
@@ -608,7 +608,7 @@ dns_audit = "my_strix_adapters.dns_audit:DNSAuditAdapter"
 
 ```python
 # src/my_strix_adapters/__init__.py
-from strix.core.adapters import adapter_registry
+from ishastra.core.adapters import adapter_registry
 
 def register_all():
     from .ssh_audit import SSHAuditAdapter
@@ -684,7 +684,7 @@ async def _check_something(self):
 references=[
     "https://cwe.mitre.org/data/definitions/326.html",
     "https://owasp.org/www-community/attacks/...",
-    "https://strix.dev/findings/SSH-WEAK-CIPHER",
+    "https://ishastra.dev/findings/SSH-WEAK-CIPHER",
 ]
 ```
 

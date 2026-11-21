@@ -2,7 +2,7 @@
 
 # NIST 800-53 Rev 5 Control Mapping
 
-Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
+Comprehensive mapping of Ishastra controls to NIST SP 800-53 Revision 5.
 
 ## Control Summary
 
@@ -15,7 +15,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Access Control (AC)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | AC-1 | Policy & Procedures | ✅ | Policy-as-Code, documented in repo |
 | AC-2 | Account Management | ✅ | API keys with expiry, RBAC, MFA |
@@ -35,7 +35,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Awareness & Training (AT)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | AT-1 | Policy & Procedures | ✅ | Contributing guide, security training |
 | AT-2 | Literacy Training | ✅ | Developer onboarding, security review |
@@ -44,9 +44,9 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Audit & Accountability (AU)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
-| AU-1 | Policy & Procedures | ✅ | Strix Proof audit chain documented |
+| AU-1 | Policy & Procedures | ✅ | Ishastra Proof audit chain documented |
 | AU-2 | Event Selection | ✅ | All grants, gates, proofs, findings logged |
 | AU-3 | Content of Audit Records | ✅ | Structured JSON with correlation IDs |
 | AU-4 | Audit Storage Capacity | ✅ | Object store with lifecycle policies |
@@ -64,7 +64,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Assessment, Authorization & Monitoring (CA)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | CA-1 | Policy & Procedures | ✅ | Security review process documented |
 | CA-2 | Control Assessment | ✅ | TLA+ verification, penetration testing |
@@ -77,7 +77,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Configuration Management (CM)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | CM-1 | Policy & Procedures | ✅ | GitOps, Policy-as-Code documented |
 | CM-2 | Baseline Configuration | ✅ | Helm values, sealed secrets |
@@ -94,7 +94,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Contingency Planning (CP)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | CP-1 | Policy & Procedures | ✅ | Runbooks, DR plan documented |
 | CP-2 | Contingency Plan | ✅ | Multi-region, RTO 1hr, RPO 5min |
@@ -108,7 +108,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Identification & Authentication (IA)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | IA-1 | Policy & Procedures | ✅ | Auth middleware documented |
 | IA-2 | Identifier Management | ✅ | API keys, JWT subjects, scoped |
@@ -122,7 +122,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Incident Response (IR)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | IR-1 | Policy & Procedures | ✅ | Runbooks in docs/runbooks/ |
 | IR-2 | Incident Response Training | 🔄 | Team training (partial) |
@@ -135,7 +135,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Maintenance (MA)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | MA-1 | Policy & Procedures | ✅ | Maintenance windows documented |
 | MA-2 | Controlled Maintenance | ✅ | Rolling updates, PDBs, drain |
@@ -145,7 +145,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Media Protection (MP)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | MP-1 | Policy & Procedures | ✅ | Encryption policy documented |
 | MP-2 | Media Access | ✅ | IAM on object store, RLS on DB |
@@ -163,7 +163,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Planning (PL)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | PL-1 | Policy & Procedures | ✅ | Security planning documented |
 | PL-2 | System Security Plan | ✅ | Architecture docs, threat model |
@@ -175,7 +175,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Personnel Security (PS)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | PS-1 | Policy & Procedures | ✅ | HR policies referenced |
 | PS-2 | Position Risk | ✅ | Role-based access, least privilege |
@@ -189,7 +189,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## Risk Assessment (RA)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | RA-1 | Policy & Procedures | ✅ | Threat modeling documented |
 | RA-2 | Risk Assessment | ✅ | Annual, plus per-release |
@@ -199,14 +199,14 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## System & Services Acquisition (SA)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | SA-1 | Policy & Procedures | ✅ | SDLC documented |
 | SA-2 | Allocation of Resources | ✅ | Resource quotas, limits |
 | SA-3 | System Development Lifecycle | ✅ | GitFlow, CI/CD, staging |
 | SA-4 | Acquisition Process | ✅ | Approved vendors, dependency policy |
 | SA-5 | System Documentation | ✅ | This docs site, API reference |
-| SA-8 | Security Engineering | ✅ | TLA+, Scope Gate, Strix Proof |
+| SA-8 | Security Engineering | ✅ | TLA+, Scope Gate, Ishastra Proof |
 | SA-9 | External System Services | ✅ | Vendor assessment, contracts |
 | SA-10 | Developer Configuration | ✅ | Dev containers, pre-commit |
 | SA-11 | Developer Testing | ✅ | Unit, integration, contract, E2E |
@@ -216,7 +216,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## System & Communications Protection (SC)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | SC-1 | Policy & Procedures | ✅ | Network policies documented |
 | SC-2 | Application Partitioning | ✅ | Multi-tenancy RLS, network policies |
@@ -261,7 +261,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ## System & Information Integrity (SI)
 
-| Control | Title | Status | Strix Implementation |
+| Control | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
 | SI-1 | Policy & Procedures | ✅ | Integrity monitoring documented |
 | SI-2 | Flaw Remediation | ✅ | Dependabot, security patches |
@@ -284,7 +284,7 @@ Comprehensive mapping of Strix controls to NIST SP 800-53 Revision 5.
 
 ```bash
 # Generate NIST 800-53 evidence package
-strix compliance generate --framework nist --output ./nist-evidence/
+ishastra compliance generate --framework nist --output ./nist-evidence/
 
 # Structure:
 nist-evidence/

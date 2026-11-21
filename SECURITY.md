@@ -2,7 +2,7 @@
 
 **Version:** 3.5.x · **Last updated:** 2026-11-19
 
-Strix runs security tools, so the platform itself is held to the same standard:
+Ishastra runs security tools, so the platform itself is held to the same standard:
 default-deny authorization, tamper-evident audit, and no silent failure paths.
 This page states what is supported, how to report a problem, and what we do and
 do not claim.
@@ -23,7 +23,7 @@ Only the latest release on `master` receives security fixes.
 
 Use GitHub's private advisory flow:
 
-1. Open <https://github.com/strix/strix/security/advisories/new>.
+1. Open <https://github.com/ishastra/ishastra/security/advisories/new>.
 2. Describe the impact, affected version/commit, and a minimal reproduction.
 3. If the report involves a live target, use only targets you are authorized to
    test — see `scope-pentest.json` for this project's own test scope.
@@ -48,7 +48,7 @@ coordinating with the maintainers.
 
 In scope:
 
-- `src/strix/` (API, scope gate, adapters, audit chain, crypto, redaction)
+- `src/ishastra/` (API, scope gate, adapters, audit chain, crypto, redaction)
 - Shipped container image and Helm chart defaults
 - Scope-document handling, signing, and break-glass flow
 - Authentication and tenant isolation in the API
@@ -68,10 +68,10 @@ Out of scope:
 | Default deny | Every outbound connection passes `scope.check()`/`scope.destination()`; adapters re-check |
 | DNS rebinding | Validation returns a pinned `Destination` (scheme, host, port, IP); adapters connect to that IP |
 | Tenant identity | Derived from a validated API key (SHA-256 at rest), never from a request header |
-| Audit integrity | Append-only HMAC-sealed chain (`STRIX_AUDIT_HMAC_KEY`), verified after restore |
-| Secrets at rest | AES-GCM envelope encryption (`STRIX_ENCRYPTION_KEY`) |
+| Audit integrity | Append-only HMAC-sealed chain (`ISHASTRA_AUDIT_HMAC_KEY`), verified after restore |
+| Secrets at rest | AES-GCM envelope encryption (`ISHASTRA_ENCRYPTION_KEY`) |
 | Output hygiene | Redaction at every boundary (findings, SARIF, reports, logs, webhooks) |
-| Container | Non-root `strix` user, read-only-friendly runtime, healthcheck |
+| Container | Non-root `ishastra` user, read-only-friendly runtime, healthcheck |
 
 Details: [`docs/scope-gate/concepts.md`](docs/scope-gate/concepts.md),
 [`ARCHITECTURE.md`](ARCHITECTURE.md),
@@ -95,9 +95,9 @@ not build against guarantees that do not exist:
 
 ## Hardening checklist for operators
 
-- [ ] `STRIX_ENV=production` (refuses placeholder keys, disables `/docs`)
-- [ ] TLS terminated by a reverse proxy; `STRIX_TRUSTED_PROXIES` set
-- [ ] `STRIX_API_KEY`, `STRIX_AUDIT_HMAC_KEY`, `STRIX_ENCRYPTION_KEY` from a
+- [ ] `ISHASTRA_ENV=production` (refuses placeholder keys, disables `/docs`)
+- [ ] TLS terminated by a reverse proxy; `ISHASTRA_TRUSTED_PROXIES` set
+- [ ] `ISHASTRA_API_KEY`, `ISHASTRA_AUDIT_HMAC_KEY`, `ISHASTRA_ENCRYPTION_KEY` from a
       secret manager, rotated after bootstrap
 - [ ] Signed scope document loaded; unsigned/expired documents rejected
 - [ ] Host-level egress filtering behind the scope gate

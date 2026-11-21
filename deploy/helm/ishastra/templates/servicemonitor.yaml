@@ -1,0 +1,125 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ishastra.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: servicemonitor
+    release: {{ .Release.Name }}
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
+
+
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .Values.secrets.name | default "ishastra-secrets" }}
+          key: ISHASTRA_API_KEY
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: app
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ishastra.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: servicemonitor
+    release: {{ .Release.Name }}
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scheduler
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .Values.secrets.name | default "ishastra-secrets" }}
+          key: ISHASTRA_API_KEY
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: app
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- if .Values.worker.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ishastra.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: servicemonitor
+    release: {{ .Release.Name }}
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .Values.secrets.name | default "ishastra-secrets" }}
+          key: ISHASTRA_API_KEY
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
+          targetLabel: component
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: app
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

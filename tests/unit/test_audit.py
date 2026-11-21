@@ -1,4 +1,4 @@
-"""Unit tests for Strix Audit (AuditLog, AuditChain)."""
+"""Unit tests for Ishastra Audit (AuditLog, AuditChain)."""
 
 import asyncio
 import tempfile
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strix.audit import GENESIS_HASH, AuditChain, AuditLog
-from strix.core import store
+from ishastra.audit import GENESIS_HASH, AuditChain, AuditLog
+from ishastra.core import store
 
 
 @pytest.fixture
@@ -18,10 +18,10 @@ def temp_db():
     store.configure(path)
     yield path
     Path(path).unlink(missing_ok=True)
-    # Clean up WAL/SHM files
+
     for suffix in ("-wal", "-shm"):
         Path(path + suffix).unlink(missing_ok=True)
-    # Reset store
+
     asyncio.run(store.reset_database())
 
 
@@ -51,8 +51,8 @@ class TestAuditLog:
             log.record({"event": f"test{i}"})
         entries = log.entries()
         assert len(entries) == 3
-        assert entries[0]["event"] == "test2"  # Oldest dropped
-        assert entries[2]["event"] == "test4"  # Newest kept
+        assert entries[0]["event"] == "test2"
+        assert entries[2]["event"] == "test4"
 
     def test_audit_log_redacts_credentials(self):
         """Recorded entries have credentials redacted."""
@@ -127,7 +127,7 @@ class TestAuditChain:
         digest2 = chain.append({"event": "test2"})
         assert len(chain._entries) == 2
         assert digest1 != digest2
-        # Second entry commits to first
+
         assert chain._entries[1]["previous_hash"] == digest1
 
     def test_audit_chain_genesis_hash(self):
@@ -152,7 +152,7 @@ class TestAuditChain:
         chain = AuditChain(persistent=False, hmac_key="test-key")
         chain.append({"event": "test1"})
         chain.append({"event": "test2"})
-        # Tamper with first entry
+
         chain._entries[0]["event"] = "tampered"
         ok, reason = chain.verify()
         assert ok is False
@@ -163,7 +163,7 @@ class TestAuditChain:
         chain = AuditChain(persistent=False, hmac_key="test-key")
         chain.append({"event": "test1"})
         chain.append({"event": "test2"})
-        # Manually insert entry with wrong sequence
+
         chain._entries[1]["sequence"] = 5
         ok, reason = chain.verify()
         assert ok is False
@@ -174,7 +174,7 @@ class TestAuditChain:
         chain = AuditChain(persistent=False, hmac_key="test-key")
         chain.append({"event": "test1"})
         chain.append({"event": "test2"})
-        # Break the chain
+
         chain._entries[1]["previous_hash"] = "wrong_hash"
         ok, reason = chain.verify()
         assert ok is False
@@ -182,12 +182,12 @@ class TestAuditChain:
 
     def test_audit_chain_without_hmac(self):
         """Chain works without HMAC key (SHA256 only)."""
-        chain = AuditChain(persistent=False)  # No hmac_key
+        chain = AuditChain(persistent=False)
         digest1 = chain.append({"event": "test1"})
         digest2 = chain.append({"event": "test2"})
         ok, reason = chain.verify()
         assert ok is True
-        # Digests should be different
+
         assert digest1 != digest2
 
     def test_audit_chain_len(self):
@@ -253,14 +253,14 @@ class TestAuditChainCachedVerify:
         chain = AuditChain(persistent=False, hmac_key="test-key")
         chain.append({"event": "test1"})
         chain.append({"event": "test2"})
-        # Tamper
+
         chain._entries[0]["event"] = "tampered"
         ok1, _ = chain.verify_cached(max_age=30.0)
         assert ok1 is False
-        # Fix it
+
         chain._entries[0]["event"] = "test1"
         ok2, _ = chain.verify_cached(max_age=30.0)
-        assert ok2 is True  # Should re-verify and pass
+        assert ok2 is True
 
     @pytest.mark.asyncio
     async def test_verify_cached_async(self):
@@ -283,7 +283,7 @@ class TestAuditChainSerialization:
         entries = chain.entries
         assert len(entries) == 1
         assert entries[0]["event"] == "test1"
-        # Modifying returned list doesn't affect chain
+
         entries.append({"event": "fake"})
         assert len(chain._entries) == 1
 
@@ -313,10 +313,10 @@ class TestAuditRedaction:
                 "password": "pass123",
             }
         )
-        # The sealed entry should be redacted
+
         entry = chain._entries[0]
         assert "secret123" not in str(entry)
         assert "pass123" not in str(entry)
-        # But the hash should still verify
+
         ok, _ = chain.verify()
         assert ok is True

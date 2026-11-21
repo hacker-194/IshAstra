@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: strix-eu-west
+  name: ishastra-eu-west
   labels:
-    app.kubernetes.io/part-of: strix-platform
+    app.kubernetes.io/part-of: ishastra-platform
     topology.kubernetes.io/region: eu-west

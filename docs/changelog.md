@@ -2,7 +2,7 @@
 
 # Changelog
 
-All notable changes to Strix are documented here.
+All notable changes to Ishastra are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Project adheres to [Semantic Versioning](https://semver.org/).
@@ -40,7 +40,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 ## [3.5.0] - 2024-01-15
 
 ### Added
-- **Strix Proof**: Cryptographic audit chain (Grant → Gate → Proof → Verify)
+- **Ishastra Proof**: Cryptographic audit chain (Grant → Gate → Proof → Verify)
 - **TLA+ Formal Verification**: 6 invariants model-checked over 21.4M states
 - **Break-Glass Dual Approval**: Emergency access with MFA and audit trail
 - **Free Tier Deployment**: Oracle Cloud ARM + Neon PostgreSQL + Upstash Redis
@@ -137,7 +137,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 - Docker Compose for local development
 
 ### Changed
-- Project restructure: src/strix, src/strix-rust
+- Project restructure: src/ishastra, src/ishastra-rust
 
 ### Fixed
 - Initial release stabilization
@@ -165,13 +165,13 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 **Migration Steps:**
 ```bash
 # 1. Update scope documents with Layer 2/3 config
-strix scope migrate --add-layer2 --add-layer3
+ishastra scope migrate --add-layer2 --add-layer3
 
 # 2. Rotate API keys with scopes
-strix auth rotate-key --add-scopes assessments:read,assessments:write
+ishastra auth rotate-key --add-scopes assessments:read,assessments:write
 
 # 3. Update adapter configurations
-strix adapter migrate --to-v2
+ishastra adapter migrate --to-v2
 
 # 4. Run database migrations
 alembic upgrade head
@@ -189,23 +189,23 @@ alembic upgrade head
 alembic upgrade head
 
 # Update finding statuses if needed
-strix finding migrate-status
+ishastra finding migrate-status
 ```
 
 ### 3.2 → 3.3
 
 **Breaking Changes:**
 - Scope document structure changed (break_glass object)
-- Adapter registry moved to `strix.adapters.registry`
+- Adapter registry moved to `ishastra.adapters.registry`
 
 **Migration Steps:**
 ```bash
 # Migrate scope documents
-strix scope migrate --add-break-glass
+ishastra scope migrate --add-break-glass
 
 # Update imports
-# from strix.adapters import HTTPProbeAdapter  # old
-from strix.adapters.http_probe import HTTPProbeAdapter  # new
+# from ishastra.adapters import HTTPProbeAdapter  # old
+from ishastra.adapters.http_probe import HTTPProbeAdapter  # new
 ```
 
 ---
@@ -238,6 +238,6 @@ from strix.adapters.http_probe import HTTPProbeAdapter  # new
 
 ## Links
 
-- [GitHub Releases](https://github.com/strix/strix/releases)
+- [GitHub Releases](https://github.com/ishastra/ishastra/releases)
 - [Release Process](contributing/releasing.md)
 - [Migration Guides](#migration-guides)

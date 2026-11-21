@@ -1,0 +1,73 @@
+{{- if .Values.rbac.enabled }}
+{{- if .Values.rbac.createClusterRole }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ishastra.fullname" . }}-clusterrole
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+rules:
+  {{- toYaml .Values.rbac.clusterRoleRules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-clusterrolebinding
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "ishastra.fullname" . }}-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ishastra.fullname" . }}-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+rules:
+  {{- toYaml .Values.rbac.roleRules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "ishastra.fullname" . }}-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

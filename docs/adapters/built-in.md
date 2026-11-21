@@ -2,7 +2,7 @@
 
 # Built-in Adapters
 
-Strix's built-in adapters for passive and active security assessment.
+Ishastra's built-in adapters for passive and active security assessment.
 
 ## Overview
 
@@ -46,7 +46,7 @@ Passive analysis of HTTP responses for security headers, technology fingerprints
       "follow_redirects": true,
       "max_redirects": 10,
       "timeout": 10,
-      "user_agent": "Strix/3.5.0 (+https://strix.dev)",
+      "user_agent": "Ishastra/3.5.0 (+https://ishastra.dev)",
       "check_security_headers": true,
       "check_cookies": true,
       "check_methods": true,
@@ -345,7 +345,7 @@ Yield Finding objects
 
 ```bash
 # Submit assessment with built-in adapters
-curl -X POST https://api.strix.dev/api/v1/assessments \
+curl -X POST https://api.ishastra.dev/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -359,17 +359,17 @@ curl -X POST https://api.strix.dev/api/v1/assessments \
 
 ```bash
 # Run single adapter
-strix adapter run http_probe --target https://example.com --scope scope.json
+ishastra adapter run http_probe --target https://example.com --scope scope.json
 
 # Run all built-in
-strix adapter run-all --target https://example.com --scope scope.json
+ishastra adapter run-all --target https://example.com --scope scope.json
 ```
 
 ### Programmatically
 
 ```python
-from strix.core.adapters import adapter_registry, AdapterConfig
-from strix.core.scope import ScopeGate, ScopeDocument
+from ishastra.core.adapters import adapter_registry, AdapterConfig
+from ishastra.core.scope import ScopeGate, ScopeDocument
 
 scope = ScopeDocument.from_file("scope.json")
 gate = ScopeGate(scope)

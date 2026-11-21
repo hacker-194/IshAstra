@@ -6,7 +6,7 @@ import json
 
 import httpx
 
-from strix import analyst
+from ishastra import analyst
 
 
 def _transport(content: str | dict, *, status: int = 200) -> httpx.MockTransport:
@@ -60,11 +60,8 @@ def test_enriches_with_known_fingerprints_only():
                     "rationale": "reachable",
                     "next_step": "fix encoding",
                 },
-                # invented fingerprint must be dropped
                 {"fingerprint": "fp-999", "priority": "low", "rationale": "x"},
-                # duplicate must be dropped
                 {"fingerprint": "fp-1", "priority": "low", "rationale": "dup"},
-                # invalid priority must be dropped
                 {"fingerprint": "fp-2", "priority": "urgent", "rationale": "y"},
             ],
         }
@@ -105,15 +102,15 @@ def test_no_findings_short_circuits():
 
 
 def test_provider_from_env_needs_both_url_and_key(monkeypatch):
-    monkeypatch.delenv("STRIX_AI_BASE_URL", raising=False)
-    monkeypatch.delenv("STRIX_AI_API_KEY", raising=False)
+    monkeypatch.delenv("ISHASTRA_AI_BASE_URL", raising=False)
+    monkeypatch.delenv("ISHASTRA_AI_API_KEY", raising=False)
     assert isinstance(analyst.provider_from_env(), analyst.NullProvider)
 
-    monkeypatch.setenv("STRIX_AI_BASE_URL", "https://ai.example/v1")
+    monkeypatch.setenv("ISHASTRA_AI_BASE_URL", "https://ai.example/v1")
     assert isinstance(analyst.provider_from_env(), analyst.NullProvider)
 
-    monkeypatch.setenv("STRIX_AI_API_KEY", "test-key")
-    monkeypatch.setenv("STRIX_AI_MODEL", "custom-model")
+    monkeypatch.setenv("ISHASTRA_AI_API_KEY", "test-key")
+    monkeypatch.setenv("ISHASTRA_AI_MODEL", "custom-model")
     provider = analyst.provider_from_env()
     assert isinstance(provider, analyst.EnvHTTPProvider)
     assert provider.model == "custom-model"

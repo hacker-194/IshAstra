@@ -18,7 +18,7 @@ High-level system design and data flows.
           │                 │                 │                 │
           ▼                 ▼                 ▼                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Strix Platform                                  │
+│                              Ishastra Platform                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
@@ -40,7 +40,7 @@ High-level system design and data flows.
 │  │                    Scope Gate (Authorization)                     │  │
 │  │  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌──────────────────┐   │  │
 │  │  │ Layer 1 │  │ Layer 2 │  │ Layer 3  │  │    Observer      │   │  │
-│  │  │URL/Host │  │ DNS/IP  │  │ Pinned   │  │ (Strix Proof)    │   │  │
+│  │  │URL/Host │  │ DNS/IP  │  │ Pinned   │  │ (Ishastra Proof)    │   │  │
 │  │  └─────────┘  └─────────┘  └──────────┘  └──────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                  │                                      │
@@ -76,7 +76,7 @@ High-level system design and data flows.
 
 ## Core Components
 
-### 1. API Gateway (`src/strix/api/`)
+### 1. API Gateway (`src/ishastra/api/`)
 - **FastAPI** with async request handling
 - **Authentication**: API keys, OIDC, mTLS
 - **Authorization**: RBAC with org/partner/tenant hierarchy
@@ -84,7 +84,7 @@ High-level system design and data flows.
 - **Multi-tenancy**: Row-level security via PostgreSQL RLS
 - **Observability**: OpenTelemetry, Prometheus metrics, structured logging
 
-### 2. Scope Gate (`src/strix/core/scope.py`)
+### 2. Scope Gate (`src/ishastra/core/scope.py`)
 The **authorization engine** — default-deny for every outbound connection.
 
 **Three-Layer Validation:**
@@ -96,17 +96,17 @@ The **authorization engine** — default-deny for every outbound connection.
 
 **Key Properties:**
 - **ContextVar isolation**: Per-task scope binding prevents cross-tenant leakage
-- **Observer pattern**: Every decision receipted for Strix Proof audit chain
+- **Observer pattern**: Every decision receipted for Ishastra Proof audit chain
 - **TLA+ verified**: 6 invariants, 21.4M states model-checked
 
-### 3. Job Orchestration (`src/strix/core/scheduler.py`, `worker.py`)
+### 3. Job Orchestration (`src/ishastra/core/scheduler.py`, `worker.py`)
 - **In-memory queue** (dev) / **Redis queue** (prod)
 - **Threaded worker pool** with configurable concurrency
 - **Priority queues**: Critical > High > Normal > Low
 - **Retry with exponential backoff** + dead letter queue
 - **Scheduler**: Cron + interval triggers in the single writer process
 
-### 4. Adapter Framework (`src/strix/core/adapters.py`)
+### 4. Adapter Framework (`src/ishastra/core/adapters.py`)
 **Built-in Adapters:**
 | Adapter | Purpose | Scope Gate Re-check |
 |---------|---------|---------------------|
@@ -122,12 +122,12 @@ The **authorization engine** — default-deny for every outbound connection.
 
 **SDK**: Custom adapter development with automatic Scope Gate integration.
 
-### 5. Findings Engine (`src/strix/core/findings.py`)
+### 5. Findings Engine (`src/ishastra/core/findings.py`)
 Pipeline: `Raw Finding → Normalize → Dedupe → Redact → Enrich → Persist → Export`
 
 **Output Formats:** SARIF 2.1, JSON, PDF, HTML, Jira, GitHub Issues
 
-### 6. Strix Proof (`src/strix/core/proof.py`)
+### 6. Ishastra Proof (`src/ishastra/core/proof.py`)
 Cryptographic audit chain for every gate decision:
 ```
 Grant (scope doc signed) → Gate (decision) → Proof (receipt) → Verify (offline)
@@ -165,7 +165,7 @@ Grant (scope doc signed) → Gate (decision) → Proof (receipt) → Verify (off
 
 6. AUDIT CHAIN
    Each gate decision → Proof receipt → Signed → Stored
-   → Verifiable offline via `strix proof verify`
+   → Verifiable offline via `ishastra proof verify`
 
 7. COMPLETION
    Assessment marked complete → Webhook fired → Report available
@@ -210,12 +210,12 @@ Partner (MSSP)
 
 ## Scaling Characteristics
 
-Strix is single-writer by design. These are the real limits, not aspirational
+Ishastra is single-writer by design. These are the real limits, not aspirational
 capacity numbers:
 
 | Component | Scaling approach | Tested |
 |-----------|------------------|--------|
-| API + worker | Vertical: more CPU/RAM, `STRIX_WORKERS` threads | Single host |
+| API + worker | Vertical: more CPU/RAM, `ISHASTRA_WORKERS` threads | Single host |
 | Job queue | In-process by default; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
 | PostgreSQL | Single writer against a managed instance | Single host |
 | Redis | Shared rate-limit counters | Single node |

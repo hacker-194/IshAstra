@@ -1,4 +1,4 @@
-"""Tests for strix.api.routers.system module."""
+"""Tests for ishastra.api.routers.system module."""
 
 from __future__ import annotations
 
@@ -9,32 +9,30 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from strix.api.app import create_app
-from strix.api.deps import reset_settings
-from strix.api.security import api_keys
-from strix.core import scope, store
-from strix.core.scheduler import create_scheduler
+from ishastra.api.app import create_app
+from ishastra.api.deps import reset_settings
+from ishastra.api.security import api_keys
+from ishastra.core import scope, store
+from ishastra.core.scheduler import create_scheduler
 
 
 @pytest_asyncio.fixture
 async def app_with_db(temp_db, scope_file):
     """Create test app with configured database and scope."""
-    # Reset module-level singletons for test isolation
+
     reset_settings()
     api_keys.reset()
-    # Override STRIX_DB so lifespan uses the test database
-    os.environ["STRIX_DB"] = temp_db
+
+    os.environ["ISHASTRA_DB"] = temp_db
     store.configure(temp_db)
     scope.load(scope_file)
     app = create_app()
 
-    # Manually run bootstrap (lifespan doesn't run until first request,
-    # but auth needs keys loaded beforehand)
-    from strix.api import app as app_module
-    from strix.api import deps
-    from strix.api.app import _bootstrap_admin_key_async
-    from strix.api.deps import init_http_client
-    from strix.core import policies
+    from ishastra.api import app as app_module
+    from ishastra.api import deps
+    from ishastra.api.app import _bootstrap_admin_key_async
+    from ishastra.api.deps import init_http_client
+    from ishastra.core import policies
 
     async def bootstrap():
         await init_http_client()
@@ -44,7 +42,6 @@ async def app_with_db(temp_db, scope_file):
         await deps.monitor.load_async()
         await _bootstrap_admin_key_async()
 
-        # Initialize scheduler (same as app.py lifespan)
         app_module._scheduler = await create_scheduler(
             audit_chain=deps.audit_chain,
             monitor=deps.monitor,
@@ -57,7 +54,6 @@ async def app_with_db(temp_db, scope_file):
     await bootstrap()
     yield app
 
-    # Cleanup scheduler - run in the same event loop
     if app_module._scheduler is not None:
         await app_module._scheduler.stop()
         app_module._scheduler = None
@@ -96,7 +92,7 @@ class TestSystemRoutes:
     async def test_ready_endpoint(self, client):
         """Test /api/ready endpoint."""
         response = await client.get("/api/ready")
-        # Ready might be false if no scope loaded, but endpoint should work
+
         assert response.status_code in (200, 503)
         data = response.json()
         assert "ready" in data
@@ -106,7 +102,7 @@ class TestSystemRoutes:
     async def test_metrics_endpoint_requires_auth(self, client):
         """Test /api/metrics requires admin auth."""
         response = await client.get("/api/metrics")
-        # Should require authentication
+
         assert response.status_code == 401
 
 
@@ -157,14 +153,13 @@ class TestAssessmentRoutes:
     @pytest.mark.asyncio
     async def test_get_assessment(self, auth_client):
         """Test GET /api/assess/{job_id}."""
-        # First create an assessment
+
         create_resp = await auth_client.post(
             "/api/assess",
             json={"target": "https://example.com/", "profile": "web"},
         )
         job_id = create_resp.json()["id"]
 
-        # Get the assessment
         response = await auth_client.get(f"/api/assess/{job_id}")
         assert response.status_code == 200
         data = response.json()
@@ -200,9 +195,7 @@ class TestAssessmentRoutes:
         )
         job_id = create_resp.json()["id"]
 
-        # Manually set job state to "failed" so it can be retried
-        # (retry only works on failed, partial, or cancelled jobs)
-        from strix.core import store
+        from ishastra.core import store
 
         db = await store.get_database()
         async with db.transaction() as conn:
@@ -266,12 +259,12 @@ class TestSchedulerRoutes:
         assert "frequencies" in data
         assert isinstance(data["frequencies"], list)
         assert len(data["frequencies"]) > 0
-        # Check structure
+
         for freq in data["frequencies"]:
             assert "name" in freq
             assert "example_cron" in freq
             assert "description" in freq
-        # Check timezone_examples
+
         assert "timezone_examples" in data
         assert isinstance(data["timezone_examples"], list)
 
@@ -281,8 +274,8 @@ class TestAssetRoutes:
 
     @pytest.mark.asyncio
     async def test_asset_workflow(self, auth_client):
-        from strix.core.findings import Finding
-        from strix.core.jobs import Job, JobState
+        from ishastra.core.findings import Finding
+        from ishastra.core.jobs import Job, JobState
 
         job = Job(
             id="asset-api-job",
@@ -350,8 +343,8 @@ class TestCrossJobFindingRoutes:
 
     @pytest.mark.asyncio
     async def test_list_and_detail(self, auth_client):
-        from strix.core.findings import Finding
-        from strix.core.jobs import Job, JobState
+        from ishastra.core.findings import Finding
+        from ishastra.core.jobs import Job, JobState
 
         for job_id, finished_at in (
             ("cross-api-job-1", 1234567890.0),
@@ -426,7 +419,7 @@ class TestCrossJobFindingRoutes:
         )
         assert repeated.status_code == 404
 
-        from strix.core.jobs import AdapterRun, RunState
+        from ishastra.core.jobs import AdapterRun, RunState
 
         for job_id, runs in (
             ("cross-api-verify-partial", []),
@@ -474,7 +467,6 @@ class TestTenantUsers:
         assert viewer.status_code == 200
         assert viewer.json()["role"] == "viewer"
 
-        # Reload from storage to prove user keys are durable.
         await api_keys.load_async()
 
         transport = ASGITransport(app=app_with_db)
@@ -520,7 +512,6 @@ class TestAPIKeyScopes:
         assert created.status_code == 200
         assert created.json()["scope"] == "read"
 
-        # Reload from storage so the scope is proven durable, not memory-only.
         await api_keys.load_async()
 
         transport = ASGITransport(app=app_with_db)

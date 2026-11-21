@@ -1,4 +1,4 @@
-"""Unit tests for Strix Project Key Scopes (multi-project tenant isolation)."""
+"""Unit tests for Ishastra Project Key Scopes (multi-project tenant isolation)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from strix.core.key_scopes import (
+from ishastra.core.key_scopes import (
     ProjectKey,
     authorize_request,
     check_key_scope,
@@ -26,11 +26,7 @@ from strix.core.key_scopes import (
     validate_api_key_with_scopes,
     validate_project_key,
 )
-from strix.core.store import SQLiteDatabase, close_database, configure, get_database
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from ishastra.core.store import SQLiteDatabase, close_database, configure, get_database
 
 
 @pytest_asyncio.fixture
@@ -51,13 +47,8 @@ async def temp_db():
 @pytest_asyncio.fixture
 async def db_with_tenant(temp_db):
     """Database with a test tenant."""
-    # Migration 21 (project scopes) is already applied via db.migrate() in temp_db
+
     yield "test-tenant-123"
-
-
-# ---------------------------------------------------------------------------
-# Test ProjectKey Data Model
-# ---------------------------------------------------------------------------
 
 
 class TestProjectKeyModel:
@@ -117,11 +108,6 @@ class TestProjectKeyModel:
         assert key.include_hosts == "*.example.com"
 
 
-# ---------------------------------------------------------------------------
-# Test Database Migration
-# ---------------------------------------------------------------------------
-
-
 class TestProjectScopesMigration:
     """Test project scopes database migration."""
 
@@ -131,8 +117,6 @@ class TestProjectScopesMigration:
         db = await get_database()
         assert isinstance(db, SQLiteDatabase)
 
-        # Migration should already be applied via MIGRATIONS
-        # Verify columns exist
         rows = await db.fetchall("PRAGMA table_info(api_keys)")
         columns = {row["name"] for row in rows}
 
@@ -156,16 +140,10 @@ class TestProjectScopesMigration:
         }
         assert expected_columns.issubset(columns)
 
-        # Verify indexes exist
         indexes = await db.fetchall("PRAGMA index_list(api_keys)")
         index_names = {row["name"] for row in indexes}
         assert "api_keys_by_project" in index_names
         assert "api_keys_tenant_project" in index_names
-
-
-# ---------------------------------------------------------------------------
-# Test Core Store Functions
-# ---------------------------------------------------------------------------
 
 
 class TestCoreStoreFunctions:
@@ -197,7 +175,6 @@ class TestCoreStoreFunctions:
             include_hosts="*.example.com",
         )
 
-        # Retrieve by tenant and project
         key = await get_project_key(tenant_id, "project-a")
         assert key is not None
         assert key.tenant_id == tenant_id
@@ -249,7 +226,7 @@ class TestCoreStoreFunctions:
     @pytest.mark.asyncio
     async def test_list_project_keys(self, temp_db):
         """Test listing all project keys for a tenant."""
-        # Use different tenants since schema only allows one key per tenant (PK on tenant_id)
+
         now = time.time()
         tenants = ["tenant-1", "tenant-2", "tenant-3"]
 
@@ -274,7 +251,6 @@ class TestCoreStoreFunctions:
                 include_hosts=None,
             )
 
-        # List keys for each tenant
         for tenant_id in tenants:
             keys = await list_project_keys(tenant_id)
             assert len(keys) == 1
@@ -286,7 +262,6 @@ class TestCoreStoreFunctions:
         """Test load_project_keys filters by tenant_id."""
         now = time.time()
 
-        # Create keys for two different tenants
         for tenant_id in ["tenant-1", "tenant-2"]:
             key_hash = hashlib.sha256(f"key-{tenant_id}".encode()).hexdigest()
             await save_project_key(
@@ -342,15 +317,12 @@ class TestCoreStoreFunctions:
             include_hosts=None,
         )
 
-        # Verify active
         key = await get_project_key(tenant_id, "project-a")
         assert key.active is True
 
-        # Deactivate
         result = await deactivate_project_key(tenant_id, "project-a")
         assert result is True
 
-        # Verify inactive
         key = await get_project_key(tenant_id, "project-a")
         assert key.active is False
 
@@ -359,11 +331,6 @@ class TestCoreStoreFunctions:
         """Test deactivating non-existent key returns False."""
         result = await deactivate_project_key(db_with_tenant, "nonexistent")
         assert result is False
-
-
-# ---------------------------------------------------------------------------
-# Test Key Lifecycle Functions
-# ---------------------------------------------------------------------------
 
 
 class TestKeyLifecycle:
@@ -383,11 +350,9 @@ class TestKeyLifecycle:
             scope_type="tenant",
         )
 
-        # Verify raw key format
         assert raw_key.startswith("strix_")
         assert len(raw_key) > 10
 
-        # Verify record
         assert record.tenant_id == tenant_id
         assert record.key_hash == hashlib.sha256(raw_key.encode()).hexdigest()
         assert record.tier == "standard"
@@ -479,7 +444,6 @@ class TestKeyLifecycle:
             scope_type="tenant",
         )
 
-        # Validate the key
         validated = await validate_project_key(raw_key)
         assert validated is not None
         assert validated.tenant_id == tenant_id
@@ -505,10 +469,9 @@ class TestKeyLifecycle:
         """Test validating an expired key returns None and deactivates it."""
         tenant_id = db_with_tenant
 
-        # Create key with past expiration
         raw_key = "strix_" + "a" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        past = time.time() - 86400  # 1 day ago
+        past = time.time() - 86400
 
         await save_project_key(
             tenant_id=tenant_id,
@@ -529,11 +492,9 @@ class TestKeyLifecycle:
             include_hosts=None,
         )
 
-        # Validate should return None and deactivate
         validated = await validate_project_key(raw_key)
         assert validated is None
 
-        # Verify key is now inactive in DB
         key = await get_project_key(tenant_id, None)
         assert key is not None
         assert key.active is False
@@ -556,11 +517,6 @@ class TestKeyLifecycle:
         assert validated.last_used >= record.created_at
 
 
-# ---------------------------------------------------------------------------
-# Test Key Rotation
-# ---------------------------------------------------------------------------
-
-
 class TestKeyRotation:
     """Test project key rotation."""
 
@@ -569,7 +525,6 @@ class TestKeyRotation:
         """Test rotating a project key preserves scope configuration."""
         tenant_id = db_with_tenant
 
-        # Create original key
         raw_key, original = await create_project_key(
             tenant_id=tenant_id,
             tier="premium",
@@ -583,17 +538,14 @@ class TestKeyRotation:
             include_hosts="*.example.com",
         )
 
-        # Rotate the key
         result = await rotate_project_key(tenant_id, project_id="project-a", ttl_days=60)
         assert result is not None
 
         new_raw_key, new_record = result
 
-        # Verify new key is different
         assert new_raw_key != raw_key
         assert new_record.key_hash != original.key_hash
 
-        # Verify scope configuration preserved
         assert new_record.tenant_id == original.tenant_id
         assert new_record.tier == original.tier
         assert new_record.admin == original.admin
@@ -605,15 +557,12 @@ class TestKeyRotation:
         assert new_record.include_hosts == original.include_hosts
         assert new_record.ai_enabled == original.ai_enabled
 
-        # Verify new expiry
         assert new_record.expires_at is not None
         assert new_record.expires_at > original.expires_at
 
-        # Verify old key is deactivated
         old_validated = await validate_project_key(raw_key)
         assert old_validated is None
 
-        # Verify new key works
         new_validated = await validate_project_key(new_raw_key)
         assert new_validated is not None
         assert new_validated.key_hash == new_record.key_hash
@@ -635,9 +584,8 @@ class TestKeyRotation:
         assert new_record.scope_type == "tenant"
         assert new_record.project_id is None
 
-        # Old key deactivated
         assert await validate_project_key(raw_key) is None
-        # New key works
+
         assert await validate_project_key(new_raw_key) is not None
 
     @pytest.mark.asyncio
@@ -653,7 +601,6 @@ class TestKeyRotation:
 
         raw_key, record = await create_project_key(tenant_id=tenant_id)
 
-        # Deactivate the key
         await deactivate_project_key(tenant_id, None)
 
         result = await rotate_project_key(tenant_id, project_id=None)
@@ -691,11 +638,6 @@ class TestKeyRotation:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Test Authorization: check_key_scope
-# ---------------------------------------------------------------------------
-
-
 class TestCheckKeyScope:
     """Test check_key_scope authorization logic."""
 
@@ -720,10 +662,9 @@ class TestCheckKeyScope:
             include_hosts=None,
         )
 
-        # Should allow any project
         assert check_key_scope(key, required_project="project-a") is True
         assert check_key_scope(key, required_project="project-b") is True
-        assert check_key_scope(key, required_project=None) is True  # tenant-level
+        assert check_key_scope(key, required_project=None) is True
 
     def test_tenant_scoped_read_only_denies_write(self):
         """Tenant-scoped read-only key denies write access."""
@@ -772,7 +713,7 @@ class TestCheckKeyScope:
 
         assert check_key_scope(key, required_project="project-a") is True
         assert check_key_scope(key, required_project="project-b") is False
-        assert check_key_scope(key, required_project=None) is False  # No tenant-level access
+        assert check_key_scope(key, required_project=None) is False
 
     def test_project_scoped_key_allowed_projects(self):
         """Project-scoped key allows access to allowed_projects list."""
@@ -795,11 +736,11 @@ class TestCheckKeyScope:
             include_hosts=None,
         )
 
-        assert check_key_scope(key, required_project="project-a") is True  # primary project
-        assert check_key_scope(key, required_project="project-b") is True  # allowed
-        assert check_key_scope(key, required_project="project-c") is True  # allowed
-        assert check_key_scope(key, required_project="project-d") is False  # not allowed
-        assert check_key_scope(key, required_project=None) is False  # No tenant-level
+        assert check_key_scope(key, required_project="project-a") is True
+        assert check_key_scope(key, required_project="project-b") is True
+        assert check_key_scope(key, required_project="project-c") is True
+        assert check_key_scope(key, required_project="project-d") is False
+        assert check_key_scope(key, required_project=None) is False
 
     def test_project_scoped_read_only_denies_write(self):
         """Project-scoped read-only key denies write access."""
@@ -834,7 +775,7 @@ class TestCheckKeyScope:
             key_hash="abc",
             tier="standard",
             admin=False,
-            active=False,  # INACTIVE
+            active=False,
             scope="write",
             scope_type="tenant",
             project_id=None,
@@ -850,11 +791,6 @@ class TestCheckKeyScope:
 
         assert check_key_scope(key, required_project="project-a") is False
         assert check_key_scope(key, required_project=None) is False
-
-
-# ---------------------------------------------------------------------------
-# Test Project-Scoped Rate Limiting
-# ---------------------------------------------------------------------------
 
 
 class TestProjectRateLimiting:
@@ -921,7 +857,7 @@ class TestProjectRateLimiting:
             active=True,
             scope="write",
             scope_type="project",
-            project_id=None,  # No project_id but scope_type is project
+            project_id=None,
             allowed_projects=["project-a", "project-b"],
             resource_filters={},
             created_at=time.time(),
@@ -933,13 +869,8 @@ class TestProjectRateLimiting:
         )
 
         bucket_key = await get_project_rate_limit_key(key, "assessments")
-        # Falls back to tenant scope when no project_id
+
         assert bucket_key == "assessments:tenant:tenant-1"
-
-
-# ---------------------------------------------------------------------------
-# Test validate_api_key_with_scopes Integration
-# ---------------------------------------------------------------------------
 
 
 class TestValidateApiKeyWithScopes:
@@ -1037,11 +968,6 @@ class TestValidateApiKeyWithScopes:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Test authorize_request
-# ---------------------------------------------------------------------------
-
-
 class TestAuthorizeRequest:
     """Test the authorize_request convenience function."""
 
@@ -1056,12 +982,10 @@ class TestAuthorizeRequest:
             scope="write",
         )
 
-        # Should allow write to any project
         key = await authorize_request(raw_key, required_project="project-a", required_action="write")
         assert key is not None
         assert key.scope_type == "tenant"
 
-        # Should allow read to any project
         key = await authorize_request(raw_key, required_project="project-b", required_action="read")
         assert key is not None
 
@@ -1078,15 +1002,12 @@ class TestAuthorizeRequest:
             scope="write",
         )
 
-        # Should allow access to primary project
         key = await authorize_request(raw_key, required_project="project-a", required_action="write")
         assert key is not None
 
-        # Should allow access to allowed project
         key = await authorize_request(raw_key, required_project="project-b", required_action="write")
         assert key is not None
 
-        # Should deny access to non-allowed project
         key = await authorize_request(raw_key, required_project="project-c", required_action="write")
         assert key is None
 
@@ -1102,11 +1023,9 @@ class TestAuthorizeRequest:
             scope="read",
         )
 
-        # Read allowed
         key = await authorize_request(raw_key, required_project="project-a", required_action="read")
         assert key is not None
 
-        # Write denied
         key = await authorize_request(raw_key, required_project="project-a", required_action="write")
         assert key is None
 
@@ -1121,11 +1040,6 @@ class TestAuthorizeRequest:
         """Test authorize_request returns None for None key."""
         key = await authorize_request(None, required_project="project-a")
         assert key is None
-
-
-# ---------------------------------------------------------------------------
-# Test Resource Filters (fine-grained access)
-# ---------------------------------------------------------------------------
 
 
 class TestResourceFilters:
@@ -1180,7 +1094,6 @@ class TestResourceFilters:
             resource_filters=filters,
         )
 
-        # Reload from database
         reloaded = await get_project_key(tenant_id, "project-a")
         assert reloaded.resource_filters == filters
 
@@ -1198,11 +1111,6 @@ class TestResourceFilters:
 
         reloaded = await get_project_key(tenant_id, None)
         assert reloaded.resource_filters == {}
-
-
-# ---------------------------------------------------------------------------
-# Test Multi-Project Keys (allowed_projects)
-# ---------------------------------------------------------------------------
 
 
 class TestMultiProjectKeys:
@@ -1223,7 +1131,6 @@ class TestMultiProjectKeys:
         assert record.project_id == "primary-project"
         assert record.allowed_projects == ["secondary-1", "secondary-2", "secondary-3"]
 
-        # Verify in database
         reloaded = await get_project_key(tenant_id, "primary-project")
         assert reloaded.allowed_projects == ["secondary-1", "secondary-2", "secondary-3"]
 
@@ -1248,14 +1155,11 @@ class TestMultiProjectKeys:
             include_hosts=None,
         )
 
-        # Primary project access
         assert check_key_scope(key, required_project="primary") is True
 
-        # Allowed secondary projects
         assert check_key_scope(key, required_project="secondary-1") is True
         assert check_key_scope(key, required_project="secondary-2") is True
 
-        # Non-allowed project
         assert check_key_scope(key, required_project="unauthorized") is False
 
     @pytest.mark.asyncio
@@ -1275,15 +1179,9 @@ class TestMultiProjectKeys:
 
         assert new_record.allowed_projects == ["secondary-1", "secondary-2"]
 
-        # Verify new key works for all allowed projects
         for proj in ["primary", "secondary-1", "secondary-2"]:
             validated = await authorize_request(new_raw_key, required_project=proj)
             assert validated is not None, f"Failed for project {proj}"
-
-
-# ---------------------------------------------------------------------------
-# Test Include Hosts
-# ---------------------------------------------------------------------------
 
 
 class TestIncludeHosts:
@@ -1322,18 +1220,13 @@ class TestIncludeHosts:
         assert result["include_hosts"] == "*.example.com"
 
 
-# ---------------------------------------------------------------------------
-# Test Edge Cases and Error Handling
-# ---------------------------------------------------------------------------
-
-
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
     @pytest.mark.asyncio
     async def test_concurrent_key_creation(self, temp_db):
         """Test concurrent key creation for different tenants."""
-        # Use different tenants since schema only allows one key per tenant
+
         tenants = [f"tenant-{i}" for i in range(5)]
 
         async def create_key(tenant_id):
@@ -1342,7 +1235,6 @@ class TestEdgeCases:
                 scope_type="tenant",
             )
 
-        # Create multiple keys concurrently for different tenants
         results = await asyncio.gather(*[create_key(t) for t in tenants])
 
         assert len(results) == 5
@@ -1353,7 +1245,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_key_hash_uniqueness(self, temp_db):
         """Test that each created key has a unique hash."""
-        # Use different tenants since schema only allows one key per tenant
+
         hashes = set()
         for i in range(10):
             tenant_id = f"tenant-{i}"
@@ -1373,8 +1265,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_check_key_scope_none_key(self):
         """Test check_key_scope handles None key (should not crash)."""
-        # This tests that we don't pass None to check_key_scope
-        # The function expects a ProjectKey, so this is more of a contract test
+
         key = ProjectKey(
             tenant_id="tenant-1",
             key_hash="abc",
@@ -1393,15 +1284,14 @@ class TestEdgeCases:
             ai_enabled=False,
             include_hosts=None,
         )
-        # Should not raise
+
         result = check_key_scope(key, required_project="project-a")
         assert result is True
 
     @pytest.mark.asyncio
     async def test_row_to_project_key_handles_missing_fields(self, temp_db, db_with_tenant):
         """Test _row_to_project_key handles missing optional fields."""
-        # This is tested implicitly by the other tests, but we verify
-        # that optional fields default correctly
+
         tenant_id = db_with_tenant
 
         raw_key, record = await create_project_key(
@@ -1409,7 +1299,6 @@ class TestEdgeCases:
             scope_type="tenant",
         )
 
-        # All optional fields should have defaults
         assert record.scope == "write"
         assert record.scope_type == "tenant"
         assert record.project_id is None
@@ -1420,11 +1309,6 @@ class TestEdgeCases:
         assert record.rotated_at is not None
 
 
-# ---------------------------------------------------------------------------
-# Test Migration 24 (from store.py)
-# ---------------------------------------------------------------------------
-
-
 class TestMigration24:
     """Test migration 24 (project-scoped API key extensions) from store."""
 
@@ -1433,7 +1317,6 @@ class TestMigration24:
         """Test that migration 24 columns and indexes exist."""
         db = await get_database()
 
-        # Check columns
         rows = await db.fetchall("PRAGMA table_info(api_keys)")
         columns = {row["name"] for row in rows}
 
@@ -1445,7 +1328,6 @@ class TestMigration24:
         }
         assert migration_24_columns.issubset(columns)
 
-        # Check indexes
         indexes = await db.fetchall("PRAGMA index_list(api_keys)")
         index_names = {row["name"] for row in indexes}
         assert "api_keys_by_project" in index_names
@@ -1458,7 +1340,6 @@ class TestMigration24:
         key_hash = hashlib.sha256(b"test-migration").hexdigest()
         now = time.time()
 
-        # Insert using old schema (without new columns)
         db = await get_database()
         async with db.transaction() as conn:
             await conn.execute(
@@ -1467,10 +1348,9 @@ class TestMigration24:
                 (tenant_id, key_hash, "standard", 0, 1, now),
             )
 
-        # Load using new schema - should have defaults
         key = await get_project_key(tenant_id, None)
         assert key is not None
-        assert key.scope_type == "tenant"  # default
+        assert key.scope_type == "tenant"
         assert key.project_id is None
         assert key.allowed_projects == []
         assert key.resource_filters == {}

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""End-to-end release gate for a real-world Strix deployment.
+"""End-to-end release gate for a real-world Ishastra deployment.
 
 Starts the API in production mode against a throwaway database, runs a real
 assessment against a local HTTP target, and proves the trust layer end to end:
@@ -101,7 +100,7 @@ def run(args: list[str], cwd: Path | None = None, env: dict[str, str] | None = N
 
 def main() -> int:
     gate = Gate()
-    work = Path(tempfile.mkdtemp(prefix="strix-readiness-"))
+    work = Path(tempfile.mkdtemp(prefix="ishastra-readiness-"))
     target_port = free_port()
     api_port = free_port()
     gate_port = free_port()
@@ -127,17 +126,17 @@ def main() -> int:
 
     env = {
         **os.environ,
-        "STRIX_ENV": "production",
-        "STRIX_API_KEY": api_key,
-        "STRIX_AUDIT_HMAC_KEY": hmac_key,
-        "STRIX_ENCRYPTION_KEY": encryption_key,
-        "STRIX_DB": str(work / "strix.db"),
-        "STRIX_SCOPE_FILE": str(scope_path),
-        "STRIX_SCOPE_MODE": "global",
-        "STRIX_LOG_LEVEL": "WARNING",
-        "STRIX_WORKERS": "1",
-        "STRIX_QUEUE_MODE": "inprocess",
-        "STRIX_RETENTION_DAYS": "0",
+        "ISHASTRA_ENV": "production",
+        "ISHASTRA_API_KEY": api_key,
+        "ISHASTRA_AUDIT_HMAC_KEY": hmac_key,
+        "ISHASTRA_ENCRYPTION_KEY": encryption_key,
+        "ISHASTRA_DB": str(work / "ishastra.db"),
+        "ISHASTRA_SCOPE_FILE": str(scope_path),
+        "ISHASTRA_SCOPE_MODE": "global",
+        "ISHASTRA_LOG_LEVEL": "WARNING",
+        "ISHASTRA_WORKERS": "1",
+        "ISHASTRA_QUEUE_MODE": "inprocess",
+        "ISHASTRA_RETENTION_DAYS": "0",
     }
     auth = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     base = f"http://127.0.0.1:{api_port}"
@@ -156,7 +155,7 @@ def main() -> int:
                 PY,
                 "-m",
                 "uvicorn",
-                "strix.api.app:create_app",
+                "ishastra.api.app:create_app",
                 "--factory",
                 "--host",
                 "127.0.0.1",
@@ -241,7 +240,7 @@ def main() -> int:
             PY,
             str(ROOT / "scripts" / "operational_check.py"),
             "--db",
-            str(work / "strix.db"),
+            str(work / "ishastra.db"),
             "--hmac-key",
             hmac_key,
             "--out",
@@ -258,7 +257,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "grant",
             "--program",
             "readiness",
@@ -284,7 +283,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "gate",
             "--grant",
             str(proof / "grant.json"),
@@ -328,7 +327,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "proof",
             "--grant",
             str(proof / "grant.json"),
@@ -343,7 +342,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "verify",
             str(proof / "proof.json"),
             "--issuer-key",
@@ -364,7 +363,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "verify",
             str(tampered),
             "--issuer-key",
@@ -376,7 +375,7 @@ def main() -> int:
         [
             PY,
             "-m",
-            "strix",
+            "ishastra",
             "verify",
             str(work / "missing.json"),
             "--issuer-key",
@@ -385,7 +384,7 @@ def main() -> int:
     )
     gate.check("missing proof rejected", missing_code != 0, f"exit {missing_code}")
 
-    db = sqlite3.connect(work / "strix.db")
+    db = sqlite3.connect(work / "ishastra.db")
     try:
         integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
     finally:

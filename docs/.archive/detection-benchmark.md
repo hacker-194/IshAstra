@@ -1,17 +1,17 @@
-# Strix detection benchmark (oracle 1.1.0)
+# Ishastra detection benchmark (oracle 1.1.0)
 
 Measured result of the deterministic, loopback-only detection lab. This is the
 number the release is allowed to claim — nothing here generalizes to arbitrary
 applications, and the document says exactly which detector produced each case.
 
 - Run date: 2026-11-17 (re-run; original measurement 2026-10-26)
-- Command: `python -m strix.lab --no-nuclei --workflow web,network --report lab.json`
+- Command: `python -m ishastra.lab --no-nuclei --workflow web,network --report lab.json`
 - Environment: Linux, Python 3.14.4, `nmap 7.98` from the distribution, **Nuclei
   not installed** (its binary and template bundle were not obtainable in this
   environment; the run therefore never claims nuclei coverage).
-- Detectors that ran: `strix-http`, `strix-dynamic-validation`,
-  `strix-git-exposure`, `strix-tcp`, `nmap`.
-- Target: `strix.lab.target`, binding `127.0.0.1` on an ephemeral port only.
+- Detectors that ran: `ishastra-http`, `ishastra-dynamic-validation`,
+  `ishastra-git-exposure`, `ishastra-tcp`, `nmap`.
+- Target: `ishastra.lab.target`, binding `127.0.0.1` on an ephemeral port only.
 
 ## Result
 
@@ -38,20 +38,20 @@ Per-case provenance:
 
 | Case | Detector | Verification |
 |---|---|---|
-| P1 reflection indicator | `strix-http` | unverified |
-| P2 open redirect | `strix-dynamic-validation` | observed |
-| P3 SQL error indicator | `strix-dynamic-validation` | inferred |
-| P4 exposed `.git/config` | `strix-git-exposure` (or `nuclei`) | observed |
-| P5 missing CSP | `strix-http` | observed |
-| P6 open TCP port | `strix-tcp` (merged with `nmap` when installed) | observed |
+| P1 reflection indicator | `ishastra-http` | unverified |
+| P2 open redirect | `ishastra-dynamic-validation` | observed |
+| P3 SQL error indicator | `ishastra-dynamic-validation` | inferred |
+| P4 exposed `.git/config` | `ishastra-git-exposure` (or `nuclei`) | observed |
+| P5 missing CSP | `ishastra-http` | observed |
+| P6 open TCP port | `ishastra-tcp` (merged with `nmap` when installed) | observed |
 | N1–N5 negative controls | no finding | — |
 
 Workflow-level scans (production `jobs.run_assessment` path) also completed:
 
 | Profile | State | Adapters | Findings |
 |---|---|---|---:|
-| `web` | completed | strix-http (1), strix-git-exposure (1) | 2 |
-| `network` | completed | strix-http (1), strix-tcp (1), nmap (1), strix-git-exposure (1) | 4 |
+| `web` | completed | ishastra-http (1), ishastra-git-exposure (1) | 2 |
+| `network` | completed | ishastra-http (1), ishastra-tcp (1), nmap (1), ishastra-git-exposure (1) | 4 |
 
 The `network` job reports four findings in this run. The native TCP scan and nmap
 both observed port 42035 but were **not** merged into one finding: their
@@ -75,11 +75,11 @@ The previous lab run scored 4/6 because git-config exposure and open-port
 discovery existed *only* as Nuclei/Nmap wrappers. Both now have native
 implementations:
 
-- `strix-git-exposure` fetches `/.git/config` and `/.git/HEAD` and accepts a
+- `ishastra-git-exposure` fetches `/.git/config` and `/.git/HEAD` and accepts a
   response only when the body has git's structure (`[core]` plus
   `repositoryformatversion`, or a symbolic ref / commit id). A 200 that serves an
   HTML shell is not reported — that negative control is what `N5` measures.
-- `strix-tcp` performs the same TCP connect scan with the standard library,
+- `ishastra-tcp` performs the same TCP connect scan with the standard library,
   limited to the engagement's authorized ports (or the target URL's port alone),
   and connects only to the address the scope gate pinned.
 
@@ -104,9 +104,9 @@ still marks coverage incomplete.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m strix.lab --no-nuclei --workflow web,network --report lab.json
+.venv/bin/python -m ishastra.lab --no-nuclei --workflow web,network --report lab.json
 # with Nuclei + templates installed (adds P4 through the real binary as well):
-.venv/bin/python -m strix.lab --workflow web,network --report lab-full.json
+.venv/bin/python -m ishastra.lab --workflow web,network --report lab-full.json
 ```
 
 `lab.json` is the machine-readable form of this document: `metrics`,
@@ -150,7 +150,7 @@ application instead of our own fixture.
 | N3 | redirect endpoints answer 406/500, never a `Location` | no open redirect |
 | N4 | static bundle, query parameters never reflected | no XSS indicator |
 | N5 | authorized ports 3001–3005 refuse connections | reported as 1 open of 6, nothing invented |
-| N6 | no OpenAPI/Swagger JSON served | `strix-openapi` reported *rejected*, no API finding |
+| N6 | no OpenAPI/Swagger JSON served | `ishastra-openapi` reported *rejected*, no API finding |
 
 Job states were reported honestly: `web-deep` and `api` ended **partial** (the
 no-query-parameter and no-OpenAPI adapters were *rejected*, stated as such),
@@ -158,7 +158,7 @@ no-query-parameter and no-OpenAPI adapters were *rejected*, stated as such),
 
 ### What this does and does not say
 
-Says: on this target, for the categories Strix claims, every reported finding
+Says: on this target, for the categories Ishastra claims, every reported finding
 was real and every planted/decoy condition stayed unreported — including the
 soft-404 `.git` bait that a status-code-based scanner would have flagged.
 

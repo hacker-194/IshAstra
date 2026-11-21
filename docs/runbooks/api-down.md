@@ -1,16 +1,16 @@
 # Runbook: API Down
 
-# Runbook: Strix API Down
+# Runbook: Ishastra API Down
 
-**Alert**: `StrixAPIDown`
+**Alert**: `IshastraAPIDown`
 **Severity**: Critical
 **Team**: Platform
 
 ## Symptoms
 
 - API health endpoint returns 5xx or times out
-- `up{job="strix-api"} == 0` for > 2 minutes
-- Users report unable to access Strix API
+- `up{job="ishastra-api"} == 0` for > 2 minutes
+- Users report unable to access Ishastra API
 - Dashboard shows API pods as NotReady
 
 ## Investigation Steps
@@ -18,22 +18,22 @@
 ### 1. Check Pod Status
 
 ```bash
-kubectl get pods -n strix-system -l app=strix-api
-kubectl describe pod -n strix-system -l app=strix-api
-kubectl logs -n strix-system -l app=strix-api --tail=100
+kubectl get pods -n ishastra-system -l app=ishastra-api
+kubectl describe pod -n ishastra-system -l app=ishastra-api
+kubectl logs -n ishastra-system -l app=ishastra-api --tail=100
 ```
 
 ### 2. Check Deployment Status
 
 ```bash
-kubectl get deployment strix-api -n strix-system
-kubectl rollout status deployment/strix-api -n strix-system
+kubectl get deployment ishastra-api -n ishastra-system
+kubectl rollout status deployment/ishastra-api -n ishastra-system
 ```
 
 ### 3. Check Resource Constraints
 
 ```bash
-kubectl top pods -n strix-system -l app=strix-api
+kubectl top pods -n ishastra-system -l app=ishastra-api
 kubectl describe node | grep -A 5 "Allocated resources"
 ```
 
@@ -41,13 +41,13 @@ kubectl describe node | grep -A 5 "Allocated resources"
 
 ```bash
 # Database connectivity
-kubectl exec -n strix-system deploy/strix-api -- curl -s http://localhost:8000/health/detailed
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s http://localhost:8000/health/detailed
 
 # Redis connectivity
-kubectl exec -n strix-system deploy/strix-api -- redis-cli -h strix-redis ping
+kubectl exec -n ishastra-system deploy/ishastra-api -- redis-cli -h ishastra-redis ping
 
 # Scope Gate self-test
-kubectl exec -n strix-system deploy/strix-api -- strix scope-gate test --scope scope_prod_001
+kubectl exec -n ishastra-system deploy/ishastra-api -- ishastra scope-gate test --scope scope_prod_001
 ```
 
 ## Common Causes & Fixes

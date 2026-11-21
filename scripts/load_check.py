@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """HTTP load smoke benchmark for a real uvicorn process.
 
 This is a single-process, single-machine baseline, not a capacity proof. It
-starts Strix with a temporary database, drives the unauthenticated health
+starts Ishastra with a temporary database, drives the unauthenticated health
 endpoint at a fixed concurrency, and prints latency percentiles and throughput.
 """
 
@@ -79,15 +78,15 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
-    with tempfile.TemporaryDirectory(prefix="strix-load-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="ishastra-load-") as tmp:
         env = os.environ.copy()
         env.update(
             {
-                "STRIX_API_KEY": API_KEY,
-                "STRIX_AUDIT_HMAC_KEY": AUDIT_KEY,
-                "STRIX_DB": str(Path(tmp) / "load.db"),
-                "STRIX_SCOPE_FILE": str(repo_root / "scope.example.json"),
-                "STRIX_LOG_LEVEL": "WARNING",
+                "ISHASTRA_API_KEY": API_KEY,
+                "ISHASTRA_AUDIT_HMAC_KEY": AUDIT_KEY,
+                "ISHASTRA_DB": str(Path(tmp) / "load.db"),
+                "ISHASTRA_SCOPE_FILE": str(repo_root / "scope.example.json"),
+                "ISHASTRA_LOG_LEVEL": "WARNING",
             }
         )
         process = subprocess.Popen(
@@ -95,7 +94,7 @@ def main() -> int:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "strix.api.app:create_app",
+                "ishastra.api.app:create_app",
                 "--factory",
                 "--host",
                 "127.0.0.1",

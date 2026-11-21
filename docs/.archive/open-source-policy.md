@@ -1,12 +1,12 @@
-# Strix Open-Source Policy
+# Ishastra Open-Source Policy
 
 Status: current. Date: 2026-11-14. This is an engineering and community policy,
 not legal advice.
 
 ## 1. License
 
-Strix is **fully open source under the MIT License** (`LICENSE`, "Copyright (c)
-2026 Strix contributors").
+Ishastra is **fully open source under the MIT License** (`LICENSE`, "Copyright (c)
+2026 Ishastra contributors").
 
 - Every feature in this repository — scope enforcement, assessment engine,
   adapters, findings, Proof, reports, monitoring, API, UI, integrations and
@@ -21,7 +21,7 @@ Strix is **fully open source under the MIT License** (`LICENSE`, "Copyright (c)
   profiles. They are not prices or paid plans.
 
 Optional external scanners (nmap, Nuclei, Semgrep, Bandit, Trivy) remain
-optional because of installation and operational cost, not because a Strix
+optional because of installation and operational cost, not because a Ishastra
 feature is paywalled. Third-party dependencies keep their own licenses; a
 release must not claim compatibility without checking them.
 
@@ -33,7 +33,7 @@ Security controls and evidence features are never withheld:
 - assessment profiles and built-in adapters;
 - normalized findings, lifecycle, asset inventory and remediation fields;
 - SARIF, JSON, HTML and PDF evidence;
-- Strix Proof grants, receipts and offline verification;
+- Ishastra Proof grants, receipts and offline verification;
 - monitoring, scheduling, alerts and integrations;
 - the CLI, REST API, web UI and self-hosted deployment.
 
@@ -92,7 +92,7 @@ upsells. The project has no such conversion goal.
 
 ## 8. Legal and brand cautions
 
-- Do not claim certification (ISO 27001, SOC 2, PCI DSS) from using Strix.
+- Do not claim certification (ISO 27001, SOC 2, PCI DSS) from using Ishastra.
 - Do not use competitor trademarks in product naming or imply endorsement.
 - Keep "authorized testing only" language visible in the README, UI and reports.
 - Changing the license requires a deliberate public decision; it is not a

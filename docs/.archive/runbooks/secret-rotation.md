@@ -14,8 +14,8 @@ actual values.
 
 ## Application secrets
 
-The application secret must contain `STRIX_API_KEY`,
-`STRIX_AUDIT_HMAC_KEY`, and `STRIX_ENCRYPTION_KEY`. The encryption key must be
+The application secret must contain `ISHASTRA_API_KEY`,
+`ISHASTRA_AUDIT_HMAC_KEY`, and `ISHASTRA_ENCRYPTION_KEY`. The encryption key must be
 base64-encoded 32-byte key material. Keep a recoverable, access-controlled
 backup of the encryption key separate from the database backups.
 
@@ -24,7 +24,7 @@ backup of the encryption key separate from the database backups.
    in terminal output or process arguments.
 3. Update the Kubernetes Secret through the secret manager or External Secrets
    Operator and verify its sync status without reading its values.
-4. Restart the Strix Deployments so they reload environment variables:
+4. Restart the Ishastra Deployments so they reload environment variables:
 
    ```bash
    NAMESPACE=your-namespace
@@ -46,20 +46,20 @@ it immediately invalidates clients still using the old value.
 
 ### Keys that cannot be replaced directly
 
-- **`STRIX_ENCRYPTION_KEY`:** replacing it makes existing encrypted fields
+- **`ISHASTRA_ENCRYPTION_KEY`:** replacing it makes existing encrypted fields
   unreadable. The project does not provide an online re-encryption/rewrap
   migration. Do not rotate this key by simply updating the Kubernetes Secret.
   A migration with old/new key support, a verified backup, and a tested restore
   is required first.
-- **`STRIX_AUDIT_HMAC_KEY`:** replacing it without re-hashing the audit chain
+- **`ISHASTRA_AUDIT_HMAC_KEY`:** replacing it without re-hashing the audit chain
   makes verification fail. Do not change it as part of routine rotation. Use an
   explicitly approved maintenance procedure with a verified backup and
   post-migration chain verification.
 - **Database and Redis credentials:** use a backend-supported overlap (for
   example, a second database role) where available. Update the managed secret,
-  restart Strix, verify connections and job processing, then revoke the old
+  restart Ishastra, verify connections and job processing, then revoke the old
   credential. A single-password change may require coordinated downtime.
-- **`STRIX_WEBHOOK_SECRET`:** coordinate the change with every webhook receiver;
+- **`ISHASTRA_WEBHOOK_SECRET`:** coordinate the change with every webhook receiver;
   signatures made with the old value will no longer validate.
 
 ## Scope-signing JWKS rotation
@@ -79,21 +79,21 @@ JOB=completed-scope-key-rotation-job
 kubectl get cronjob,jobs -n "$NAMESPACE" | grep scope-key-rotation
 kubectl logs -n "$NAMESPACE" "job/$JOB"
 kubectl exec -n "$NAMESPACE" "deploy/${RELEASE}-api" -- \
-  cat /etc/strix/scope-signing/scope-jwks.json
+  cat /etc/ishastra/scope-signing/scope-jwks.json
 ```
 
 Keep old public keys until all scopes signed by them have been re-signed or
 expired. Never prune keys just to make the JWKS smaller. If verification fails,
 stop pruning and restore the last valid public JWKS from the protected backup.
 
-For manual rotation, run `strix scope-key-rotate` from an authorized operator
+For manual rotation, run `ishastra scope-key-rotate` from an authorized operator
 environment against the same managed files:
 
 ```bash
 KEY_ID=unique-key-id
 PRIVATE_KEY=/secure/path/to/private-key.pem
 JWKS=/secure/path/to/public-scope-jwks.json
-strix scope-key-rotate \
+ishastra scope-key-rotate \
   --kid "$KEY_ID" \
   --key "$PRIVATE_KEY" \
   --jwks "$JWKS"

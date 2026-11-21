@@ -1,12 +1,12 @@
-# Strix Architecture
+# Ishastra Architecture
 
-Strix is an **authorized security assessment platform** that enforces authorization before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
+Ishastra is an **authorized security assessment platform** that enforces authorization before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
 
 ## High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Strix Platform                                │
+│                        Ishastra Platform                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
@@ -20,7 +20,7 @@ Strix is an **authorized security assessment platform** that enforces authorizat
 │  │                    Scope Gate (Authorization)                  │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │  │
 │  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer      │   │  │
-│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Strix Proof)    │   │  │
+│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Ishastra Proof)    │   │  │
 │  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                  │   │  │
 │  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
@@ -43,14 +43,14 @@ Strix is an **authorized security assessment platform** that enforces authorizat
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The queue shown as in-process is the default: `STRIX_QUEUE_MODE` selects
+The queue shown as in-process is the default: `ISHASTRA_QUEUE_MODE` selects
 `inprocess` (a thread pool inside the API process) or `k8s-jobs` (one
 Kubernetes Job per assessment, for fleet deployments) — see
 `docs/architecture/jobs.md`. These are the only two modes the code accepts.
 
 ## Core Components
 
-### 1. Scope Gate (`src/strix/core/scope.py`)
+### 1. Scope Gate (`src/ishastra/core/scope.py`)
 
 **Purpose**: Default-deny authorization layer. Every outbound request is validated against an authorization document before any network contact.
 
@@ -61,26 +61,26 @@ Kubernetes Job per assessment, for fleet deployments) — see
 
 **Key Features**:
 - ContextVar-based per-task scope binding for multi-tenant isolation (`bound` context manager)
-- Observer pattern for Strix Proof receipting every gate decision
+- Observer pattern for Ishastra Proof receipting every gate decision
 - Atomic configuration reload — invalid documents never replace active policy
 - Signed documents: Ed25519 over canonical JSON, verified against a JWKS key set
   (`configure_signing`), plus a signed `issued_at` freshness bound
-  (`STRIX_SCOPE_MAX_AGE_SECONDS`) so a revoked document cannot be replayed
+  (`ISHASTRA_SCOPE_MAX_AGE_SECONDS`) so a revoked document cannot be replayed
 - Optional network intelligence: `allowed_asns` and `allowed_countries` looked up
-  through `register_intel()` / `STRIX_SCOPE_INTEL_FILE`; an unset, missing or
+  through `register_intel()` / `ISHASTRA_SCOPE_INTEL_FILE`; an unset, missing or
   failing lookup denies with `policy_unavailable`
-- Just-in-time authorization: with `STRIX_SCOPE_JIT_URL` set, `destination()` and
+- Just-in-time authorization: with `ISHASTRA_SCOPE_JIT_URL` set, `destination()` and
   `destination_async()` consult the decision point after the local policy allows;
   any non-apply answer, timeout or transport error is a denial
 - Inheritance: `Scope.inherited_from(base)` intersects includes, ports, networks,
   ASNs and countries, unions exclusions and takes the earlier expiry — it can only
   narrow an authorization
 - Observability: every decision increments
-  `strix_scope_gate_decisions_total{decision,reason,tenant}` and emits a
+  `ishastra_scope_gate_decisions_total{decision,reason,tenant}` and emits a
   `scope.{url|address}` span carrying `scope.stage`, `scope.decision`,
   `scope.denial` and `scope.tenant` — never the target
 
-### 2. Job Orchestration (`src/strix/core/jobs.py`)
+### 2. Job Orchestration (`src/ishastra/core/jobs.py`)
 
 **Purpose**: Manages assessment lifecycle from submission to completion with coverage tracking.
 
@@ -95,7 +95,7 @@ Kubernetes Job per assessment, for fleet deployments) — see
 2. `execute()` — re-validates policy hasn't been revoked/changed, pins destination, runs adapters sequentially
 3. Each adapter runs with deadline, cancellation token, and shared context (crawler → HTTP probe → dynamic validation)
 
-### 3. Adapter Framework (`src/strix/core/adapter_base.py`, `src/strix/core/adapters.py`)
+### 3. Adapter Framework (`src/ishastra/core/adapter_base.py`, `src/ishastra/core/adapters.py`)
 
 **Purpose**: One capability = one adapter = one tool. Adapters re-check scope gate internally.
 
@@ -110,14 +110,14 @@ Kubernetes Job per assessment, for fleet deployments) — see
 - `partial: bool` — adapter admits incomplete coverage
 
 **Built-in Adapters** (always available):
-- `strix-http` — HTTP probe + header analysis + reflection checks
-- `strix-crawl` — bounded same-origin crawl, publishes URLs to context
-- `strix-dynamic-validation` — redirect canaries (.invalid) + DB error indicators (GET only)
-- `strix-openapi` — discovers OpenAPI specs, checks declared protected GETs
-- `strix-authz` — cross-principal authorization diff testing (requires `auth.users` in scope)
-- `strix-ssrf-oob` — blind SSRF confirmation via collab listener (requires `collab` in scope)
-- `strix-git-exposure` — `.git` exposure checks
-- `strix-tcp` — native TCP port scan (no external tool)
+- `ishastra-http` — HTTP probe + header analysis + reflection checks
+- `ishastra-crawl` — bounded same-origin crawl, publishes URLs to context
+- `ishastra-dynamic-validation` — redirect canaries (.invalid) + DB error indicators (GET only)
+- `ishastra-openapi` — discovers OpenAPI specs, checks declared protected GETs
+- `ishastra-authz` — cross-principal authorization diff testing (requires `auth.users` in scope)
+- `ishastra-ssrf-oob` — blind SSRF confirmation via collab listener (requires `collab` in scope)
+- `ishastra-git-exposure` — `.git` exposure checks
+- `ishastra-tcp` — native TCP port scan (no external tool)
 
 **External Tool Adapters**:
 - `nmap` — TCP connect scan limited to `allowed_ports` or target URL port
@@ -134,7 +134,7 @@ Kubernetes Job per assessment, for fleet deployments) — see
 | `ports` | tcp, nmap |
 | `network` | http, tcp, nmap, git-exposure |
 
-### 4. Findings Engine (`src/strix/core/findings.py`)
+### 4. Findings Engine (`src/ishastra/core/findings.py`)
 
 **Finding Model**: Normalized across all adapters with:
 - Severity: `critical | high | medium | low | info`
@@ -147,7 +147,7 @@ Kubernetes Job per assessment, for fleet deployments) — see
 
 **Redaction**: Credential-shaped values removed at every output boundary (evidence, job targets, errors, audit, SARIF, HTML, webhooks).
 
-### 5. Persistence (`src/strix/core/store.py`)
+### 5. Persistence (`src/ishastra/core/store.py`)
 
 **Backend**: SQLite (async via aiosqlite) — single-process, owner-only files (0600).
 
@@ -159,7 +159,7 @@ Kubernetes Job per assessment, for fleet deployments) — see
 - `policies` — engagement policies (managed mode)
 - `monitor_targets` + `settings` — monitoring config
 
-### 6. Multi-Tenant Authorization (`src/strix/core/policies.py`)
+### 6. Multi-Tenant Authorization (`src/ishastra/core/policies.py`)
 
 **EngagementPolicy**: Versioned, revocable authorization per tenant.
 - Fields mirror `Scope` plus `effective_at`, `expires_at`, `status` (active/revoked)
@@ -167,35 +167,35 @@ Kubernetes Job per assessment, for fleet deployments) — see
 - Worker re-validates binding at job dequeue + execution start
 - Revoking cancels queued/running jobs for that policy
 
-**Scope Modes** (`STRIX_SCOPE_MODE`):
+**Scope Modes** (`ISHASTRA_SCOPE_MODE`):
 - `global` — single `scope.json` for entire deployment
 - `managed` — per-tenant engagement policies required
 - `auto` (default) — global until first policy created, then managed
 
-### 7. API Layer (`src/strix/api/`)
+### 7. API Layer (`src/ishastra/api/`)
 
 **Framework**: FastAPI with:
 - Bearer token auth (admin + tenant keys, hashed storage)
 - Rate limiting (in-memory single-worker, Redis multi-worker)
 - Request ID, security headers, body size/depth limits
 - CORS only when explicitly configured
-- Static UI at `/` (served from `src/strix/api/static/`)
+- Static UI at `/` (served from `src/ishastra/api/static/`)
 
 **Key Routers**:
 - `assessments` — job submission, polling, SARIF export, finding triage
 - `policies` — admin-only engagement policy CRUD
 - `monitoring` — target registration, scheduler, webhook alerts
-- `proof` — Strix Proof grant/verify endpoints
+- `proof` — Ishastra Proof grant/verify endpoints
 - `probe` — single-request security header grading
 
-### 8. Strix Proof (`src/strix/proof.py`)
+### 8. Ishastra Proof (`src/ishastra/proof.py`)
 
 **Artifacts**:
 - **Grant** — Ed25519-signed authorization record (who authorized what, hosts/networks/ports, validity window)
 - **Receipt** — hash-chained record of every gate decision (`{seq, grant_id, url, decision, reason, previous, hash}`)
 - **Proof Pack** — grant + receipts + gate public key + summary
 
-**Verification** (offline, no Strix install):
+**Verification** (offline, no Ishastra install):
 - `grant_signature` — grant signed by issuer
 - `issuer_trusted` — pinned issuer key
 - `chain` — receipts hash-chain intact
@@ -241,7 +241,7 @@ GET /api/assess/{id} → coverage, findings, verdict
 |----------|-------------|
 | **Authorization → Network** | Scope gate validates every connection; pinned destination prevents TOCTOU |
 | **Tenant A → Tenant B** | Per-task `bound` ContextVar swaps engagement policy; job carries policy_id+version |
-| **Operator → Database** | Audit chain HMAC (`STRIX_AUDIT_HMAC_KEY`) — unforgeable without key |
+| **Operator → Database** | Audit chain HMAC (`ISHASTRA_AUDIT_HMAC_KEY`) — unforgeable without key |
 | **Tool Output → Findings** | Bounded output (16MB), defusedxml parsing, control char stripping |
 | **Secrets → Output** | Redaction at every boundary (passwords, tokens, JWTs, AWS keys, private keys) |
 | **External Tools** | Minimal env, argument arrays, process group kill, deadline enforcement |
@@ -252,4 +252,4 @@ GET /api/assess/{id} → coverage, findings, verdict
 - **In-process queue by default** — Redis can share rate limits; k8s-jobs mode adds a distributed queue and durable cancellation but remains experimental
 - **PostgreSQL is experimental** — loop-aware pools and a single-host worker path are tested; no HA or multi-node support
 - **No multi-node guarantee** — multi-node scheduling, exactly-once execution and automated failover are not supported
-- **TLS termination** — Strix speaks HTTP; put behind reverse proxy, set `STRIX_TRUSTED_PROXIES`
+- **TLS termination** — Ishastra speaks HTTP; put behind reverse proxy, set `ISHASTRA_TRUSTED_PROXIES`

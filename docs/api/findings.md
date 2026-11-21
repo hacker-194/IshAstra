@@ -7,7 +7,7 @@ REST API for retrieving and managing security findings from assessments.
 ## Base URL
 
 ```
-https://api.strix.dev/api/v1
+https://api.ishastra.dev/api/v1
 ```
 
 ## Finding Object
@@ -266,7 +266,7 @@ GET /findings/export
 {
   "format": "sarif",
   "generated_at": "2024-01-15T15:00:00Z",
-  "download_url": "https://api.strix.dev/api/v1/downloads/export_abc123.sarif",
+  "download_url": "https://api.ishastra.dev/api/v1/downloads/export_abc123.sarif",
   "expires_at": "2024-01-15T16:00:00Z"
 }
 ```
@@ -281,9 +281,9 @@ GET /findings/export
     {
       "tool": {
         "driver": {
-          "name": "Strix",
+          "name": "Ishastra",
           "version": "3.5.0",
-          "informationUri": "https://strix.dev"
+          "informationUri": "https://ishastra.dev"
         }
       },
       "results": [

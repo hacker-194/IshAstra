@@ -21,12 +21,12 @@ on:
           - rollback-production
           - soak
   schedule:
-    # Nightly soak tests at 2 AM UTC
+
     - cron: '0 2 * * *'
 
 permissions:
   contents: read
-  id-token: write  # Required for SLSA provenance and OIDC authentication
+  id-token: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,12 +34,12 @@ concurrency:
 
 env:
   PYTHON_DEFAULT: "3.12"
-  # PostgreSQL test database configuration
-  STRIX_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/strix_test
-  STRIX_DB: postgresql://postgres:postgres@localhost:5432/strix_test
-  # Trivy cache
+
+  ISHASTRA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ishastra_test
+  ISHASTRA_DB: postgresql://postgres:postgres@localhost:5432/ishastra_test
+
   TRIVY_CACHE_DIR: /tmp/trivy-cache
-  # License checker cache
+
   LICENSE_CHECKER_CACHE_DIR: /tmp/license-checker-cache
 
 jobs:
@@ -48,11 +48,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Refuse tracked secrets and runtime state
-        # The repository ships .env.*.example templates and a SQLite-free test
-        # suite, so anything matching these patterns is an accident. Failing
-        # here keeps credentials and database files out of the object store.
+
+
+
         run: |
           set -euo pipefail
           offenders=$(git ls-files | grep -Ei '(^|/)\.env($|\.)|(^|/)(prod-secrets|security-reports)/|\.(db|db-wal|db-shm|sqlite|sqlite3)$|\.(pem|key)$|(^|/)kubeseal$' | grep -v '\.example$' || true)
@@ -61,7 +61,7 @@ jobs:
             echo "$offenders"
             exit 1
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -80,52 +80,52 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Update Helm dependencies
-        run: helm dependency update ./deploy/helm/strix
+        run: helm dependency update ./deploy/helm/ishastra
       - name: Helm lint production
-        run: helm lint ./deploy/helm/strix -f ./deploy/helm/strix/values-prod.yaml
+        run: helm lint ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-prod.yaml
       - name: Helm lint staging
-        run: helm lint ./deploy/helm/strix -f ./deploy/helm/strix/values-staging.yaml
+        run: helm lint ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-staging.yaml
       - name: Helm lint dev
-        run: helm lint ./deploy/helm/strix -f ./deploy/helm/strix/values-dev.yaml
+        run: helm lint ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-dev.yaml
 
   kubeconform:
     name: Kubeconform validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Update Helm dependencies
-        run: helm dependency update ./deploy/helm/strix
+        run: helm dependency update ./deploy/helm/ishastra
       - name: Install kubeconform
         run: |
           curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C /usr/local/bin
       - name: Validate production manifests
         run: |
-          helm template strix ./deploy/helm/strix -f ./deploy/helm/strix/values-prod.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
+          helm template ishastra ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-prod.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
       - name: Validate staging manifests
         run: |
-          helm template strix ./deploy/helm/strix -f ./deploy/helm/strix/values-staging.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
+          helm template ishastra ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-staging.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
       - name: Validate dev manifests
         run: |
-          helm template strix ./deploy/helm/strix -f ./deploy/helm/strix/values-dev.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
+          helm template ishastra ./deploy/helm/ishastra -f ./deploy/helm/ishastra/values-dev.yaml | kubeconform -strict -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -skip 'ServiceMonitor,PrometheusRule,Prometheus,Alertmanager'
 
   type-check:
     name: Type check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -144,15 +144,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11 is deliberately absent: pyproject requires >=3.12 (PEP 695 unions).
+
         python-version: ["3.12", "3.13", "3.14"]
     env:
-      # Override to use SQLite for this job
-      STRIX_DB: ":memory:"
-      STRIX_DATABASE_URL: ""
+
+      ISHASTRA_DB: ":memory:"
+      ISHASTRA_DATABASE_URL: ""
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -164,11 +164,11 @@ jobs:
       - name: Run tests
         run: pytest -q
       - name: Scope authorization coverage gate
-        # Per-module floor for the gate itself. The suite-wide floor stays at 25%
-        # in pyproject so untested modules elsewhere do not mask a regression here.
-        run: coverage report --include="src/strix/core/scope.py" --fail-under=80
+
+
+        run: coverage report --include="src/ishastra/core/scope.py" --fail-under=80
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: coverage-sqlite-${{ matrix.python-version }}
@@ -180,12 +180,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      STRIX_TEST_PG_DSN: postgresql://postgres:postgres@localhost:5432/strix_test
+      ISHASTRA_TEST_PG_DSN: postgresql://postgres:postgres@localhost:5432/ishastra_test
     strategy:
       fail-fast: false
       matrix:
-        # 3.14 waits on asyncpg wheels; the SQLite job already covers the new
-        # interpreter, and this matrix exists to cover the driver, not Python.
+
+
         python-version: ["3.12", "3.13"]
     services:
       postgres:
@@ -193,17 +193,17 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: strix_test
+          POSTGRES_DB: ishastra_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U postgres -d strix_test"
+          --health-cmd="pg_isready -U postgres -d ishastra_test"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -215,7 +215,7 @@ jobs:
       - name: Wait for PostgreSQL
         run: |
           for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U postgres -d strix_test; then
+            if pg_isready -h localhost -p 5432 -U postgres -d ishastra_test; then
               echo "PostgreSQL is ready"
               exit 0
             fi
@@ -227,7 +227,7 @@ jobs:
       - name: Run tests
         run: pytest -q
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: coverage-postgres-${{ matrix.python-version }}
@@ -243,8 +243,8 @@ jobs:
       matrix:
         dns: [system, offline]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -254,9 +254,9 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]" -c constraints.txt
       - name: Run scope gate tests
-        # "offline" runs in an empty network namespace, so every lookup fails:
-        # the gate must still refuse (resolution_failed / out_of_scope) rather
-        # than fall through to an unrestricted path.
+
+
+
         run: |
           if [ "${{ matrix.dns }}" = "offline" ]; then
             sudo env "PATH=$PATH" unshare -n \
@@ -272,8 +272,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -291,23 +291,23 @@ jobs:
     timeout-minutes: 20
     needs: [lint]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3  # v4
         with:
           distribution: temurin
           java-version: "17"
       - name: Fetch TLC
-        # tla2tools.jar is not committed (~2 MB); pin the release so the
-        # checker cannot drift between runs.
+
+
         run: |
           curl -fsSL -o docs/tla/tla2tools.jar \
             https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
       - name: Model check the scope address policy
         working-directory: docs/tla
-        # TLC exits non-zero on an invariant violation (12), a parse error (150)
-        # or an evaluation error (255), so a regression fails this step. pipefail
-        # keeps that status through tee, and the grep catches a run that stopped
-        # early without reporting a result.
+
+
+
+
         run: |
           set -o pipefail
           java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
@@ -321,8 +321,8 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -343,8 +343,8 @@ jobs:
     timeout-minutes: 30
     needs: [lint]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -365,7 +365,7 @@ jobs:
           nuclei -update-templates
       - name: Run live nmap and nuclei tests
         env:
-          STRIX_LIVE_TOOL_TESTS: "1"
+          ISHASTRA_LIVE_TOOL_TESTS: "1"
         run: pytest -q --no-cov tests/integration/test_adapters.py -k "nmap or nuclei"
 
   e2e-tests:
@@ -374,8 +374,8 @@ jobs:
     timeout-minutes: 30
     needs: [lint, test, test-postgres]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -386,18 +386,18 @@ jobs:
         run: pip install -e ".[dev,test]" -c constraints.txt
       - name: Install Playwright browsers
         run: playwright install --with-deps chromium
-      - name: Start Strix API server
+      - name: Start Ishastra API server
         env:
-          STRIX_TEST_MODE: "1"
-          STRIX_DB: ":memory:"
-          STRIX_SCOPE_FILE: "/tmp/scope.json"
-          STRIX_API_KEY: "test-key-12345678901234567890123456789012"
-          STRIX_ENCRYPTION_KEY: "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
-          STRIX_AUDIT_HMAC_KEY: "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
-          STRIX_WORKERS: "1"
-          STRIX_SKIP_REDIS_INIT: "1"
+          ISHASTRA_TEST_MODE: "1"
+          ISHASTRA_DB: ":memory:"
+          ISHASTRA_SCOPE_FILE: "/tmp/scope.json"
+          ISHASTRA_API_KEY: "test-key-12345678901234567890123456789012"
+          ISHASTRA_ENCRYPTION_KEY: "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
+          ISHASTRA_AUDIT_HMAC_KEY: "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
+          ISHASTRA_WORKERS: "1"
+          ISHASTRA_SKIP_REDIS_INIT: "1"
         run: |
-          # Create test scope file
+
           cat > /tmp/scope.json << 'EOF'
           {
             "program": "Test Program",
@@ -417,10 +417,10 @@ jobs:
             "collab": {"host": "127.0.0.1", "port": 0}
           }
           EOF
-          # Start server in background
-          python -m uvicorn strix.api.app:create_app --host 0.0.0.0 --port 8000 --factory &
+
+          python -m uvicorn ishastra.api.app:create_app --host 0.0.0.0 --port 8000 --factory &
           SERVER_PID=$!
-          # Wait for server to be ready
+
           for i in {1..30}; do
             if curl -sf http://localhost:8000/api/health >/dev/null 2>&1; then
               echo "Server ready"
@@ -430,7 +430,7 @@ jobs:
           done
       - name: Run E2E tests
         env:
-          STRIX_E2E_BASE_URL: "http://localhost:8000"
+          ISHASTRA_E2E_BASE_URL: "http://localhost:8000"
         run: pytest -q --no-cov tests/e2e/ -m e2e
       - name: Stop server
         if: always()
@@ -442,8 +442,8 @@ jobs:
     timeout-minutes: 20
     needs: [lint, type-check]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -459,7 +459,7 @@ jobs:
       - name: pip-audit report
         run: pip-audit -r constraints.txt -f json -o pip-audit-results.json || true
       - name: Upload scan reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: security-reports
@@ -474,8 +474,8 @@ jobs:
     timeout-minutes: 20
     needs: [lint, test, test-postgres, e2e-tests]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -493,8 +493,8 @@ jobs:
     timeout-minutes: 30
     needs: [lint, test, test-postgres]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -514,15 +514,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4
         with:
-          # Fail on vulnerabilities with severity HIGH or CRITICAL
+
           fail-on-severity: high
-          # Allow specific licenses (MIT, BSD, Apache-2.0, ISC, Python-2.0, MPL-2.0)
+
           allow-licenses: MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC, Python-2.0, MPL-2.0
-          # Deny GPL and other copyleft licenses
+
           deny-licenses: GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, AGPL-3.0, EPL-1.0, EPL-2.0
           config-file: '.github/dependency-review-config.yml'
 
@@ -532,8 +532,8 @@ jobs:
     timeout-minutes: 15
     needs: [lint]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -561,8 +561,8 @@ jobs:
               'OFL-1.1', 'BSL-1.0'
           }
           
-          # Licenses that are known to be compatible (permissive)
-          # We check against a normalized list
+
+
           failures = []
           warnings = []
           
@@ -570,10 +570,10 @@ jobs:
               license_text = pkg.get('License', '').strip()
               name = pkg.get('Name', '')
           
-              # Normalize common variations
+
               license_normalized = license_text.replace(' ', '-').replace('(', '').replace(')', '')
           
-              # Check if license is in allowed list (case-insensitive)
+
               is_allowed = any(allowed.lower() in license_text.lower() for allowed in allowed_licenses)
           
               if not is_allowed and license_text:
@@ -594,7 +594,7 @@ jobs:
                       print(f'  - {w}')
           "
       - name: Upload license report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: license-report
@@ -607,7 +607,7 @@ jobs:
     timeout-minutes: 20
     needs: [security]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Install syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
@@ -619,14 +619,14 @@ jobs:
       - name: Scan vulnerabilities with grype
         run: grype dir:. -o json > grype-results.json || true
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: sbom
           path: sbom.spdx.json
           retention-days: 30
       - name: Upload grype results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: grype-results
@@ -639,8 +639,8 @@ jobs:
     timeout-minutes: 10
     needs: [sbom]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -648,12 +648,12 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Download security reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: security-reports
           path: security-reports
       - name: Download grype results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: grype-results
           path: grype-results
@@ -688,7 +688,7 @@ jobs:
     name: Validate deployment tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Validate release version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -711,28 +711,28 @@ jobs:
     timeout-minutes: 30
     needs: [lint, type-check, test, test-postgres, security-gate, helm-lint, kubeconform, readiness-check, detection-benchmark, dependency-review, license-check, formal-verification]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
         with:
           context: .
           file: ./Dockerfile
           push: false
           load: true
-          tags: strix:ci
+          tags: ishastra:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test the image
-        # The container used to exit on an argparse error and its healthcheck
-        # pointed at a 404. Starting it and hitting /api/health catches both.
+
+
         run: |
           set -euo pipefail
-          docker run -d --name strix-smoke -p 18000:8000 \
-            -e STRIX_API_KEY=smoke-test-key-0123456789abcdef \
-            -e STRIX_AUDIT_HMAC_KEY=c21va2UtaG1hYy1rZXktMDEyMzQ1Njc4OQ== \
-            -e STRIX_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
-            strix:ci
+          docker run -d --name ishastra-smoke -p 18000:8000 \
+            -e ISHASTRA_API_KEY=smoke-test-key-0123456789abcdef \
+            -e ISHASTRA_AUDIT_HMAC_KEY=c21va2UtaG1hYy1rZXktMDEyMzQ1Njc4OQ== \
+            -e ISHASTRA_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            ishastra:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18000/api/health >/dev/null 2>&1; then
               echo "healthy after ${i} attempt(s)"; break
@@ -740,7 +740,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://127.0.0.1:18000/api/health
-          docker rm -f strix-smoke
+          docker rm -f ishastra-smoke
 
   container-scan:
     name: Container vulnerability scan (Trivy)
@@ -748,29 +748,29 @@ jobs:
     timeout-minutes: 30
     needs: [docker]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.56.2
       - name: Build image for scanning
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
         with:
           context: .
           file: ./Dockerfile
           push: false
           load: true
-          tags: strix:scan
+          tags: ishastra:scan
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Run Trivy vulnerability scanner
         run: |
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --format table strix:scan
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --format table ishastra:scan
       - name: Run Trivy config scanner (Dockerfile)
         run: |
           trivy config --exit-code 1 --severity HIGH,CRITICAL .
       - name: Run Trivy config scanner (Kubernetes manifests)
         run: |
-          trivy config --exit-code 1 --severity HIGH,CRITICAL ./deploy/helm/strix/
+          trivy config --exit-code 1 --severity HIGH,CRITICAL ./deploy/helm/ishastra/
 
   publish-container:
     name: Publish release container
@@ -782,20 +782,20 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Resolve image name
         id: image
         run: |
           image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           echo "name=$image" >> "$GITHUB_OUTPUT"
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and publish immutable release tags
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
         with:
           context: .
           file: ./Dockerfile
@@ -816,15 +816,15 @@ jobs:
       attestations: write
     needs: [docker, container-scan, security-gate, readiness-check, detection-benchmark]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Generate SLSA provenance
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.9.0
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@07e64b653f10a80b6510f4568f685f8b7b9ea830  # v1.9.0
         with:
-          # The build produces a container image
-          provenance-name: strix
+
+          provenance-name: ishastra
           upload-assets: 'true'
-          # The Docker image built in the docker job
-          # We'll reconstruct the provenance for the built artifact
+
+
 
   deploy-staging:
     name: Deploy to Staging
@@ -837,20 +837,20 @@ jobs:
       contents: read
       id-token: write
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
-      STRIX_API_HOST: ${{ vars.STRIX_API_HOST }}
-      STRIX_SCOPE_JSON: ${{ secrets.STRIX_SCOPE_JSON }}
-      STRIX_NAMESPACE: strix-staging
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
+      ISHASTRA_API_HOST: ${{ vars.ISHASTRA_API_HOST }}
+      ISHASTRA_SCOPE_JSON: ${{ secrets.ISHASTRA_SCOPE_JSON }}
+      ISHASTRA_NAMESPACE: ishastra-staging
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Validate deployment inputs
         run: |
           set -euo pipefail
-          test -n "$STRIX_INGRESS_HOST" || { echo "::error::Set the staging STRIX_INGRESS_HOST environment variable"; exit 1; }
-          test -n "$STRIX_API_HOST" || { echo "::error::Set the staging STRIX_API_HOST environment variable"; exit 1; }
-          test -n "$STRIX_SCOPE_JSON" || { echo "::error::Set the approved staging STRIX_SCOPE_JSON environment secret"; exit 1; }
-          printf '%s' "$STRIX_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
-          python - "$STRIX_INGRESS_HOST" "$STRIX_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          test -n "$ISHASTRA_INGRESS_HOST" || { echo "::error::Set the staging ISHASTRA_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_API_HOST" || { echo "::error::Set the staging ISHASTRA_API_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_SCOPE_JSON" || { echo "::error::Set the approved staging ISHASTRA_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$ISHASTRA_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$ISHASTRA_INGRESS_HOST" "$ISHASTRA_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
           import json, re, sys
           for host in sys.argv[1:3]:
               if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
@@ -862,47 +862,47 @@ jobs:
               raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
           PY
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
       - name: Verify provisioned production prerequisites
         run: |
           set -euo pipefail
-          for secret in ghcr-secret strix-secrets strix-redis-secret strix-postgresql-secret; do
-            kubectl get secret "$secret" -n "$STRIX_NAMESPACE" >/dev/null
+          for secret in ghcr-secret ishastra-secrets ishastra-redis-secret ishastra-postgresql-secret; do
+            kubectl get secret "$secret" -n "$ISHASTRA_NAMESPACE" >/dev/null
           done
-          for key in STRIX_API_KEY STRIX_AUDIT_HMAC_KEY STRIX_ENCRYPTION_KEY; do
-            if ! kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
-              echo "::error::strix-secrets is missing $key"
+          for key in ISHASTRA_API_KEY ISHASTRA_AUDIT_HMAC_KEY ISHASTRA_ENCRYPTION_KEY; do
+            if ! kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::ishastra-secrets is missing $key"
               exit 1
             fi
           done
-          kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o 'jsonpath={.data.STRIX_ENCRYPTION_KEY}' \
+          kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o 'jsonpath={.data.ISHASTRA_ENCRYPTION_KEY}' \
             | base64 -d \
             | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
-          kubectl get secret strix-postgresql-secret -n "$STRIX_NAMESPACE" \
+          kubectl get secret ishastra-postgresql-secret -n "$ISHASTRA_NAMESPACE" \
             -o 'jsonpath={.data.database-url}' | grep -q .
-          kubectl get secret strix-redis-secret -n "$STRIX_NAMESPACE" \
+          kubectl get secret ishastra-redis-secret -n "$ISHASTRA_NAMESPACE" \
             -o 'jsonpath={.data.redis-password}' | grep -q .
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Deploy to Staging
         run: |
           image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-          helm upgrade --install strix-staging ./deploy/helm/strix \
-            --namespace strix-staging \
+          helm upgrade --install ishastra-staging ./deploy/helm/ishastra \
+            --namespace ishastra-staging \
             --create-namespace \
-            -f ./deploy/helm/strix/values-staging.yaml \
+            -f ./deploy/helm/ishastra/values-staging.yaml \
             --set-string "global.image.repository=$image" \
             --set-string "global.image.tag=sha-$GITHUB_SHA" \
-            --set-string "api.ingress.hosts[0].host=$STRIX_INGRESS_HOST" \
-            --set-string "api.ingress.hosts[1].host=$STRIX_API_HOST" \
-            --set-string "api.ingress.tls[0].hosts[0]=$STRIX_INGRESS_HOST" \
-            --set-string "api.ingress.tls[0].hosts[1]=$STRIX_API_HOST" \
-            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$STRIX_INGRESS_HOST\\,$STRIX_API_HOST" \
+            --set-string "api.ingress.hosts[0].host=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$ISHASTRA_INGRESS_HOST\\,$ISHASTRA_API_HOST" \
             --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
             --wait --timeout 10m
 
@@ -914,22 +914,22 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.operation == 'deploy-staging' || inputs.operation == 'deploy-production')
     environment: staging
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/strix-strix-api -n strix-staging --timeout=5m
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-staging --timeout=5m
       - name: Verify externally reachable API behavior
         run: |
           kubectl run smoke-test-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            --env="BASE_URL=https://$STRIX_INGRESS_HOST" \
+            --env="BASE_URL=https://$ISHASTRA_INGRESS_HOST" \
             -- sh -ec '
               expect_status() {
                 expected="$1"
@@ -957,20 +957,20 @@ jobs:
       contents: read
       id-token: write
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
-      STRIX_API_HOST: ${{ vars.STRIX_API_HOST }}
-      STRIX_SCOPE_JSON: ${{ secrets.STRIX_SCOPE_JSON }}
-      STRIX_NAMESPACE: strix-production
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
+      ISHASTRA_API_HOST: ${{ vars.ISHASTRA_API_HOST }}
+      ISHASTRA_SCOPE_JSON: ${{ secrets.ISHASTRA_SCOPE_JSON }}
+      ISHASTRA_NAMESPACE: ishastra-production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Validate deployment inputs
         run: |
           set -euo pipefail
-          test -n "$STRIX_INGRESS_HOST" || { echo "::error::Set the production STRIX_INGRESS_HOST environment variable"; exit 1; }
-          test -n "$STRIX_API_HOST" || { echo "::error::Set the production STRIX_API_HOST environment variable"; exit 1; }
-          test -n "$STRIX_SCOPE_JSON" || { echo "::error::Set the approved production STRIX_SCOPE_JSON environment secret"; exit 1; }
-          printf '%s' "$STRIX_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
-          python - "$STRIX_INGRESS_HOST" "$STRIX_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          test -n "$ISHASTRA_INGRESS_HOST" || { echo "::error::Set the production ISHASTRA_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_API_HOST" || { echo "::error::Set the production ISHASTRA_API_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_SCOPE_JSON" || { echo "::error::Set the approved production ISHASTRA_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$ISHASTRA_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$ISHASTRA_INGRESS_HOST" "$ISHASTRA_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
           import json, re, sys
           for host in sys.argv[1:3]:
               if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
@@ -982,48 +982,48 @@ jobs:
               raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
           PY
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
       - name: Verify provisioned production prerequisites
         run: |
           set -euo pipefail
-          for secret in ghcr-secret strix-secrets strix-redis-secret strix-postgresql-secret; do
-            kubectl get secret "$secret" -n "$STRIX_NAMESPACE" >/dev/null
+          for secret in ghcr-secret ishastra-secrets ishastra-redis-secret ishastra-postgresql-secret; do
+            kubectl get secret "$secret" -n "$ISHASTRA_NAMESPACE" >/dev/null
           done
-          for key in STRIX_API_KEY STRIX_AUDIT_HMAC_KEY STRIX_ENCRYPTION_KEY; do
-            if ! kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
-              echo "::error::strix-secrets is missing $key"
+          for key in ISHASTRA_API_KEY ISHASTRA_AUDIT_HMAC_KEY ISHASTRA_ENCRYPTION_KEY; do
+            if ! kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::ishastra-secrets is missing $key"
               exit 1
             fi
           done
-          kubectl get secret strix-secrets -n "$STRIX_NAMESPACE" -o 'jsonpath={.data.STRIX_ENCRYPTION_KEY}' \
+          kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o 'jsonpath={.data.ISHASTRA_ENCRYPTION_KEY}' \
             | base64 -d \
             | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
-          kubectl get secret strix-postgresql-secret -n "$STRIX_NAMESPACE" \
+          kubectl get secret ishastra-postgresql-secret -n "$ISHASTRA_NAMESPACE" \
             -o 'jsonpath={.data.database-url}' | grep -q .
-          kubectl get secret strix-redis-secret -n "$STRIX_NAMESPACE" \
+          kubectl get secret ishastra-redis-secret -n "$ISHASTRA_NAMESPACE" \
             -o 'jsonpath={.data.redis-password}' | grep -q .
           kubectl get --raw /apis/external.metrics.k8s.io/v1beta1 >/dev/null
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Deploy to Production
         run: |
           image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-          helm upgrade --install strix-prod ./deploy/helm/strix \
-            --namespace strix-production \
+          helm upgrade --install ishastra-prod ./deploy/helm/ishastra \
+            --namespace ishastra-production \
             --create-namespace \
-            -f ./deploy/helm/strix/values-prod.yaml \
+            -f ./deploy/helm/ishastra/values-prod.yaml \
             --set-string "global.image.repository=$image" \
             --set-string "global.image.tag=sha-$GITHUB_SHA" \
-            --set-string "api.ingress.hosts[0].host=$STRIX_INGRESS_HOST" \
-            --set-string "api.ingress.hosts[1].host=$STRIX_API_HOST" \
-            --set-string "api.ingress.tls[0].hosts[0]=$STRIX_INGRESS_HOST" \
-            --set-string "api.ingress.tls[0].hosts[1]=$STRIX_API_HOST" \
-            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$STRIX_INGRESS_HOST\\,$STRIX_API_HOST" \
+            --set-string "api.ingress.hosts[0].host=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$ISHASTRA_INGRESS_HOST\\,$ISHASTRA_API_HOST" \
             --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
             --wait --timeout 10m
 
@@ -1035,22 +1035,22 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-production' && startsWith(github.ref, 'refs/tags/v')
     environment: production
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/strix-strix-api -n strix-production --timeout=5m
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-production --timeout=5m
       - name: Verify externally reachable API behavior
         run: |
           kubectl run smoke-test-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            --env="BASE_URL=https://$STRIX_INGRESS_HOST" \
+            --env="BASE_URL=https://$ISHASTRA_INGRESS_HOST" \
             -- sh -ec '
               expect_status() {
                 expected="$1"
@@ -1078,19 +1078,19 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Rollback Staging
         run: |
-          helm rollback strix-staging -n strix-staging --wait --timeout 5m
+          helm rollback ishastra-staging -n ishastra-staging --wait --timeout 5m
 
   rollback-verification-staging:
     name: Rollback Verification Staging
@@ -1100,30 +1100,30 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-staging'
     environment: staging
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/strix-strix-api -n strix-staging --timeout=5m
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-staging --timeout=5m
       - name: Verify health after rollback
         run: |
           kubectl run rollback-verify-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf "https://$STRIX_INGRESS_HOST/api/health"
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/health"
       - name: Verify readiness after rollback
         run: |
           kubectl run rollback-ready-staging --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf "https://$STRIX_INGRESS_HOST/api/ready"
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/ready"
       - name: Verify revision
         run: |
-          REVISION=$(helm status strix-staging -n strix-staging -o json | jq -r .revision)
+          REVISION=$(helm status ishastra-staging -n ishastra-staging -o json | jq -r .revision)
           echo "Rolled back to revision: $REVISION"
           if [ "$REVISION" -lt 1 ]; then
             echo "ERROR: Invalid revision after rollback"
@@ -1140,19 +1140,19 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
         with:
           version: v3.14.0
       - name: Rollback Production
         run: |
-          helm rollback strix-prod -n strix-production --wait --timeout 5m
+          helm rollback ishastra-prod -n ishastra-production --wait --timeout 5m
 
   rollback-verification-production:
     name: Rollback Verification Production
@@ -1162,47 +1162,47 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback-production'
     environment: production
     env:
-      STRIX_INGRESS_HOST: ${{ vars.STRIX_INGRESS_HOST }}
+      ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Set up kubectl
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/strix-strix-api -n strix-production --timeout=5m
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-production --timeout=5m
       - name: Verify health after rollback
         run: |
           kubectl run rollback-verify-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf "https://$STRIX_INGRESS_HOST/api/health"
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/health"
       - name: Verify readiness after rollback
         run: |
           kubectl run rollback-ready-prod --rm -i --restart=Never \
             --image=curlimages/curl:8.7.1 \
-            -- curl -sf "https://$STRIX_INGRESS_HOST/api/ready"
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/ready"
       - name: Verify revision
         run: |
-          REVISION=$(helm status strix-prod -n strix-production -o json | jq -r .revision)
+          REVISION=$(helm status ishastra-prod -n ishastra-production -o json | jq -r .revision)
           echo "Rolled back to revision: $REVISION"
           if [ "$REVISION" -lt 1 ]; then
             echo "ERROR: Invalid revision after rollback"
             exit 1
           fi
 
-  # ---------------------------------------------------------------------------
-  # Soak / Reliability Tests (Nightly / Manual)
-  # ---------------------------------------------------------------------------
+
+
+
   soak-assessment-load:
     name: Soak - Assessment Load (~500 jobs, 2h)
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -1213,7 +1213,7 @@ jobs:
         run: pip install -e ".[dev]" -c constraints.txt
       - name: Run soak assessment load test
         env:
-          STRIX_LOG_LEVEL: WARNING
+          ISHASTRA_LOG_LEVEL: WARNING
         run: |
           python -m tests.soak.test_soak_assessment_load \
             --jobs 500 \
@@ -1229,8 +1229,8 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -1241,7 +1241,7 @@ jobs:
         run: pip install -e ".[dev]" -c constraints.txt
       - name: Run soak SIGTERM test
         env:
-          STRIX_LOG_LEVEL: WARNING
+          ISHASTRA_LOG_LEVEL: WARNING
         run: |
           python -m tests.soak.test_soak_sigterm \
             --jobs 50 \
@@ -1254,8 +1254,8 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'soak')
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT }}
           cache: pip
@@ -1266,7 +1266,7 @@ jobs:
         run: pip install -e ".[dev]" -c constraints.txt
       - name: Run soak backup/restore test
         env:
-          STRIX_LOG_LEVEL: WARNING
+          ISHASTRA_LOG_LEVEL: WARNING
         run: |
           python -m tests.soak.test_soak_backup_restore \
             --jobs 30 \

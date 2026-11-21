@@ -1,4 +1,4 @@
-"""Tests for strix.core.adapters and related modules."""
+"""Tests for ishastra.core.adapters and related modules."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from strix.core.adapter_base import Adapter, AdapterError, AdapterResult, AdapterTimeout
-from strix.core.adapters import (
+from ishastra.core.adapter_base import Adapter, AdapterError, AdapterResult, AdapterTimeout
+from ishastra.core.adapters import (
     ADAPTERS,
     PROFILES,
     AuthorizationDiffAdapter,
@@ -21,9 +21,9 @@ from strix.core.adapters import (
     SSRFOOBAdapter,
     select,
 )
-from strix.core.crawler import CrawlerAdapter as CoreCrawlerAdapter
-from strix.core.exposure import GitExposureAdapter
-from strix.core.ports import TCPPortAdapter
+from ishastra.core.crawler import CrawlerAdapter as CoreCrawlerAdapter
+from ishastra.core.exposure import GitExposureAdapter
+from ishastra.core.ports import TCPPortAdapter
 
 
 class TestAdapterBase:
@@ -56,7 +56,7 @@ class TestAdapterBase:
 
     def test_adapter_not_applicable(self):
         """Test AdapterNotApplicable."""
-        from strix.core.adapter_base import AdapterNotApplicable
+        from ishastra.core.adapter_base import AdapterNotApplicable
 
         err = AdapterNotApplicable("not applicable")
         assert str(err) == "not applicable"
@@ -72,13 +72,13 @@ class TestHTTPAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test HTTPAdapter creation."""
-        assert adapter.id == "strix-http"
+        assert adapter.id == "ishastra-http"
         assert adapter.asset_types == ("web",)
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-http"
+        assert info["id"] == "ishastra-http"
         assert info["asset_types"] == ["web"]
         assert info["available"] is True
 
@@ -96,13 +96,13 @@ class TestTCPPortAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test TCPPortAdapter creation."""
-        assert adapter.id == "strix-tcp"
+        assert adapter.id == "ishastra-tcp"
         assert adapter.asset_types == ("web", "api", "network")
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-tcp"
+        assert info["id"] == "ishastra-tcp"
         assert info["asset_types"] == ["web", "api", "network"]
 
 
@@ -115,13 +115,13 @@ class TestGitExposureAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test GitExposureAdapter creation."""
-        assert adapter.id == "strix-git-exposure"
+        assert adapter.id == "ishastra-git-exposure"
         assert adapter.asset_types == ("web", "api")
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-git-exposure"
+        assert info["id"] == "ishastra-git-exposure"
         assert info["asset_types"] == ["web", "api"]
 
 
@@ -134,13 +134,13 @@ class TestCrawlerAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test CrawlerAdapter creation."""
-        assert adapter.id == "strix-crawl"
+        assert adapter.id == "ishastra-crawl"
         assert adapter.asset_types == ("web",)
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-crawl"
+        assert info["id"] == "ishastra-crawl"
         assert info["asset_types"] == ["web"]
 
 
@@ -153,7 +153,7 @@ class TestCoreCrawlerAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test core CrawlerAdapter creation."""
-        assert adapter.id == "strix-crawl"
+        assert adapter.id == "ishastra-crawl"
         assert adapter.asset_types == ("web",)
 
 
@@ -166,13 +166,13 @@ class TestDynamicValidationAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test DynamicValidationAdapter creation."""
-        assert adapter.id == "strix-dynamic-validation"
+        assert adapter.id == "ishastra-dynamic-validation"
         assert adapter.asset_types == ("web",)
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-dynamic-validation"
+        assert info["id"] == "ishastra-dynamic-validation"
         assert info["asset_types"] == ["web"]
 
 
@@ -185,13 +185,13 @@ class TestOpenAPIAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test OpenAPIAdapter creation."""
-        assert adapter.id == "strix-openapi"
+        assert adapter.id == "ishastra-openapi"
         assert adapter.asset_types == ("web",)
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-openapi"
+        assert info["id"] == "ishastra-openapi"
         assert info["asset_types"] == ["web"]
 
 
@@ -204,13 +204,13 @@ class TestAuthorizationDiffAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test AuthorizationDiffAdapter creation."""
-        assert adapter.id == "strix-authz"
+        assert adapter.id == "ishastra-authz"
         assert adapter.asset_types == ("web", "api")
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-authz"
+        assert info["id"] == "ishastra-authz"
         assert "web" in info["asset_types"]
         assert "api" in info["asset_types"]
 
@@ -224,13 +224,13 @@ class TestSSRFOOBAdapter:
 
     def test_adapter_creation(self, adapter):
         """Test SSRFOOBAdapter creation."""
-        assert adapter.id == "strix-ssrf-oob"
+        assert adapter.id == "ishastra-ssrf-oob"
         assert adapter.asset_types == ("web", "api")
 
     def test_adapter_info(self, adapter):
         """Test adapter info."""
         info = adapter.info()
-        assert info["id"] == "strix-ssrf-oob"
+        assert info["id"] == "ishastra-ssrf-oob"
         assert info["asset_types"] == ["web", "api"]
 
 
@@ -309,14 +309,14 @@ class TestAdapterRegistry:
 
     def test_adapters_imported(self):
         """Test all adapters are importable."""
-        assert "strix-http" in ADAPTERS
-        assert "strix-crawl" in ADAPTERS
-        assert "strix-dynamic-validation" in ADAPTERS
-        assert "strix-openapi" in ADAPTERS
-        assert "strix-authz" in ADAPTERS
-        assert "strix-ssrf-oob" in ADAPTERS
-        assert "strix-git-exposure" in ADAPTERS
-        assert "strix-tcp" in ADAPTERS
+        assert "ishastra-http" in ADAPTERS
+        assert "ishastra-crawl" in ADAPTERS
+        assert "ishastra-dynamic-validation" in ADAPTERS
+        assert "ishastra-openapi" in ADAPTERS
+        assert "ishastra-authz" in ADAPTERS
+        assert "ishastra-ssrf-oob" in ADAPTERS
+        assert "ishastra-git-exposure" in ADAPTERS
+        assert "ishastra-tcp" in ADAPTERS
         assert "nmap" in ADAPTERS
         assert "nuclei" in ADAPTERS
 
@@ -355,18 +355,18 @@ class TestSelectProfile:
         """Test selecting web profile."""
         adapters = select("web")
         assert len(adapters) == 2
-        assert adapters[0].id == "strix-http"
-        assert adapters[1].id == "strix-git-exposure"
+        assert adapters[0].id == "ishastra-http"
+        assert adapters[1].id == "ishastra-git-exposure"
 
     def test_select_web_deep(self):
         """Test selecting web-deep profile."""
         adapters = select("web-deep")
         assert len(adapters) == 6
         ids = [a.id for a in adapters]
-        assert "strix-crawl" in ids
-        assert "strix-http" in ids
-        assert "strix-dynamic-validation" in ids
-        assert "strix-git-exposure" in ids
+        assert "ishastra-crawl" in ids
+        assert "ishastra-http" in ids
+        assert "ishastra-dynamic-validation" in ids
+        assert "ishastra-git-exposure" in ids
         assert "nuclei" in ids
         assert "nikto" in ids
 

@@ -2,9 +2,9 @@
 
 # Helm Deployment
 
-Deploy Strix using the official Helm chart.
+Deploy Ishastra using the official Helm chart.
 
-> **Scaling warning:** Strix is single-writer. Run one API/worker process per
+> **Scaling warning:** Ishastra is single-writer. Run one API/worker process per
 > database and leave `hpa.enabled` / `autoscaling.enabled` off. Values files
 > that raise `replicaCount` or enable autoscaling describe an unsupported
 > topology; see [Production deployment](../quickstart/production.md).
@@ -12,7 +12,7 @@ Deploy Strix using the official Helm chart.
 ## Chart Overview
 
 ```
-strix/
+ishastra/
 ├── Chart.yaml                 # Chart metadata
 ├── values.yaml                # Default values
 ├── values-prod.yaml           # Production overrides
@@ -48,27 +48,27 @@ strix/
 helm registry login ghcr.io
 
 # Pull chart
-helm pull oci://ghcr.io/strix/charts/strix --version 3.5.0 --untar
+helm pull oci://ghcr.io/ishastra/charts/ishastra --version 3.5.0 --untar
 
 # Install
-cd strix
-helm install strix . -f values-prod.yaml -n strix-system --create-namespace
+cd ishastra
+helm install ishastra . -f values-prod.yaml -n ishastra-system --create-namespace
 ```
 
 ### From Local Source
 
 ```bash
-cd deploy/helm/strix
-helm install strix . -f values-prod.yaml -n strix-system --create-namespace
+cd deploy/helm/ishastra
+helm install ishastra . -f values-prod.yaml -n ishastra-system --create-namespace
 ```
 
 ### With Custom Values
 
 ```bash
-helm install strix . \
+helm install ishastra . \
   -f values-prod.yaml \
   -f values-custom.yaml \
-  -n strix-system --create-namespace
+  -n ishastra-system --create-namespace
 ```
 
 ## Configuration Reference
@@ -83,7 +83,7 @@ global:
   labels:
     app.kubernetes.io/managed-by: Helm
   annotations:
-    meta.helm.sh/release-name: strix
+    meta.helm.sh/release-name: ishastra
 ```
 
 ### API Deployment
@@ -92,7 +92,7 @@ global:
 api:
   replicaCount: 3
   image:
-    repository: strix/api
+    repository: ishastra/api
     tag: "3.5.0"
     pullPolicy: IfNotPresent
   
@@ -131,7 +131,7 @@ api:
   env:
     - name: LOG_LEVEL
       value: "INFO"
-    - name: STRIX_SCOPE_DOC_PATH
+    - name: ISHASTRA_SCOPE_DOC_PATH
       value: "/config/scope.json"
 ```
 
@@ -141,7 +141,7 @@ api:
 worker:
   replicaCount: 5
   image:
-    repository: strix/worker
+    repository: ishastra/worker
     tag: "3.5.0"
   
   resources:
@@ -177,7 +177,7 @@ worker:
 scheduler:
   replicaCount: 2
   image:
-    repository: strix/scheduler
+    repository: ishastra/scheduler
     tag: "3.5.0"
   
   resources:
@@ -190,11 +190,44 @@ scheduler:
   
   leaderElection:
     enabled: true
-    lockName: strix-scheduler
+    lockName: ishastra-scheduler
     leaseDuration: 30s
     renewDeadline: 15s
     retryPeriod: 5s
 ```
+
+### Assessment Queue
+
+`queue.mode` selects how assessments are queued. It is the one value that
+decides whether worker replicas may scale.
+
+| Mode | Durable | Worker replicas | Use |
+|------|---------|-----------------|-----|
+| `inprocess` (default) | No | Exactly 1 | Pilot, single host |
+| `redis-streams` | Yes | 1..N | Production; queued jobs survive a restart |
+| `k8s-jobs` | Depends on the cluster | 1 | Experimental; one Job per assessment |
+
+```yaml
+queue:
+  mode: redis-streams
+  stream: ishastra:assessments
+  group: ishastra-workers
+  visibilitySeconds: 7200
+```
+
+The chart fails to render rather than start a second writer or a second
+scheduler. `api.replicaCount > 1` is rejected unless `queue.mode: redis-streams`
+is set with Redis enabled, because login state, rate limits and the API key
+registry are then shared through Redis (revocation propagates within 5
+seconds); in `inprocess` mode `worker.replicaCount > 1` and any worker HPA are
+rejected too. In `redis-streams` mode the worker Deployment
+consumes one Redis Stream through a consumer group; `claim_job` still
+guarantees one execution per assessment, so this scales workers, not database
+writers.
+
+Cron execution belongs to the scheduler Deployment: the chart sets
+`ISHASTRA_SCHEDULER_ENABLED=false` on the API and worker pods, so each scheduled
+job runs once instead of once per pod.
 
 ### Scope Gate
 
@@ -230,7 +263,7 @@ networkPolicy:
     - from:
       - podSelector:
           matchLabels:
-            app: strix-worker
+            app: ishastra-worker
       ports:
       - protocol: TCP
         port: 8000
@@ -272,7 +305,7 @@ ingress:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: strix-tls
+    - secretName: ishastra-tls
       hosts:
         - api.yourdomain.com
 ```
@@ -303,7 +336,7 @@ postgresql:
 externalDatabase:
   host: "your-rds.xyz.us-east-1.rds.amazonaws.com"
   port: 5432
-  database: "strix"
+  database: "ishastra"
   sslMode: "require"
 ```
 
@@ -318,6 +351,47 @@ externalRedis:
   tls: true
 ```
 
+### Database Connections
+
+Each Ishastra process keeps its own asyncpg pool, so the pool size has to fit the
+whole fleet:
+
+| Env var | Default | Meaning |
+|---------|---------|---------|
+| `ISHASTRA_PG_POOL_MIN` | `1` | Idle connections kept per process |
+| `ISHASTRA_PG_POOL_MAX` | `5` | Peak connections per process (clamped to 50) |
+
+`ISHASTRA_PG_POOL_MAX × replicas` must stay under PostgreSQL's `max_connections`.
+At the production maximum of 30 workers the default of 5 would ask for 150
+connections — set it lower on the workers, or put PgBouncer in front:
+
+```yaml
+worker:
+  env:
+    ISHASTRA_PG_POOL_MAX: "2"
+```
+
+### Database Backups
+
+`backup.enabled` runs `ishastra backup` on a schedule. Every artifact is verified
+before the job exits, and artifacts past the retention window are pruned.
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `backup.enabled` | `false` | Render the backup CronJob |
+| `backup.schedule` | `0 * * * *` | Cron schedule |
+| `backup.directory` | `/var/lib/ishastra/backups` | Where artifacts go; point it at an RWX/NFS claim to keep backups off the primary host |
+| `backup.retentionDays` | `14` | Delete artifacts older than this |
+| `backup.timeoutSeconds` | `900` | Job deadline |
+| `backup.claimName` | `pvc.strixData.name` | Existing claim holding the database |
+
+```bash
+# Verify an artifact (SQLite snapshot or pg_dump archive)
+kubectl exec deploy/ishastra-api -- ishastra backup --verify /var/lib/ishastra/backups/ishastra-<ts>.db
+# Restore and promote, see DEPLOYMENT.md §9
+ishastra standby-promote --backup-dir /var/lib/ishastra/backups --db-path "$ISHASTRA_DATABASE_URL"
+```
+
 ## Secrets Management
 
 ### SealedSecrets
@@ -326,7 +400,7 @@ externalRedis:
 secrets:
   sealedSecrets:
     enabled: true
-    secretName: strix-secrets
+    secretName: ishastra-secrets
 ```
 
 ```bash
@@ -353,37 +427,37 @@ secrets:
 
 ```bash
 # Upgrade with new values
-helm upgrade strix . -f values-prod.yaml -n strix-system
+helm upgrade ishastra . -f values-prod.yaml -n ishastra-system
 
 # Upgrade chart version
-helm upgrade strix oci://ghcr.io/strix/charts/strix --version 3.5.1 -f values-prod.yaml -n strix-system
+helm upgrade ishastra oci://ghcr.io/ishastra/charts/ishastra --version 3.5.1 -f values-prod.yaml -n ishastra-system
 
 # Check history
-helm history strix -n strix-system
+helm history ishastra -n ishastra-system
 ```
 
 ## Rollback
 
 ```bash
 # Rollback to previous
-helm rollback strix -n strix-system
+helm rollback ishastra -n ishastra-system
 
 # Rollback to specific revision
-helm rollback strix 3 -n strix-system
+helm rollback ishastra 3 -n ishastra-system
 ```
 
 ## Uninstalling
 
 ```bash
 # Delete release
-helm uninstall strix -n strix-system
+helm uninstall ishastra -n ishastra-system
 
 # Delete namespace (optional)
-kubectl delete namespace strix-system
+kubectl delete namespace ishastra-system
 
 # Delete PVCs (if not using external DB)
-kubectl delete pvc -n strix-system -l app=postgresql
-kubectl delete pvc -n strix-system -l app=redis
+kubectl delete pvc -n ishastra-system -l app=postgresql
+kubectl delete pvc -n ishastra-system -l app=redis
 ```
 
 ## Troubleshooting
@@ -392,23 +466,23 @@ kubectl delete pvc -n strix-system -l app=redis
 
 ```bash
 # List releases
-helm list -n strix-system
+helm list -n ishastra-system
 
 # Get manifest
-helm get manifest strix -n strix-system
+helm get manifest ishastra -n ishastra-system
 
 # Get values
-helm get values strix -n strix-system
+helm get values ishastra -n ishastra-system
 ```
 
 ### Debug Templates
 
 ```bash
 # Render templates without installing
-helm template strix . -f values-prod.yaml -n strix-system
+helm template ishastra . -f values-prod.yaml -n ishastra-system
 
 # With debug
-helm template strix . -f values-prod.yaml -n strix-system --debug
+helm template ishastra . -f values-prod.yaml -n ishastra-system --debug
 ```
 
 ### Common Issues
@@ -417,7 +491,7 @@ helm template strix . -f values-prod.yaml -n strix-system --debug
 |-------|-----|
 | ImagePullBackOff | Check `imagePullSecrets`, registry access |
 | Pending pods | Check resources, node selectors, PVCs |
-| ConfigMap not updating | Restart pods: `kubectl rollout restart deploy/strix-api` |
+| ConfigMap not updating | Restart pods: `kubectl rollout restart deploy/ishastra-api` |
 | Ingress not working | Check className, annotations, TLS secret |
 
 ## Custom Values Example

@@ -1,4 +1,4 @@
-"""Unit tests for Strix Proof (grant, receipt, verification)."""
+"""Unit tests for Ishastra Proof (grant, receipt, verification)."""
 
 import importlib
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from strix.proof import (
+from ishastra.proof import (
     GENESIS,
     VERSION,
     Gate,
@@ -32,16 +32,15 @@ from strix.proof import (
 )
 
 
-# Ensure clean state: test_otel.py mocks can interfere with cryptography
 @pytest.fixture(autouse=True)
 def reset_crypto_state():
     """Reset any global state that might affect cryptography operations."""
     yield
-    # Force re-import of cryptography primitives and strix.proof to clear mock residue
+
     import sys
 
     for mod in list(sys.modules.keys()):
-        if "strix.proof" in mod or "cryptography.hazmat.primitives.asymmetric.ed25519" in mod:
+        if "ishastra.proof" in mod or "cryptography.hazmat.primitives.asymmetric.ed25519" in mod:
             del sys.modules[mod]
     import cryptography.hazmat.primitives.asymmetric.ed25519 as ed25519
 
@@ -57,7 +56,7 @@ class TestCanonicalEncoding:
         result = canonical(data)
         assert b'"a":1' in result
         assert b'"b":2' in result
-        assert result == canonical(data)  # Deterministic
+        assert result == canonical(data)
 
     def test_digest_deterministic(self):
         """Digest is deterministic for same input."""
@@ -65,7 +64,7 @@ class TestCanonicalEncoding:
         d1 = digest(data)
         d2 = digest(data)
         assert d1 == d2
-        assert len(d1) == 64  # SHA256 hex
+        assert len(d1) == 64
 
     def test_canonical_handles_unicode(self):
         """Canonical encoding handles unicode."""
@@ -100,14 +99,14 @@ class TestKeyGeneration:
         """Fingerprint produces short stable identifier."""
         private, public = new_keypair()
         fp = fingerprint(public)
-        assert len(fp) == 32  # 32 hex chars
-        assert fp == fingerprint(public)  # Stable
+        assert len(fp) == 32
+        assert fp == fingerprint(public)
 
     def test_fingerprint_invalid_public_no_raise(self):
         """fingerprint hashes whatever bytes it gets (no validation here)."""
-        # fingerprint doesn't validate Ed25519 format, just hashes the bytes
+
         fp = fingerprint("invalid")
-        assert len(fp) == 32  # Still produces 32-char hex
+        assert len(fp) == 32
 
     def test_public_key_invalid_raises(self):
         """public_key validates Ed25519 private key format."""
@@ -146,8 +145,7 @@ class TestSigningAndVerification:
         private, public = new_keypair()
         payload = {"action": "test"}
         signature = sign(payload, private)
-        # Tamper with the first base64 character, not the last: trailing padding
-        # bits can decode to identical bytes and make this assertion flaky.
+
         tampered_sig = ("A" if signature[0] != "A" else "B") + signature[1:]
         assert verify_signature(payload, tampered_sig, public) is False
 
@@ -178,7 +176,7 @@ class TestKeyFileOperations:
         private, _ = new_keypair()
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "key.key"
-            path.write_text("strix-proof-private:" + private + "\n")
+            path.write_text("ishastra-proof-private:" + private + "\n")
             loaded = load_private_key(path)
             assert loaded == private
 
@@ -196,7 +194,7 @@ class TestKeyFileOperations:
         private, _ = new_keypair()
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "key.pub"
-            path.write_text("strix-proof-private:" + private + "\n")
+            path.write_text("ishastra-proof-private:" + private + "\n")
             with pytest.raises(ProofError, match="holds a private key"):
                 load_public_key(path)
 
@@ -217,7 +215,7 @@ class TestGrant:
         assert grant.authorized_by == "Test Org"
         assert grant.include == ("example.com",)
         assert grant.allowed_ports == (80, 443)
-        assert grant.signature == ""  # Unsigned
+        assert grant.signature == ""
 
     def test_new_grant_with_defaults(self):
         """Grant with default values."""
@@ -297,7 +295,7 @@ class TestGrant:
             authorized_by="Me",
             authorization_ref="REF-1",
             include=["example.com"],
-            days=0.0,  # Expired immediately
+            days=0.0,
         )
         signed = grant.sign(private)
         ok, reason = signed.verify(now=signed.not_after + 1)
@@ -344,7 +342,7 @@ class TestGrant:
     def test_grant_verify_validates_scope(self):
         """Grant verify checks scope shape (signature fails first if body tampered)."""
         private, public = new_keypair()
-        # Create a valid grant, sign it, then tamper with include
+
         grant = new_grant(
             program="Test",
             authorized_by="Me",
@@ -352,7 +350,7 @@ class TestGrant:
             include=["example.com"],
         )
         signed = grant.sign(private)
-        # Tampering with include changes the body, so signature verification fails first
+
         tampered = replace(signed, include=())
         ok, reason = tampered.verify(trusted_issuer=public)
         assert ok is False
@@ -533,7 +531,7 @@ class TestLedger:
             authorization_ref="REF-1",
             include=["example.com"],
         ).sign(grant_private)
-        ledger = Ledger(path=None)  # No signing key
+        ledger = Ledger(path=None)
         ledger.ensure_header(grant)
         with pytest.raises(ProofError, match="read-only"):
             ledger.record(grant, url="https://example.com/", method="GET", decision="allow", reason="")
@@ -640,7 +638,7 @@ class TestProofPack:
         ledger = Ledger(signing_key=gate_private, actor="test-agent")
         ledger.ensure_header(grant)
         ledger.record(grant, url="https://example.com/", method="GET", decision="allow", reason="")
-        # Manually tamper with receipt
+
         ledger._receipts[0] = Receipt(
             seq=1,
             grant_id="different_grant",
@@ -731,7 +729,7 @@ class TestProofPack:
         ).sign(grant_private)
         ledger = Ledger(signing_key=gate_private, actor="test-agent")
         ledger.ensure_header(grant)
-        # Record an "allow" for a port not in scope
+
         ledger.record(grant, url="https://example.com:8080/", method="GET", decision="allow", reason="")
         pack = build_pack(grant, ledger)
         report = verify_pack(pack, trusted_issuer=grant_public, trusted_gate=gate_public)

@@ -1,9 +1,9 @@
-# Loki Stack (Loki, Promtail) for Log Aggregation
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f loki.yaml
+
+
+
 
 ---
-# ServiceAccount for Loki
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,11 +12,11 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: loki
 
 ---
-# ServiceAccount for Promtail
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -25,11 +25,11 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: promtail
 
 ---
-# ClusterRole for Promtail (needs to read pods across namespaces)
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -37,7 +37,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 rules:
   - apiGroups:
       - ""
@@ -58,7 +58,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 subjects:
   - kind: ServiceAccount
     name: promtail
@@ -69,7 +69,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# Secret for Loki configuration (from loki-config.yaml)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -78,7 +78,7 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   loki.yaml: |
@@ -120,8 +120,8 @@ stringData:
       per_stream_rate_limit_burst: 20MB
       max_entries_limit_per_query: 5000
       max_global_series_per_user: 10000
-      retention_period: 336h  # 14 days
-      # Multi-tenancy limits (if needed)
+      retention_period: 336h
+
       max_streams_per_user: 0
       max_global_streams_per_user: 0
 
@@ -159,10 +159,10 @@ stringData:
           store: inmemory
       enable_api: true
 
-    # Logging
+
     log_level: info
 
-    # TLS Configuration for inter-component communication
+
     tls:
       cert_file: /etc/loki/certs/tls.crt
       key_file: /etc/loki/certs/tls.key
@@ -175,7 +175,7 @@ stringData:
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
 
 ---
-# Secret for Promtail configuration (from promtail-config.yaml)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -184,7 +184,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   promtail.yaml: |
@@ -212,17 +212,17 @@ stringData:
           server_name: loki.monitoring.svc.cluster.local
 
     scrape_configs:
-      # Strix API application logs
-      - job_name: strix-api
+
+      - job_name: ishastra-api
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
-            regex: strix
+            regex: ishastra
           - source_labels: [__meta_kubernetes_pod_label_component]
             action: replace
             target_label: component
@@ -243,17 +243,17 @@ stringData:
               source: timestamp
               format: RFC3339Nano
 
-      # Strix Scheduler logs
-      - job_name: strix-scheduler
+
+      - job_name: ishastra-scheduler
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
-            regex: strix
+            regex: ishastra
           - source_labels: [__meta_kubernetes_pod_label_component]
             action: keep
             regex: scheduler
@@ -274,17 +274,17 @@ stringData:
               source: timestamp
               format: RFC3339Nano
 
-      # Strix Worker logs (Celery workers)
-      - job_name: strix-worker
+
+      - job_name: ishastra-worker
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
-            regex: strix
+            regex: ishastra
           - source_labels: [__meta_kubernetes_pod_label_component]
             action: keep
             regex: worker
@@ -305,13 +305,13 @@ stringData:
               source: timestamp
               format: RFC3339Nano
 
-      # Nginx access logs
+
       - job_name: nginx-access
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
@@ -335,13 +335,13 @@ stringData:
                 config:
                   action: inc
 
-      # Nginx error logs
+
       - job_name: nginx-error
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
@@ -361,13 +361,13 @@ stringData:
               source: timestamp
               format: "2006/01/02 15:04:05"
 
-      # Redis logs
+
       - job_name: redis
         kubernetes_sd_configs:
           - role: pod
             namespaces:
               names:
-                - strix
+                - ishastra
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
@@ -387,7 +387,7 @@ stringData:
               source: timestamp
               format: RFC3339Nano
 
-      # System logs (if running on host with systemd)
+
       - job_name: systemd-journal
         kubernetes_sd_configs:
           - role: node
@@ -409,7 +409,7 @@ stringData:
               format: unix_ms
 
 ---
-# TLS Secret for Loki
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -418,14 +418,14 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# CA Secret for Loki client verification
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -434,13 +434,13 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 data:
-  ca.crt: ""  # Base64 encoded CA cert
+  ca.crt: ""
 
 ---
-# TLS Secret for Promtail
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -449,14 +449,14 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# Loki Deployment (Single binary mode for simplicity, can be split into microservices)
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -465,11 +465,11 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: loki
 spec:
   serviceName: loki
-  replicas: 1  # Single instance for simplicity; for HA use multiple with different ring configs
+  replicas: 1
   selector:
     matchLabels:
       app: loki
@@ -478,7 +478,7 @@ spec:
       labels:
         app: loki
         app.kubernetes.io/name: loki
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: loki
       annotations:
         prometheus.io/scrape: "true"
@@ -559,7 +559,7 @@ spec:
         storageClassName: fast-ssd
 
 ---
-# Service for Loki
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -568,7 +568,7 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: loki
 spec:
   type: ClusterIP
@@ -585,7 +585,7 @@ spec:
     app: loki
 
 ---
-# ServiceMonitor for Loki self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -595,7 +595,7 @@ metadata:
     release: prometheus
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
@@ -617,7 +617,7 @@ spec:
       - monitoring
 
 ---
-# PodDisruptionBudget for Loki
+
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -626,7 +626,7 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   minAvailable: 1
   selector:
@@ -634,7 +634,7 @@ spec:
       app: loki
 
 ---
-# HorizontalPodAutoscaler for Loki
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -643,7 +643,7 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -683,7 +683,7 @@ spec:
       selectPolicy: Max
 
 ---
-# Promtail DaemonSet (runs on each node to collect logs)
+
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -692,7 +692,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: promtail
 spec:
   selector:
@@ -703,7 +703,7 @@ spec:
       labels:
         app: promtail
         app.kubernetes.io/name: promtail
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: promtail
       annotations:
         prometheus.io/scrape: "true"
@@ -721,7 +721,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - -config.file=/etc/promtail/promtail.yaml
-            - -client.external-labels=cluster=strix-production
+            - -client.external-labels=cluster=ishastra-production
           ports:
             - containerPort: 9080
               name: http
@@ -790,7 +790,7 @@ spec:
           effect: "NoSchedule"
 
 ---
-# Service for Promtail (for metrics scraping)
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -799,7 +799,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: promtail
 spec:
   type: ClusterIP
@@ -812,7 +812,7 @@ spec:
     app: promtail
 
 ---
-# ServiceMonitor for Promtail self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -822,7 +822,7 @@ metadata:
     release: prometheus
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
@@ -837,7 +837,7 @@ spec:
       - monitoring
 
 ---
-# NetworkPolicy for Loki
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -846,7 +846,7 @@ metadata:
   labels:
     app: loki
     app.kubernetes.io/name: loki
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
@@ -855,7 +855,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Promtail to push logs
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -866,7 +866,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow Grafana to query logs
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -877,7 +877,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow Prometheus to scrape metrics
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -885,12 +885,12 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 3100
   egress:
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -900,7 +900,7 @@ spec:
           port: 53
 
 ---
-# NetworkPolicy for Promtail
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -909,7 +909,7 @@ metadata:
   labels:
     app: promtail
     app.kubernetes.io/name: promtail
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
@@ -918,7 +918,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Prometheus to scrape metrics
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -926,12 +926,12 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 9080
   egress:
-    # Allow Promtail to push logs to Loki
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -942,7 +942,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:

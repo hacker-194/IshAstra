@@ -1,0 +1,19 @@
+# SITE_ADDRESS is the public name Caddy serves and gets a certificate for.
+# Use a real domain with DNS pointing here, or ":80" for plain HTTP on an IP.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	reverse_proxy ishastra:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

@@ -1,9 +1,9 @@
-# Tempo for Distributed Tracing
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f tempo.yaml
+
+
+
 
 ---
-# ServiceAccount for Tempo
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,11 +12,11 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: tempo
 
 ---
-# ServiceAccount for OpenTelemetry Collector
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -25,11 +25,11 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: otel-collector
 
 ---
-# ClusterRole for OpenTelemetry Collector (for k8s attributes)
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -37,7 +37,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 rules:
   - apiGroups:
       - ""
@@ -58,7 +58,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 subjects:
   - kind: ServiceAccount
     name: otel-collector
@@ -69,7 +69,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# Secret for Tempo configuration (from tempo-config.yaml)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -78,7 +78,7 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   tempo.yaml: |
@@ -113,7 +113,7 @@ stringData:
 
     compactor:
       compaction:
-        block_retention: 336h  # 14 days
+        block_retention: 336h
         compacted_block_retention: 1h
       compaction_window: 1h
 
@@ -129,18 +129,18 @@ stringData:
           path: /tempo/wal
           encoding: snappy
 
-    # Blocklist for traces we don't want to store
+
     blocklist:
       poll_interval: 5m
 
-    # Limits for multi-tenancy
+
     limits:
       ingestion_rate_limit: 10MB
       ingestion_burst_limit: 20MB
       max_spans_per_trace: 10000
       max_trace_idle_time: 5m
 
-    # Query frontend
+
     query_frontend:
       search:
         duration_slo: 5s
@@ -151,7 +151,7 @@ stringData:
       registry:
         external_labels:
           source: tempo
-          cluster: strix-production
+          cluster: ishastra-production
       storage:
         path: /tempo/metrics-generator
         remote_write:
@@ -174,14 +174,14 @@ stringData:
             - span.kind
             - status.code
 
-    # Reporting
+
     reporting:
       enabled: false
 
-    # Logging
+
     log_level: info
 
-    # TLS Configuration for inter-component communication
+
     tls:
       cert_file: /etc/tempo/certs/tls.crt
       key_file: /etc/tempo/certs/tls.key
@@ -194,7 +194,7 @@ stringData:
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
 
 ---
-# Secret for OpenTelemetry Collector configuration (from otel-collector-config.yaml)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -203,7 +203,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   otel-collector-config.yaml: |
@@ -225,16 +225,16 @@ stringData:
       prometheus:
         config:
           scrape_configs:
-            - job_name: 'strix'
+            - job_name: 'ishastra'
               static_configs:
-                - targets: ['strix.strix.svc.cluster.local:8000']
+                - targets: ['ishastra.ishastra.svc.cluster.local:8000']
               metrics_path: '/api/metrics'
               scheme: https
               tls_config:
                 ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
               authorization:
                 type: Bearer
-                credentials: ${STRIX_API_KEY}
+                credentials: ${ISHASTRA_API_KEY}
 
     processors:
       batch:
@@ -247,10 +247,10 @@ stringData:
       resource:
         attributes:
           - key: service.name
-            value: "strix"
+            value: "ishastra"
             action: insert
           - key: service.namespace
-            value: "strix-production"
+            value: "ishastra-production"
             action: insert
           - key: deployment.environment
             value: "production"
@@ -260,7 +260,7 @@ stringData:
         pod_association:
           - from: resource_attribute
             name: k8s.pod.ip
-        namespace: "strix"
+        namespace: "ishastra"
         filter:
           node_from_env_var: KUBE_NODE_NAME
       tail_sampling:
@@ -302,7 +302,7 @@ stringData:
           max_elapsed_time: 300s
       prometheus:
         endpoint: 0.0.0.0:8888
-        namespace: strix
+        namespace: ishastra
         send_timestamps: true
       logging:
         loglevel: debug
@@ -328,7 +328,7 @@ stringData:
         address: 0.0.0.0:8888
 
 ---
-# TLS Secret for Tempo
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -337,14 +337,14 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# CA Secret for Tempo client verification
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -353,13 +353,13 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 data:
-  ca.crt: ""  # Base64 encoded CA cert
+  ca.crt: ""
 
 ---
-# Client cert for OTel Collector to talk to Tempo
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -368,14 +368,14 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded client cert
-  tls.key: ""  # Base64 encoded client key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# TLS Secret for OpenTelemetry Collector
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -384,14 +384,14 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# CA Secret for OTel Collector client verification
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -400,13 +400,13 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 data:
-  ca.crt: ""  # Base64 encoded CA cert
+  ca.crt: ""
 
 ---
-# Tempo Deployment (Single binary mode)
+
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -415,11 +415,11 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: tempo
 spec:
   serviceName: tempo
-  replicas: 1  # Single instance for simplicity; for HA use multiple with different ring configs
+  replicas: 1
   selector:
     matchLabels:
       app: tempo
@@ -428,7 +428,7 @@ spec:
       labels:
         app: tempo
         app.kubernetes.io/name: tempo
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: tempo
       annotations:
         prometheus.io/scrape: "true"
@@ -521,7 +521,7 @@ spec:
         storageClassName: fast-ssd
 
 ---
-# Service for Tempo
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -530,7 +530,7 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: tempo
 spec:
   type: ClusterIP
@@ -563,7 +563,7 @@ spec:
     app: tempo
 
 ---
-# ServiceMonitor for Tempo self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -573,7 +573,7 @@ metadata:
     release: prometheus
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
@@ -595,7 +595,7 @@ spec:
       - monitoring
 
 ---
-# PodDisruptionBudget for Tempo
+
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -604,7 +604,7 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   minAvailable: 1
   selector:
@@ -612,7 +612,7 @@ spec:
       app: tempo
 
 ---
-# HorizontalPodAutoscaler for Tempo
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -621,7 +621,7 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -661,7 +661,7 @@ spec:
       selectPolicy: Max
 
 ---
-# OpenTelemetry Collector Deployment
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -670,7 +670,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: otel-collector
 spec:
   replicas: 2
@@ -682,7 +682,7 @@ spec:
       labels:
         app: otel-collector
         app.kubernetes.io/name: otel-collector
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: otel-collector
       annotations:
         prometheus.io/scrape: "true"
@@ -744,10 +744,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: STRIX_API_KEY
+            - name: ISHASTRA_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: strix-api-key
+                  name: ishastra-api-key
                   key: api-key
                   optional: true
           volumeMounts:
@@ -784,7 +784,7 @@ spec:
             secretName: otel-client-certs
 
 ---
-# Service for OpenTelemetry Collector
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -793,7 +793,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: otel-collector
 spec:
   type: ClusterIP
@@ -818,7 +818,7 @@ spec:
     app: otel-collector
 
 ---
-# ServiceMonitor for OpenTelemetry Collector
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -828,7 +828,7 @@ metadata:
     release: prometheus
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
@@ -843,7 +843,7 @@ spec:
       - monitoring
 
 ---
-# PodDisruptionBudget for OTel Collector
+
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -852,7 +852,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   minAvailable: 1
   selector:
@@ -860,7 +860,7 @@ spec:
       app: otel-collector
 
 ---
-# HorizontalPodAutoscaler for OTel Collector
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -869,7 +869,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -909,7 +909,7 @@ spec:
       selectPolicy: Max
 
 ---
-# NetworkPolicy for Tempo
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -918,7 +918,7 @@ metadata:
   labels:
     app: tempo
     app.kubernetes.io/name: tempo
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
@@ -927,7 +927,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow OTel Collector to send traces
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -944,7 +944,7 @@ spec:
           port: 14268
         - protocol: TCP
           port: 9411
-    # Allow Grafana to query traces
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -955,7 +955,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3200
-    # Allow Prometheus to scrape metrics
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -963,12 +963,12 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 3200
   egress:
-    # Allow Tempo to send metrics to Prometheus
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -976,11 +976,11 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 9090
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -990,7 +990,7 @@ spec:
           port: 53
 
 ---
-# NetworkPolicy for OTel Collector
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -999,7 +999,7 @@ metadata:
   labels:
     app: otel-collector
     app.kubernetes.io/name: otel-collector
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
@@ -1008,17 +1008,17 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Strix pods to send traces
+
     - from:
         - namespaceSelector:
             matchLabels:
-              name: strix
+              name: ishastra
       ports:
         - protocol: TCP
           port: 4317
         - protocol: TCP
           port: 4318
-    # Allow Prometheus to scrape metrics
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -1026,12 +1026,12 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 8888
   egress:
-    # Allow OTel Collector to send traces to Tempo
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -1042,7 +1042,7 @@ spec:
       ports:
         - protocol: TCP
           port: 4317
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -1050,14 +1050,14 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Allow OTel Collector to query Strix metrics
+
     - to:
         - namespaceSelector:
             matchLabels:
-              name: strix
+              name: ishastra
           podSelector:
             matchLabels:
-              app: strix
+              app: ishastra
       ports:
         - protocol: TCP
           port: 8000

@@ -1,9 +1,9 @@
 groups:
-  - name: strix.rules
+  - name: ishastra.rules
     interval: 30s
     rules:
-      # Queue backlog alerts
-      - alert: StrixQueueBacklogHigh
+
+      - alert: IshastraQueueBacklogHigh
         expr: |
           (
             sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
@@ -19,9 +19,9 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} has {{ $value | printf "%.0f" }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
             This indicates the assessment workers cannot keep up with the submission rate.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
 
-      - alert: StrixQueueBacklogCritical
+      - alert: IshastraQueueBacklogCritical
         expr: |
           (
             sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
@@ -37,10 +37,10 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} has {{ $value | printf "%.0f" }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
             Immediate action required: scale workers or investigate worker failures.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/queue-backlog.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
 
-      # Job latency alerts
-      - alert: StrixJobLatencyHigh
+
+      - alert: IshastraJobLatencyHigh
         expr: |
           histogram_quantile(0.95, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 300
         for: 5m
@@ -52,9 +52,9 @@ groups:
           description: |
             95th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%.0f" }} seconds.
             Jobs are taking too long to complete. Check adapter timeouts and worker resources.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
 
-      - alert: StrixJobLatencyCritical
+      - alert: IshastraJobLatencyCritical
         expr: |
           histogram_quantile(0.99, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 1800
         for: 2m
@@ -66,10 +66,10 @@ groups:
           description: |
             99th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%.0f" }} seconds.
             Jobs are hitting the hard timeout. Investigate immediately.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/job-latency.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
 
-      # Adapter success rate alerts
-      - alert: StrixAdapterSuccessRateLow
+
+      - alert: IshastraAdapterSuccessRateLow
         expr: |
           1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.95
         for: 5m
@@ -81,9 +81,9 @@ groups:
           description: |
             Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%.2f" }} (below 95%).
             Check adapter logs for errors and external tool availability.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
 
-      - alert: StrixAdapterSuccessRateCritical
+      - alert: IshastraAdapterSuccessRateCritical
         expr: |
           1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.90
         for: 2m
@@ -95,10 +95,10 @@ groups:
           description: |
             Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%.2f" }} (below 90%).
             Immediate investigation required.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/adapter-errors.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
 
-      # Authentication failure alerts
-      - alert: StrixAuthFailureRateHigh
+
+      - alert: IshastraAuthFailureRateHigh
         expr: |
           sum(rate(strix_auth_failures_total[5m])) by (reason) > 10
         for: 5m
@@ -110,9 +110,9 @@ groups:
           description: |
             Authentication failures for reason '{{ $labels.reason }}' at {{ $value | printf "%.2f" }}/s.
             Possible brute-force attack or misconfigured clients.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
 
-      - alert: StrixAuthFailureBurst
+      - alert: IshastraAuthFailureBurst
         expr: |
           sum(increase(strix_auth_failures_total[1m])) > 50
         for: 1m
@@ -124,10 +124,10 @@ groups:
           description: |
             {{ $value | printf "%.0f" }} authentication failures in the last minute.
             Likely brute-force attack or credential stuffing.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/auth-failures.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
 
-      # Audit chain alerts
-      - alert: StrixAuditChainVerificationFailed
+
+      - alert: IshastraAuditChainVerificationFailed
         expr: |
           strix_audit_chain_verified == 0
         for: 1m
@@ -140,9 +140,9 @@ groups:
             The audit chain verification check failed at startup or during runtime.
             This indicates potential tampering with the audit log.
             Investigate immediately - this is a security incident.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
 
-      - alert: StrixAuditChainLengthAnomaly
+      - alert: IshastraAuditChainLengthAnomaly
         expr: |
           rate(strix_audit_chain_length[5m]) < 0
         for: 5m
@@ -154,10 +154,10 @@ groups:
           description: |
             The audit chain length has decreased, which should never happen.
             This indicates potential data loss or tampering.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/audit-chain.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
 
-      # HTTP error rate alerts
-      - alert: StrixHTTP5xxRateHigh
+
+      - alert: IshastraHTTP5xxRateHigh
         expr: |
           sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.05
         for: 5m
@@ -169,9 +169,9 @@ groups:
           description: |
             Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%.2f" }} (above 5%).
             Check application logs for internal server errors.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
 
-      - alert: StrixHTTP5xxRateCritical
+      - alert: IshastraHTTP5xxRateCritical
         expr: |
           sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.20
         for: 2m
@@ -183,10 +183,10 @@ groups:
           description: |
             Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%.2f" }} (above 20%).
             Service degradation likely. Immediate investigation required.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/http-errors.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
 
-      # Rate limit alerts
-      - alert: StrixRateLimitExceededHigh
+
+      - alert: IshastraRateLimitExceededHigh
         expr: |
           sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier) > 100
         for: 5m
@@ -198,10 +198,10 @@ groups:
           description: |
             Rate limit exceeded {{ $value | printf "%.2f" }}/s for route class {{ $labels.route_class }} tier {{ $labels.tier }}.
             Consider adjusting rate limits or investigating abusive clients.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/rate-limiting.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/rate-limiting.md"
 
-      # Database pool alerts
-      - alert: StrixDBPoolExhausted
+
+      - alert: IshastraDBPoolExhausted
         expr: |
           strix_db_pool_available / strix_db_pool_size < 0.1
         for: 5m
@@ -213,9 +213,9 @@ groups:
           description: |
             Database pool has only {{ $value | printf "%.0f" }}% available connections.
             Check for connection leaks or increase pool size.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
 
-      - alert: StrixDBPoolAcquireSlow
+      - alert: IshastraDBPoolAcquireSlow
         expr: |
           histogram_quantile(0.95, sum(rate(strix_db_pool_acquire_seconds_bucket[5m])) by (le)) > 1.0
         for: 5m
@@ -227,10 +227,10 @@ groups:
           description: |
             95th percentile database pool acquire time is {{ $value | printf "%.2f" }} seconds.
             Pool may be undersized or database is overloaded.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/db-pool.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
 
-      # Disk pressure alerts (via node_exporter)
-      - alert: StrixDiskSpaceCritical
+
+      - alert: IshastraDiskSpaceCritical
         expr: |
           (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
         for: 5m
@@ -238,13 +238,13 @@ groups:
           severity: critical
           component: disk
         annotations:
-          summary: "Critical disk space on Strix host"
+          summary: "Critical disk space on Ishastra host"
           description: |
             Root filesystem has less than 5% free space ({{ $value | printf "%.1f" }}%).
             Immediate cleanup or volume expansion required.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
 
-      - alert: StrixDiskSpaceWarning
+      - alert: IshastraDiskSpaceWarning
         expr: |
           (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
         for: 10m
@@ -252,14 +252,14 @@ groups:
           severity: warning
           component: disk
         annotations:
-          summary: "Low disk space on Strix host"
+          summary: "Low disk space on Ishastra host"
           description: |
             Root filesystem has less than 15% free space ({{ $value | printf "%.1f" }}%).
             Plan for cleanup or volume expansion.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/disk-pressure.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
 
-      # Webhook failure alerts
-      - alert: StrixWebhookFailureRateHigh
+
+      - alert: IshastraWebhookFailureRateHigh
         expr: |
           sum(rate(strix_webhook_failures_total[5m])) by (error_type) > 10
         for: 5m
@@ -271,10 +271,10 @@ groups:
           description: |
             Webhook delivery failures for error type '{{ $labels.error_type }}' at {{ $value | printf "%.2f" }}/s.
             Check webhook endpoint availability and network connectivity.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/webhook-failures.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/webhook-failures.md"
 
-      # Findings volume alerts
-      - alert: StrixFindingsVolumeAnomaly
+
+      - alert: IshastraFindingsVolumeAnomaly
         expr: |
           sum(rate(strix_findings_total[5m])) by (tenant) > 100
         for: 5m
@@ -286,24 +286,24 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} is generating {{ $value | printf "%.2f" }} findings/s.
             This may indicate a misconfigured scan or a target with many issues.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/findings-volume.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/findings-volume.md"
 
-      # Service health alerts
-      - alert: StrixServiceDown
+
+      - alert: IshastraServiceDown
         expr: |
-          up{job="strix"} == 0
+          up{job="ishastra"} == 0
         for: 1m
         labels:
           severity: critical
           component: service
         annotations:
-          summary: "Strix API service is down"
+          summary: "Ishastra API service is down"
           description: |
-            The Strix API service has been down for more than 1 minute.
+            The Ishastra API service has been down for more than 1 minute.
             Check service logs and container health.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/service-down.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/service-down.md"
 
-      - alert: StrixPrometheusDown
+      - alert: IshastraPrometheusDown
         expr: |
           up{job="prometheus"} == 0
         for: 1m
@@ -315,9 +315,9 @@ groups:
           description: |
             Prometheus has been down for more than 1 minute.
             Metrics collection and alerting will not work.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/prometheus-down.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/prometheus-down.md"
 
-      - alert: StrixRedisDown
+      - alert: IshastraRedisDown
         expr: |
           up{job="redis"} == 0
         for: 1m
@@ -329,4 +329,4 @@ groups:
           description: |
             Redis has been down for more than 1 minute.
             Rate limiting, Celery queue, and caching will not work.
-          runbook_url: "https://github.com/strix/strix/blob/main/docs/runbooks/redis-down.md"
+          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/redis-down.md"

@@ -4,7 +4,7 @@ Quick-reference map of key modules, their responsibilities, and entry points.
 
 ---
 
-## `src/strix/core/scope.py` — Authorization Gate
+## `src/ishastra/core/scope.py` — Authorization Gate
 
 **Purpose**: Default-deny scope validation for every outbound connection.
 
@@ -24,7 +24,7 @@ Quick-reference map of key modules, their responsibilities, and entry points.
 | `destination(url)` | Layer 1+2+3: returns pinned `Destination` for connection |
 | `current()` | Active scope for this task (job-bound or global) |
 | `bound(scope)` | Context manager: swap scope for this task (multi-tenant) |
-| `set_observer(fn)` | Install receipt callback `(url, denial, reason)` for Strix Proof |
+| `set_observer(fn)` | Install receipt callback `(url, denial, reason)` for Ishastra Proof |
 
 ### Validation Layers
 1. **Layer 1** (`_gate`): URL syntax, host in `include`/not in `exclude`, port in `allowed_ports` — no DNS
@@ -43,7 +43,7 @@ Quick-reference map of key modules, their responsibilities, and entry points.
 
 ---
 
-## `src/strix/core/jobs.py` — Assessment Orchestration
+## `src/ishastra/core/jobs.py` — Assessment Orchestration
 
 **Purpose**: Job lifecycle, coverage tracking, adapter execution.
 
@@ -96,7 +96,7 @@ job.coverage() → {
 
 ---
 
-## `src/strix/core/adapter_base.py` — Adapter Primitives
+## `src/ishastra/core/adapter_base.py` — Adapter Primitives
 
 **Purpose**: Base classes shared by all adapters (built-in + external).
 
@@ -130,7 +130,7 @@ def checked_destination(target: str) -> Destination:
 
 ---
 
-## `src/strix/core/adapters.py` — Built-in Adapter Registry
+## `src/ishastra/core/adapters.py` — Built-in Adapter Registry
 
 **Purpose**: All scanner adapters + profile definitions.
 
@@ -139,27 +139,27 @@ def checked_destination(target: str) -> Destination:
 ADAPTERS: dict[str, Adapter] = {a.id: a for a in (...)}
 
 PROFILES: dict[str, tuple[str, ...]] = {
-    "web": ("strix-http", "strix-git-exposure"),
-    "web-crawl": ("strix-crawl", "strix-http", "strix-git-exposure"),
-    "web-deep": ("strix-crawl", "strix-http", "strix-dynamic-validation", "strix-git-exposure", "nuclei"),
-    "api": ("strix-http", "strix-openapi", "strix-git-exposure"),
-    "api-deep": ("strix-crawl", "strix-http", "strix-openapi", "strix-authz", "strix-ssrf-oob", "strix-dynamic-validation", "strix-git-exposure", "nuclei"),
-    "ports": ("strix-tcp", "nmap"),
-    "network": ("strix-http", "strix-tcp", "nmap", "strix-git-exposure"),
+    "web": ("ishastra-http", "ishastra-git-exposure"),
+    "web-crawl": ("ishastra-crawl", "ishastra-http", "ishastra-git-exposure"),
+    "web-deep": ("ishastra-crawl", "ishastra-http", "ishastra-dynamic-validation", "ishastra-git-exposure", "nuclei"),
+    "api": ("ishastra-http", "ishastra-openapi", "ishastra-git-exposure"),
+    "api-deep": ("ishastra-crawl", "ishastra-http", "ishastra-openapi", "ishastra-authz", "ishastra-ssrf-oob", "ishastra-dynamic-validation", "ishastra-git-exposure", "nuclei"),
+    "ports": ("ishastra-tcp", "nmap"),
+    "network": ("ishastra-http", "ishastra-tcp", "nmap", "ishastra-git-exposure"),
 }
 ```
 
 ### Built-in Adapters (always available)
 | ID | Purpose | Key Logic |
 |----|---------|-----------|
-| `strix-http` | HTTP probe + headers + reflection | `EndpointProbe`, `match_url_signatures`, header checks (CSP, HSTS) |
-| `strix-crawl` | Bounded same-origin crawl | `WebCrawler` → publishes `discovered_urls` to context |
-| `strix-dynamic-validation` | Redirect canaries (.invalid) + DB error indicators | GET only, bounded, no data extraction |
-| `strix-openapi` | Discover OpenAPI, check protected GETs | Same-origin spec discovery, 30 endpoint limit |
-| `strix-authz` | Cross-principal auth diff | Requires `auth.users` in scope; compares responses |
-| `strix-ssrf-oob` | Blind SSRF via collab listener | Requires `collab` in scope; unique canary per param |
-| `strix-git-exposure` | `.git` exposure checks | Two bounded requests |
-| `strix-tcp` | Native TCP port scan | No external tool; connects to pinned IP |
+| `ishastra-http` | HTTP probe + headers + reflection | `EndpointProbe`, `match_url_signatures`, header checks (CSP, HSTS) |
+| `ishastra-crawl` | Bounded same-origin crawl | `WebCrawler` → publishes `discovered_urls` to context |
+| `ishastra-dynamic-validation` | Redirect canaries (.invalid) + DB error indicators | GET only, bounded, no data extraction |
+| `ishastra-openapi` | Discover OpenAPI, check protected GETs | Same-origin spec discovery, 30 endpoint limit |
+| `ishastra-authz` | Cross-principal auth diff | Requires `auth.users` in scope; compares responses |
+| `ishastra-ssrf-oob` | Blind SSRF via collab listener | Requires `collab` in scope; unique canary per param |
+| `ishastra-git-exposure` | `.git` exposure checks | Two bounded requests |
+| `ishastra-tcp` | Native TCP port scan | No external tool; connects to pinned IP |
 
 ### External Tool Adapters
 | ID | Tool | Key Constraints |
@@ -176,13 +176,13 @@ PROFILES: dict[str, tuple[str, ...]] = {
 
 ### Selecting Adapters
 ```python
-from strix.core.adapters import select
+from ishastra.core.adapters import select
 adapters = select("web-deep")  # returns list[Adapter] in profile order
 ```
 
 ---
 
-## `src/strix/core/policies.py` — Engagement Policies (Multi-Tenant)
+## `src/ishastra/core/policies.py` — Engagement Policies (Multi-Tenant)
 
 **Purpose**: Versioned, revocable authorization per tenant.
 
@@ -220,14 +220,14 @@ def validate_job_binding(job) -> str:
 ```
 Called at worker dequeue + adapter boundaries via bound snapshot.
 
-### Scope Modes (`STRIX_SCOPE_MODE`)
+### Scope Modes (`ISHASTRA_SCOPE_MODE`)
 - `global`: Single `scope.json` for all
 - `managed`: Per-tenant policies required
 - `auto`: Global until first policy created, then managed
 
 ---
 
-## `src/strix/core/store.py` — Persistence
+## `src/ishastra/core/store.py` — Persistence
 
 **Purpose**: Async SQLite (aiosqlite) + optional PostgreSQL (asyncpg) persistence.
 
@@ -262,7 +262,7 @@ All `*_async` functions have synchronous wrappers (e.g., `save_job_sync`) that r
 
 ---
 
-## `src/strix/core/findings.py` — Finding Model
+## `src/ishastra/core/findings.py` — Finding Model
 
 **Purpose**: Normalized finding schema across all adapters.
 
@@ -317,11 +317,11 @@ Invalid transitions raise `ValueError` (API returns 409).
 
 ---
 
-## `src/strix/api/` — REST API Layer
+## `src/ishastra/api/` — REST API Layer
 
 ### Structure
 ```
-src/strix/api/
+src/ishastra/api/
 ├── app.py              # FastAPI factory, lifespan, middleware stack
 ├── dependencies.py     # DI: settings, auth, rate limiter, redis, http client
 ├── security.py         # Middleware: rate limit, headers, request ID, tenant state
@@ -330,7 +330,7 @@ src/strix/api/
 │   ├── assessments.py  # POST/GET /api/assess, SARIF, finding triage
 │   ├── policies.py     # Admin: CRUD engagement policies
 │   ├── monitoring.py   # Targets, scheduler, webhooks
-│   ├── proof.py        # Grant/verify Strix Proof
+│   ├── proof.py        # Grant/verify Ishastra Proof
 │   ├── probe.py        # Single-request header grading
 │   ├── system.py       # Health, ready, metrics, scope, adapters
 │   ├── tenants.py      # Key management
@@ -345,16 +345,16 @@ src/strix/api/
 4. `RedisRateLimitMiddleware` / `RateLimitMiddleware` — Per-tier limits
 5. `RequestIDMiddleware` — X-Request-ID propagation
 6. `SecurityHeadersMiddleware` — CSP, HSTS, frame options
-7. `CORSMiddleware` — Only if `STRIX_CORS_ORIGINS` set
+7. `CORSMiddleware` — Only if `ISHASTRA_CORS_ORIGINS` set
 
 ### Auth
-- `require_admin` — Bootstrap admin key (STRIX_API_KEY)
+- `require_admin` — Bootstrap admin key (ISHASTRA_API_KEY)
 - `require_tenant` — Tenant API key (hashed lookup)
 - Keys stored as SHA-256; raw key shown once on creation
 
 ---
 
-## `src/strix/proof.py` — Strix Proof
+## `src/ishastra/proof.py` — Ishastra Proof
 
 **Purpose**: Cryptographic authorization evidence.
 
@@ -367,10 +367,10 @@ src/strix/api/
 
 ### CLI Commands
 ```bash
-strix grant --program "..." --authorized-by "..." --ref "..." --include host --port 443 --days 14 --out grant.json --key-out issuer.key
-strix gate --grant grant.json --ledger receipts.jsonl --gate-key gate.key
-strix proof --grant grant.json --ledger receipts.jsonl --out proof.json
-strix verify proof.json --issuer-key issuer.key
+ishastra grant --program "..." --authorized-by "..." --ref "..." --include host --port 443 --days 14 --out grant.json --key-out issuer.key
+ishastra gate --grant grant.json --ledger receipts.jsonl --gate-key gate.key
+ishastra proof --grant grant.json --ledger receipts.jsonl --out proof.json
+ishastra verify proof.json --issuer-key issuer.key
 ```
 
 ### Verification Checks

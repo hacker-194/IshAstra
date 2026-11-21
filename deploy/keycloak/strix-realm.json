@@ -1,5 +1,5 @@
 {
-  "realm": "strix",
+  "realm": "ishastra",
   "enabled": true,
   "roles": {
     "realm": [
@@ -10,12 +10,12 @@
   },
   "clients": [
     {
-      "clientId": "strix-local",
-      "name": "Strix local development",
+      "clientId": "ishastra-local",
+      "name": "Ishastra local development",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "strix-local-dev-secret",
+      "secret": "ishastra-local-dev-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "redirectUris": [
@@ -28,11 +28,11 @@
   ],
   "users": [
     {
-      "username": "strix-local-user",
+      "username": "ishastra-local-user",
       "enabled": true,
-      "email": "strix-local-user@example.local",
+      "email": "ishastra-local-user@example.local",
       "emailVerified": true,
-      "firstName": "Strix",
+      "firstName": "Ishastra",
       "lastName": "Local",
       "credentials": [
         {

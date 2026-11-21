@@ -3,7 +3,7 @@
 > **Note:** the Celery transport described as "legacy" below was removed; the
 > queue is now in-process or Kubernetes Jobs.
 
-This guide documents the migration from Strix's legacy synchronous polling architecture to the new event-driven architecture.
+This guide documents the migration from Ishastra's legacy synchronous polling architecture to the new event-driven architecture.
 
 ## Overview
 
@@ -232,13 +232,13 @@ schemaRegistry:
 
 1. **Deploy event bus infrastructure:**
    ```bash
-   helm upgrade strix ./deploy/helm/strix -f values.yaml -f values-eventbus.yaml
+   helm upgrade ishastra ./deploy/helm/ishastra -f values.yaml -f values-eventbus.yaml
    ```
 
 2. **Verify event bus health:**
    ```bash
-   kubectl get pods -l app.kubernetes.io/part-of=strix-event-bus
-   kubectl logs -l app=strix-event-publisher
+   kubectl get pods -l app.kubernetes.io/part-of=ishastra-event-bus
+   kubectl logs -l app=ishastra-event-publisher
    ```
 
 3. **Enable dual-write in API:**
@@ -255,10 +255,10 @@ schemaRegistry:
 4. **Migrate consumers one by one:**
    ```bash
    # Enable webhook consumer
-   kubectl scale deployment strix-webhook-consumer --replicas=2
+   kubectl scale deployment ishastra-webhook-consumer --replicas=2
 
    # Verify webhook deliveries
-   kubectl logs -l app=strix-webhook-consumer
+   kubectl logs -l app=ishastra-webhook-consumer
    ```
 
 5. **Cutover API to event-only:**
@@ -273,9 +273,9 @@ schemaRegistry:
 
 6. **Remove legacy worker:**
    ```bash
-   kubectl scale deployment strix-worker --replicas=0
+   kubectl scale deployment ishastra-worker --replicas=0
    # After verification:
-   helm upgrade strix ./deploy/helm/strix -f values.yaml -f values-eventbus.yaml --set worker.enabled=false
+   helm upgrade ishastra ./deploy/helm/ishastra -f values.yaml -f values-eventbus.yaml --set worker.enabled=false
    ```
 
 ## Data Migration
@@ -291,7 +291,7 @@ Assessments in progress during migration:
 
 ```bash
 # Replay events to build projections
-kubectl exec -it strix-event-bus-0 -- python -m strix.events.replay \
+kubectl exec -it ishastra-event-bus-0 -- python -m ishastra.events.replay \
   --from-timestamp 1699999999 \
   --event-types assessment.completed,finding.created \
   --projection findings_dashboard
@@ -341,7 +341,7 @@ async def test_assessment_flow():
 hey -n 1000 -c 50 -m POST \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"target": "https://example.com", "profile": "quick"}' \
-  https://api.strix.example.com/assessments
+  https://api.ishastra.example.com/assessments
 ```
 
 ## Rollback Plan
@@ -351,21 +351,21 @@ If issues arise:
 1. **Immediate (minutes):**
    ```bash
    # Re-enable legacy queue
-   kubectl set env deployment/strix-api LEGACY_QUEUE_ENABLED=true
-   kubectl scale deployment strix-worker --replicas=3
+   kubectl set env deployment/ishastra-api LEGACY_QUEUE_ENABLED=true
+   kubectl scale deployment ishastra-worker --replicas=3
    ```
 
 2. **Short-term (hours):**
    ```bash
    # Disable event consumers
-   kubectl scale deployment strix-webhook-consumer --replicas=0
-   kubectl scale deployment strix-findings-projection --replicas=0
+   kubectl scale deployment ishastra-webhook-consumer --replicas=0
+   kubectl scale deployment ishastra-findings-projection --replicas=0
    # ... other projections
    ```
 
 3. **Full rollback (if needed):**
    ```bash
-   helm rollback strix <previous-revision>
+   helm rollback ishastra <previous-revision>
    ```
 
 ## Monitoring During Migration
@@ -383,11 +383,11 @@ If issues arise:
 
 ### Dashboards
 
-Import Grafana dashboards from `deploy/helm/strix/grafana/dashboards/`:
-- `strix-event-bus-overview.json`
-- `strix-assessment-pipeline.json`
-- `strix-webhook-delivery.json`
-- `strix-projection-health.json`
+Import Grafana dashboards from `deploy/helm/ishastra/grafana/dashboards/`:
+- `ishastra-event-bus-overview.json`
+- `ishastra-assessment-pipeline.json`
+- `ishastra-webhook-delivery.json`
+- `ishastra-projection-health.json`
 
 ## Troubleshooting
 
@@ -396,38 +396,38 @@ Import Grafana dashboards from `deploy/helm/strix/grafana/dashboards/`:
 **1. Events not appearing in projections**
 ```bash
 # Check consumer group lag
-redis-cli XINFO GROUPS strix:events:assessment.submitted
-redis-cli XINFO CONSUMERS strix:events:assessment.submitted projection-findings_dashboard
+redis-cli XINFO GROUPS ishastra:events:assessment.submitted
+redis-cli XINFO CONSUMERS ishastra:events:assessment.submitted projection-findings_dashboard
 
 # Check consumer logs
-kubectl logs -l app=strix-findings-projection
+kubectl logs -l app=ishastra-findings-projection
 ```
 
 **2. Webhooks not delivered**
 ```bash
 # Check DLQ
-redis-cli LRANGE strix:dlq:webhook 0 10
+redis-cli LRANGE ishastra:dlq:webhook 0 10
 
 # Check consumer logs
-kubectl logs -l app=strix-webhook-consumer
+kubectl logs -l app=ishastra-webhook-consumer
 ```
 
 **3. Assessment handler not creating jobs**
 ```bash
 # Check handler logs
-kubectl logs -l app=strix-assessment-handler
+kubectl logs -l app=ishastra-assessment-handler
 
 # Check K8s job creation
-kubectl get jobs -n strix -l strix/job-type=assessment
+kubectl get jobs -n ishastra -l ishastra/job-type=assessment
 ```
 
 **4. Schema validation failures**
 ```bash
 # Check schema registry
-kubectl logs -l app=strix-schema-registry
+kubectl logs -l app=ishastra-schema-registry
 
 # Validate event manually
-python -m strix.events.schemas validate --event-file event.json
+python -m ishastra.events.schemas validate --event-file event.json
 ```
 
 ## Timeline Summary
@@ -454,6 +454,6 @@ python -m strix.events.schemas validate --event-file event.json
 ## Support
 
 For migration issues:
-- Check `#strix-migration` Slack channel
+- Check `#ishastra-migration` Slack channel
 - Review runbooks in `docs/runbooks/`
 - Contact platform team for infrastructure issues

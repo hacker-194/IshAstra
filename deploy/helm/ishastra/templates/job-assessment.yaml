@@ -1,0 +1,180 @@
+{{- if and .Values.k8sJobs.enabled .Values.k8sJobs.jobId }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "ishastra-assess-%s" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: assessment-job
+    ishastra.job-id: {{ .Values.k8sJobs.jobId }}
+    ishastra.tenant: {{ .Values.k8sJobs.tenantId }}
+  annotations:
+    {{- if .Values.k8sJobs.annotations }}
+    {{- toYaml .Values.k8sJobs.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.global.podSecurityStandard }}
+    seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    {{- end }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.k8sJobs.ttlSecondsAfterFinished | default 3600 }}
+  backoffLimit: {{ .Values.k8sJobs.backoffLimit | default 2 }}
+  activeDeadlineSeconds: {{ .Values.k8sJobs.activeDeadlineSeconds | default 7200 }}
+  completionMode: NonIndexed
+  suspend: false
+  template:
+    metadata:
+      labels:
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: assessment-job
+        ishastra.job-id: {{ .Values.k8sJobs.jobId }}
+        ishastra.tenant: {{ .Values.k8sJobs.tenantId }}
+      annotations:
+        {{- if .Values.k8sJobs.podAnnotations }}
+        {{- toYaml .Values.k8sJobs.podAnnotations | nindent 8 }}
+        {{- end }}
+        {{- if .Values.global.podSecurityStandard }}
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- end }}
+    spec:
+      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+      {{- include "ishastra.priorityClassName" . | nindent 6 }}
+      {{- if .Values.k8sJobs.runtimeClassName }}
+      runtimeClassName: {{ .Values.k8sJobs.runtimeClassName }}
+      {{- end }}
+      {{- if .Values.k8sJobs.priorityClassName }}
+      priorityClassName: {{ .Values.k8sJobs.priorityClassName }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      {{- include "ishastra.topologySpreadConstraints" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.k8sJobs.affinity }}
+      {{- include "ishastra.k8sJobs.affinity" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.k8sJobs.tolerations }}
+      {{- include "ishastra.k8sJobs.tolerations" . | nindent 6 }}
+      {{- end }}
+      restartPolicy: Never
+      shareProcessNamespace: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        {{- if .Values.k8sJobs.podSecurityContext }}
+        {{- toYaml .Values.k8sJobs.podSecurityContext | nindent 8 }}
+        {{- else }}
+        {{- include "ishastra.podSecurityContext" . | nindent 8 }}
+        {{- end }}
+      {{- include "ishastra.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: assessment
+          image: "{{ .Values.k8sJobs.image | default (printf "%s:%s" .Values.global.image.repository .Values.global.image.tag) }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          command:
+            - /usr/local/bin/python
+            - -m
+            - ishastra.core.k8s_job_runner
+          env:
+            - name: ISHASTRA_JOB_ID
+              value: {{ .Values.k8sJobs.jobId | quote }}
+            - name: ISHASTRA_TENANT_ID
+              value: {{ .Values.k8sJobs.tenantId | quote }}
+            - name: ISHASTRA_TARGET
+              value: {{ .Values.k8sJobs.target | quote }}
+            - name: ISHASTRA_PROFILE
+              value: {{ .Values.k8sJobs.profile | default "web" | quote }}
+            - name: ISHASTRA_TIMEOUT_SECONDS
+              value: {{ .Values.k8sJobs.timeoutSeconds | default 3600 | quote }}
+            - name: ISHASTRA_SCOPE_JSON
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.k8sJobs.scopeConfigMapName | default "ishastra-scope" }}
+                  key: {{ .Values.k8sJobs.scopeConfigMapKey | default "scope.json" }}
+                  optional: false
+            - name: ISHASTRA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.k8sJobs.dbSecretName | default "ishastra-secrets" }}
+                  key: {{ .Values.k8sJobs.dbSecretKey | default "database-url" }}
+                  optional: false
+            - name: ISHASTRA_LOG_FORMAT
+              value: "json"
+            - name: ISHASTRA_LOG_LEVEL
+              value: {{ .Values.k8sJobs.logLevel | default "INFO" | quote }}
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: ISHASTRA_SANDBOX_ENABLED
+              value: "{{ .Values.k8sJobs.sandboxEnabled | default "true" }}"
+            - name: ISHASTRA_SECCOMP_PROFILE
+              value: "{{ .Values.k8sJobs.seccompProfile | default "runtime/default" }}"
+            {{- if .Values.k8sJobs.authSecretName }}
+            - name: ISHASTRA_AUTH_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.k8sJobs.authSecretName }}
+                  key: {{ .Values.k8sJobs.authSecretKey | default "auth-config" }}
+                  optional: true
+            {{- end }}
+          envFrom:
+            {{- if .Values.k8sJobs.envFromSecrets }}
+            {{- toYaml .Values.k8sJobs.envFromSecrets | nindent 12 }}
+            {{- end }}
+          {{- if .Values.k8sJobs.resources }}
+          resources:
+            {{- toYaml .Values.k8sJobs.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.k8sJobs.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.k8sJobs.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.k8sJobs.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.k8sJobs.readinessProbe | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- if .Values.k8sJobs.securityContext }}
+            {{- toYaml .Values.k8sJobs.securityContext | nindent 12 }}
+            {{- else }}
+            {{- include "ishastra.containerSecurityContext" . | nindent 12 }}
+            {{- end }}
+            seccompProfile:
+              type: {{ .Values.k8sJobs.seccompProfileType | default "RuntimeDefault" }}
+              {{- if eq .Values.k8sJobs.seccompProfileType "Localhost" }}
+              localhostProfile: {{ .Values.k8sJobs.seccompProfile | default "ishastra-seccomp-default" }}
+              {{- end }}
+          volumeMounts:
+            - name: ishastra-tmp
+              mountPath: /tmp
+            - name: ishastra-scope-config
+              mountPath: /etc/ishastra
+              readOnly: true
+            {{- if eq .Values.k8sJobs.seccompProfileType "Localhost" }}
+            - name: seccomp-profiles
+              mountPath: /var/lib/kubelet/seccomp
+              readOnly: true
+            {{- end }}
+      {{- if .Values.k8sJobs.volumes }}
+      volumes:
+        {{- toYaml .Values.k8sJobs.volumes | nindent 8 }}
+      {{- else }}
+      volumes:
+        - name: ishastra-tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 100Mi
+        - name: ishastra-scope-config
+          configMap:
+            name: {{ .Values.k8sJobs.scopeConfigMapName | default "ishastra-scope" }}
+            items:
+              - key: {{ .Values.k8sJobs.scopeConfigMapKey | default "scope.json" }}
+                path: scope.json
+        {{- if eq .Values.k8sJobs.seccompProfileType "Localhost" }}
+        - name: seccomp-profiles
+          configMap:
+            name: ishastra-seccomp-profiles
+            optional: true
+        {{- end }}
+      {{- end }}
+{{- end }}

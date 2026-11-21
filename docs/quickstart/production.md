@@ -1,18 +1,18 @@
 # Production deployment
 
-This page describes the production topology Strix actually supports today, the
+This page describes the production topology Ishastra actually supports today, the
 go-live checklist, and the limits you must accept. It replaces earlier guidance
 that described clustering, leader election and autoscaling that the code does
 not implement.
 
 ## Status
 
-Strix is **pilot-grade for a single-tenant, single-host deployment**. The
+Ishastra is **pilot-grade for a single-tenant, single-host deployment**. The
 authorization core is mature (TLA+-checked, 95% covered, property and
 adversarial tests in CI); the platform around it is deliberately single-writer
 and has no HA story.
 
-Use this page as the go/no-go reference before pointing Strix at production
+Use this page as the go/no-go reference before pointing Ishastra at production
 infrastructure.
 
 ## Supported topologies
@@ -21,10 +21,12 @@ infrastructure.
 |----------|--------|-------|
 | One process + SQLite (WAL) | **Supported** | Default; best pilot choice |
 | One process + PostgreSQL | Supported, single-host | Tested migrations, SIGTERM, 10-job soak; no HA |
-| Compose stack on one host | Supported | One `strix` service; Redis for shared rate limits |
+| Compose stack on one host | Supported | One `ishastra` service; Redis for shared rate limits |
 | Kubernetes with one replica | Supported | Helm chart renders API/worker/scheduler; run **one** writer |
-| Multiple replicas / autoscaling | **Not supported** | Worker lease is per database; a second process exits |
-| `STRIX_QUEUE_MODE=k8s-jobs` | Experimental | One K8s Job per assessment; no HA queue guarantee |
+| Multiple worker replicas | Supported | `ISHASTRA_QUEUE_MODE=redis-streams`; the database stays single-writer |
+| Multiple API replicas | Supported with `redis-streams` | Login state, rate limits and the key registry are shared via Redis; key revocation propagates within 5 seconds |
+| `ISHASTRA_QUEUE_MODE=k8s-jobs` | Experimental | One K8s Job per assessment; no HA queue guarantee |
+| `ISHASTRA_QUEUE_MODE=redis-streams` | Supported | Durable Redis Stream: queued jobs survive restart and several worker processes share it; the database is still single-writer |
 | Active/active or automatic failover | **Not supported** | Manual warm-standby promotion only |
 | Object storage (S3/GCS) | **Not implemented** | Findings and reports live in the database and local disk |
 
@@ -40,32 +42,32 @@ change.
 2. **Install from a pinned artifact.**
 
    ```bash
-   python3 -m venv /opt/strix/venv
-   /opt/strix/venv/bin/pip install --no-cache-dir -c constraints.txt strix==3.5.0
+   python3 -m venv /opt/ishastra/venv
+   /opt/ishastra/venv/bin/pip install --no-cache-dir -c constraints.txt ishastra==3.5.0
    ```
 
    Containers: build/pull the image and pin it by digest, not by tag.
 
-3. **Write `/etc/strix/strix.env`** (mode `0600`, owned by the service user):
+3. **Write `/etc/ishastra/ishastra.env`** (mode `0600`, owned by the service user):
 
    ```ini
-   STRIX_ENV=production
-   STRIX_API_KEY=<32+ random bytes, base64/urlsafe>
-   STRIX_AUDIT_HMAC_KEY=<different random value>
-   STRIX_ENCRYPTION_KEY=<base64 32-byte AES key>
-   STRIX_SCOPE_FILE=/etc/strix/scope.json
-   STRIX_DB=/var/lib/strix/strix.db
-   STRIX_RETENTION_DAYS=90
-   STRIX_LOG_FORMAT=json
-   STRIX_LOG_LEVEL=INFO
-   STRIX_TRUSTED_PROXIES=127.0.0.1
+   ISHASTRA_ENV=production
+   ISHASTRA_API_KEY=<32+ random bytes, base64/urlsafe>
+   ISHASTRA_AUDIT_HMAC_KEY=<different random value>
+   ISHASTRA_ENCRYPTION_KEY=<base64 32-byte AES key>
+   ISHASTRA_SCOPE_FILE=/etc/ishastra/scope.json
+   ISHASTRA_DB=/var/lib/ishastra/ishastra.db
+   ISHASTRA_RETENTION_DAYS=90
+   ISHASTRA_LOG_FORMAT=json
+   ISHASTRA_LOG_LEVEL=INFO
+   ISHASTRA_TRUSTED_PROXIES=127.0.0.1
    ```
 
-   `STRIX_ENV=production` is fail-closed: it refuses placeholder or short keys
+   `ISHASTRA_ENV=production` is fail-closed: it refuses placeholder or short keys
    and disables `/docs`, `/redoc` and `/openapi.json`.
 
 4. **Load a signed scope document.** Generate the signing key, publish the
-   JWKS, and sign `scope.json` (`strix scope-keygen`, `strix scope-sign`). An
+   JWKS, and sign `scope.json` (`ishastra scope-keygen`, `ishastra scope-sign`). An
    unsigned or expired document is refused. Keep the private key in the signing
    system, not on the API host.
 
@@ -77,7 +79,7 @@ change.
 
 ## Capacity guidance
 
-Scale vertically: add CPU/RAM and raise `STRIX_WORKERS` (adapter threads) on
+Scale vertically: add CPU/RAM and raise `ISHASTRA_WORKERS` (adapter threads) on
 the one host. SQLite WAL handles API/worker contention on a single node.
 
 | Load | Sizing |
@@ -91,12 +93,12 @@ before promising numbers to anyone.
 
 ## Backups, RTO, RPO
 
-- Back up with `strix backup` (consistent SQLite snapshot) or `pg_dump` for
+- Back up with `ishastra backup` (consistent SQLite snapshot) or `pg_dump` for
   PostgreSQL; ship off-host.
 - Default hourly cron gives **RPO ≤ 1 hour**. Shorten the interval if the
   business needs less.
 - **RTO** is the restore plus promotion time; measured at a few seconds for a
-  2 GB SQLite database (`strix standby-promote`), plus DNS/load-balancer
+  2 GB SQLite database (`ishastra standby-promote`), plus DNS/load-balancer
   switchover.
 - Rehearse one restore before go-live and record the date. An unrehearsed
   backup is not a backup.
@@ -109,7 +111,7 @@ Alert on:
 | Signal | Why |
 |--------|-----|
 | `/api/ready` failing | Process cannot serve |
-| `strix_scope_gate_decisions_total{decision="deny"}` spike | Misconfigured scope or attack |
+| `ishastra_scope_gate_decisions_total{decision="deny"}` spike | Misconfigured scope or attack |
 | Queue depth / oldest queued job | Worker stalled |
 | Audit chain verification failure | Integrity incident |
 | Disk usage on the database volume | SQLite needs headroom |
@@ -133,7 +135,7 @@ Runbooks live in `docs/runbooks/`.
 - [ ] Egress filtering behind the scope gate
 - [ ] Backup taken, restore rehearsed, RTO recorded
 - [ ] `/api/ready` alerted to a human; runbook link in the alert
-- [ ] Retention configured (`STRIX_RETENTION_DAYS`)
+- [ ] Retention configured (`ISHASTRA_RETENTION_DAYS`)
 - [ ] Image pinned by digest; SBOM/scan artifact stored
 - [ ] Written answer to "what do we do at 3 a.m.?"
 

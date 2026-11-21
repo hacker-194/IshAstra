@@ -1,4 +1,4 @@
-"""Unit tests for Strix Assessments Router."""
+"""Unit tests for Ishastra Assessments Router."""
 
 from __future__ import annotations
 
@@ -11,22 +11,18 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from strix.api.routers import assessments
-from strix.api.schemas import (
+from ishastra.api.routers import assessments
+from ishastra.api.schemas import (
     AssessRequest,
     AssessResponse,
     FindingStatusUpdate,
     Page,
     ReportRequest,
 )
-from strix.core import jobs
-from strix.core.findings import Finding
-from strix.core.jobs import Job, JobState, RunState
-from strix.core.scope import Scope
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from ishastra.core import jobs
+from ishastra.core.findings import Finding
+from ishastra.core.jobs import Job, JobState, RunState
+from ishastra.core.scope import Scope
 
 
 @pytest.fixture
@@ -112,7 +108,7 @@ def mock_completed_job() -> Job:
     job.state = JobState.COMPLETED
     job.started_at = time.time() - 100
     job.finished_at = time.time()
-    job.runs = [jobs.AdapterRun(adapter="strix-http", state=RunState.OK, findings=2, elapsed_ms=5000.0)]
+    job.runs = [jobs.AdapterRun(adapter="ishastra-http", state=RunState.OK, findings=2, elapsed_ms=5000.0)]
     job.findings = [
         Finding(
             asset="https://example.com/",
@@ -120,7 +116,7 @@ def mock_completed_job() -> Job:
             title="Missing Content-Security-Policy header",
             severity="low",
             confidence="medium",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence="HTTP 200 response carries no Content-Security-Policy header",
             location="https://example.com/",
@@ -133,7 +129,7 @@ def mock_completed_job() -> Job:
             title="Missing Strict-Transport-Security header",
             severity="low",
             confidence="medium",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence="HTTPS response 200 carries no Strict-Transport-Security header",
             location="https://example.com/",
@@ -182,7 +178,7 @@ def sample_findings() -> list[dict[str, Any]]:
             "title": "Missing Content-Security-Policy header",
             "severity": "low",
             "confidence": "medium",
-            "detector": "strix-http",
+            "detector": "ishastra-http",
             "detector_version": "1.0.0",
             "evidence": "No CSP header",
             "location": "https://example.com/",
@@ -197,7 +193,7 @@ def sample_findings() -> list[dict[str, Any]]:
             "title": "Missing Strict-Transport-Security header",
             "severity": "low",
             "confidence": "medium",
-            "detector": "strix-http",
+            "detector": "ishastra-http",
             "detector_version": "1.0.0",
             "evidence": "No HSTS header",
             "location": "https://example.com/",
@@ -206,11 +202,6 @@ def sample_findings() -> list[dict[str, Any]]:
             "status": "new",
         },
     ]
-
-
-# ---------------------------------------------------------------------------
-# Test Idempotency Key Validation
-# ---------------------------------------------------------------------------
 
 
 class TestIdempotencyKey:
@@ -252,11 +243,6 @@ class TestIdempotencyKey:
         assert "A-Z a-z 0-9 . _ : -" in exc.value.detail
 
 
-# ---------------------------------------------------------------------------
-# Test _links helper
-# ---------------------------------------------------------------------------
-
-
 class TestLinks:
     """Test the _links helper function."""
 
@@ -265,11 +251,6 @@ class TestLinks:
         links = assessments._links("job_123")
         assert links["sarif_url"] == "/api/assess/job_123/sarif"
         assert links["report_url"] == "/api/assess/job_123/report.html"
-
-
-# ---------------------------------------------------------------------------
-# Test create_assessment endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestCreateAssessment:
@@ -284,15 +265,15 @@ class TestCreateAssessment:
     ):
         """Test creating an assessment with wait=False (queued)."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock) as mock_save,
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock) as mock_save,
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -332,14 +313,14 @@ class TestCreateAssessment:
     ):
         """Test creating an assessment with wait=True (inline execution)."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
             patch(
-                "strix.api.routers.assessments.jobs.run_assessment", return_value=mock_completed_job
+                "ishastra.api.routers.assessments.jobs.run_assessment", return_value=mock_completed_job
             ) as mock_run,
             patch(
-                "strix.api.routers.assessments.record_job",
+                "ishastra.api.routers.assessments.record_job",
                 new_callable=AsyncMock,
                 return_value={
                     **mock_completed_job.to_dict(),
@@ -350,7 +331,7 @@ class TestCreateAssessment:
                 },
             ) as mock_record,
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -380,13 +361,13 @@ class TestCreateAssessment:
     ):
         """Test wait=True with timeout exceeding MAX_INLINE_TIMEOUT raises 400."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             req = AssessRequest(
                 target="https://example.com",
                 profile="web",
-                timeout=200.0,  # Exceeds MAX_INLINE_TIMEOUT (120)
+                timeout=200.0,
                 wait=True,
             )
 
@@ -404,8 +385,8 @@ class TestCreateAssessment:
     ):
         """Test empty target raises 400."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             req = AssessRequest(
                 target="   ",
@@ -426,8 +407,8 @@ class TestCreateAssessment:
     ):
         """Test unknown profile raises 400."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             req = AssessRequest(
                 target="https://example.com",
@@ -457,9 +438,9 @@ class TestCreateAssessment:
         }
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=existing_job,
             ),
@@ -473,7 +454,7 @@ class TestCreateAssessment:
             result = await assessments.create_assessment(req, mock_tenant)
 
             assert isinstance(result, assessments.JSONResponse)
-            assert result.status_code == 202  # QUEUED state
+            assert result.status_code == 202
             content = json.loads(result.body)
             assert content["deduplicated"] is True
 
@@ -493,9 +474,9 @@ class TestCreateAssessment:
         }
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=existing_job,
             ),
@@ -509,7 +490,7 @@ class TestCreateAssessment:
             result = await assessments.create_assessment(req, mock_tenant)
 
             assert isinstance(result, assessments.JSONResponse)
-            assert result.status_code == 200  # COMPLETED state
+            assert result.status_code == 200
             content = json.loads(result.body)
             assert content["deduplicated"] is True
 
@@ -523,8 +504,8 @@ class TestCreateAssessment:
         mock_scope.check.return_value = ("out_of_scope", "Target not in scope")
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             req = AssessRequest(
                 target="https://evil.com",
@@ -546,8 +527,8 @@ class TestCreateAssessment:
         mock_scope.check.return_value = ("invalid_target", "Invalid URL")
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             req = AssessRequest(
                 target="not-a-url",
@@ -568,21 +549,21 @@ class TestCreateAssessment:
     ):
         """Test auth config is encrypted when provided."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
-            patch("strix.api.routers.assessments.deps_settings") as mock_settings,
-            patch("strix.api.routers.assessments.create_authenticator_from_dict") as mock_create_auth,
-            patch("strix.api.routers.assessments.EncryptedAuthConfig.create") as mock_encrypt,
+            patch("ishastra.api.routers.assessments.deps_settings") as mock_settings,
+            patch("ishastra.api.routers.assessments.create_authenticator_from_dict") as mock_create_auth,
+            patch("ishastra.api.routers.assessments.EncryptedAuthConfig.create") as mock_encrypt,
         ):
             mock_worker = AsyncMock()
             mock_get_worker.return_value = mock_worker
@@ -615,10 +596,10 @@ class TestCreateAssessment:
     ):
         """Test auth config fails when encryption key not configured."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.deps_settings") as mock_settings,
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.deps_settings") as mock_settings,
         ):
             mock_settings.encryption_key = None
 
@@ -642,18 +623,18 @@ class TestCreateAssessment:
         mock_job: Job,
     ):
         """Test queue full raises 503."""
-        from strix.core.worker import AssessmentQueueFull
+        from ishastra.core.worker import AssessmentQueueFull
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -682,18 +663,18 @@ class TestCreateAssessment:
         mock_job: Job,
     ):
         """Test worker lease error raises 503."""
-        from strix.core.worker import WorkerLeaseError
+        from ishastra.core.worker import WorkerLeaseError
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -722,7 +703,7 @@ class TestCreateAssessment:
         mock_completed_job: Job,
     ):
         """Test job conflict on inline execution falls back to existing job."""
-        from strix.core.store import JobConflict
+        from ishastra.core.store import JobConflict
 
         existing_job = {
             **mock_completed_job.to_dict(),
@@ -733,22 +714,22 @@ class TestCreateAssessment:
         }
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.run_assessment", return_value=mock_completed_job),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.run_assessment", return_value=mock_completed_job),
             patch(
-                "strix.api.routers.assessments.record_job",
+                "ishastra.api.routers.assessments.record_job",
                 new_callable=AsyncMock,
                 side_effect=JobConflict("conflict"),
             ),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=existing_job,
             ),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -774,7 +755,7 @@ class TestCreateAssessment:
         mock_job: Job,
     ):
         """Test job conflict on queued execution falls back to existing job."""
-        from strix.core.store import JobConflict
+        from ishastra.core.store import JobConflict
 
         existing_job = {
             **mock_job.to_dict(),
@@ -785,23 +766,23 @@ class TestCreateAssessment:
         }
 
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value="test-key"),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value="test-key"),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
             patch(
-                "strix.api.routers.assessments.store.save_job",
+                "ishastra.api.routers.assessments.store.save_job",
                 new_callable=AsyncMock,
                 side_effect=JobConflict("conflict"),
             ),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=existing_job,
             ),
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -820,11 +801,6 @@ class TestCreateAssessment:
             assert content["deduplicated"] is True
 
 
-# ---------------------------------------------------------------------------
-# Test list_assessments endpoint
-# ---------------------------------------------------------------------------
-
-
 class TestListAssessments:
     """Test GET /api/assess endpoint."""
 
@@ -840,11 +816,15 @@ class TestListAssessments:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.list_jobs",
+                "ishastra.api.routers.assessments.store.list_jobs",
                 new_callable=AsyncMock,
                 return_value=[job_dict],
             ),
-            patch("strix.api.routers.assessments.store.count_jobs", new_callable=AsyncMock, return_value=1),
+            patch(
+                "ishastra.api.routers.assessments.store.count_jobs",
+                new_callable=AsyncMock,
+                return_value=1,
+            ),
         ):
             result = await assessments.list_assessments(page=1, page_size=20, tenant=mock_tenant)
 
@@ -869,17 +849,21 @@ class TestListAssessments:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.list_jobs",
+                "ishastra.api.routers.assessments.store.list_jobs",
                 new_callable=AsyncMock,
                 return_value=[job_dict, job_dict],
             ) as mock_list,
-            patch("strix.api.routers.assessments.store.count_jobs", new_callable=AsyncMock, return_value=50),
+            patch(
+                "ishastra.api.routers.assessments.store.count_jobs",
+                new_callable=AsyncMock,
+                return_value=50,
+            ),
         ):
             result = await assessments.list_assessments(page=2, page_size=20, tenant=mock_tenant)
 
             assert result.total == 50
             assert result.page == 2
-            assert result.has_next is True  # page 2 of 3
+            assert result.has_next is True
             assert mock_list.call_args.kwargs["offset"] == 20
 
     @pytest.mark.asyncio
@@ -889,19 +873,22 @@ class TestListAssessments:
     ):
         """Test empty list."""
         with (
-            patch("strix.api.routers.assessments.store.list_jobs", new_callable=AsyncMock, return_value=[]),
-            patch("strix.api.routers.assessments.store.count_jobs", new_callable=AsyncMock, return_value=0),
+            patch(
+                "ishastra.api.routers.assessments.store.list_jobs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "ishastra.api.routers.assessments.store.count_jobs",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
         ):
             result = await assessments.list_assessments(page=1, page_size=20, tenant=mock_tenant)
 
             assert result.total == 0
             assert len(result.items) == 0
             assert result.has_next is False
-
-
-# ---------------------------------------------------------------------------
-# Test get_assessment endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestGetAssessment:
@@ -915,7 +902,7 @@ class TestGetAssessment:
     ):
         """Test getting a job by ID."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_completed_job.to_dict(),
         ):
@@ -931,17 +918,16 @@ class TestGetAssessment:
         mock_tenant: dict[str, Any],
     ):
         """Test getting non-existent job raises 404."""
-        with patch("strix.api.routers.assessments.store.get_job", new_callable=AsyncMock, return_value=None):
+        with patch(
+            "ishastra.api.routers.assessments.store.get_job",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
             with pytest.raises(HTTPException) as exc:
                 await assessments.get_assessment("job_nonexistent", mock_tenant)
 
             assert exc.value.status_code == 404
             assert "Unknown job" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test get_sarif endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestGetSarif:
@@ -957,16 +943,16 @@ class TestGetSarif:
         """Test getting SARIF export."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.get_findings",
+                "ishastra.api.routers.assessments.store.get_findings",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.findings,
             ),
-            patch("strix.api.routers.assessments.to_sarif", return_value={"version": "2.1.0", "runs": []}),
+            patch("ishastra.api.routers.assessments.to_sarif", return_value={"version": "2.1.0", "runs": []}),
         ):
             result = await assessments.get_sarif("job_completed_1", mock_tenant)
 
@@ -981,16 +967,15 @@ class TestGetSarif:
         mock_tenant: dict[str, Any],
     ):
         """Test SARIF for non-existent job raises 404."""
-        with patch("strix.api.routers.assessments.store.get_job", new_callable=AsyncMock, return_value=None):
+        with patch(
+            "ishastra.api.routers.assessments.store.get_job",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
             with pytest.raises(HTTPException) as exc:
                 await assessments.get_sarif("job_nonexistent", mock_tenant)
 
             assert exc.value.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# Test update_finding_status endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestUpdateFindingStatus:
@@ -1010,17 +995,17 @@ class TestUpdateFindingStatus:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.update_finding_status",
+                "ishastra.api.routers.assessments.store.update_finding_status",
                 new_callable=AsyncMock,
                 return_value=updated_finding,
             ) as mock_update,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments.redact_text", return_value="note"),
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.redact_text", return_value="note"),
         ):
             update = FindingStatusUpdate(status="triaged", note="Looking into it")
             result = await assessments.update_finding_status(
@@ -1034,11 +1019,11 @@ class TestUpdateFindingStatus:
     async def test_update_finding_status_active_job_rejected(
         self,
         mock_tenant: dict[str, Any],
-        mock_job: Job,  # QUEUED state
+        mock_job: Job,
     ):
         """Test updating finding on active job raises 409."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_job.to_dict(),
         ):
@@ -1057,7 +1042,7 @@ class TestUpdateFindingStatus:
     ):
         """Test invalid fingerprint format raises 404."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_completed_job.to_dict(),
         ):
@@ -1079,12 +1064,12 @@ class TestUpdateFindingStatus:
         """Test fingerprint not in job raises 404."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.update_finding_status",
+                "ishastra.api.routers.assessments.store.update_finding_status",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -1108,27 +1093,22 @@ class TestUpdateFindingStatus:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.update_finding_status",
+                "ishastra.api.routers.assessments.store.update_finding_status",
                 new_callable=AsyncMock,
                 side_effect=ValueError("Invalid transition"),
             ),
         ):
-            update = FindingStatusUpdate(status="closed")  # Can't go from new to closed directly
+            update = FindingStatusUpdate(status="closed")
             with pytest.raises(HTTPException) as exc:
                 await assessments.update_finding_status("job_completed_1", fingerprint, update, mock_tenant)
 
             assert exc.value.status_code == 409
             assert "Invalid transition" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test cancel_assessment endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestCancelAssessment:
@@ -1138,17 +1118,17 @@ class TestCancelAssessment:
     async def test_cancel_assessment_happy_path(
         self,
         mock_tenant: dict[str, Any],
-        mock_job: Job,  # QUEUED state
+        mock_job: Job,
     ):
         """Test cancelling a queued job."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             mock_worker = AsyncMock()
             mock_worker.cancel.return_value = True
@@ -1168,7 +1148,7 @@ class TestCancelAssessment:
     ):
         """Test cancelling completed job raises 409."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_completed_job.to_dict(),
         ):
@@ -1187,16 +1167,16 @@ class TestCancelAssessment:
         """Test cancelling job not on this worker raises 409."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.request_cancel",
+                "ishastra.api.routers.assessments.store.request_cancel",
                 new_callable=AsyncMock,
             ) as mock_request_cancel,
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             mock_request_cancel.return_value = False
             mock_worker = MagicMock()
@@ -1209,11 +1189,6 @@ class TestCancelAssessment:
             assert "not running on this worker" in exc.value.detail
 
 
-# ---------------------------------------------------------------------------
-# Test retry_assessment endpoint
-# ---------------------------------------------------------------------------
-
-
 class TestRetryAssessment:
     """Test POST /api/assess/{job_id}/retry endpoint."""
 
@@ -1223,23 +1198,23 @@ class TestRetryAssessment:
         mock_tenant: dict[str, Any],
         mock_failed_job: Job,
         mock_scope: Scope,
-        mock_job: Job,  # New job returned by prepare
+        mock_job: Job,
     ):
         """Test retrying a failed job."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_failed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock) as mock_save,
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock) as mock_save,
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -1267,7 +1242,7 @@ class TestRetryAssessment:
     ):
         """Test retrying completed job raises 409."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_completed_job.to_dict(),
         ):
@@ -1286,7 +1261,7 @@ class TestRetryAssessment:
         job_dict = {"id": "job_failed", "state": "failed", "target": "  ", "policy": {}}
 
         with patch(
-            "strix.api.routers.assessments.store.get_job", new_callable=AsyncMock, return_value=job_dict
+            "ishastra.api.routers.assessments.store.get_job", new_callable=AsyncMock, return_value=job_dict
         ):
             with pytest.raises(HTTPException) as exc:
                 await assessments.retry_assessment("job_failed", mock_tenant)
@@ -1306,11 +1281,11 @@ class TestRetryAssessment:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_failed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
         ):
             with pytest.raises(HTTPException) as exc:
                 await assessments.retry_assessment("job_failed_1", mock_tenant)
@@ -1326,20 +1301,20 @@ class TestRetryAssessment:
         mock_job: Job,
     ):
         """Test retry when queue is full raises 503."""
-        from strix.core.worker import AssessmentQueueFull
+        from ishastra.core.worker import AssessmentQueueFull
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_failed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             mock_worker = AsyncMock()
             mock_worker.submit.side_effect = AssessmentQueueFull("queue full")
@@ -1350,11 +1325,6 @@ class TestRetryAssessment:
 
             assert exc.value.status_code == 503
             assert "queue is full" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test _bound_authorization helper
-# ---------------------------------------------------------------------------
 
 
 class TestBoundAuthorization:
@@ -1420,11 +1390,6 @@ class TestBoundAuthorization:
         assert result["available"] is False
 
 
-# ---------------------------------------------------------------------------
-# Test build_report endpoint
-# ---------------------------------------------------------------------------
-
-
 class TestBuildReport:
     """Test POST /api/report endpoint."""
 
@@ -1443,7 +1408,7 @@ class TestBuildReport:
                 title="Missing CSP",
                 severity="low",
                 confidence="medium",
-                detector="strix-http",
+                detector="ishastra-http",
                 detector_version="1.0.0",
                 evidence="No CSP",
                 location="https://example.com/",
@@ -1454,23 +1419,23 @@ class TestBuildReport:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.latest_finished_job",
+                "ishastra.api.routers.assessments.store.latest_finished_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.get_findings",
+                "ishastra.api.routers.assessments.store.get_findings",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.findings,
             ),
             patch(
-                "strix.api.routers.assessments.deps.audit_chain.append_async",
+                "ishastra.api.routers.assessments.deps.audit_chain.append_async",
                 new_callable=AsyncMock,
                 return_value="chain-hash-123",
             ),
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.deps.audit_chain.verify_async",
+                "ishastra.api.routers.assessments.deps.audit_chain.verify_async",
                 new_callable=AsyncMock,
                 return_value=(True, None),
             ),
@@ -1497,11 +1462,11 @@ class TestBuildReport:
         """Test report when no finished job exists raises 404."""
         with (
             patch(
-                "strix.api.routers.assessments.store.latest_finished_job",
+                "ishastra.api.routers.assessments.store.latest_finished_job",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
-            patch("strix.api.routers.assessments.check_scope_or_raise_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.check_scope_or_raise_async", new_callable=AsyncMock),
         ):
             req = ReportRequest(target="https://example.com")
             with pytest.raises(HTTPException) as exc:
@@ -1509,11 +1474,6 @@ class TestBuildReport:
 
             assert exc.value.status_code == 404
             assert "No finished assessment" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test triage_assessment endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestTriageAssessment:
@@ -1536,13 +1496,13 @@ class TestTriageAssessment:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.analyst.provider_from_env", return_value=None),
-            patch("strix.api.routers.assessments.analyst.analyze_findings", return_value=mock_triage),
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.analyst.provider_from_env", return_value=None),
+            patch("ishastra.api.routers.assessments.analyst.analyze_findings", return_value=mock_triage),
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             result = await assessments.triage_assessment("job_completed_1", mock_tenant)
 
@@ -1554,11 +1514,11 @@ class TestTriageAssessment:
     async def test_triage_assessment_wrong_state(
         self,
         mock_tenant: dict[str, Any],
-        mock_job: Job,  # QUEUED state
+        mock_job: Job,
     ):
         """Test triage on active job raises 409."""
         with patch(
-            "strix.api.routers.assessments.store.get_job",
+            "ishastra.api.routers.assessments.store.get_job",
             new_callable=AsyncMock,
             return_value=mock_job.to_dict(),
         ):
@@ -1567,11 +1527,6 @@ class TestTriageAssessment:
 
             assert exc.value.status_code == 409
             assert "triage needs findings" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test get_html_report endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestGetHtmlReport:
@@ -1592,7 +1547,7 @@ class TestGetHtmlReport:
                 title="Missing CSP",
                 severity="low",
                 confidence="medium",
-                detector="strix-http",
+                detector="ishastra-http",
                 detector_version="1.0.0",
                 evidence="No CSP",
                 location="https://example.com/",
@@ -1603,22 +1558,22 @@ class TestGetHtmlReport:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.get_findings",
+                "ishastra.api.routers.assessments.store.get_findings",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.findings,
             ),
             patch(
-                "strix.api.routers.assessments.render_html_report", return_value="<html>Report</html>"
+                "ishastra.api.routers.assessments.render_html_report", return_value="<html>Report</html>"
             ) as mock_render,
-            patch("strix.api.routers.assessments.record_report") as mock_record,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.record_report") as mock_record,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.deps.audit_chain.verify_cached_async",
+                "ishastra.api.routers.assessments.deps.audit_chain.verify_cached_async",
                 new_callable=AsyncMock,
                 return_value=(True, ""),
             ),
@@ -1629,11 +1584,6 @@ class TestGetHtmlReport:
             assert result.body == b"<html>Report</html>"
             mock_render.assert_called_once()
             mock_record.assert_called_once_with("html")
-
-
-# ---------------------------------------------------------------------------
-# Test get_pdf_report endpoint
-# ---------------------------------------------------------------------------
 
 
 class TestGetPdfReport:
@@ -1654,7 +1604,7 @@ class TestGetPdfReport:
                 title="Missing CSP",
                 severity="low",
                 confidence="medium",
-                detector="strix-http",
+                detector="ishastra-http",
                 detector_version="1.0.0",
                 evidence="No CSP",
                 location="https://example.com/",
@@ -1665,20 +1615,20 @@ class TestGetPdfReport:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.get_findings",
+                "ishastra.api.routers.assessments.store.get_findings",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.findings,
             ),
             patch(
-                "strix.api.routers.assessments.generate_pdf_from_job", return_value=b"%PDF-1.4\n..."
+                "ishastra.api.routers.assessments.generate_pdf_from_job", return_value=b"%PDF-1.4\n..."
             ) as mock_pdf,
-            patch("strix.api.routers.assessments.record_report") as mock_record,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.record_report") as mock_record,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             result = await assessments.get_pdf_report("job_completed_1", mock_tenant)
 
@@ -1699,17 +1649,17 @@ class TestGetPdfReport:
         """Test PDF generation failure raises 501."""
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.get_findings",
+                "ishastra.api.routers.assessments.store.get_findings",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.findings,
             ),
             patch(
-                "strix.api.routers.assessments.generate_pdf_from_job",
+                "ishastra.api.routers.assessments.generate_pdf_from_job",
                 side_effect=RuntimeError("WeasyPrint not available"),
             ),
         ):
@@ -1718,11 +1668,6 @@ class TestGetPdfReport:
 
             assert exc.value.status_code == 501
             assert "PDF generation unavailable" in exc.value.detail
-
-
-# ---------------------------------------------------------------------------
-# Test record_job and record_job_sync
-# ---------------------------------------------------------------------------
 
 
 class TestRecordJob:
@@ -1736,13 +1681,12 @@ class TestRecordJob:
     ):
         """Test recording a finished job."""
         with (
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock) as mock_save,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock) as mock_audit,
             patch(
-                "strix.api.routers.assessments.deps.audit_chain.append_async",
+                "ishastra.api.routers.assessments.store.save_job",
                 new_callable=AsyncMock,
                 return_value="chain-hash",
-            ) as mock_chain,
+            ) as mock_save,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock) as mock_audit,
         ):
             result = await assessments.record_job(mock_completed_job, mock_tenant)
 
@@ -1750,7 +1694,6 @@ class TestRecordJob:
             assert result["audit_chain_hash"] == "chain-hash"
             mock_save.assert_called_once()
             mock_audit.assert_called_once()
-            mock_chain.assert_called_once()
 
     def test_record_job_sync_with_running_loop(self):
         """Test sync wrapper when event loop is running."""
@@ -1802,11 +1745,6 @@ class TestRecordJob:
             mock_run.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Test _existing_submission helper
-# ---------------------------------------------------------------------------
-
-
 class TestExistingSubmission:
     """Test _existing_submission helper function."""
 
@@ -1819,12 +1757,12 @@ class TestExistingSubmission:
         """Test finding existing submission by idempotency key."""
         with (
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value="job_completed_1",
             ),
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
@@ -1844,7 +1782,7 @@ class TestExistingSubmission:
     ):
         """Test no existing submission."""
         with patch(
-            "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+            "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -1860,20 +1798,19 @@ class TestExistingSubmission:
         """Test existing submission but job deleted."""
         with (
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value="job_deleted",
             ),
-            patch("strix.api.routers.assessments.store.get_job", new_callable=AsyncMock, return_value=None),
+            patch(
+                "ishastra.api.routers.assessments.store.get_job",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await assessments._existing_submission("test-key", mock_tenant)
 
             assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Test Edge Cases
-# ---------------------------------------------------------------------------
 
 
 class TestEdgeCases:
@@ -1888,17 +1825,17 @@ class TestEdgeCases:
     ):
         """Test creating assessment with specific policy_id."""
         with (
-            patch("strix.api.routers.assessments._idempotency_key", return_value=None),
+            patch("ishastra.api.routers.assessments._idempotency_key", return_value=None),
             patch(
-                "strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope
+                "ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope
             ) as mock_scope_fn,
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -1937,18 +1874,18 @@ class TestEdgeCases:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_failed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job) as mock_prepare,
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -1957,7 +1894,6 @@ class TestEdgeCases:
             mock_get_worker.return_value = mock_worker
             await assessments.retry_assessment("job_failed_1", mock_tenant)
 
-            # Verify the retry job policy includes encrypted auth
             call_args = mock_prepare.call_args
             policy_arg = call_args.kwargs.get("policy")
             assert policy_arg is not None
@@ -1978,18 +1914,18 @@ class TestEdgeCases:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_failed_job.to_dict(),
             ),
-            patch("strix.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare", return_value=mock_job),
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.tenant_scope_async", return_value=mock_scope),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare", return_value=mock_job),
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments._existing_submission",
+                "ishastra.api.routers.assessments._existing_submission",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -2011,11 +1947,15 @@ class TestEdgeCases:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.list_jobs",
+                "ishastra.api.routers.assessments.store.list_jobs",
                 new_callable=AsyncMock,
                 return_value=[job_dict],
             ),
-            patch("strix.api.routers.assessments.store.count_jobs", new_callable=AsyncMock, return_value=1),
+            patch(
+                "ishastra.api.routers.assessments.store.count_jobs",
+                new_callable=AsyncMock,
+                return_value=1,
+            ),
         ):
             result = await assessments.list_assessments(page=1, page_size=20, tenant=mock_tenant)
 
@@ -2035,29 +1975,23 @@ class TestEdgeCases:
 
         with (
             patch(
-                "strix.api.routers.assessments.store.get_job",
+                "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
             patch(
-                "strix.api.routers.assessments.store.update_finding_status",
+                "ishastra.api.routers.assessments.store.update_finding_status",
                 new_callable=AsyncMock,
                 return_value=updated_finding,
             ),
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock) as mock_audit,
-            patch("strix.api.routers.assessments.redact_text", return_value="[REDACTED]"),
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock) as mock_audit,
+            patch("ishastra.api.routers.assessments.redact_text", return_value="[REDACTED]"),
         ):
             update = FindingStatusUpdate(status="triaged", note="Password is secret123")
             await assessments.update_finding_status("job_completed_1", fingerprint, update, mock_tenant)
 
-            # Verify audit was called with redacted note
             audit_call = mock_audit.call_args
             assert audit_call.args[1]["note"] == "[REDACTED]"
-
-
-# ---------------------------------------------------------------------------
-# Integration-style tests with TestClient
-# ---------------------------------------------------------------------------
 
 
 class TestAssessmentsIntegration:
@@ -2068,12 +2002,11 @@ class TestAssessmentsIntegration:
         """Create test client with mocked dependencies."""
         from fastapi import FastAPI
 
-        from strix.api.routers import assessments as assessments_module
+        from ishastra.api.routers import assessments as assessments_module
 
         app = FastAPI()
         app.include_router(assessments_module.router)
 
-        # Override dependencies
         async def mock_require_auth():
             return {"tenant_id": "test-tenant", "tier": "standard", "admin": False}
 
@@ -2086,17 +2019,17 @@ class TestAssessmentsIntegration:
         """Test POST /api/assess via TestClient."""
         with (
             patch(
-                "strix.api.routers.assessments.tenant_scope_async",
+                "ishastra.api.routers.assessments.tenant_scope_async",
                 new_callable=AsyncMock,
                 return_value=MagicMock(check=MagicMock(return_value=(None, "ok"))),
             ),
-            patch("strix.api.routers.assessments.check_target_or_raise"),
-            patch("strix.api.routers.assessments.jobs.prepare") as mock_prepare,
-            patch("strix.api.routers.assessments.store.save_job", new_callable=AsyncMock),
-            patch("strix.api.routers.assessments._get_assessment_worker") as mock_get_worker,
-            patch("strix.api.routers.assessments.audit_async", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments.check_target_or_raise"),
+            patch("ishastra.api.routers.assessments.jobs.prepare") as mock_prepare,
+            patch("ishastra.api.routers.assessments.store.save_job", new_callable=AsyncMock),
+            patch("ishastra.api.routers.assessments._get_assessment_worker") as mock_get_worker,
+            patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
             patch(
-                "strix.api.routers.assessments.store.find_job_id_by_idempotency",
+                "ishastra.api.routers.assessments.store.find_job_id_by_idempotency",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -2154,8 +2087,16 @@ class TestAssessmentsIntegration:
     def test_list_assessments_endpoint(self, client):
         """Test GET /api/assess via TestClient."""
         with (
-            patch("strix.api.routers.assessments.store.list_jobs", new_callable=AsyncMock, return_value=[]),
-            patch("strix.api.routers.assessments.store.count_jobs", new_callable=AsyncMock, return_value=0),
+            patch(
+                "ishastra.api.routers.assessments.store.list_jobs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "ishastra.api.routers.assessments.store.count_jobs",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
         ):
             response = client.get(
                 "/api/assess",
@@ -2166,11 +2107,6 @@ class TestAssessmentsIntegration:
             data = response.json()
             assert data["items"] == []
             assert data["total"] == 0
-
-
-# ---------------------------------------------------------------------------
-# Test Constants
-# ---------------------------------------------------------------------------
 
 
 class TestConstants:

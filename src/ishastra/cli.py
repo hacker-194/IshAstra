@@ -413,7 +413,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
                 }
                 for f in job.findings
             ],
-            "coverage": job.coverage if hasattr(job, "coverage") else {},
+            "coverage": job.coverage() if hasattr(job, "coverage") else {},
             "severity_counts": {},
             "integrity": {"chain_valid": True, "chain_hash": ""},
         }
@@ -1534,7 +1534,7 @@ def _run_report(args: argparse.Namespace) -> int:
             }
             for f in job.findings
         ],
-        "coverage": job.coverage if hasattr(job, "coverage") else {},
+        "coverage": job.coverage() if hasattr(job, "coverage") else {},
         "severity_counts": {},
         "integrity": {"chain_valid": True, "chain_hash": ""},
     }
@@ -2694,6 +2694,17 @@ def main(argv: list[str] | None = None) -> None:
         "--org-name-nepali",
         default="",
         help="Organization name in Nepali (Devanagari)",
+    )
+    report_parser.add_argument(
+        "--actor",
+        default="analyst",
+        help="Actor name for audit trail",
+    )
+    report_parser.add_argument(
+        "--timeout",
+        default=300,
+        type=int,
+        help="Overall job deadline in seconds (default: 300)",
     )
 
     grant_parser = subparsers.add_parser("grant", help="Create and sign an authorization grant (Strix Proof)")

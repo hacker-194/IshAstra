@@ -8,7 +8,7 @@ The tests connect as a non-superuser role: a superuser bypasses row-level
 security entirely, so the previous version of this suite could not have proved
 anything even if it had created the schema.
 
-Requires PostgreSQL. Set STRIX_TEST_PG_DSN to run this suite.
+Requires PostgreSQL. Set ISHASTRA_TEST_PG_DSN to run this suite.
 """
 
 from __future__ import annotations
@@ -18,18 +18,18 @@ import os
 import asyncpg
 import pytest
 
-from strix.core import store
+from ishastra.core import store
 
-ADMIN_DSN = os.environ.get("STRIX_TEST_PG_DSN")
+ADMIN_DSN = os.environ.get("ISHASTRA_TEST_PG_DSN")
 if not ADMIN_DSN:
-    pytest.skip("Set STRIX_TEST_PG_DSN to run PostgreSQL RLS tests", allow_module_level=True)
+    pytest.skip("Set ISHASTRA_TEST_PG_DSN to run PostgreSQL RLS tests", allow_module_level=True)
 
 APP_ROLE = "strix_rls_test"
-# A global admin used only to seed rows: policies let a global admin write
-# across tenants, which is how real bootstrap rows (api_keys, orgs) get in.
+
+
 SEED_ADMIN = "__rls_seed_admin__"
 
-# Truncated between tests so row counts and ids are deterministic.
+
 DATA_TABLES = (
     "jobs",
     "findings",
@@ -78,7 +78,6 @@ async def pg_ready():
             )
             await conn.execute(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}")
 
-        # The app's own chain creates every table and applies RLS at version 28.
         store.configure(ADMIN_DSN)
         await store.get_database()
 
@@ -419,7 +418,6 @@ class TestRLSPolicies:
                 1234567890.0,
             )
 
-            # Act as the partner: only its admin key hash sees its customers.
             await conn.execute("SELECT set_app_current_tenant($1)", "partner_admin")
             await conn.execute("SELECT set_config('app.current_mssp_key_hash', 'partner_key_hash', false)")
             customers = await conn.fetch(
@@ -427,7 +425,6 @@ class TestRLSPolicies:
             )
             assert len(customers) == 1
 
-            # A different partner key sees nothing.
             await conn.execute("SELECT set_config('app.current_mssp_key_hash', 'other_partner_hash', false)")
             other = await conn.fetch("SELECT * FROM mssp_customers")
             assert other == []
@@ -467,7 +464,6 @@ class TestRLSPolicies:
             await conn.execute("SELECT set_app_current_tenant($1)", "member_tenant")
             await _insert_job(conn, "job_member", "member_tenant", "example.com")
 
-            # An org admin sees the member tenant's job without switching context.
             await conn.execute("SELECT set_app_current_tenant($1)", "admin_tenant")
             jobs = await conn.fetch("SELECT * FROM jobs WHERE tenant = $1", "member_tenant")
             assert len(jobs) == 1
@@ -478,7 +474,6 @@ class TestRLSPerformance:
 
     async def test_query_plan_uses_index(self, pg_pool, tenant_a, tenant_b):
         async with pg_pool.acquire() as conn:
-            # Enough rows that a sequential scan is not the cheapest plan.
             await conn.execute("SELECT set_app_current_tenant($1)", SEED_ADMIN)
             await conn.executemany(
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state, verdict,
@@ -512,8 +507,7 @@ class TestRLSPerformance:
         async with pg_pool.acquire() as conn:
             await conn.execute("SELECT set_app_current_tenant($1)", tenant_a)
             await _insert_job(conn, "job_a1", tenant_a, "example.com")
-            # PREPARE does not accept asyncpg's $n bind markers, so the tenant
-            # is quoted into the statement and EXECUTE takes no arguments.
+
             await conn.execute(f"PREPARE test_plan AS SELECT * FROM jobs WHERE tenant = '{tenant_a}'")
             for _ in range(5):
                 result = await conn.fetch("EXECUTE test_plan")

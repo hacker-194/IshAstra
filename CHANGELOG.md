@@ -4,10 +4,25 @@
 
 ### Added
 
+- Remediation SLAs: every finding has a deadline derived from severity
+  (critical 7d, high 30d, medium 90d, low 180d, info 365d) measured from first
+  sight. `PATCH /api/findings/{fingerprint}/remediation` materialises the
+  deadline when none is given, and `GET /api/findings/sla` reports the policy
+  plus overdue findings by severity, excluding resolved records and valid
+  approved risk exceptions.
+- `ishastra backup` writes one verified artifact — a consistent SQLite snapshot or
+  a `pg_dump` custom archive — and `ishastra backup --verify` re-checks it. The
+  Helm chart can schedule it (`backup.enabled`) and `deploy/cron/ishastra-backup`
+  does the same for hosts.
+- `ishastra standby-promote` restores a PostgreSQL dump as well as a SQLite
+  snapshot, so a DB-agnostic failover exists.
+- PostgreSQL pool size is configurable (`STRIX_PG_POOL_MIN`/`STRIX_PG_POOL_MAX`,
+  defaults 1/5) instead of the hard-coded 10 that would exhaust a 100-connection
+  server once workers scale out.
 - Scope gate: ASN and country (geo-fencing) policy on scope documents and
   engagement policies (migration 28), with fail-closed lookups sourced from
-  `STRIX_SCOPE_INTEL_FILE`; just-in-time authorization through
-  `STRIX_SCOPE_JIT_URL` on both the synchronous scan path and the async gate;
+  `ISHASTRA_SCOPE_INTEL_FILE`; just-in-time authorization through
+  `ISHASTRA_SCOPE_JIT_URL` on both the synchronous scan path and the async gate;
   `--break-glass` issuance capped at 4h; `Scope.diff()` with
   `GET /api/policies/{id}/diff/{other}`; `GET /api/policies/lifecycle`; a
   dependency-free load benchmark; and seeded property, chaos, model-check and
@@ -15,7 +30,10 @@
 
 ### Fixed
 
-- A built wheel would not have shipped `strix/core/scope_schema.json`, so every
+- A SQLite backup was not one file: the copy inherited WAL mode, so its tail sat
+  in `-wal`/`-shm` sidecars that an `rsync` or `kubectl cp` of the `.db` would
+  silently drop. The artifact is now self-contained.
+- A built wheel would not have shipped `ishastra/core/scope_schema.json`, so every
   v2 scope document failed to load in an installed artifact.
 - A scope document requiring ASN/geo data with no lookup configured denied every
   request silently; startup now names the missing lookup.
@@ -39,7 +57,7 @@
   creating an acceptance path. It now returns 501 and points at the direct
   member endpoint until the invitation flow exists.
 - Assessment and policy submissions now use the configured queue backend, so
-  `STRIX_QUEUE_MODE=celery` actually dispatches to Celery.
+  `ISHASTRA_QUEUE_MODE=celery` actually dispatches to Celery.
 - Cancellation is durable and cross-process: a persisted `cancel_requested`
   flag stops running Celery jobs cooperatively, cancels queued jobs immediately,
   and is set by both the assessment cancel endpoint and policy revocation.
@@ -76,7 +94,7 @@
 - PostgreSQL and the `k8s-jobs` queue remain **opt-in experimental** deployment paths. They
   now have single-host worker/cancellation validation, but no HA, multi-node
   scheduling, exactly-once execution or production support commitment.
-- `STRIX_DISABLE_DOCS=1` disables `/docs`, `/redoc` and `/openapi.json` for
+- `ISHASTRA_DISABLE_DOCS=1` disables `/docs`, `/redoc` and `/openapi.json` for
   deployments that do not want to expose the schema.
 - Pytest configuration lives in `pyproject.toml` only.
 - OpenTelemetry is an optional extra; core installs no longer duplicate it.
@@ -86,8 +104,8 @@
 
 ### Added
 
-- Fail-closed production mode: `STRIX_ENV=production` refuses startup without
-  `STRIX_API_KEY` and `STRIX_AUDIT_HMAC_KEY`, and forces `/docs`, `/redoc` and
+- Fail-closed production mode: `ISHASTRA_ENV=production` refuses startup without
+  `ISHASTRA_API_KEY` and `ISHASTRA_AUDIT_HMAC_KEY`, and forces `/docs`, `/redoc` and
   `/openapi.json` off. Tests cover both missing-secret cases.
 - Cross-job finding records: `GET /api/findings` aggregates stable fingerprints
   per tenant with first/last seen, occurrence count and the latest job;
@@ -126,7 +144,7 @@
 - `scripts/assessment_load_check.py`: end-to-end assessment throughput benchmark
   with real scope checks, adapters, persistence and finding writes.
 - `scripts/operational_check.py` can verify the restored audit chain when given
-  `--hmac-key` or `STRIX_AUDIT_HMAC_KEY`.
+  `--hmac-key` or `ISHASTRA_AUDIT_HMAC_KEY`.
 - `scripts/load_check.py`: reproducible single-process HTTP load baseline.
 - Tests for asset/tenant isolation, finding history, remediation metadata, the
   asset API, cross-job finding aggregation/tenant isolation and schema migrations.
@@ -136,22 +154,22 @@
 First tagged release. The assessment core was already in place; this release
 adds the proof-of-authorization layer and freezes a installable baseline.
 
-### Strix Proof (new)
+### Ishastra Proof (new)
 
-- **Signed grants** (`strix grant`): an Ed25519-signed document naming the
+- **Signed grants** (`ishastra grant`): an Ed25519-signed document naming the
   program, the authorizing person, the reference, the hosts/CIDRs and the
   validity window. Expired, tampered or out-of-scope grants are refused.
 - **Receipt ledger**: every allow/deny decision is appended to a hash-chained
   JSONL ledger that resumes safely across restarts and detects reordering,
   deletion and edits.
-- **Gate service** (`strix gate`): `POST /v1/authorize` for tools and agents,
+- **Gate service** (`ishastra gate`): `POST /v1/authorize` for tools and agents,
   plus `/v1/grant`, `/v1/receipts` and `/v1/proof`. Refuses a non-loopback bind
   without a token.
-- **Verification**: `strix verify` offline, or `POST /api/proof/verify` over
+- **Verification**: `ishastra verify` offline, or `POST /api/proof/verify` over
   HTTP with no account. Trust requires pinning the issuer key
   (`--issuer-key` / `trusted_issuer`); an unpinned pack reports
   `issuer_trusted: false`.
-- **`strix assess --grant`** derives the assessment scope from a grant and
+- **`ishastra assess --grant`** derives the assessment scope from a grant and
   records gate decisions into the pack.
 
 ### Assessment platform
@@ -161,7 +179,7 @@ adds the proof-of-authorization layer and freezes a installable baseline.
   retention.
 - Adapters for HTTP, Nuclei, Nmap and agent profiles; SARIF, JSON, CSV, OSCAL
   and printable HTML reports.
-- Docker Compose stack (Strix + Redis + nginx), Prometheus/Grafana overlay,
+- Docker Compose stack (Ishastra + Redis + nginx), Prometheus/Grafana overlay,
   and a tag-driven release workflow.
 
 ### Known limits

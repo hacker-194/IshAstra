@@ -1,0 +1,137 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: policies.ishastra.io
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/managed-by: Helm
+spec:
+  group: ishastra.io
+  names:
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    singular: policy
+    shortNames:
+      - pl
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - name
+                - tier
+              properties:
+                name:
+                  type: string
+                  pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                  maxLength: 63
+                  description: "Unique policy identifier"
+                displayName:
+                  type: string
+                  maxLength: 255
+                  description: "Human-readable policy name"
+                description:
+                  type: string
+                  description: "Policy description"
+                tier:
+                  type: string
+                  enum: ["free", "starter", "professional", "enterprise", "custom"]
+                  description: "Policy tier defining capabilities and limits"
+                checks:
+                  type: object
+                  description: "Enabled/disabled security checks"
+                  additionalProperties:
+                    type: boolean
+                limits:
+                  type: object
+                  description: "Policy-specific limits"
+                  properties:
+                    maxTargets:
+                      type: integer
+                      default: 100
+                    maxConcurrentScans:
+                      type: integer
+                      default: 5
+                    maxScanDurationMinutes:
+                      type: integer
+                      default: 120
+                    allowedPorts:
+                      type: array
+                      items:
+                        type: integer
+                    allowedNetworks:
+                      type: array
+                      items:
+                        type: string
+                    rateLimit:
+                      type: object
+                      properties:
+                        requestsPerSecond:
+                          type: number
+                        burst:
+                          type: integer
+                notifications:
+                  type: object
+                  description: "Notification configuration"
+                  properties:
+                    webhookUrl:
+                      type: string
+                      format: uri
+                    webhookEvents:
+                      type: array
+                      items:
+                        type: string
+                        enum: ["assessment.started", "assessment.completed", "assessment.failed", "finding.critical", "finding.high"]
+                    emailRecipients:
+                      type: array
+                      items:
+                        type: string
+                        format: email
+                compliance:
+                  type: object
+                  description: "Compliance framework mappings"
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Ready", "Deprecated"]
+                  description: "Policy lifecycle phase"
+                createdAt:
+                  type: string
+                  format: date-time
+                updatedAt:
+                  type: string
+                  format: date-time
+  additionalPrinterColumns:
+    - name: Name
+      type: string
+      jsonPath: .spec.name
+    - name: Tier
+      type: string
+      jsonPath: .spec.tier
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

@@ -8,8 +8,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from strix.core import scope_signing
-from strix.core.scope import (
+from ishastra.core import scope_signing
+from ishastra.core.scope import (
     configure,
     configure_signing,
     extend_scope_expiry,
@@ -86,7 +86,7 @@ def test_signature_covers_revocation_fields(keypair):
         "revocation_reason": "containment",
     }
     document = _signed(revoked, key_path)
-    document["revoked"] = False  # un-revoke attempt
+    document["revoked"] = False
     with pytest.raises(ValueError, match="does not verify"):
         parse_scope_document(document)
 
@@ -100,7 +100,7 @@ def test_configured_signing_refuses_an_unsigned_document(keypair):
 
 def test_signed_document_without_a_key_set_is_refused(keypair, monkeypatch):
     key_path, _ = keypair
-    monkeypatch.delenv("STRIX_SCOPE_JWKS", raising=False)
+    monkeypatch.delenv("ISHASTRA_SCOPE_JWKS", raising=False)
     configure_signing(None)
     with pytest.raises(ValueError, match="no verification key set"):
         parse_scope_document(_signed(DOC, key_path))
@@ -132,7 +132,7 @@ def test_rotation_accepts_both_keys_then_retires_the_old_one(tmp_path):
     assert parse_scope_document(_signed(DOC, old_path, "kid-1")).program == "Signed engagement"
     assert parse_scope_document(_signed(DOC, new_path, "kid-2")).program == "Signed engagement"
 
-    configure_signing({"keys": [new_jwk]})  # old key retired
+    configure_signing({"keys": [new_jwk]})
     with pytest.raises(ValueError, match="not in the configured key set"):
         parse_scope_document(_signed(DOC, old_path, "kid-1"))
 
@@ -141,7 +141,7 @@ def test_jwks_file_named_by_environment_is_used(keypair, tmp_path, monkeypatch):
     key_path, jwk = keypair
     jwks_path = tmp_path / "jwks.json"
     jwks_path.write_text(json.dumps({"keys": [jwk]}))
-    monkeypatch.setenv("STRIX_SCOPE_JWKS", str(jwks_path))
+    monkeypatch.setenv("ISHASTRA_SCOPE_JWKS", str(jwks_path))
     configure_signing(None)
     assert parse_scope_document(_signed(DOC, key_path)).program == "Signed engagement"
 
@@ -151,7 +151,7 @@ def test_key_rotation_keeps_old_keys_and_refreshes_file_backed_verification(tmp_
     old_path = _pem_file(tmp_path, "old.pem", old_pem)
     jwks_path = tmp_path / "jwks.json"
     jwks_path.write_text(json.dumps({"keys": [old_jwk]}))
-    monkeypatch.setenv("STRIX_SCOPE_JWKS", str(jwks_path))
+    monkeypatch.setenv("ISHASTRA_SCOPE_JWKS", str(jwks_path))
     configure_signing(None)
     assert parse_scope_document(_signed(DOC, old_path, "kid-old")).program == "Signed engagement"
 
@@ -169,7 +169,7 @@ def test_key_rotation_keeps_old_keys_and_refreshes_file_backed_verification(tmp_
 
 
 def test_scope_key_rotate_cli(tmp_path):
-    from strix.cli import main
+    from ishastra.cli import main
 
     _, old_jwk = scope_signing.generate_keypair("kid-old")
     jwks_path = tmp_path / "jwks.json"
@@ -255,7 +255,7 @@ def test_extending_a_signed_expiry_requires_the_key(tmp_path, keypair):
 
 
 def test_keygen_and_sign_cli_round_trip(tmp_path):
-    from strix.cli import main
+    from ishastra.cli import main
 
     key_path = tmp_path / "signing.pem"
     jwks_path = tmp_path / "jwks.json"
@@ -328,7 +328,7 @@ class TestFreshness:
 
 
 def test_scope_sign_stamps_a_default_expiry(tmp_path, keypair):
-    from strix.cli import main
+    from ishastra.cli import main
 
     key_path, _jwk = keypair
     doc = tmp_path / "mint.json"
@@ -344,7 +344,7 @@ def test_scope_sign_stamps_a_default_expiry(tmp_path, keypair):
 
 
 def test_scope_sign_no_expiry_leaves_the_document_open_ended(tmp_path, keypair):
-    from strix.cli import main
+    from ishastra.cli import main
 
     key_path, _jwk = keypair
     doc = tmp_path / "mint.json"
@@ -394,7 +394,7 @@ class TestBreakGlassIssuance:
         return path
 
     def test_a_break_glass_document_is_bounded_and_marked(self, tmp_path, keypair):
-        from strix.cli import _run_scope_sign
+        from ishastra.cli import _run_scope_sign
 
         key_path, jwk = keypair
         path = self._document(tmp_path)
@@ -410,7 +410,7 @@ class TestBreakGlassIssuance:
         assert jwk["kid"] == KID
 
     def test_a_window_longer_than_the_cap_is_refused(self, tmp_path, keypair):
-        from strix.cli import _run_scope_sign
+        from ishastra.cli import _run_scope_sign
 
         key_path, _jwk = keypair
         path = self._document(tmp_path)
@@ -420,7 +420,7 @@ class TestBreakGlassIssuance:
         assert path.read_text() == before
 
     def test_an_unbounded_break_glass_is_refused(self, tmp_path, keypair):
-        from strix.cli import _run_scope_sign
+        from ishastra.cli import _run_scope_sign
 
         key_path, _jwk = keypair
         path = self._document(tmp_path)

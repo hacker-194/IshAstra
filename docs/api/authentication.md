@@ -2,11 +2,11 @@
 
 # API Authentication
 
-Authentication and authorization for the Strix REST API.
+Authentication and authorization for the Ishastra REST API.
 
 ## Overview
 
-Strix uses **Bearer Token (API Key)** authentication with optional **JWT** for delegated access.
+Ishastra uses **Bearer Token (API Key)** authentication with optional **JWT** for delegated access.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -18,7 +18,7 @@ Strix uses **Bearer Token (API Key)** authentication with optional **JWT** for d
 │    │ 1. POST /api/v1/auth/token (or use pre-issued API Key)                 │
 │    ▼                                                                         │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │ Strix API                                                             │   │
+│  │ Ishastra API                                                             │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────────┐  │   │
 │  │  │ API Key     │  │ JWT         │  │ Scope Gate                  │  │   │
 │  │  │ Validation  │──▶│ Validation  │──▶│ Authorization (per req)   │  │   │
@@ -34,10 +34,10 @@ Strix uses **Bearer Token (API Key)** authentication with optional **JWT** for d
 
 ```bash
 # Via CLI (admin only)
-strix auth create-key --name "CI/CD Pipeline" --expires 90d
+ishastra auth create-key --name "CI/CD Pipeline" --expires 90d
 
 # Via API (requires existing key)
-curl -X POST https://api.strix.dev/api/v1/auth/keys \
+curl -X POST https://api.ishastra.dev/api/v1/auth/keys \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "CI/CD Pipeline", "expires_in_days": 90}'
@@ -64,7 +64,7 @@ Authorization: Bearer strix_abc123def456...
 
 # Example request
 curl -H "Authorization: Bearer strix_abc123def456..." \
-  https://api.strix.dev/api/v1/assessments
+  https://api.ishastra.dev/api/v1/assessments
 ```
 
 ### API Key Format
@@ -73,7 +73,7 @@ curl -H "Authorization: Bearer strix_abc123def456..." \
 strix_{base62_encoded_random_bytes}
 ```
 
-- Prefix: `strix_` (identifies as Strix key)
+- Prefix: `strix_` (identifies as Ishastra key)
 - Entropy: 256 bits (32 bytes)
 - Encoding: Base62 (URL-safe, no special chars)
 
@@ -98,7 +98,7 @@ strix_{base62_encoded_random_bytes}
 
 ```bash
 # Exchange API Key for short-lived JWT
-curl -X POST https://api.strix.dev/api/v1/auth/token \
+curl -X POST https://api.ishastra.dev/api/v1/auth/token \
   -H "Authorization: Bearer strix_abc123def456..." \
   -H "Content-Type: application/json" \
   -d '{"ttl_seconds": 3600}'
@@ -124,7 +124,7 @@ Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...
 
 ```bash
 # Public keys for JWT verification
-curl https://api.strix.dev/.well-known/jwks.json
+curl https://api.ishastra.dev/.well-known/jwks.json
 ```
 
 **Response:**
@@ -134,7 +134,7 @@ curl https://api.strix.dev/.well-known/jwks.json
     {
       "kty": "OKP",
       "crv": "Ed25519",
-      "kid": "strix-2024-01",
+      "kid": "ishastra-2024-01",
       "x": "base64url-encoded-public-key",
       "use": "sig",
       "alg": "EdDSA"
@@ -148,10 +148,10 @@ curl https://api.strix.dev/.well-known/jwks.json
 ### API Key Validator
 
 ```python
-# src/strix/api/middleware/auth.py
+# src/ishastra/api/middleware/auth.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from strix.core.auth import validate_api_key, validate_jwt
+from ishastra.core.auth import validate_api_key, validate_jwt
 
 security = HTTPBearer(auto_error=False)
 

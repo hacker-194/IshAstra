@@ -1,4 +1,4 @@
-"""Tests for strix.cli module."""
+"""Tests for ishastra.cli module."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from strix import proof
-from strix.cli import (
+from ishastra import proof
+from ishastra.cli import (
     _build_auth_config,
     _gate_key,
     _public_key,
@@ -24,7 +24,7 @@ from strix.cli import (
     _run_verify,
     main,
 )
-from strix.config import Settings
+from ishastra.config import Settings
 
 
 class TestBuildAuthConfig:
@@ -243,11 +243,10 @@ class TestGateKey:
         key_file = tmp_path / "new_gate.key"
 
         result = _gate_key(str(key_file))
-        # The result is the raw private key (base64), not the prefixed version
-        # The prefix is added when writing to file
+
         assert not result.startswith(proof.PRIVATE_KEY_PREFIX)
         assert key_file.exists()
-        # Verify the file has the prefix
+
         file_content = key_file.read_text().strip()
         assert file_content.startswith(proof.PRIVATE_KEY_PREFIX)
 
@@ -319,7 +318,7 @@ class TestRunProof:
 
     def test_create_proof_pack(self, tmp_path):
         """Test creating proof pack from grant and ledger."""
-        # Create a grant
+
         private_key = proof.new_keypair()[0]
         grant = proof.new_grant(
             program="Test",
@@ -331,12 +330,11 @@ class TestRunProof:
         grant_path = tmp_path / "grant.json"
         grant_path.write_text(json.dumps(grant.to_dict(), indent=2))
 
-        # Create a ledger with some receipts
         ledger_path = tmp_path / "proof-ledger.jsonl"
         gate_key = proof.new_keypair()[0]
         gate = proof.Gate(grant, signing_key=gate_key, actor="test", ledger_path=ledger_path)
         gate.authorize("https://example.com/", "GET")
-        gate.authorize("https://evil.com/", "GET")  # This will be denied
+        gate.authorize("https://evil.com/", "GET")
 
         args = MagicMock()
         args.grant = str(grant_path)
@@ -362,7 +360,7 @@ class TestRunVerify:
 
     def test_verify_valid_proof(self, tmp_path):
         """Test verifying a valid proof pack."""
-        # Create a grant
+
         private_key = proof.new_keypair()[0]
         grant = proof.new_grant(
             program="Test",
@@ -371,13 +369,11 @@ class TestRunVerify:
             include=["example.com"],
         ).sign(private_key)
 
-        # Create a ledger with some receipts
         tmp_path / "proof-ledger.jsonl"
         gate_key = proof.new_keypair()[0]
         gate = proof.Gate(grant, signing_key=gate_key, actor="test")
         gate.authorize("https://example.com/", "GET")
 
-        # Build proof pack
         pack = proof.build_pack(grant, gate.ledger)
         proof_path = tmp_path / "proof.json"
         proof_path.write_text(json.dumps(pack, indent=2))
@@ -390,8 +386,8 @@ class TestRunVerify:
 
         with patch("sys.stdout.write"), patch("sys.stderr.write"):
             result = _run_verify(args)
-            # Should succeed
-            assert result in (0, 1)  # Depends on pinning
+
+            assert result in (0, 1)
 
 
 class TestRunScopeTemplate:
@@ -448,19 +444,18 @@ class TestRunScopeWizard:
         """Test scope wizard with valid inputs."""
         output_path = tmp_path / "scope.json"
 
-        # Mock user input
         inputs = iter(
             [
-                "Test Program",  # program
-                "Test Authorizer",  # authorized_by
-                "TEST-001",  # authorization_ref
-                "example.com, *.example.com",  # include hosts
-                "",  # exclude hosts
-                "10.0.0.0/8",  # authorized networks
-                "80, 443",  # allowed ports
-                "30",  # days valid
-                str(output_path),  # output path
-                "y",  # confirm
+                "Test Program",
+                "Test Authorizer",
+                "TEST-001",
+                "example.com, *.example.com",
+                "",
+                "10.0.0.0/8",
+                "80, 443",
+                "30",
+                str(output_path),
+                "y",
             ]
         )
         monkeypatch.setattr("builtins.input", lambda prompt: next(inputs))
@@ -490,7 +485,7 @@ class TestRunScopeWizard:
                 "80, 443",
                 "30",
                 str(tmp_path / "scope.json"),
-                "n",  # cancel
+                "n",
             ]
         )
         monkeypatch.setattr("builtins.input", lambda prompt: next(inputs))
@@ -509,8 +504,7 @@ class TestRunAssess:
     @pytest.mark.asyncio
     async def test_run_assess_basic(self, tmp_path, scope_file):
         """Test basic assess command."""
-        # This is a more involved integration test
-        # We'll mock the heavy parts
+
         args = MagicMock()
         args.target = "https://example.com/"
         args.profile = "web"
@@ -538,14 +532,13 @@ class TestRunAssess:
         args.gate_key = ""
         args.trusted_issuer = ""
 
-        # Mock jobs.prepare and jobs.execute
         with (
-            patch("strix.cli.jobs_module.prepare") as mock_prepare,
-            patch("strix.cli.jobs_module.execute") as mock_execute,
-            patch("strix.cli.get_settings") as mock_settings,
-            patch("strix.cli._configure_logging"),
-            patch("strix.cli.scope_module.load") as mock_scope_load,
-            patch("strix.cli.jobs_module.JobState") as mock_job_state,
+            patch("ishastra.cli.jobs_module.prepare") as mock_prepare,
+            patch("ishastra.cli.jobs_module.execute") as mock_execute,
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.scope_module.load") as mock_scope_load,
+            patch("ishastra.cli.jobs_module.JobState") as mock_job_state,
         ):
             mock_settings.return_value = Settings(
                 db_path=":memory:",
@@ -583,9 +576,9 @@ class TestRunServer:
         args.reset_audit_chain = False
 
         with (
-            patch("strix.cli.uvicorn.run") as mock_run,
-            patch("strix.cli.get_settings") as mock_settings,
-            patch("strix.cli._configure_logging"),
+            patch("ishastra.cli.uvicorn.run") as mock_run,
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
         ):
             mock_settings.return_value = Settings(
                 db_path=":memory:",
@@ -602,12 +595,12 @@ class TestMain:
 
     def test_main_serve(self, monkeypatch):
         """Test main with serve command."""
-        monkeypatch.setattr("sys.argv", ["strix", "serve"])
+        monkeypatch.setattr("sys.argv", ["ishastra", "serve"])
 
         with (
-            patch("strix.cli._run_server") as mock_run_server,
-            patch("strix.cli.get_settings"),
-            patch("strix.cli._configure_logging"),
+            patch("ishastra.cli._run_server") as mock_run_server,
+            patch("ishastra.cli.get_settings"),
+            patch("ishastra.cli._configure_logging"),
         ):
             main()
             mock_run_server.assert_called_once()
@@ -617,4 +610,4 @@ class TestMain:
         with contextlib.suppress(SystemExit):
             main(["--version"])
         captured = capsys.readouterr()
-        assert "strix" in captured.out
+        assert "ishastra" in captured.out

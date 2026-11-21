@@ -1,4 +1,4 @@
-"""Unit tests for Strix Organization Hierarchy.
+"""Unit tests for Ishastra Organization Hierarchy.
 
 Tests cover:
 - Org CRUD operations
@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from strix.core import organizations, store
-from strix.core.organizations import (
+from ishastra.core import organizations, store
+from ishastra.core.organizations import (
     Organization,
     Team,
     add_member,
@@ -68,15 +68,10 @@ def temp_db():
 async def db(temp_db):
     """Initialize database with org hierarchy migrations."""
     await store.get_database()
-    # Apply org hierarchy migrations (versions 21-23)
+
     await organizations.run_org_hierarchy_migrations(temp_db)
     yield
     await store.close_database()
-
-
-# ---------------------------------------------------------------------------
-# Role Hierarchy Tests
-# ---------------------------------------------------------------------------
 
 
 class TestRoleHierarchy:
@@ -93,39 +88,30 @@ class TestRoleHierarchy:
 
     def test_can_manage_role(self):
         """Test role management permissions."""
-        # org_admin can manage all lower roles
-        assert can_manage_role("org_admin", "org_admin") is False  # cannot manage same
+
+        assert can_manage_role("org_admin", "org_admin") is False
         assert can_manage_role("org_admin", "team_lead") is True
         assert can_manage_role("org_admin", "org_member") is True
         assert can_manage_role("org_admin", "team_member") is True
         assert can_manage_role("org_admin", "viewer") is True
 
-        # team_lead can manage team_member and viewer
         assert can_manage_role("team_lead", "org_admin") is False
         assert can_manage_role("team_lead", "team_lead") is False
         assert can_manage_role("team_lead", "org_member") is True
         assert can_manage_role("team_lead", "team_member") is True
         assert can_manage_role("team_lead", "viewer") is True
 
-        # org_member can manage team_member and viewer
         assert can_manage_role("org_member", "org_admin") is False
         assert can_manage_role("org_member", "team_lead") is False
         assert can_manage_role("org_member", "org_member") is False
         assert can_manage_role("org_member", "team_member") is True
         assert can_manage_role("org_member", "viewer") is True
 
-        # team_member can only manage viewer
         assert can_manage_role("team_member", "org_member") is False
         assert can_manage_role("team_member", "team_member") is False
         assert can_manage_role("team_member", "viewer") is True
 
-        # viewer cannot manage anyone
         assert can_manage_role("viewer", "viewer") is False
-
-
-# ---------------------------------------------------------------------------
-# Organization CRUD Tests
-# ---------------------------------------------------------------------------
 
 
 class TestOrgCRUD:
@@ -251,7 +237,6 @@ class TestOrgCRUD:
         deleted = await delete_org(org.org_id)
         assert deleted is True
 
-        # Verify cascaded deletion
         assert await get_org(org.org_id) is None
         assert await get_team(team.team_id) is None
         memberships = await get_org_memberships(org.org_id)
@@ -261,11 +246,6 @@ class TestOrgCRUD:
         """Delete non-existent org returns False."""
         deleted = await delete_org("org_nonexistent")
         assert deleted is False
-
-
-# ---------------------------------------------------------------------------
-# Team CRUD Tests
-# ---------------------------------------------------------------------------
 
 
 class TestTeamCRUD:
@@ -387,11 +367,6 @@ class TestTeamCRUD:
         assert deleted is False
 
 
-# ---------------------------------------------------------------------------
-# Membership Tests
-# ---------------------------------------------------------------------------
-
-
 class TestMembership:
     """Tests for adding, updating, removing members."""
 
@@ -509,7 +484,6 @@ class TestMembership:
         org = await create_org(name="Test Org")
         membership = await add_member(org_id=org.org_id, user_id="user1", role="org_member")
 
-        # actor_role must be strictly greater than target role
         updated = await update_member_role(
             membership.membership_id, role="org_member", actor_role="org_admin"
         )
@@ -579,11 +553,6 @@ class TestMembership:
         assert deleted is False
 
 
-# ---------------------------------------------------------------------------
-# Role-Based Access Checks Tests
-# ---------------------------------------------------------------------------
-
-
 class TestRoleBasedAccess:
     """Tests for user_has_org_access and user_has_team_access."""
 
@@ -636,7 +605,7 @@ class TestRoleBasedAccess:
         assert await user_has_team_access("user1", team.team_id, "viewer") is True
         assert await user_has_team_access("user1", team.team_id, "team_member") is True
         assert await user_has_team_access("user1", team.team_id, "team_lead") is True
-        # team_lead (rank 30) >= org_member (rank 20) by numeric comparison
+
         assert await user_has_team_access("user1", team.team_id, "org_member") is True
 
     async def test_user_has_team_access_member(self):
@@ -655,11 +624,6 @@ class TestRoleBasedAccess:
         team = await create_team(org_id=org.org_id, name="Team")
 
         assert await user_has_team_access("user1", team.team_id, "viewer") is False
-
-
-# ---------------------------------------------------------------------------
-# Slug Uniqueness Tests
-# ---------------------------------------------------------------------------
 
 
 class TestSlugUniqueness:
@@ -681,9 +645,8 @@ class TestSlugUniqueness:
         org2 = await create_org(name="Org 2")
 
         await create_team(org_id=org1.org_id, name="Team", slug="my-team")
-        await create_team(org_id=org2.org_id, name="Team", slug="my-team")  # OK in different org
+        await create_team(org_id=org2.org_id, name="Team", slug="my-team")
 
-        # But not in same org
         with pytest.raises(ValueError, match="already exists"):
             await create_team(org_id=org1.org_id, name="Team 2", slug="my-team")
 
@@ -701,15 +664,10 @@ class TestSlugUniqueness:
     async def test_slug_max_length(self):
         """Slug is auto-truncated to 64 characters."""
         org = await create_org(name="Test Org")
-        # The _slugify function truncates to 64 chars
-        long_name = "a" * 70  # 70 'a' chars -> slug of 64 'a' chars (truncated)
+
+        long_name = "a" * 70
         team = await create_team(org_id=org.org_id, name=long_name)
         assert team.slug == "a" * 64
-
-
-# ---------------------------------------------------------------------------
-# Hierarchical Query Tests
-# ---------------------------------------------------------------------------
 
 
 class TestHierarchicalQueries:
@@ -725,13 +683,12 @@ class TestHierarchicalQueries:
         team1 = await create_team(org_id=org.org_id, name="Team 1")
         team2 = await create_team(org_id=org.org_id, name="Team 2")
 
-        # User has org_member at org level, team_lead in team1, team_member in team2
         await add_member(org_id=org.org_id, user_id="user1", role="org_member")
         await add_member(org_id=org.org_id, user_id="user1", team_id=team1.team_id, role="team_lead")
         await add_member(org_id=org.org_id, user_id="user1", team_id=team2.team_id, role="team_member")
 
         role = await get_user_org_role("user1", org.org_id)
-        assert role == "team_lead"  # Highest role
+        assert role == "team_lead"
 
     async def test_get_user_org_role_only_team(self):
         """Get user's highest role when only in teams."""
@@ -806,14 +763,11 @@ class TestHierarchicalQueries:
 
         await add_member(org_id=org.org_id, user_id="user1", role="org_admin")
 
-        # Org admin has org-level access
         assert await user_has_org_access("user1", org.org_id, "org_admin") is True
 
-        # But needs explicit team membership for team-level access
         assert await user_has_team_access("user1", team1.team_id, "team_lead") is False
         assert await user_has_team_access("user1", team2.team_id, "team_lead") is False
 
-        # Add org admin as team member
         await add_member(org_id=org.org_id, user_id="user1", team_id=team1.team_id, role="team_member")
         assert await user_has_team_access("user1", team1.team_id, "team_member") is True
 
@@ -825,15 +779,11 @@ class TestHierarchicalQueries:
 
         await add_member(org_id=org.org_id, user_id="user1", team_id=team1.team_id, role="team_lead")
 
-        # Team lead in team1
         assert await user_has_team_access("user1", team1.team_id, "team_lead") is True
         assert await user_has_team_access("user1", team1.team_id, "team_member") is True
 
-        # But not in team2
         assert await user_has_team_access("user1", team2.team_id, "viewer") is False
 
-        # get_user_org_role returns highest role across all memberships in org
-        # So team_lead (rank 30) gives org-level access >= org_member (rank 20)
         assert await user_has_org_access("user1", org.org_id, "org_member") is True
         assert await user_has_org_access("user1", org.org_id, "team_lead") is True
         assert await user_has_org_access("user1", org.org_id, "org_admin") is False
@@ -863,11 +813,6 @@ class TestHierarchicalQueries:
         assert await user_has_org_access("user1", org.org_id, "viewer") is False
 
 
-# ---------------------------------------------------------------------------
-# Integration Test: Full Hierarchy Flow
-# ---------------------------------------------------------------------------
-
-
 class TestFullHierarchyFlow:
     """Integration test for complete org->team->member flow."""
 
@@ -877,36 +822,28 @@ class TestFullHierarchyFlow:
 
     async def test_complete_org_hierarchy(self):
         """Test creating org, teams, members and checking permissions."""
-        # Create organization
+
         org = await create_org(name="Acme Corp", slug="acme", tier="elevated")
         assert org.tier == "elevated"
 
-        # Create teams
         eng_team = await create_team(org_id=org.org_id, name="Engineering", slug="eng")
         sec_team = await create_team(org_id=org.org_id, name="Security", slug="sec")
 
-        # Add members
-        # Alice - org admin
         await add_member(org_id=org.org_id, user_id="alice", role="org_admin")
 
-        # Bob - engineering team lead
         bob_eng = await add_member(
             org_id=org.org_id, user_id="bob", team_id=eng_team.team_id, role="team_lead"
         )
 
-        # Carol - security team member
         carol_sec = await add_member(
             org_id=org.org_id, user_id="carol", team_id=sec_team.team_id, role="team_member"
         )
 
-        # Dave - org member (no team)
         await add_member(org_id=org.org_id, user_id="dave", role="org_member")
 
-        # Verify org memberships
         all_memberships = await get_org_memberships(org.org_id)
         assert len(all_memberships) == 4
 
-        # Verify team memberships
         eng_memberships = await get_org_memberships(org.org_id, team_id=eng_team.team_id)
         assert len(eng_memberships) == 1
         assert eng_memberships[0].user_id == "bob"
@@ -915,49 +852,40 @@ class TestFullHierarchyFlow:
         assert len(sec_memberships) == 1
         assert sec_memberships[0].user_id == "carol"
 
-        # Verify effective permissions
-        # Alice (org_admin) has org access but needs team membership for team access
         assert await user_has_org_access("alice", org.org_id, "org_admin") is True
         assert await user_has_team_access("alice", eng_team.team_id, "team_lead") is False
         assert await user_has_team_access("alice", sec_team.team_id, "team_lead") is False
 
-        # Bob (team_lead in eng) has access to eng team, and org access via highest role
-        assert await user_has_org_access("bob", org.org_id, "org_member") is True  # team_lead >= org_member
+        assert await user_has_org_access("bob", org.org_id, "org_member") is True
         assert await user_has_org_access("bob", org.org_id, "team_lead") is True
         assert await user_has_org_access("bob", org.org_id, "org_admin") is False
         assert await user_has_team_access("bob", eng_team.team_id, "team_lead") is True
         assert await user_has_team_access("bob", eng_team.team_id, "team_member") is True
         assert await user_has_team_access("bob", sec_team.team_id, "viewer") is False
 
-        # Carol (team_member in sec) has access to sec team, and org access via team_member
         assert await user_has_org_access("carol", org.org_id, "team_member") is True
         assert await user_has_org_access("carol", org.org_id, "org_member") is False
-        # team_member < org_member
+
         assert await user_has_team_access("carol", sec_team.team_id, "team_member") is True
         assert await user_has_team_access("carol", sec_team.team_id, "viewer") is True
         assert await user_has_team_access("carol", eng_team.team_id, "viewer") is False
 
-        # Dave (org_member) has org access but no team access
         assert await user_has_org_access("dave", org.org_id, "org_member") is True
         assert await user_has_org_access("dave", org.org_id, "team_member") is True
         assert await user_has_team_access("dave", eng_team.team_id, "viewer") is False
 
-        # Verify highest role queries
         assert await get_user_org_role("alice", org.org_id) == "org_admin"
         assert await get_user_org_role("bob", org.org_id) == "team_lead"
         assert await get_user_org_role("carol", org.org_id) == "team_member"
         assert await get_user_org_role("dave", org.org_id) == "org_member"
 
-        # Verify team-specific roles
         assert await get_user_team_role("bob", eng_team.team_id) == "team_lead"
         assert await get_user_team_role("carol", sec_team.team_id) == "team_member"
-        assert await get_user_team_role("alice", eng_team.team_id) is None  # Not directly in team
+        assert await get_user_team_role("alice", eng_team.team_id) is None
 
-        # Update role and verify
         await update_member_role(bob_eng.membership_id, role="org_member", actor_role="org_admin")
         assert await get_user_org_role("bob", org.org_id) == "org_member"
         assert await user_has_org_access("bob", org.org_id, "org_member") is True
 
-        # Remove member and verify
         await remove_member(carol_sec.membership_id)
         assert await user_has_team_access("carol", sec_team.team_id, "viewer") is False

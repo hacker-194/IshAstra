@@ -1,4 +1,4 @@
-"""Tests for strix.core.exceptions_worker module."""
+"""Tests for ishastra.core.exceptions_worker module."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from strix.audit import AuditChain
-from strix.config import Settings
-from strix.core import exceptions as exceptions_module
-from strix.core import exceptions_worker, store
-from strix.core.exceptions import (
+from ishastra.audit import AuditChain
+from ishastra.config import Settings
+from ishastra.core import exceptions as exceptions_module
+from ishastra.core import exceptions_worker, store
+from ishastra.core.exceptions import (
     EVENT_EXCEPTION_EXPIRED,
     EXCEPTION_APPROVED,
     EXCEPTION_EXPIRED,
@@ -82,7 +82,6 @@ async def _create_finding_and_record(
     now = time.time()
     job_id = "test-job-" + fingerprint
     async with db.transaction() as conn:
-        # First create a job (required by findings foreign key)
         await store._execute(
             conn,
             """INSERT INTO jobs
@@ -109,7 +108,7 @@ async def _create_finding_and_record(
             None,
             0,
         )
-        # Then create a finding in the findings table (required by get_finding_record)
+
         await store._execute(
             conn,
             """INSERT INTO findings
@@ -138,7 +137,7 @@ async def _create_finding_and_record(
             "CWE-79",
             "[]",
         )
-        # Then create the finding record
+
         await store._execute(
             conn,
             """INSERT INTO finding_records
@@ -250,19 +249,17 @@ class TestExceptionExpiration:
         now = time.time()
         fingerprint = "test-fp-1"
 
-        # Create a pending exception that has already expired
         await _create_finding_and_record(
             tenant="test-tenant",
             fingerprint=fingerprint,
             exception_state=EXCEPTION_PENDING,
-            exception_until=now - 100,  # Expired 100 seconds ago
+            exception_until=now - 100,
         )
 
         expired = await worker._expire_exceptions()
 
         assert expired == 1
 
-        # Verify the exception state was updated to expired
         record = await store.get_finding_record(tenant="test-tenant", fingerprint=fingerprint)
         assert record is not None
         assert record["exception"]["state"] == EXCEPTION_EXPIRED
@@ -298,7 +295,7 @@ class TestExceptionExpiration:
             tenant="test-tenant",
             fingerprint=fingerprint,
             exception_state=EXCEPTION_PENDING,
-            exception_until=now + 86400,  # Expires in 24 hours
+            exception_until=now + 86400,
         )
 
         expired = await worker._expire_exceptions()
@@ -384,7 +381,7 @@ class TestExceptionExpiration:
             tenant="test-tenant",
             fingerprint="fp-3",
             exception_state=EXCEPTION_PENDING,
-            exception_until=now + 86400,  # Future, should not expire
+            exception_until=now + 86400,
         )
 
         expired = await worker._expire_exceptions()
@@ -434,7 +431,7 @@ class TestAutoCloseFixVerified:
             tenant="test-tenant",
             fingerprint=fingerprint,
             exception_state=EXCEPTION_APPROVED,
-            exception_until=time.time() + 86400,  # Still valid
+            exception_until=time.time() + 86400,
             resolution_state="fix_verified",
         )
 
@@ -554,7 +551,6 @@ class TestWorkerIteration:
         """Test running a full iteration with both expiration and auto-close."""
         now = time.time()
 
-        # Create expired pending exception
         await _create_finding_and_record(
             tenant="test-tenant",
             fingerprint="expire-fp",
@@ -562,7 +558,6 @@ class TestWorkerIteration:
             exception_until=now - 100,
         )
 
-        # Create fix_verified with approved exception
         await _create_finding_and_record(
             tenant="test-tenant",
             fingerprint="close-fp",
@@ -571,7 +566,6 @@ class TestWorkerIteration:
             resolution_state="fix_verified",
         )
 
-        # Create one that should not be affected
         await _create_finding_and_record(
             tenant="test-tenant",
             fingerprint="ignore-fp",
@@ -618,23 +612,18 @@ class TestSchedulerRegistration:
     @pytest.mark.asyncio
     async def test_scheduler_job_callback(self, test_db, mock_audit_chain, mock_settings):
         """Test the module-level scheduler job callback."""
-        # Create a worker and initialize it
+
         worker = exceptions_worker.ExceptionsWorker(
             audit_chain=mock_audit_chain,
             settings=mock_settings,
         )
         await worker.initialize()
 
-        # Mock _run_iteration_async to track calls
         with patch.object(worker, "_run_iteration_async", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = exceptions_worker.ExceptionsWorkerResult()
 
-            # Call the module-level job callback
             exceptions_worker._run_exceptions_worker_job()
 
-            # The callback should schedule the async task
-            # Since we can't easily test the event loop interaction,
-            # we verify the worker was referenced
             assert exceptions_worker._exceptions_worker is worker
 
         await worker.stop()
@@ -642,10 +631,9 @@ class TestSchedulerRegistration:
     @pytest.mark.asyncio
     async def test_scheduler_job_callback_no_worker(self, test_db):
         """Test scheduler job callback when worker is not initialized."""
-        # Ensure no worker is set
+
         exceptions_worker._exceptions_worker = None
 
-        # Should not raise, just log warning
         exceptions_worker._run_exceptions_worker_job()
 
     @pytest.mark.asyncio
@@ -682,7 +670,7 @@ class TestExceptionStates:
 
     def test_valid_exception_states(self):
         """Test that all expected states are in the valid set."""
-        from strix.core.exceptions import VALID_EXCEPTION_STATES
+        from ishastra.core.exceptions import VALID_EXCEPTION_STATES
 
         assert EXCEPTION_NONE in VALID_EXCEPTION_STATES
         assert EXCEPTION_PENDING in VALID_EXCEPTION_STATES
@@ -697,7 +685,7 @@ class TestWorkerErrorHandling:
     @pytest.mark.asyncio
     async def test_iteration_handles_database_error(self, test_db, worker):
         """Test that iteration handles database errors gracefully."""
-        with patch("strix.core.store.get_database", side_effect=Exception("DB error")):
+        with patch("ishastra.core.store.get_database", side_effect=Exception("DB error")):
             result = await worker._run_iteration_async()
 
         assert result.expired_count == 0

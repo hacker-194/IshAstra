@@ -1,0 +1,54 @@
+# Single-host deployment: one process, SQLite on a named volume, Caddy for TLS.
+# This is the topology the project actually supports (docs/quickstart/production.md):
+# one writer, no replicas, no external database required.
+name: ishastra
+
+services:
+  ishastra:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: ishastra:${ISHASTRA_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ISHASTRA_ENV: production
+      ISHASTRA_DB: /var/lib/ishastra/ishastra.db
+      ISHASTRA_SCOPE_FILE: /var/lib/ishastra/scope.json
+      ISHASTRA_LOG_FORMAT: json
+      ISHASTRA_LOG_LEVEL: ${ISHASTRA_LOG_LEVEL:-INFO}
+      ISHASTRA_WORKERS: ${ISHASTRA_WORKERS:-2}
+      # Caddy is the only reverse proxy; Docker's default bridge range.
+      ISHASTRA_TRUSTED_PROXIES: ${ISHASTRA_TRUSTED_PROXIES:-172.16.0.0/12}
+    volumes:
+      - ishastra_data:/var/lib/ishastra
+    expose:
+      - "8000"
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      ishastra:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  ishastra_data:
+  caddy_data:
+  caddy_config:

@@ -1,4 +1,4 @@
-# Strix Security Audit Preparation
+# Ishastra Security Audit Preparation
 
 **Version**: 3.5.0 (v3.5.0-hardened)  
 **Date**: 2026-11-14  
@@ -14,12 +14,12 @@
 | Asset | Classification | Trust Boundary |
 |-------|----------------|----------------|
 | API keys (SHA-256 hashes) | Secret | Database only; raw keys shown once at creation |
-| `STRIX_AUDIT_HMAC_KEY` | Secret | Process memory + env var; never in DB |
-| `STRIX_API_KEY` (bootstrap) | Secret | Process memory + env var |
+| `ISHASTRA_AUDIT_HMAC_KEY` | Secret | Process memory + env var; never in DB |
+| `ISHASTRA_API_KEY` (bootstrap) | Secret | Process memory + env var |
 | Engagement policies | Confidential | Per-tenant; admin-create only |
 | Assessment targets/findings | Confidential | Tenant-scoped; redacted at output |
 | Audit chain entries | Integrity-critical | HMAC-sealed; append-only |
-| Strix Proof grants/receipts | Integrity-critical | Ed25519-signed; portable offline |
+| Ishastra Proof grants/receipts | Integrity-critical | Ed25519-signed; portable offline |
 | Webhook secrets | Confidential | HTTPS only; validated IP; no URL-embedded secrets |
 
 ### 1.2 Adversaries
@@ -40,8 +40,8 @@
 | Threat | Scenario | Mitigation | Residual Risk |
 |--------|----------|------------|---------------|
 | **Spoofing** | Attacker forges API key | SHA-256 keys, constant-time compare, key rotation | Key leakage from operator |
-| **Tampering** | Modify audit chain to hide activity | HMAC-SHA256 chain (`STRIX_AUDIT_HMAC_KEY`) | HMAC key compromise |
-| **Repudiation** | Deny authorization decision | Strix Proof receipts (Ed25519 + hash chain) | Gate bypass (agent ignores gate) |
+| **Tampering** | Modify audit chain to hide activity | HMAC-SHA256 chain (`ISHASTRA_AUDIT_HMAC_KEY`) | HMAC key compromise |
+| **Repudiation** | Deny authorization decision | Ishastra Proof receipts (Ed25519 + hash chain) | Gate bypass (agent ignores gate) |
 | **Info Disclosure** | Secrets in findings/SARIF/webhooks | Redaction at every output boundary | Novel credential formats |
 | **DoS** | Exhaust worker queue, large bodies | Body limits (1MB), JSON depth limits, rate limits per tier | Expensive scans bounded by concurrency only |
 | **Elevation** | Tenant A reads Tenant B data | Key-derived tenant ID, filtered SQL, 404 on cross-tenant | Admin keys cross-tenant by design |
@@ -91,7 +91,7 @@
 | **Findings Engine** (`core/findings.py`) | Adapter results | Severity/confidence/verification enums<br>Dedupe by fingerprint (asset+category+location) | Redacted dict for API/SARIF/HTML |
 | **Redaction** (`core/redaction.py`) | All JSON/text output | Text patterns (JWT, AWS, GitHub, PEM, etc.)<br>Field-name aware (`password`, `token`, `cookie`, etc.)<br>Query-param aware (`access_token`, `api_key`, etc.) | Redacted copy; original never leaves memory |
 | **Audit Log** (`audit.py`) | API events, key lifecycle, policy changes, webhook/monitor | Redacted on write<br>HMAC chain when key configured | `/api/audit`, `/api/audit/verify` |
-| **Strix Proof** (`proof.py`) | Grant (CLI/API), gate receipts | Ed25519 grant signature<br>Hash chain over receipts<br>Scope + time-window re-check | Proof pack (JSON); `/api/proof/verify` |
+| **Ishastra Proof** (`proof.py`) | Grant (CLI/API), gate receipts | Ed25519 grant signature<br>Hash chain over receipts<br>Scope + time-window re-check | Proof pack (JSON); `/api/proof/verify` |
 
 ### 2.3 Data Flow Boundaries
 
@@ -139,7 +139,7 @@
 | **Redaction** | `core/redaction.py` | `test_core_modules.py`, `test_findings.py` | Text patterns (JWT, AWS, GitHub, PEM, bearer, query params), field-name aware, cookie values, URL userinfo, signed params, internal hosts, filesystem paths |
 | **Audit Chain** | `audit.py` | `test_audit.py` | Chain append/verify (sync/async), HMAC vs raw SHA256, cached verify for `/api/ready`, tamper detection (sequence, prev_hash, hash mismatch) |
 | **Findings Lifecycle** | `core/findings.py`, `core/store.py` | `test_findings.py`, `test_store.py` | State transitions (new→triaged→in_progress→fix_verified→closed), dedupe by fingerprint, SARIF export, remediation/exception workflow |
-| **Strix Proof** | `proof.py` | `test_proof.py` | Grant signing/verification, receipt chain, proof pack, scope/time compliance, gate key verification, offline `verify` CLI |
+| **Ishastra Proof** | `proof.py` | `test_proof.py` | Grant signing/verification, receipt chain, proof pack, scope/time compliance, gate key verification, offline `verify` CLI |
 | **Engagement Policies** | `core/policies.py` | `test_policies.py` | Create/update/revoke, version binding, validity window, tenant resolution, job binding validation |
 | **Job Execution** | `core/jobs.py` | `test_assessments.py` | Prepare/execute, policy re-validation, adapter sequence, coverage model, cancellation |
 | **API Security** | `api/security.py` | `test_auth.py`, `test_api_routers.py` | Bearer auth, key hashing, tier ordering, rate limits (memory/Redis), security headers, request ID, body depth limits |
@@ -188,7 +188,7 @@ Untested / low coverage:
 ```bash
 # Clone and setup
 git clone <repository-url>
-cd strix-v3.5.0-hardened
+cd ishastra-v3.5.0-hardened
 pip install -c constraints.txt -e ".[dev]"
 ```
 
@@ -196,19 +196,19 @@ pip install -c constraints.txt -e ".[dev]"
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `STRIX_API_KEY` | Yes (prod) | Bootstrap admin key (≥16 chars) |
-| `STRIX_AUDIT_HMAC_KEY` | Yes (prod) | HMAC key for audit chain (32+ bytes) |
-| `STRIX_SCOPE_FILE` | Yes | Authorization document (`scope.json`) |
-| `STRIX_SCOPE_MODE` | No | `global`, `managed`, or `auto` (default) |
-| `STRIX_DB` | No | SQLite path (default `strix.db`) |
-| `STRIX_ENV` | No | `production` fails closed without keys |
+| `ISHASTRA_API_KEY` | Yes (prod) | Bootstrap admin key (≥16 chars) |
+| `ISHASTRA_AUDIT_HMAC_KEY` | Yes (prod) | HMAC key for audit chain (32+ bytes) |
+| `ISHASTRA_SCOPE_FILE` | Yes | Authorization document (`scope.json`) |
+| `ISHASTRA_SCOPE_MODE` | No | `global`, `managed`, or `auto` (default) |
+| `ISHASTRA_DB` | No | SQLite path (default `ishastra.db`) |
+| `ISHASTRA_ENV` | No | `production` fails closed without keys |
 
 ### 4.3 Quick Start for Audit
 
 ```bash
 # 1. Generate secrets
-export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-export STRIX_AUDIT_HMAC_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export ISHASTRA_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export ISHASTRA_AUDIT_HMAC_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
 # 2. Create scope (or use scope.example.json)
 cp scope.example.json scope.json
@@ -222,7 +222,7 @@ python scripts/check_secrets.py .
 pytest -v --tb=short
 
 # 4. Start server
-strix serve --host 0.0.0.0 --port 8000
+ishastra serve --host 0.0.0.0 --port 8000
 # UI at http://localhost:8000
 # API docs at http://localhost:8000/docs (disabled in production)
 ```
@@ -231,15 +231,15 @@ strix serve --host 0.0.0.0 --port 8000
 
 | Area | Files | Lines (approx) |
 |------|-------|----------------|
-| Scope Gate (Layers 1-3) | `src/strix/core/scope.py` | 770 |
-| Tenant Isolation (keys, policies) | `src/strix/api/security.py`, `src/strix/core/policies.py` | 837 + 545 |
-| Redaction Engine | `src/strix/core/redaction.py` | 364 |
-| Audit Chain (HMAC) | `src/strix/audit.py` | 322 |
-| Findings + SARIF | `src/strix/core/findings.py` | 443 |
-| Job Execution + Coverage | `src/strix/core/jobs.py` | ~600 |
-| Strix Proof (Ed25519 + chain) | `src/strix/proof.py` | ~500 |
-| Persistence (SQLite/PG) | `src/strix/core/store.py` | ~3000 |
-| API Routers | `src/strix/api/routers/*.py` | ~1000 |
+| Scope Gate (Layers 1-3) | `src/ishastra/core/scope.py` | 770 |
+| Tenant Isolation (keys, policies) | `src/ishastra/api/security.py`, `src/ishastra/core/policies.py` | 837 + 545 |
+| Redaction Engine | `src/ishastra/core/redaction.py` | 364 |
+| Audit Chain (HMAC) | `src/ishastra/audit.py` | 322 |
+| Findings + SARIF | `src/ishastra/core/findings.py` | 443 |
+| Job Execution + Coverage | `src/ishastra/core/jobs.py` | ~600 |
+| Ishastra Proof (Ed25519 + chain) | `src/ishastra/proof.py` | ~500 |
+| Persistence (SQLite/PG) | `src/ishastra/core/store.py` | ~3000 |
+| API Routers | `src/ishastra/api/routers/*.py` | ~1000 |
 
 ### 4.5 Audit Checklist (Scope-Gate Focus)
 
@@ -252,7 +252,7 @@ strix serve --host 0.0.0.0 --port 8000
 - [ ] Layer 2: Special-use addresses (loopback, link-local, private, multicast, ULA) denied unless explicitly authorized
 - [ ] Layer 2: IPv6 transition mechanisms (NAT64, 6to4, Teredo, IPv4-mapped) judged by embedded IPv4
 - [ ] Layer 3: `Destination` pins single IP; adapters MUST connect to it (no re-resolution)
-- [ ] Observer pattern: Strix Proof receipts every gate decision (allow/deny + reason)
+- [ ] Observer pattern: Ishastra Proof receipts every gate decision (allow/deny + reason)
 - [ ] Atomic config reload: invalid scope never replaces active policy
 - [ ] Broad network guard: CIDR wider than `/8` refused unless `allow_broad_networks=true`
 
@@ -277,13 +277,13 @@ strix serve --host 0.0.0.0 --port 8000
 - [ ] Sensitive query detection: `has_sensitive_query_params()` rejects webhook destinations with secrets
 
 #### 4.5.4 Audit Chain
-- [ ] HMAC-SHA256 when `STRIX_AUDIT_HMAC_KEY` set; raw SHA256 otherwise (naive tampering only)
+- [ ] HMAC-SHA256 when `ISHASTRA_AUDIT_HMAC_KEY` set; raw SHA256 otherwise (naive tampering only)
 - [ ] Chain structure: `sequence`, `previous_hash`, `hash = HMAC(data + previous_hash)`
 - [ ] Genesis hash: `0` * 64
 - [ ] Verification: sequence continuity, prev_hash linkage, HMAC recompute
 - [ ] Cached verify (30s) for `/api/ready` unauthenticated probe
 - [ ] Sealed entries: redacted at append time (defense in depth)
-- [ ] Reset: `strix serve --reset-audit-chain` (operator decision, discards old chain)
+- [ ] Reset: `ishastra serve --reset-audit-chain` (operator decision, discards old chain)
 
 ### 4.6 Running Focused Tests
 
@@ -303,7 +303,7 @@ pytest tests/unit/test_audit.py -v
 # Findings lifecycle tests
 pytest tests/unit/test_findings.py -v
 
-# Strix Proof tests
+# Ishastra Proof tests
 pytest tests/unit/test_proof.py -v
 
 # Policy binding tests
@@ -318,8 +318,8 @@ pytest --cov=src --cov-report=term-missing --cov-report=json
 | Artifact | Location | Description |
 |----------|----------|-------------|
 | Scope example | `scope.example.json` | Template authorization document |
-| Semgrep rules | `src/strix/rules/semgrep.yml` | Bundled local ruleset (no remote download) |
-| Lab oracle | `src/strix/lab/oracle.json` | Ground truth for detection measurement |
+| Semgrep rules | `src/ishastra/rules/semgrep.yml` | Bundled local ruleset (no remote download) |
+| Lab oracle | `src/ishastra/lab/oracle.json` | Ground truth for detection measurement |
 | CI config | `.github/workflows/*.yml` | pip-audit, Bandit, ruff, mypy, pytest |
 | Constraints | `constraints.txt` | Pinned dependency versions |
 | Deployment guide | `DEPLOYMENT.md` | Operator runbook (TLS, keys, retention, backups) |
@@ -332,9 +332,9 @@ pytest --cov=src --cov-report=term-missing --cov-report=json
 Report findings privately via GitHub **Security → Report a vulnerability**.
 
 Include:
-- Version (`strix --version` or `GET /api/version`)
-- Scope mode (`STRIX_SCOPE_MODE`)
-- Minimal reproduction (Docker `--read-only` + temp `STRIX_DB` preferred)
+- Version (`ishastra --version` or `GET /api/version`)
+- Scope mode (`ISHASTRA_SCOPE_MODE`)
+- Minimal reproduction (Docker `--read-only` + temp `ISHASTRA_DB` preferred)
 
 ---
 
@@ -354,6 +354,6 @@ Include:
 
 ## 6. Contact
 
-For questions during audit: [GitHub Security Advisory](https://github.com/usestrix/strix/security/advisories/new)
+For questions during audit: [GitHub Security Advisory](https://github.com/useishastra/ishastra/security/advisories/new)
 
-**Strix is fully open source under MIT License.** No open-core split, no paid edition, no proprietary add-ons.
+**Ishastra is fully open source under MIT License.** No open-core split, no paid edition, no proprietary add-ons.

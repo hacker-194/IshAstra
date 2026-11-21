@@ -1,0 +1,387 @@
+
+
+
+
+
+
+
+k8sJobs:
+  enabled: true
+
+  jobId: ""
+  jobNameSuffix: ""
+  tenantId: ""
+
+
+  namespace: "ishastra-assessments"
+  createNamespace: true
+
+
+  image: ""
+
+
+  serviceAccount: "ishastra"
+
+
+  runtimeClassName: ""
+
+
+  priorityClassName: ""
+
+
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  activeDeadlineSeconds: 7200
+
+
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+
+
+  dbSecretName: "ishastra-secrets"
+  dbSecretKey: "database-url"
+
+
+  scopeConfigMapName: "ishastra-scope"
+  scopeConfigMapKey: "scope.json"
+
+
+  authSecretName: ""
+  authSecretKey: "auth-config"
+
+
+  networkPolicyEnabled: true
+
+
+
+
+
+
+
+
+
+
+
+
+  scopeEgress: []
+
+
+
+  allowScopeNetworks: true
+  authorizedNetworks: []
+  allowedPorts: []
+
+
+  sandboxEnabled: true
+
+  seccompProfileType: "RuntimeDefault"
+
+  seccompProfile: "ishastra-seccomp-default"
+
+
+  labels:
+    app.kubernetes.io/part-of: ishastra
+    app.kubernetes.io/component: assessment-job
+  annotations: {}
+
+
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: "node.kubernetes.io/instance-type"
+                operator: In
+                values:
+                  - "spot"
+                  - "preemptible"
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 50
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - assessment-job
+            topologyKey: kubernetes.io/hostname
+
+
+  tolerations:
+    - key: "spot"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    - key: "preemptible"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+
+
+  envFromSecrets:
+    - name: ishastra-secrets
+      prefix: ISHASTRA_
+
+
+  volumes:
+    - name: ishastra-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+
+
+  livenessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import sys; sys.exit(0)"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import sys; sys.exit(0)"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+
+
+
+
+seccompProfiles:
+  enabled: true
+
+  configMapName: "ishastra-seccomp-profiles"
+
+  profiles:
+    - nmap
+    - nuclei
+    - nikto
+    - sqlmap
+
+
+queue:
+
+  mode: k8s-jobs
+
+
+
+
+
+postgresql:
+  enabled: true
+
+api:
+
+
+  replicaCount: 1
+  hpa:
+    enabled: false
+  env:
+    ISHASTRA_K8S_NAMESPACE: "ishastra-assessments"
+    ISHASTRA_K8S_IMAGE: ""
+    ISHASTRA_K8S_SERVICE_ACCOUNT: "ishastra"
+    ISHASTRA_K8S_RUNTIME_CLASS: "gvisor"
+    ISHASTRA_K8S_PRIORITY_CLASS: "ishastra-spot-priority"
+    ISHASTRA_K8S_TTL: "3600"
+    ISHASTRA_K8S_BACKOFF_LIMIT: "2"
+    ISHASTRA_K8S_ACTIVE_DEADLINE: "7200"
+    ISHASTRA_K8S_CPU_LIMIT: "2000m"
+    ISHASTRA_K8S_MEMORY_LIMIT: "2Gi"
+    ISHASTRA_K8S_CPU_REQUEST: "1000m"
+    ISHASTRA_K8S_MEMORY_REQUEST: "1Gi"
+    ISHASTRA_K8S_DB_SECRET: "ishastra-secrets"
+    ISHASTRA_K8S_SCOPE_CM: "ishastra-scope"
+    ISHASTRA_K8S_SANDBOX_ENABLED: "true"
+    ISHASTRA_K8S_SECCOMP_PROFILE: "runtime/default"
+    ISHASTRA_K8S_SECCOMP_PROFILE_TYPE: "RuntimeDefault"
+
+
+
+
+
+
+rbac:
+  enabled: true
+  createClusterRole: true
+  clusterRoleRules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/metrics", "pods", "pods/metrics", "configmaps", "secrets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["networkpolicies", "ingresses"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["nodes", "pods"]
+      verbs: ["get", "list", "watch"]
+
+
+
+
+
+networkPolicy:
+  enabled: true
+  apiEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kubernetes
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

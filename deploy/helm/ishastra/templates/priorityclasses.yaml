@@ -1,0 +1,78 @@
+{{- if .Values.costOptimization.priorityClasses.enabled }}
+---
+
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.costOptimization.priorityClasses.critical.name | default "ishastra-critical" }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priorityclass
+    ishastra.io/priority-tier: "critical"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    ishastra.io/description: "Critical assessments - production security scans, compliance audits"
+    ishastra.io/instance-type: "on-demand"
+value: {{ .Values.costOptimization.priorityClasses.critical.value | default 1000000 }}
+globalDefault: false
+description: "Critical priority for production security assessments. Runs on on-demand instances only. Preempts batch workloads."
+preemptionPolicy: {{ .Values.costOptimization.priorityClasses.critical.preemptionPolicy | default "PreemptLowerPriority" }}
+---
+
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.costOptimization.priorityClasses.standard.name | default "ishastra-standard" }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priorityclass
+    ishastra.io/priority-tier: "standard"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    ishastra.io/description: "Standard assessments - scheduled scans, development testing"
+    ishastra.io/instance-type: "mixed"
+value: {{ .Values.costOptimization.priorityClasses.standard.value | default 500000 }}
+globalDefault: false
+description: "Standard priority for scheduled assessments. Runs on mixed on-demand/spot instances."
+preemptionPolicy: {{ .Values.costOptimization.priorityClasses.standard.preemptionPolicy | default "PreemptLowerPriority" }}
+---
+
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.costOptimization.priorityClasses.batch.name | default "ishastra-batch" }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priorityclass
+    ishastra.io/priority-tier: "batch"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    ishastra.io/description: "Batch assessments - bulk scanning, nightly regression, non-critical"
+    ishastra.io/instance-type: "spot"
+value: {{ .Values.costOptimization.priorityClasses.batch.value | default 100000 }}
+globalDefault: false
+description: "Batch priority for non-critical workloads. Runs on spot/preemptible instances. First to be preempted."
+preemptionPolicy: {{ .Values.costOptimization.priorityClasses.batch.preemptionPolicy | default "PreemptLowerPriority" }}
+---
+
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.costOptimization.priorityClasses.system.name | default "ishastra-system" }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: priorityclass
+    ishastra.io/priority-tier: "system"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    ishastra.io/description: "System components - API, scheduler, Redis, operators"
+    ishastra.io/instance-type: "on-demand"
+value: {{ .Values.costOptimization.priorityClasses.system.value | default 2000000 }}
+globalDefault: false
+description: "System priority for control plane components. Runs on on-demand instances only."
+preemptionPolicy: {{ .Values.costOptimization.priorityClasses.system.preemptionPolicy | default "PreemptLowerPriority" }}
+{{- end }}

@@ -2,26 +2,26 @@ global:
   scrape_interval: 30s
   evaluation_interval: 30s
 
-# Alertmanager configuration
+
 alerting:
   alertmanagers:
     - static_configs:
         - targets: ["alertmanager:9093"]
 
-# Rule files
+
 rule_files:
   - "alerting.yml"
 
 scrape_configs:
-  - job_name: strix
+  - job_name: ishastra
     scheme: http
     metrics_path: /api/metrics
     authorization:
       type: Bearer
-      # Mounted from ./secrets/strix_api_key by docker-compose.monitoring.yml.
+
       credentials_file: /etc/prometheus/token
     static_configs:
-      - targets: ["strix:8000"]
+      - targets: ["ishastra:8000"]
 
   - job_name: prometheus
     static_configs:
@@ -39,9 +39,8 @@ scrape_configs:
     static_configs:
       - targets: ["grafana:3000"]
 
-  # Redis metrics (requires redis_exporter sidecar or built-in metrics in Redis 7+)
+
   - job_name: redis
     static_configs:
       - targets: ["redis:9121"]
-    # Note: Requires redis_exporter container or Redis 7.2+ with --enable-module metrics
-    # See: https://github.com/oliver006/redis_exporter
+

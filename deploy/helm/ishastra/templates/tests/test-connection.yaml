@@ -1,0 +1,31 @@
+{{- if .Values.test.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "ishastra.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+  containers:
+    - name: curl
+      image: "{{ .Values.test.image.repository }}:{{ .Values.test.image.tag }}"
+      imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+      command:
+        - sh
+        - -c
+        - |
+          echo "Testing connection to Ishastra service..."
+          curl -f -s -o /dev/null -w "%{http_code}" http://{{ include "ishastra.fullname" . }}-api:{{ .Values.api.service.port }}/api/health
+          echo "Health check passed"
+          curl -f -s -o /dev/null -w "%{http_code}" http://{{ include "ishastra.fullname" . }}-api:{{ .Values.api.service.port }}/api/ready
+          echo "Readiness check passed"
+      env:
+        - name: ISHASTRA_SERVICE_URL
+          value: "http://{{ include "ishastra.fullname" . }}-api:{{ .Values.api.service.port }}"
+  restartPolicy: Never
+{{- end }}

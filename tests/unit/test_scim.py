@@ -1,4 +1,4 @@
-"""Unit tests for Strix SCIM 2.0 Provisioning.
+"""Unit tests for Ishastra SCIM 2.0 Provisioning.
 
 Tests cover:
 - SCIM User CRUD operations
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from strix.api.schemas import (
+from ishastra.api.schemas import (
     SCIMEmail,
     SCIMGroup,
     SCIMGroupRef,
@@ -29,8 +29,8 @@ from strix.api.schemas import (
     SCIMPatchRequest,
     SCIMUser,
 )
-from strix.core import store
-from strix.core.scim import (
+from ishastra.core import store
+from ishastra.core.scim import (
     get_resource_types,
     get_schemas,
     get_service_provider_config,
@@ -62,7 +62,6 @@ async def db(temp_db):
     await store.close_database()
 
 
-# Test data constants
 TEST_TENANT_ID = "test-tenant-123"
 TEST_ORG_ID = "test-org-456"
 TEST_SCIM_TOKEN = "scim_test_token_abcdef123456"
@@ -87,7 +86,7 @@ class TestSCIMModels:
         assert user.emails[0].value == "john.doe@example.com"
         assert user.role == "analyst"
         assert "urn:ietf:params:scim:schemas:core:2.0:User" in user.schemas
-        assert "urn:strix:params:scim:schemas:core:2.0:User" in user.schemas
+        assert "urn:ishastra:params:scim:schemas:core:2.0:User" in user.schemas
 
     def test_scim_user_validation_userName(self):
         """Test userName must be valid email."""
@@ -99,7 +98,6 @@ class TestSCIMModels:
         with pytest.raises(ValueError, match="role must be one of"):
             SCIMUser(userName="test@example.com", role="invalid-role")
 
-        # Valid roles
         for role in ["admin", "analyst", "viewer"]:
             user = SCIMUser(userName="test@example.com", role=role)
             assert user.role == role
@@ -148,7 +146,7 @@ class TestSCIMTokenManager:
         )
 
         assert raw_token.startswith("scim_")
-        assert len(token_hash) == 64  # SHA-256 hex
+        assert len(token_hash) == 64
         assert raw_token != token_hash
 
     async def test_validate_token(self, db):
@@ -177,15 +175,12 @@ class TestSCIMTokenManager:
             name="Test Token",
         )
 
-        # Token should be valid
         token_info = await scim_token_manager.validate_token(raw_token)
         assert token_info is not None
 
-        # Revoke
         revoked = await scim_token_manager.revoke_token(token_hash)
         assert revoked is True
 
-        # Token should now be invalid
         token_info = await scim_token_manager.validate_token(raw_token)
         assert token_info is None
 
@@ -285,7 +280,6 @@ class TestSCIMUserOperations:
 
         created = await scim_store.create_user(user, TEST_TENANT_ID, TEST_SCIM_TOKEN)
 
-        # Update
         created.displayName = "Alice Updated"
         created.role = "admin"
         updated = await scim_store.update_user(created.id, created, TEST_TENANT_ID, TEST_SCIM_TOKEN)
@@ -305,7 +299,6 @@ class TestSCIMUserOperations:
 
         created = await scim_store.create_user(user, TEST_TENANT_ID, TEST_SCIM_TOKEN)
 
-        # PATCH replace displayName
         operations = [
             {"op": "replace", "path": "displayName", "value": "Patched Name"},
             {"op": "replace", "path": "role", "value": "admin"},
@@ -326,15 +319,12 @@ class TestSCIMUserOperations:
 
         created = await scim_store.create_user(user, TEST_TENANT_ID, TEST_SCIM_TOKEN)
 
-        # Add group membership
         operations = [
             {"op": "add", "path": "groups", "value": [{"value": "group_123", "display": "Admins"}]},
         ]
 
         await scim_store.patch_user(created.id, operations, TEST_TENANT_ID, TEST_SCIM_TOKEN)
-        # Groups are stored but not fully implemented in this version
 
-        # Remove group membership
         operations = [
             {"op": "remove", "path": "groups", "value": [{"value": "group_123"}]},
         ]
@@ -354,13 +344,11 @@ class TestSCIMUserOperations:
         deleted = await scim_store.delete_user(created.id, TEST_TENANT_ID, TEST_SCIM_TOKEN)
         assert deleted is True
 
-        # User should be deactivated
         await scim_store.get_user(created.id, TEST_TENANT_ID, TEST_SCIM_TOKEN)
-        # User may still exist but inactive, or mapping removed
 
     async def test_list_users(self, db):
         """Test listing users with pagination."""
-        # Create multiple users
+
         for i in range(5):
             user = SCIMUser(
                 userName=f"user{i}@example.com",
@@ -370,7 +358,6 @@ class TestSCIMUserOperations:
             )
             await scim_store.create_user(user, TEST_TENANT_ID, TEST_SCIM_TOKEN)
 
-        # List with pagination
         result = await scim_store.list_users(TEST_TENANT_ID, TEST_SCIM_TOKEN, start_index=1, count=3)
 
         assert result.totalResults == 5
@@ -380,7 +367,7 @@ class TestSCIMUserOperations:
 
     async def test_list_users_filter(self, db):
         """Test listing users with filter."""
-        # Create users with different roles
+
         for role in ["admin", "analyst", "viewer"]:
             user = SCIMUser(
                 userName=f"{role}@example.com",
@@ -390,8 +377,6 @@ class TestSCIMUserOperations:
             )
             await scim_store.create_user(user, TEST_TENANT_ID, TEST_SCIM_TOKEN)
 
-        # Filter by role (not directly supported in current filter implementation)
-        # Filter by userName
         result = await scim_store.list_users(
             TEST_TENANT_ID, TEST_SCIM_TOKEN, filter_expr='userName eq "admin@example.com"'
         )
@@ -447,7 +432,6 @@ class TestSCIMGroupOperations:
         group = SCIMGroup(displayName="Patch Group")
         created = await scim_store.create_group(group, TEST_TENANT_ID, TEST_ORG_ID, TEST_SCIM_TOKEN)
 
-        # Add members
         operations = [
             {
                 "op": "add",
@@ -462,7 +446,6 @@ class TestSCIMGroupOperations:
         updated = await scim_store.patch_group(created.id, operations, TEST_TENANT_ID, TEST_SCIM_TOKEN)
         assert len(updated.members) == 2
 
-        # Remove a member
         operations = [
             {"op": "remove", "path": "members", "value": [{"value": "user_1"}]},
         ]
@@ -529,15 +512,15 @@ class TestSCIMSchemas:
         schema_ids = {s.id for s in schemas.Resources}
         assert "urn:ietf:params:scim:schemas:core:2.0:User" in schema_ids
         assert "urn:ietf:params:scim:schemas:core:2.0:Group" in schema_ids
-        assert "urn:strix:params:scim:schemas:core:2.0:User" in schema_ids
-        assert "urn:strix:params:scim:schemas:core:2.0:Group" in schema_ids
+        assert "urn:ishastra:params:scim:schemas:core:2.0:User" in schema_ids
+        assert "urn:ishastra:params:scim:schemas:core:2.0:Group" in schema_ids
 
 
 class TestSCIMAttributeMapping:
-    """Tests for SCIM to Strix attribute mapping."""
+    """Tests for SCIM to Ishastra attribute mapping."""
 
     def test_user_to_strix_mapping(self):
-        """Test SCIM user maps to Strix user correctly."""
+        """Test SCIM user maps to Ishastra user correctly."""
         user = SCIMUser(
             userName="john.doe@example.com",
             displayName="John Doe",
@@ -553,7 +536,7 @@ class TestSCIMAttributeMapping:
         assert strix_user["email"] == "john.doe@example.com"
         assert strix_user["display_name"] == "John Doe"
         assert strix_user["role"] == "analyst"
-        assert strix_user["scope"] == "write"  # analyst -> write
+        assert strix_user["scope"] == "write"
         assert strix_user["active"] is True
         assert strix_user["external_id"] == "ext_123"
 
@@ -582,7 +565,7 @@ class TestSCIMAttributeMapping:
         assert strix_user["scope"] == "write"
 
     def test_group_to_strix_mapping(self):
-        """Test SCIM group maps to Strix group."""
+        """Test SCIM group maps to Ishastra group."""
         group = SCIMGroup(
             displayName="Test Group",
             externalId="ext_group_123",
@@ -626,30 +609,28 @@ class TestSCIMFilterParsing:
         assert filter_obj is None
 
 
-# Integration-style tests for API endpoints
 class TestSCIMAPIIntegration:
     """Integration tests for SCIM API endpoints."""
 
     @pytest_asyncio.fixture
     async def app(self, temp_db):
         """Create test app with SCIM router."""
-        from strix.api.deps import reset_settings
-        from strix.api.security import api_keys
-        from strix.core import scope
+        from ishastra.api.deps import reset_settings
+        from ishastra.api.security import api_keys
+        from ishastra.core import scope
 
         reset_settings()
         api_keys.reset()
 
         import os
 
-        os.environ["STRIX_DB"] = ":memory:"
-        os.environ["STRIX_SCOPE_FILE"] = "/tmp/scope.json"
-        os.environ["STRIX_API_KEY"] = "test-key-12345678901234567890123456789012"
-        os.environ["STRIX_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
-        os.environ["STRIX_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
-        os.environ["STRIX_WORKERS"] = "1"
+        os.environ["ISHASTRA_DB"] = ":memory:"
+        os.environ["ISHASTRA_SCOPE_FILE"] = "/tmp/scope.json"
+        os.environ["ISHASTRA_API_KEY"] = "test-key-12345678901234567890123456789012"
+        os.environ["ISHASTRA_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
+        os.environ["ISHASTRA_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
+        os.environ["ISHASTRA_WORKERS"] = "1"
 
-        # Create minimal scope
         scope_content = """{
     "program": "Test Program",
     "authorized_by": "Test Authorizer",
@@ -674,15 +655,15 @@ class TestSCIMAPIIntegration:
         await store.get_database()
         await init_scim_tables()
 
-        from strix.api.app import create_app
+        from ishastra.api.app import create_app
 
         app = create_app()
 
-        from strix.api import deps
-        from strix.api.app import _bootstrap_admin_key_async
-        from strix.api.deps import init_http_client
-        from strix.core import policies
-        from strix.core.scheduler import create_scheduler
+        from ishastra.api import deps
+        from ishastra.api.app import _bootstrap_admin_key_async
+        from ishastra.api.deps import init_http_client
+        from ishastra.core import policies
+        from ishastra.core.scheduler import create_scheduler
 
         await init_http_client()
         await api_keys.load_async()
@@ -691,7 +672,7 @@ class TestSCIMAPIIntegration:
         await deps.monitor.load_async()
         await _bootstrap_admin_key_async()
 
-        from strix.api import app as app_module
+        from ishastra.api import app as app_module
 
         app_module._scheduler = await create_scheduler(
             audit_chain=deps.audit_chain,
@@ -704,7 +685,6 @@ class TestSCIMAPIIntegration:
 
         yield app
 
-        # Cleanup
         if app_module._scheduler is not None:
             await app_module._scheduler.stop()
             app_module._scheduler = None
@@ -755,9 +735,8 @@ class TestSCIMAPIIntegration:
 
     async def test_create_user_with_token(self, client):
         """Test creating user with valid SCIM token."""
-        # First create a token (in real usage, this would be pre-provisioned)
-        # For testing, we need to set up a token in the database
-        from strix.core.scim import scim_token_manager
+
+        from ishastra.core.scim import scim_token_manager
 
         raw_token, token_hash = await scim_token_manager.create_token(
             tenant_id="test-tenant",
@@ -775,13 +754,9 @@ class TestSCIMAPIIntegration:
         headers = {"Authorization": f"Bearer {raw_token}"}
         response = client.post("/scim/v2/Users", json=user_data, headers=headers)
 
-        # Should succeed or fail with proper SCIM error
         assert response.status_code in (201, 400, 409, 500)
 
         if response.status_code == 201:
             data = response.json()
             assert data["userName"] == "test@example.com"
             assert data["id"] is not None
-
-
-# Run tests with: pytest tests/unit/test_scim.py -v

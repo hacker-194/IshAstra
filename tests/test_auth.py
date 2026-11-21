@@ -1,10 +1,10 @@
-"""Tests for strix.core.auth module."""
+"""Tests for ishastra.core.auth module."""
 
 from __future__ import annotations
 
 import pytest
 
-from strix.core.auth import (
+from ishastra.core.auth import (
     AuthConfigError,
     AuthManager,
     EncryptedAuthConfig,
@@ -26,7 +26,7 @@ class TestTokenAuthenticator:
         assert result.principal is not None
         assert result.principal.id == "test-principal"
         assert result.bearer == "test-token-123"
-        # Check Authorization header
+
         headers = dict(result.principal.headers)
         assert headers.get("Authorization") == "Bearer test-token-123"
 
@@ -196,7 +196,6 @@ class TestMultiStepAuthenticator:
         session_auth = SessionAuthenticator(cookies={"sessionid": "abc"}, principal_id="step2")
         multi = MultiStepAuthenticator(steps=[token_auth, session_auth], principal_id="multi-user")
 
-        # Can't fully test authenticate without HTTP, but can test config
         config = multi.get_config()
         assert config["type"] == "multi_step"
         assert len(config["steps"]) == 2
@@ -248,7 +247,7 @@ class TestEncryptedAuthConfig:
     def test_create_and_decrypt(self):
         """Test creating and decrypting encrypted auth config."""
         auth = TokenAuthenticator(bearer="secret-token", principal_id="test-principal")
-        encryption_key = "35vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="  # valid 32-byte base64
+        encryption_key = "35vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
 
         encrypted_config = EncryptedAuthConfig.create(auth, encryption_key)
         assert encrypted_config.authenticator_type == "token"
@@ -256,7 +255,6 @@ class TestEncryptedAuthConfig:
         assert isinstance(encrypted_config.encrypted_config, str)
         assert len(encrypted_config.encrypted_config) > 0
 
-        # Decrypt and verify
         decrypted = encrypted_config.decrypt(encryption_key)
         assert decrypted["type"] == "token"
         assert decrypted["bearer"] == "secret-token"
@@ -278,7 +276,7 @@ class TestEncryptedAuthConfig:
         """Test decrypt with wrong key fails."""
         auth = TokenAuthenticator(bearer="secret-token", principal_id="test-principal")
         encryption_key = "35vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
-        # Generate a genuinely different key (not just base64 padding difference)
+
         wrong_key = "Y5vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
 
         encrypted_config = EncryptedAuthConfig.create(auth, encryption_key)
@@ -291,7 +289,7 @@ class TestEncryptedAuthConfig:
         encryption_key = "35vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
 
         encrypted_config = EncryptedAuthConfig.create(auth, encryption_key)
-        # Corrupt the encrypted config
+
         import base64
 
         decoded = base64.b64decode(encrypted_config.encrypted_config)
@@ -340,7 +338,7 @@ class TestAuthManager:
         encrypted = EncryptedAuthConfig.create(auth, encryption_key)
 
         manager.add_auth_config(encrypted)
-        # Access to populate cache
+
         manager.get_authenticator("test-principal")
         assert "test-principal" in manager._authenticators
 
@@ -350,7 +348,7 @@ class TestAuthManager:
 
     def test_authenticate_no_key_fails(self):
         """Test authenticate without encryption key fails."""
-        manager = AuthManager(encryption_key="")  # No key
+        manager = AuthManager(encryption_key="")
         encryption_key = "35vIMunI7Yjhvw25JCmm21LkTH5ys5I5PCufUdCXfB8="
         auth = TokenAuthenticator(bearer="token123", principal_id="test-principal")
         encrypted = EncryptedAuthConfig.create(auth, encryption_key)

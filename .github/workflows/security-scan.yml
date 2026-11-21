@@ -40,12 +40,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -56,12 +56,13 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e ".[dev]" -c constraints.txt
-          pip install bandit[toml] semgrep safety pip-audit
+          pip install bandit[toml] semgrep 'safety<3' pip-audit
 
       - name: Run Bandit
         id: bandit
         run: |
           bandit -r src/ -f json -o bandit-results.json || true
+          bandit -r src/ -f sarif -o bandit-results.sarif || true
           bandit -r src/ -f txt -o bandit-results.txt || true
         continue-on-error: true
 
@@ -85,14 +86,14 @@ jobs:
         continue-on-error: true
 
       - name: Upload Bandit SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('bandit-results.json') != ''
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
+        if: always() && hashFiles('bandit-results.sarif') != ''
         with:
-          sarif_file: bandit-results.json
+          sarif_file: bandit-results.sarif
           category: bandit
 
       - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
         if: always() && hashFiles('semgrep-results.sarif') != ''
         with:
           sarif_file: semgrep-results.sarif
@@ -108,13 +109,14 @@ jobs:
             --scanners all
 
       - name: Upload security audit reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: security-audit-reports
           path: |
             security-reports/
             bandit-results.json
+            bandit-results.sarif
             semgrep-results.json
             semgrep-results.sarif
             safety-results.json
@@ -176,26 +178,26 @@ jobs:
     needs: security-scan
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
         with:
           context: .
           file: ./Dockerfile
           push: false
           load: true
-          tags: strix:security-scan
+          tags: ishastra:security-scan
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
-          image-ref: strix:security-scan
+          image-ref: ishastra:security-scan
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
@@ -204,14 +206,14 @@ jobs:
           vuln-type: 'os,library'
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
         if: always()
         with:
           sarif_file: trivy-results.sarif
           category: trivy
 
       - name: Run Trivy config scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -221,14 +223,14 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy config results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
         if: always()
         with:
           sarif_file: trivy-config.sarif
           category: trivy-config
 
       - name: Run Hadolint (Dockerfile lint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: Dockerfile
           verbose: true
@@ -237,7 +239,7 @@ jobs:
       - name: Validate docker-compose files
         run: |
           docker compose config --quiet
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          docker compose -f deploy/single-host/compose.yaml config --quiet
 
   dependency-review:
     name: Dependency Review
@@ -248,10 +250,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4
         with:
           fail-on-severity: 'high'
 
@@ -261,12 +263,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0
 
       - name: Run TruffleHog
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@d232362a64a09a9e7d58267b8f5acef00ae90e23  # v3.100.0
         with:
           path: ./
           base: ${{ github.event.pull_request.base.sha || github.sha }}
@@ -279,10 +281,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip

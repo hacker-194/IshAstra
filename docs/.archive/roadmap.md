@@ -1,4 +1,4 @@
-# Strix Implementation Roadmap
+# Ishastra Implementation Roadmap
 
 Basis: repository state on 2026-11-14. Releases are ordered by trust dependency,
 not feature appeal. Do not start a later release while an earlier exit criterion
@@ -23,7 +23,7 @@ result.
 | Backup/restore drill recorded | Done; 14 tables match, integrity ok, HMAC audit chain verified |
 | Live nmap + Nuclei tests against deterministic loopback lab | Done locally (4 passed); CI installs nmap, pinned Nuclei v3.11.1 and templates |
 | Dependency duplicates and Kubernetes Jobs compatibility | Done; OTel is opt-in, `redis>=6.1,<7.0` for Kubernetes Jobs 5.7 |
-| Production fail-closed mode | Done; `STRIX_ENV=production` requires bootstrap, audit, and encryption keys; rejects debug mode and disabled rate limits; and disables API docs |
+| Production fail-closed mode | Done; `ISHASTRA_ENV=production` requires bootstrap, audit, and encryption keys; rejects debug mode and disabled rate limits; and disables API docs |
 | CI valid and running on the default branch | Workflows parse locally; first GitHub run not yet observed |
 
 Exit criteria:

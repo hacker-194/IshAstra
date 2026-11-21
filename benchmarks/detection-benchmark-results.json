@@ -1,0 +1,575 @@
+{
+  "benchmark_version": "1.1.0",
+  "oracle_version": "1.1.0",
+  "timestamp": "2026-11-21T00:57:56Z",
+  "duration_s": 0.14,
+  "tools": {},
+  "detectors_run": [
+    "ishastra-dynamic-validation",
+    "ishastra-git-exposure",
+    "ishastra-http",
+    "ishastra-tcp"
+  ],
+  "detectors_unavailable": {},
+  "workflows": [],
+  "overall_metrics": {
+    "true_positives": 6,
+    "false_negatives": 0,
+    "false_positives": 0,
+    "total_positives": 6,
+    "measured_positives": 6,
+    "total_negatives": 6,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "false_positive_rate": 0.0,
+    "coverage_complete": true,
+    "unmeasured_cases": [],
+    "verification_violations": [],
+    "unmatched_findings": 0
+  },
+  "vulnerability_class_breakdown": {
+    "xss": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P1-reflection-indicator",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "unverified"
+          ]
+        },
+        {
+          "case_id": "N1-safe-no-reflection",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        }
+      ]
+    },
+    "open_redirect": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P2-open-redirect-observed",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "observed"
+          ]
+        },
+        {
+          "case_id": "N2-login-fixed-redirect",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        }
+      ]
+    },
+    "sqli_error_indicator": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P3-sqli-error-inferred",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "inferred"
+          ]
+        },
+        {
+          "case_id": "N3-item-no-db-error",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        }
+      ]
+    },
+    "git-config": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P4-git-config-exposure",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "observed"
+          ]
+        }
+      ]
+    },
+    "git_config_exposed": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P4-git-config-exposure",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "observed"
+          ]
+        }
+      ]
+    },
+    "missing_csp": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P5-missing-csp",
+          "expect": true,
+          "measured": true,
+          "findings_count": 2,
+          "verification_levels": [
+            "observed",
+            "observed"
+          ]
+        },
+        {
+          "case_id": "N1b-safe-has-csp",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        }
+      ]
+    },
+    "open_tcp_port": {
+      "positives_expected": 1,
+      "positives_measured": 1,
+      "true_positives": 1,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "P6-open-tcp-port",
+          "expect": true,
+          "measured": true,
+          "findings_count": 1,
+          "verification_levels": [
+            "observed"
+          ]
+        }
+      ]
+    },
+    "*": {
+      "positives_expected": 0,
+      "positives_measured": 0,
+      "true_positives": 0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "cases": [
+        {
+          "case_id": "N4-nuclei-catchall",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        },
+        {
+          "case_id": "N5-native-git-catchall",
+          "expect": false,
+          "measured": true,
+          "findings_count": 0,
+          "verification_levels": []
+        }
+      ]
+    }
+  },
+  "detector_breakdown": {
+    "ishastra-http": {
+      "findings": 3,
+      "true_positives": 3,
+      "false_positives": 0,
+      "categories": [
+        "missing_csp",
+        "xss"
+      ],
+      "verification_levels": [
+        "observed",
+        "unverified"
+      ]
+    },
+    "ishastra-dynamic-validation": {
+      "findings": 2,
+      "true_positives": 2,
+      "false_positives": 0,
+      "categories": [
+        "open_redirect",
+        "sqli_error_indicator"
+      ],
+      "verification_levels": [
+        "inferred",
+        "observed"
+      ]
+    },
+    "ishastra-git-exposure": {
+      "findings": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "categories": [
+        "git_config_exposed"
+      ],
+      "verification_levels": [
+        "observed"
+      ]
+    },
+    "ishastra-tcp": {
+      "findings": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "categories": [
+        "open_tcp_port"
+      ],
+      "verification_levels": [
+        "observed"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "case_id": "P1-reflection-indicator",
+      "findings": [
+        {
+          "fingerprint": "453c5828c679c6bc574a5385dd0a861c",
+          "asset": "http://127.0.0.1:39097/search?q=term",
+          "category": "xss",
+          "title": "Potential XSS indicator; execution context unverified",
+          "severity": "info",
+          "confidence": "low",
+          "verification": "unverified",
+          "status": "new",
+          "detector": "ishastra-http",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/search?q=term",
+          "evidence": "benign marker reflected for parameter(s): q; HTML/JavaScript execution context was not tested",
+          "description": "",
+          "remediation": "Inspect the response context and apply context-aware output encoding.",
+          "cwe": "CWE-79",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-http"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "P2-open-redirect-observed",
+      "findings": [
+        {
+          "fingerprint": "b634e62130d62865321c7260ee89a084",
+          "asset": "http://127.0.0.1:39097/redirect?to=https://example.com/",
+          "category": "open_redirect",
+          "title": "Query parameter controls an external redirect destination",
+          "severity": "medium",
+          "confidence": "high",
+          "verification": "observed",
+          "status": "new",
+          "detector": "ishastra-dynamic-validation",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/redirect?to=https%3A%2F%2Fishastra-f3595eba0a88.invalid%2Fishastra-f3595eba0a88",
+          "evidence": "parameter 'to' controlled the Location destination: HTTP 302 Location='https://ishastra-f3595eba0a88.invalid/ishastra-f3595eba0a88'; redirect was not followed",
+          "description": "The server returned a Location destination matching a unique reserved .invalid canary supplied through a query parameter. The redirect was not followed.",
+          "remediation": "Validate redirect destinations against an exact allowlist of approved URLs or hostnames; reject arbitrary external destinations.",
+          "cwe": "CWE-601",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-dynamic-validation"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "P3-sqli-error-inferred",
+      "findings": [
+        {
+          "fingerprint": "c477546e5647a4a54a4494a3a6f395aa",
+          "asset": "http://127.0.0.1:39097/sqlerror?id=1",
+          "category": "sqli_error_indicator",
+          "title": "Database error signature exposed after query input variation",
+          "severity": "medium",
+          "confidence": "medium",
+          "verification": "inferred",
+          "status": "new",
+          "detector": "ishastra-dynamic-validation",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/sqlerror?id=%27",
+          "evidence": "database error signature after quote mutation: ' recent call last):\\n  File \"/app/db.py\", line 41, in lookup\\nsqlite3.OperationalError: near \"\\'\": syntax error\\n'",
+          "description": "A database error signature appeared after a low-impact quote mutation. This is evidence of a possible injection path, not proof that a query can be exploited.",
+          "remediation": "Use parameterized queries and avoid returning database exceptions to clients. Validate the suspected path with a controlled test.",
+          "cwe": "CWE-89",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-dynamic-validation"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "P4-git-config-exposure",
+      "findings": [
+        {
+          "fingerprint": "c6b8c24ab499ccdd72357d0ace59a073",
+          "asset": "http://127.0.0.1:39097/",
+          "category": "git_config_exposed",
+          "title": "Exposed Git Repository",
+          "severity": "high",
+          "confidence": "high",
+          "verification": "observed",
+          "status": "new",
+          "detector": "ishastra-git-exposure",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/.git/config",
+          "evidence": "markers present: [core], repositoryformatversion",
+          "description": "The target exposes a .git directory allowing full source code disclosure.",
+          "remediation": "",
+          "cwe": "",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-git-exposure"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "P5-missing-csp",
+      "findings": [
+        {
+          "fingerprint": "6243e21227fce3b0f7e1be5daf083b59",
+          "asset": "http://127.0.0.1:39097/",
+          "category": "missing_csp",
+          "title": "Missing Content-Security-Policy header",
+          "severity": "low",
+          "confidence": "medium",
+          "verification": "observed",
+          "status": "new",
+          "detector": "ishastra-http",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/",
+          "evidence": "HTTP 200 response carries no Content-Security-Policy header",
+          "description": "",
+          "remediation": "Send a restrictive Content-Security-Policy header where appropriate.",
+          "cwe": "CWE-693",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-http"
+          ]
+        },
+        {
+          "fingerprint": "80cdb6e9008c15f79e726f117ab37a63",
+          "asset": "http://127.0.0.1:39097/search?q=term",
+          "category": "missing_csp",
+          "title": "Missing Content-Security-Policy header",
+          "severity": "low",
+          "confidence": "medium",
+          "verification": "observed",
+          "status": "new",
+          "detector": "ishastra-http",
+          "detector_version": "3.5.0",
+          "location": "http://127.0.0.1:39097/search?q=term",
+          "evidence": "HTTP 200 response carries no Content-Security-Policy header",
+          "description": "",
+          "remediation": "Send a restrictive Content-Security-Policy header where appropriate.",
+          "cwe": "CWE-693",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-http"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "P6-open-tcp-port",
+      "findings": [
+        {
+          "fingerprint": "4f929b936018b38a19f0f42586e4ddc6",
+          "asset": "http://127.0.0.1:39097/",
+          "category": "open_tcp_port",
+          "title": "Open TCP Port 39097",
+          "severity": "info",
+          "confidence": "high",
+          "verification": "observed",
+          "status": "new",
+          "detector": "ishastra-tcp",
+          "detector_version": "3.5.0",
+          "location": "127.0.0.1:39097/tcp",
+          "evidence": "TCP connection to 127.0.0.1:39097 succeeded",
+          "description": "Port 39097 is open on 127.0.0.1.",
+          "remediation": "",
+          "cwe": "",
+          "cvss_score": "0.0",
+          "business_impact": "low",
+          "asset_criticality": "medium",
+          "risk_rating": "low",
+          "exploit_available": false,
+          "user_impact": "none",
+          "compliance_refs": [],
+          "remediation_status": "pending",
+          "discovered_date": "",
+          "reported_date": "",
+          "resolved_date": "",
+          "sources": [
+            "ishastra-tcp"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "N1-safe-no-reflection",
+      "findings": []
+    },
+    {
+      "case_id": "N1b-safe-has-csp",
+      "findings": []
+    },
+    {
+      "case_id": "N2-login-fixed-redirect",
+      "findings": []
+    },
+    {
+      "case_id": "N3-item-no-db-error",
+      "findings": []
+    },
+    {
+      "case_id": "N4-nuclei-catchall",
+      "findings": []
+    },
+    {
+      "case_id": "N5-native-git-catchall",
+      "findings": []
+    }
+  ],
+  "unmatched_findings": [],
+  "notes": [
+    "HTTP 200 from http://127.0.0.1:39097/",
+    "HTTP 200 from http://127.0.0.1:39097/search?q=term",
+    "HTTP 200 from http://127.0.0.1:39097/safe?q=hello",
+    "dynamic validation completed: 1 redirect behavior(s), 0 database error indicator(s)",
+    "dynamic validation completed: 0 redirect behavior(s), 1 database error indicator(s)",
+    "dynamic validation completed: 0 redirect behavior(s), 0 database error indicator(s)",
+    "dynamic validation completed: 0 redirect behavior(s), 0 database error indicator(s)"
+  ],
+  "threshold_assessment": {
+    "passed": true,
+    "failures": [],
+    "min_precision": 1.0,
+    "min_recall": 1.0,
+    "allow_unmeasured": true
+  }
+}

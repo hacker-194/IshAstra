@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: strix-api
+  name: ishastra-api
   labels:
-    app.kubernetes.io/name: strix
+    app.kubernetes.io/name: ishastra
     app.kubernetes.io/component: api
-    app.kubernetes.io/part-of: strix-platform
+    app.kubernetes.io/part-of: ishastra-platform
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: strix
+      app.kubernetes.io/name: ishastra
       app.kubernetes.io/component: api
   strategy:
     type: RollingUpdate
@@ -20,9 +20,9 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: strix
+        app.kubernetes.io/name: ishastra
         app.kubernetes.io/component: api
-        app.kubernetes.io/part-of: strix-platform
+        app.kubernetes.io/part-of: ishastra-platform
     spec:
       securityContext:
         runAsNonRoot: true
@@ -33,20 +33,20 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/your-org/strix:3.5.0
+          image: ghcr.io/your-org/ishastra:3.5.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
           env:
-            - name: STRIX_DB
-              value: /var/lib/strix/strix.db
-            - name: STRIX_SCOPE_FILE
-              value: /etc/strix/scope.json
+            - name: ISHASTRA_DB
+              value: /var/lib/ishastra/ishastra.db
+            - name: ISHASTRA_SCOPE_FILE
+              value: /etc/ishastra/scope.json
           envFrom:
             - secretRef:
-                name: strix-secrets
+                name: ishastra-secrets
           livenessProbe:
             httpGet:
               path: /api/health
@@ -74,17 +74,17 @@ spec:
                 - ALL
           volumeMounts:
             - name: data
-              mountPath: /var/lib/strix
+              mountPath: /var/lib/ishastra
             - name: config
-              mountPath: /etc/strix
+              mountPath: /etc/ishastra
               readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: strix-data-pvc
+            claimName: ishastra-data-pvc
         - name: config
           configMap:
-            name: strix-config
+            name: ishastra-config
             items:
               - key: scope.json
                 path: scope.json

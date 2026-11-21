@@ -1,0 +1,774 @@
+
+
+
+
+
+
+
+eventBus:
+
+  backend: "redis"
+
+
+  redis:
+    enabled: true
+
+    host: "ishastra-redis-master"
+    port: 6379
+    password: ""
+    db: 0
+
+    maxConnections: 50
+    timeout: 5000
+
+    consumerGroupPrefix: "ishastra"
+
+    streamMaxLength: 1000000
+    streamTrimStrategy: "MAXLEN"
+
+    ackTimeout: 300000
+
+    dlqEnabled: true
+    dlqMaxRetries: 3
+    dlqTtlDays: 30
+
+    healthCheckInterval: 30
+
+
+  nats:
+    enabled: false
+
+    servers:
+      - "nats://ishastra-nats:4222"
+
+    streamName: "ISHASTRA_EVENTS"
+    streamSubjects:
+      - "ishastra.>"
+    streamMaxBytes: 10737418240
+    streamMaxMsgs: 10000000
+    streamStorage: "file"
+    streamReplicas: 1
+
+    consumerDurablePrefix: "ishastra"
+    consumerAckWait: 300
+    consumerMaxDeliver: 3
+    consumerAckPolicy: "explicit"
+
+    dlqEnabled: true
+    dlqSubject: "ishastra.dlq"
+
+    tlsEnabled: false
+    tlsCertFile: ""
+    tlsKeyFile: ""
+    tlsCaFile: ""
+
+
+
+
+
+eventPublisher:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: "ishastra/event-publisher"
+    tag: "v3.5.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  env:
+    - name: EVENT_BUS_BACKEND
+      value: "redis"
+    - name: REDIS_HOST
+      value: "ishastra-redis-master"
+    - name: REDIS_PORT
+      value: "6379"
+    - name: LOG_LEVEL
+      value: "INFO"
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 30
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+
+
+
+
+eventConsumers:
+
+  assessmentHandler:
+    enabled: true
+    replicaCount: 1
+
+    image:
+      repository: "ishastra/assessment-handler"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: K8S_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: LOG_LEVEL
+        value: "INFO"
+      - name: HANDLER_MAX_CONCURRENT
+        value: "5"
+      - name: HANDLER_JOB_TTL_SECONDS
+        value: "86400"
+
+
+    jobTemplate:
+
+      image: "ishastra/assessment-worker:v3.5.0"
+
+      resources:
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 512Mi
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+
+      serviceAccountName: "ishastra-assessment-worker"
+
+      ttlSecondsAfterFinished: 86400
+
+      backoffLimit: 3
+
+      activeDeadlineSeconds: 7200
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8081
+      initialDelaySeconds: 15
+      periodSeconds: 30
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8081
+      initialDelaySeconds: 10
+      periodSeconds: 10
+
+
+  findingsProjection:
+    enabled: true
+    replicaCount: 1
+
+    image:
+      repository: "ishastra/findings-projection"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: POSTGRES_HOST
+        value: "ishastra-postgresql"
+      - name: POSTGRES_PORT
+        value: "5432"
+      - name: LOG_LEVEL
+        value: "INFO"
+
+    service:
+      type: ClusterIP
+      port: 8082
+
+
+  complianceProjection:
+    enabled: true
+    replicaCount: 1
+
+    image:
+      repository: "ishastra/compliance-projection"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: POSTGRES_HOST
+        value: "ishastra-postgresql"
+      - name: POSTGRES_PORT
+        value: "5432"
+      - name: LOG_LEVEL
+        value: "INFO"
+
+    service:
+      type: ClusterIP
+      port: 8083
+
+
+  historyProjection:
+    enabled: true
+    replicaCount: 1
+
+    image:
+      repository: "ishastra/history-projection"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: POSTGRES_HOST
+        value: "ishastra-postgresql"
+      - name: POSTGRES_PORT
+        value: "5432"
+      - name: LOG_LEVEL
+        value: "INFO"
+
+    service:
+      type: ClusterIP
+      port: 8084
+
+
+  metricsProjection:
+    enabled: true
+    replicaCount: 1
+
+    image:
+      repository: "ishastra/metrics-projection"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: LOG_LEVEL
+        value: "INFO"
+
+    service:
+      type: ClusterIP
+      port: 8085
+
+
+  webhookConsumer:
+    enabled: true
+    replicaCount: 2
+
+    image:
+      repository: "ishastra/webhook-consumer"
+      tag: "v3.5.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    env:
+      - name: EVENT_BUS_BACKEND
+        value: "redis"
+      - name: REDIS_HOST
+        value: "ishastra-redis-master"
+      - name: REDIS_PORT
+        value: "6379"
+      - name: POSTGRES_HOST
+        value: "ishastra-postgresql"
+      - name: POSTGRES_PORT
+        value: "5432"
+      - name: LOG_LEVEL
+        value: "INFO"
+      - name: WEBHOOK_MAX_CONCURRENT
+        value: "10"
+      - name: WEBHOOK_MAX_RETRIES
+        value: "5"
+      - name: WEBHOOK_TIMEOUT_SECONDS
+        value: "30"
+
+    service:
+      type: ClusterIP
+      port: 8086
+
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+
+
+
+
+schemaRegistry:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: "ishastra/schema-registry"
+    tag: "v3.5.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  env:
+    - name: REDIS_HOST
+      value: "ishastra-redis-master"
+    - name: REDIS_PORT
+      value: "6379"
+    - name: POSTGRES_HOST
+      value: "ishastra-postgresql"
+    - name: POSTGRES_PORT
+      value: "5432"
+    - name: LOG_LEVEL
+      value: "INFO"
+
+  service:
+    type: ClusterIP
+    port: 8087
+
+
+  storage:
+    backend: "postgres"
+
+
+
+
+
+
+monitoring:
+
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      namespace: monitoring
+      labels:
+        release: prometheus
+
+
+  grafana:
+    enabled: true
+    dashboards:
+      - name: ishastra-event-bus
+        title: "Ishastra Event Bus"
+      - name: ishastra-assessments
+        title: "Ishastra Assessments"
+      - name: ishastra-findings
+        title: "Ishastra Findings"
+      - name: ishastra-webhooks
+        title: "Ishastra Webhooks"
+
+
+  tracing:
+    enabled: true
+    jaeger:
+      agentHost: "jaeger-agent"
+      agentPort: 6831
+      samplerType: "const"
+      samplerParam: 1
+    zipkin:
+      endpoint: "http://zipkin:9411/api/v2/spans"
+
+
+  logging:
+    level: "INFO"
+    format: "json"
+    output: "stdout"
+
+
+
+
+
+security:
+
+  networkPolicy:
+    enabled: true
+
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                name: ishastra
+        ports:
+          - protocol: TCP
+            port: 6379
+          - protocol: TCP
+            port: 4222
+          - protocol: TCP
+            port: 8080
+          - protocol: TCP
+            port: 8081
+          - protocol: TCP
+            port: 8082
+          - protocol: TCP
+            port: 8083
+          - protocol: TCP
+            port: 8084
+          - protocol: TCP
+            port: 8085
+          - protocol: TCP
+            port: 8086
+          - protocol: TCP
+            port: 8087
+
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+
+
+
+
+
+redis:
+
+
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: "ishastra-redis"
+    existingSecretPasswordKey: "redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+
+
+
+
+nats:
+  enabled: false
+
+  jetstream:
+    enabled: true
+
+    memStorage: 1Gi
+    fileStorage: 10Gi
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+
+
+
+
+postgresql:
+
+
+  auth:
+    enabled: true
+    existingSecret: "ishastra-postgresql"
+    existingSecretPasswordKey: "postgres-password"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+
+
+
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: events.ishastra.example.com
+      paths:
+        - path: /publisher
+          pathType: Prefix
+          service: event-publisher
+          port: 8080
+        - path: /schema
+          pathType: Prefix
+          service: schema-registry
+          port: 8087
+        - path: /webhooks
+          pathType: Prefix
+          service: webhook-consumer
+          port: 8086
+        - path: /findings
+          pathType: Prefix
+          service: findings-projection
+          port: 8082
+        - path: /compliance
+          pathType: Prefix
+          service: compliance-projection
+          port: 8083
+        - path: /history
+          pathType: Prefix
+          service: history-projection
+          port: 8084
+        - path: /metrics
+          pathType: Prefix
+          service: metrics-projection
+          port: 8085
+  tls:
+    - secretName: ishastra-events-tls
+      hosts:
+        - events.ishastra.example.com
+
+
+
+
+
+serviceAccounts:
+
+  assessmentWorker:
+    create: true
+    name: "ishastra-assessment-worker"
+    annotations: {}
+
+  eventBus:
+    create: true
+    name: "ishastra-event-bus"
+    annotations: {}
+
+rbac:
+  create: true
+
+  assessmentWorkerRole:
+    rules:
+      - apiGroups: ["batch"]
+        resources: ["jobs"]
+        verbs: ["create", "get", "list", "watch", "delete", "patch"]
+      - apiGroups: [""]
+        resources: ["pods", "pods/log"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["configmaps", "secrets"]
+        verbs: ["get", "list"]
+
+  eventBusRole:
+    rules:
+      - apiGroups: [""]
+        resources: ["configmaps", "secrets"]
+        verbs: ["get", "list", "watch"]
+
+
+
+
+
+configMaps:
+  eventSchemas:
+    create: true
+
+
+
+
+
+
+
+secrets:
+
+  redis:
+    existingSecret: "ishastra-redis"
+    passwordKey: "redis-password"
+
+  postgresql:
+    existingSecret: "ishastra-postgresql"
+    passwordKey: "postgres-password"
+
+  webhooks: {}
+
+  tls:
+    existingSecret: "ishastra-events-tls"
+
+
+
+
+
+affinity:
+
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - ishastra-event-bus
+          topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+
+
+
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+  singleReplica:
+    minAvailable: 0
+
+
+
+
+
+backup:
+
+  velero:
+    enabled: true
+
+    schedules:
+      - name: "event-bus-daily"
+        schedule: "0 2 * * *"
+        template:
+          includedNamespaces:
+            - ishastra
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ishastra-event-bus

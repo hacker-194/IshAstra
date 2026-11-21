@@ -1,0 +1,15 @@
+
+
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runtimeclass
+handler: kata
+scheduling:
+  podOverhead:
+    podFixed:
+      memory: "200Mi"
+      cpu: "500m"

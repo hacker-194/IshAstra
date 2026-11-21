@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# bootstrap-free.sh — One-shot bootstrap for Strix on $0/month free tier
-#
-# Prerequisites:
-#   - Oracle Cloud account (Always Free tier eligible)
-#   - Domain name (for Cloudflare DNS)
-#   - GitHub account (for GHCR + Actions)
-#   - Local machine: kubectl, helm, k0sctl, cloudflared, kubeseal
-#
-# Run: chmod +x bootstrap-free.sh && ./bootstrap-free.sh
+
+
+
+
+
+
+
+
+
 
 set -euo pipefail
 
-# ========== CONFIGURATION ==========
-CLUSTER_NAME="strix-cluster"
-NAMESPACE="strix"
+
+CLUSTER_NAME="ishastra-cluster"
+NAMESPACE="ishastra"
 DOMAIN="yourdomain.com"
 GHCR_ORG="your-org"
 ORACLE_KEY_PATH="~/.ssh/oracle_key"
 CP1_IP=""
 CP2_IP=""
-# ===================================
 
-echo "🚀 Strix Free Tier Bootstrap"
+
+echo "🚀 Ishastra Free Tier Bootstrap"
 echo "=============================="
 
 for tool in kubectl helm k0sctl cloudflared kubeseal; do
@@ -36,9 +36,10 @@ if [[ -z "$CP1_IP" || -z "$CP2_IP" ]]; then
   echo ""
   echo "📋 MANUAL STEP: Create 2x Oracle Cloud Always Free VMs"
   echo "   1. Go to cloud.oracle.com → Compute → Instances"
-  echo "   2. Create 2x VM.Standard.A1.Flex (4 OCPU, 24GB RAM)"
+  echo "   2. Create 2x VM.Standard.A1.Flex (1 OCPU, 6GB each: the Always Free"
+  echo "      Arm allowance is 2 OCPU / 12GB TOTAL, halved by Oracle in June 2026)"
   echo "   3. Ubuntu 22.04, SSH key, open ports: 22, 6443, 80, 443"
-  echo "   4. Name: strix-cp1, strix-cp2"
+  echo "   4. Name: ishastra-cp1, ishastra-cp2"
   echo "   5. Note public IPs, then edit this script with CP1_IP and CP2_IP"
   echo ""
   read -p "Enter CP1 public IP: " CP1_IP
@@ -99,9 +100,9 @@ k0sctl apply --config deploy/k0sctl.yaml
 
 echo ""
 echo "📥 Fetching kubeconfig..."
-k0sctl kubeconfig --config deploy/k0sctl.yaml > kubeconfig-strix
-export KUBECONFIG=$PWD/kubeconfig-strix
-echo "✅ Kubeconfig saved to kubeconfig-strix"
+k0sctl kubeconfig --config deploy/k0sctl.yaml > kubeconfig-ishastra
+export KUBECONFIG=$PWD/kubeconfig-ishastra
+echo "✅ Kubeconfig saved to kubeconfig-ishastra"
 
 echo ""
 echo "🔐 Installing SealedSecrets + cert-manager..."
@@ -167,8 +168,8 @@ kubectl apply -f sealedsecrets.yaml
 echo ""
 echo "☁️  MANUAL: Set up Cloudflare Tunnel"
 echo "   1. cloudflared tunnel login"
-echo "   2. cloudflared tunnel create strix"
-echo "   3. cloudflared tunnel route dns strix api.$DOMAIN"
+echo "   2. cloudflared tunnel create ishastra"
+echo "   3. cloudflared tunnel route dns ishastra api.$DOMAIN"
 echo "   4. kubectl create secret generic cloudflare-tunnel-credentials \\"
 echo "        --from-file=credentials.json=/path/to/<TUNNEL_UUID>.json \\"
 echo "        -n $NAMESPACE"
@@ -183,7 +184,7 @@ echo ""
 echo "📄 Creating scope document..."
 cat > /tmp/scope.json <<EOF
 {
-  "program": "Strix Production",
+  "program": "Ishastra Production",
   "authorized_by": "Security Team",
   "authorization_ref": "AUTH-001",
   "include": ["$DOMAIN", "*.$DOMAIN"],
@@ -195,19 +196,19 @@ cat > /tmp/scope.json <<EOF
 EOF
 
 echo ""
-echo "🚀 Deploying Strix..."
+echo "🚀 Deploying Ishastra..."
 GREEN_SHA=$(git rev-parse --short HEAD)
-helm upgrade --install strix ./deploy/helm/strix -n $NAMESPACE --create-namespace \
-  -f ./deploy/helm/strix/values-free.yaml \
+helm upgrade --install ishastra ./deploy/helm/ishastra -n $NAMESPACE --create-namespace \
+  -f ./deploy/helm/ishastra/values-free.yaml \
   --set secrets.createSecrets=false \
-  --set global.image.repository=ghcr.io/$GHCR_ORG/strix \
+  --set global.image.repository=ghcr.io/$GHCR_ORG/ishastra \
   --set global.image.tag=sha-$GREEN_SHA \
   --set-file configMap.scopeJson=/tmp/scope.json \
   --wait --timeout 10m
 
 echo ""
 echo "✅ Verifying deployment..."
-kubectl rollout status deployment/strix-strix-api -n $NAMESPACE --timeout=5m
+kubectl rollout status deployment/ishastra-ishastra-api -n $NAMESPACE --timeout=5m
 kubectl run smoke-test --rm -i --restart=Never \
   --image=curlimages/curl:8.7.1 \
   -- curl -sf https://api.$DOMAIN/api/health
@@ -216,7 +217,7 @@ echo ""
 echo "🎉 Bootstrap complete!"
 echo "   API: https://api.$DOMAIN"
 echo "   Grafana: https://grafana.$DOMAIN (add DNS route)"
-echo "   Kubeconfig: $PWD/kubeconfig-strix"
+echo "   Kubeconfig: $PWD/kubeconfig-ishastra"
 echo ""
 echo "Next steps:"
 echo "  1. Push to GitHub → Actions will build & publish to GHCR"

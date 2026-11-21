@@ -1,0 +1,22 @@
+{{- if and .Values.redis.enabled (eq .Values.redis.architecture "replication") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ishastra.fullname" . }}-redis-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-headless
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: master
+{{- end }}

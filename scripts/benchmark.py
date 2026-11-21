@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Benchmark runner for Strix load/stress testing.
+"""Benchmark runner for Ishastra load/stress testing.
 
 This script wraps k6 to run load tests and generates JSON output for CI integration.
 
@@ -39,7 +38,6 @@ def install_k6() -> bool:
     """Attempt to install k6 on Linux."""
     print("k6 not found. Attempting to install...")
     try:
-        # Try apt-get (Debian/Ubuntu)
         subprocess.run(["sudo", "apt-get", "update"], check=False, capture_output=True)
         subprocess.run(["sudo", "apt-get", "install", "-y", "k6"], check=True)
         return True
@@ -47,7 +45,6 @@ def install_k6() -> bool:
         pass
 
     try:
-        # Try snap
         subprocess.run(["sudo", "snap", "install", "k6"], check=True)
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -71,7 +68,7 @@ def run_k6_scenario(
     test_env.update(
         {
             "BASE_URL": base_url,
-            "STRIX_API_KEY": api_key,
+            "ISHASTRA_API_KEY": api_key,
             "TENANT_ID": tenant_id,
             "K6_SCENARIO": scenario,
         }
@@ -79,7 +76,6 @@ def run_k6_scenario(
     if env:
         test_env.update(env)
 
-    # Build k6 command
     cmd = [
         "k6",
         "run",
@@ -102,7 +98,7 @@ def run_k6_scenario(
             env=test_env,
             capture_output=True,
             text=True,
-            timeout=7200,  # 2 hours max (for soak test)
+            timeout=7200,
         )
 
         stdout = result.stdout
@@ -113,10 +109,8 @@ def run_k6_scenario(
             print(f"STDOUT:\n{stdout}")
             print(f"STDERR:\n{stderr}")
 
-        # Try to read the JSON output
         if output_file.exists():
             with open(output_file) as f:
-                # k6 outputs JSON lines, we need the last complete object
                 lines = f.readlines()
                 for line in reversed(lines):
                     line = line.strip()
@@ -126,7 +120,6 @@ def run_k6_scenario(
                         except json.JSONDecodeError:
                             continue
 
-        # Fallback: parse from summary export
         summary_file = output_file.with_suffix(".summary.json")
         if summary_file.exists():
             with open(summary_file) as f:
@@ -164,7 +157,7 @@ def parse_k6_summary(summary_file: Path) -> dict[str, Any]:
 def generate_report(results: dict[str, Any], output_file: Path) -> None:
     """Generate a human-readable report from results."""
     report_lines = [
-        "# Strix Benchmark Results",
+        "# Ishastra Benchmark Results",
         f"Generated: {results.get('timestamp', 'N/A')}",
         f"Base URL: {results.get('base_url', 'N/A')}",
         "",
@@ -189,7 +182,6 @@ def generate_report(results: dict[str, Any], output_file: Path) -> None:
 
         report_lines.append("")
 
-    # Overall summary
     overall = results.get("overall", {})
     report_lines.extend(
         [
@@ -204,7 +196,6 @@ def generate_report(results: dict[str, Any], output_file: Path) -> None:
         ]
     )
 
-    # Threshold assessment
     report_lines.append("## Threshold Assessment")
     report_lines.append("")
 
@@ -241,19 +232,17 @@ def generate_report(results: dict[str, Any], output_file: Path) -> None:
 
     report_content = "\n".join(report_lines)
 
-    # Write markdown report
     report_file = output_file.with_suffix(".md")
     report_file.write_text(report_content)
     print(f"\nReport written to: {report_file}")
 
-    # Also print to stdout
     print("\n" + "=" * 60)
     print(report_content)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run Strix load/stress benchmarks using k6",
+        description="Run Ishastra load/stress benchmarks using k6",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Scenarios:
@@ -265,12 +254,12 @@ Scenarios:
 
 Environment variables:
   BASE_URL       - Target API URL (default: http://localhost:8000)
-  STRIX_API_KEY  - API key for authenticated endpoints
+  ISHASTRA_API_KEY  - API key for authenticated endpoints
   TENANT_ID      - Tenant ID for multi-tenant testing
 
 Examples:
   python scripts/benchmark.py --scenario smoke
-  python scripts/benchmark.py --scenario load --base-url https://strix.example.com
+  python scripts/benchmark.py --scenario load --base-url https://ishastra.example.com
   python scripts/benchmark.py --all --output benchmark-results.json
         """,
     )
@@ -284,11 +273,11 @@ Examples:
     parser.add_argument(
         "--base-url",
         default=os.environ.get("BASE_URL", "http://localhost:8000"),
-        help="Base URL of the Strix API",
+        help="Base URL of the Ishastra API",
     )
     parser.add_argument(
         "--api-key",
-        default=os.environ.get("STRIX_API_KEY", "test-admin-key-123456"),
+        default=os.environ.get("ISHASTRA_API_KEY", "test-admin-key-123456"),
         help="API key for authenticated requests",
     )
     parser.add_argument(
@@ -321,7 +310,6 @@ Examples:
 
     args = parser.parse_args()
 
-    # Check k6 availability
     if not check_k6_available():
         if args.install_k6:
             if not install_k6():
@@ -334,16 +322,13 @@ Examples:
             print("Or run with --install-k6 to attempt automatic installation")
             return 1
 
-    # Verify k6 script exists
     k6_script = args.k6_script.resolve()
     if not k6_script.exists():
         print(f"ERROR: k6 script not found: {k6_script}")
         return 1
 
-    # Determine scenarios to run
     scenarios = list(SCENARIOS.keys()) if args.scenario == "all" else [args.scenario]
 
-    # Run scenarios
     all_results = {
         "timestamp": __import__("datetime").datetime.now().isoformat(),
         "base_url": args.base_url,
@@ -373,21 +358,17 @@ Examples:
 
             all_results["scenarios"][scenario] = result
 
-            # Aggregate overall metrics
             if "error" not in result:
                 all_results["overall"]["total_requests"] += result.get("iterations", 0)
 
-        # Save combined results
         with open(args.output, "w") as f:
             json.dump(all_results, f, indent=2)
 
         print(f"\nResults saved to: {args.output}")
 
-        # Generate report
         if not args.no_report:
             generate_report(all_results, args.output)
 
-    # Determine exit code
     failed = any("error" in r or r.get("exit_code", 1) != 0 for r in all_results["scenarios"].values())
 
     return 1 if failed else 0

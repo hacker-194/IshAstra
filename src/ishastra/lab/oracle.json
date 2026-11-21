@@ -1,0 +1,132 @@
+{
+  "oracle_version": "1.1.0",
+  "target": "ishastra.lab.target (loopback-only deliberately vulnerable lab)",
+  "description": "Every lab route mapped to the finding an honest scanner should or must not produce. Positive cases pin the expected category, detector and verification level; negative cases are findings that would be false alarms. The verification bounds are part of the contract: a scanner that claims 'confirmed' for the reflection route, or 'clean' for the exposure route, fails the oracle.",
+  "notes": [
+    "P5 uses prefix matching on purpose: every default lab route is served without Content-Security-Policy, so per-route instances are instances of one condition.",
+    "N4 is a catch-all: any nuclei template matching the lab other than the git-config bait is a false alarm for this profile.",
+    "Negative cases are evaluated before positive ones, and the most specific case wins, so a generic catch-all can never swallow a specific expectation."
+  ],
+  "cases": [
+    {
+      "id": "P1-reflection-indicator",
+      "path": "/search",
+      "match": "exact",
+      "detector": "ishastra-http",
+      "category": "xss",
+      "expect": true,
+      "allowed_verification": ["unverified"],
+      "rationale": "The marker is reflected verbatim into HTML, but execution context was never tested. The finding must stay info/unverified; claiming observed or confirmed here would be dishonest."
+    },
+    {
+      "id": "P2-open-redirect-observed",
+      "path": "/redirect",
+      "match": "exact",
+      "detector": "ishastra-dynamic-validation",
+      "category": "open_redirect",
+      "expect": true,
+      "allowed_verification": ["observed"],
+      "rationale": "The client fully controls the Location destination, proven behaviorally by a reserved .invalid canary that is never followed."
+    },
+    {
+      "id": "P3-sqli-error-inferred",
+      "path": "/sqlerror",
+      "match": "exact",
+      "detector": "ishastra-dynamic-validation",
+      "category": "sqli_error_indicator",
+      "expect": true,
+      "allowed_verification": ["inferred"],
+      "rationale": "A quote mutation yields a SQLite error signature: evidence of an injection path, not proof of exploitability, so 'inferred' and nothing stronger."
+    },
+    {
+      "id": "P4-git-config-exposure",
+      "path": "/.git/config",
+      "match": "exact",
+      "detector": ["nuclei", "ishastra-git-exposure"],
+      "category": ["git-config", "git_config_exposed"],
+      "expect": true,
+      "allowed_verification": ["observed"],
+      "rationale": "An exposed git config must be reported whether the native detector or the official nuclei template found it: the expectation is about the exposure, not the tool. When nuclei is installed both may fire, and either result satisfies the case."
+    },
+    {
+      "id": "P5-missing-csp",
+      "path": "/",
+      "match": "prefix",
+      "detector": "ishastra-http",
+      "category": "missing_csp",
+      "expect": true,
+      "allowed_verification": ["observed"],
+      "rationale": "Default lab routes send no Content-Security-Policy; each instance on a default route is an observed hardening gap. Hardened routes (/safe, /item, /public) must stay clean."
+    },
+    {
+      "id": "P6-open-tcp-port",
+      "path": "",
+      "match": "any",
+      "detector": ["nmap", "ishastra-tcp"],
+      "category": "open_tcp_port",
+      "expect": true,
+      "allowed_verification": ["observed"],
+      "rationale": "The lab's listening port must be observed through the production port pipeline: by nmap when it is installed, and by the native TCP connect scan when it is not."
+    },
+    {
+      "id": "N1-safe-no-reflection",
+      "path": "/safe",
+      "match": "exact",
+      "detector": "ishastra-http",
+      "category": "xss",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "The safe route accepts the parameter and echoes nothing; any reflection finding is a false positive."
+    },
+    {
+      "id": "N1b-safe-has-csp",
+      "path": "/safe",
+      "match": "exact",
+      "detector": "ishastra-http",
+      "category": "missing_csp",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "The safe route sends a Content-Security-Policy header; flagging it would mean headers were not actually read."
+    },
+    {
+      "id": "N2-login-fixed-redirect",
+      "path": "/login",
+      "match": "exact",
+      "detector": "ishastra-dynamic-validation",
+      "category": "open_redirect",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "The login route redirects to a fixed same-origin path and ignores the next parameter; the canary must not be reflected into Location."
+    },
+    {
+      "id": "N3-item-no-db-error",
+      "path": "/item",
+      "match": "exact",
+      "detector": "ishastra-dynamic-validation",
+      "category": "sqli_error_indicator",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "The catalog route is static text with no database behind it; a quote mutation changes nothing and no error signature may appear."
+    },
+    {
+      "id": "N4-nuclei-catchall",
+      "path": "",
+      "match": "any",
+      "detector": "nuclei",
+      "category": "*",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "With the configs exposure subset, the only template that may fire is git-config. Anything else matching the lab is a false alarm for this profile."
+    },
+    {
+      "id": "N5-native-git-catchall",
+      "path": "",
+      "match": "any",
+      "detector": "ishastra-git-exposure",
+      "category": "*",
+      "expect": false,
+      "allowed_verification": ["*"],
+      "rationale": "The native git detector must fire on exactly one thing: the served repository bait at /.git/config. A hit anywhere else (a 200 HTML catch-all, a prose page) is a false positive; the specific P4 case absorbs the real bait, so anything landing here is an over-claim."
+    }
+  ]
+}

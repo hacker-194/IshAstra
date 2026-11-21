@@ -2,14 +2,14 @@
 
 # Development Guide
 
-Complete guide for contributing to Strix.
+Complete guide for contributing to Ishastra.
 
 ## Quick Start
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/your-org/strix.git
-cd strix
+git clone https://github.com/your-org/ishastra.git
+cd ishastra
 
 # 2. Start dev environment
 docker compose -f docker-compose.dev.yml up -d
@@ -39,17 +39,17 @@ make run-worker
 ## Project Structure
 
 ```
-strix/
+ishastra/
 ├── src/
-│   ├── strix/
+│   ├── ishastra/
 │   │   ├── api/           # FastAPI REST API
-│   │   ├── core/          # Scope Gate, Strix Proof, auth
+│   │   ├── core/          # Scope Gate, Ishastra Proof, auth
 │   │   ├── workers/       # Celery workers
 │   │   ├── adapters/      # Built-in & external adapters
 │   │   ├── models/        # SQLAlchemy + Pydantic
 │   │   ├── db/            # Database, migrations, RLS
 │   │   └── utils/         # Shared utilities
-│   └── strix-rust/        # Rust core (Scope Gate, crypto)
+│   └── ishastra-rust/        # Rust core (Scope Gate, crypto)
 ├── kubernetes/            # k0s, Helm, manifests
 ├── docker/                # Dockerfiles
 ├── docs/                  # This documentation
@@ -133,8 +133,8 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: strix
-      POSTGRES_USER: strix
+      POSTGRES_DB: ishastra
+      POSTGRES_USER: ishastra
       POSTGRES_PASSWORD: dev
     ports:
       - "5432:5432"
@@ -153,9 +153,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://strix:dev@postgres/strix
+      DATABASE_URL: postgresql://ishastra:dev@postgres/ishastra
       REDIS_URL: redis://redis:6379
-      STRIX_ENV: development
+      ISHASTRA_ENV: development
     volumes:
       - ./src:/app/src
     depends_on:
@@ -167,9 +167,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.worker.dev
     environment:
-      DATABASE_URL: postgresql://strix:dev@postgres/strix
+      DATABASE_URL: postgresql://ishastra:dev@postgres/ishastra
       REDIS_URL: redis://redis:6379
-      STRIX_ENV: development
+      ISHASTRA_ENV: development
     volumes:
       - ./src:/app/src
     depends_on:
@@ -197,16 +197,18 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Install Rust core
-cd src/strix-rust && cargo build --release && cd ../..
+cd src/ishastra-rust && cargo build --release && cd ../..
 
 # Run migrations
 alembic upgrade head
 
 # Run API
-uvicorn strix.api.main:app --reload --port 8000
+uvicorn ishastra.api.main:app --reload --port 8000
 
 # Run worker (separate terminal)
-celery -A strix.workers.celery_app worker -l info
+```bash
+# Ishastra worker uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
+ishastra worker --worker-count 3
 ```
 
 ## Database Migrations
@@ -230,8 +232,8 @@ alembic history
 ### 1. Create Adapter Module
 
 ```python
-# src/strix/adapters/my_adapter/__init__.py
-from strix.adapters.base import BaseAdapter, AdapterResult, Finding
+# src/ishastra/adapters/my_adapter/__init__.py
+from ishastra.adapters.base import BaseAdapter, AdapterResult, Finding
 
 class MyAdapter(BaseAdapter):
     name = "my_adapter"
@@ -248,8 +250,8 @@ class MyAdapter(BaseAdapter):
 ### 2. Register Adapter
 
 ```python
-# src/strix/adapters/registry.py
-from strix.adapters.my_adapter import MyAdapter
+# src/ishastra/adapters/registry.py
+from ishastra.adapters.my_adapter import MyAdapter
 
 ADAPTERS = {
     "http_probe": HTTPProbeAdapter,
@@ -263,7 +265,7 @@ ADAPTERS = {
 ```python
 # tests/unit/adapters/test_my_adapter.py
 import pytest
-from strix.adapters.my_adapter import MyAdapter
+from ishastra.adapters.my_adapter import MyAdapter
 
 @pytest.mark.asyncio
 async def test_my_adapter():
@@ -280,10 +282,10 @@ Add to [Adapters Reference](../adapters/external.md) and [Custom Adapter SDK](..
 
 ```bash
 # Run single adapter against target
-strix adapter run my_adapter --target https://example.com --options '{}'
+ishastra adapter run my_adapter --target https://example.com --options '{}'
 
 # Run with scope validation
-strix adapter run my_adapter --target https://example.com --scope scope_dev_001
+ishastra adapter run my_adapter --target https://example.com --scope scope_dev_001
 ```
 
 ## Debugging
@@ -292,7 +294,7 @@ strix adapter run my_adapter --target https://example.com --scope scope_dev_001
 
 ```bash
 # Enable debug logging
-export STRIX_LOG_LEVEL=DEBUG
+export ISHASTRA_LOG_LEVEL=DEBUG
 
 # Attach debugger (VS Code)
 # launch.json:
@@ -308,14 +310,19 @@ export STRIX_LOG_LEVEL=DEBUG
 
 ```bash
 # Run worker with debug
-celery -A strix.workers.celery_app worker -l debug --pool=solo
+# Run worker with debug (uses Redis Streams queue when ISHASTRA_QUEUE_MODE=redis-streams)
+# Ishastra worker now uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
+ishastra worker --worker-count 3
+# or with celery pool (Redis required):
+# celery -A ishastra.workers.celery_app worker -l info
+```
 ```
 
 ### Database Debugging
 
 ```bash
 # Connect to PostgreSQL
-docker compose exec postgres psql -U strix -d strix
+docker compose exec postgres psql -U ishastra -d ishastra
 
 # Common queries
 SELECT * FROM assessments ORDER BY created_at DESC LIMIT 10;

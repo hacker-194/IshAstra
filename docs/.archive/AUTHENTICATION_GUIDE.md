@@ -1,8 +1,8 @@
-# Strix API Authentication Guide
+# Ishastra API Authentication Guide
 
 ## Overview
 
-Strix uses **API Key authentication** with tiered access control and a
+Ishastra uses **API Key authentication** with tiered access control and a
 read/write scope. All authenticated endpoints require a valid API key passed in
 the `Authorization` header as a Bearer token.
 
@@ -13,7 +13,7 @@ the `Authorization` header as a Bearer token.
 If you're an administrator, create a key for a tenant:
 
 ```bash
-curl -X POST https://strix.example.com/api/keys/create \
+curl -X POST https://ishastra.example.com/api/keys/create \
   -H "Authorization: Bearer sk_admin_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -30,7 +30,7 @@ curl -X POST https://strix.example.com/api/keys/create \
 
 ```bash
 curl -H "Authorization: Bearer sk_live_abc123..." \
-  https://strix.example.com/api/overview
+  https://ishastra.example.com/api/overview
 ```
 
 ---
@@ -69,7 +69,7 @@ risk-exception decisions. Per-project and per-endpoint scopes do not exist.
 Tenant admins can create members and receive each member's key once:
 
 ```bash
-curl -X POST https://strix.example.com/api/users \
+curl -X POST https://ishastra.example.com/api/users \
   -H "Authorization: Bearer <tenant-admin-key>" \
   -H "Content-Type: application/json" \
   -d '{"display_name": "Alice", "role": "analyst", "ttl_days": 365}'
@@ -208,7 +208,7 @@ Each tenant has an **engagement policy** created by administrators:
 
 ### Global Mode (Single-tenant)
 
-Single scope document at `STRIX_SCOPE_FILE` applies to all tenants.
+Single scope document at `ISHASTRA_SCOPE_FILE` applies to all tenants.
 
 ---
 
@@ -277,7 +277,7 @@ For assessing authenticated endpoints, provide auth config in the assessment req
 ```
 
 **Security Notes:**
-- Credentials are encrypted at rest using `STRIX_ENCRYPTION_KEY`
+- Credentials are encrypted at rest using `ISHASTRA_ENCRYPTION_KEY`
 - `principal_id` uniquely identifies this auth config (auto-generated if omitted)
 - Only the assessment worker can decrypt and use the credentials
 
@@ -326,7 +326,7 @@ Every response includes:
 ## Best Practices
 
 ### 1. Store Keys Securely
-- Use environment variables: `export STRIX_API_KEY=sk_live_...`
+- Use environment variables: `export ISHASTRA_API_KEY=sk_live_...`
 - Never commit keys to version control
 - Follow a key-specific rotation policy; changing audit or encryption keys
   without the required migration can invalidate audit verification or make
@@ -369,7 +369,7 @@ tier changes rate limits only.
 ```bash
 # Check last_used_at to detect unused keys
 curl -H "Authorization: Bearer $ADMIN_KEY" \
-  https://strix.example.com/api/keys/status
+  https://ishastra.example.com/api/keys/status
 ```
 
 ---
@@ -378,36 +378,36 @@ curl -H "Authorization: Bearer $ADMIN_KEY" \
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `STRIX_API_KEY` | Admin key for bootstrap | Yes (prod) |
-| `STRIX_ENCRYPTION_KEY` | Base64 32-byte key for AES-GCM field encryption of stored auth configs and webhook URLs | Required in production |
-| `STRIX_SCOPE_FILE` | Path to global scope document | Global mode only |
+| `ISHASTRA_API_KEY` | Admin key for bootstrap | Yes (prod) |
+| `ISHASTRA_ENCRYPTION_KEY` | Base64 32-byte key for AES-GCM field encryption of stored auth configs and webhook URLs | Required in production |
+| `ISHASTRA_SCOPE_FILE` | Path to global scope document | Global mode only |
 
 ---
 
 ## Local Keycloak (OIDC)
 
-The compose profile imports a development-only Strix realm and OIDC client.
+The compose profile imports a development-only Ishastra realm and OIDC client.
 Start it with the API:
 
 ```bash
-STRIX_OIDC_ISSUER=http://keycloak.localhost:8180/realms/strix \
-STRIX_OIDC_CLIENT_ID=strix-local \
-STRIX_OIDC_CLIENT_SECRET=strix-local-dev-secret \
-STRIX_OIDC_REDIRECT_URI=http://localhost:8000/api/auth/oidc/callback \
+ISHASTRA_OIDC_ISSUER=http://keycloak.localhost:8180/realms/ishastra \
+ISHASTRA_OIDC_CLIENT_ID=ishastra-local \
+ISHASTRA_OIDC_CLIENT_SECRET=ishastra-local-dev-secret \
+ISHASTRA_OIDC_REDIRECT_URI=http://localhost:8000/api/auth/oidc/callback \
   docker compose --profile sso up -d keycloak scope-gate
-curl -fsS http://localhost:8180/realms/strix/.well-known/openid-configuration
+curl -fsS http://localhost:8180/realms/ishastra/.well-known/openid-configuration
 ```
 
 Open `http://localhost:8000/api/auth/oidc/login`. The test account is
-`strix-local-user` / `local-only-change-me`; the Keycloak admin password is
+`ishastra-local-user` / `local-only-change-me`; the Keycloak admin password is
 `local-only-change-me`. These defaults are for local development only. Do not
 reuse them outside a disposable environment. The API exchanges the authorization
 code using PKCE and validates the ID token against Keycloak's JWKS.
 
 The realm uses `keycloak.localhost`, which resolves to loopback in browsers and
-to the Keycloak container on the Compose network. Override `STRIX_OIDC_*` in the
+to the Keycloak container on the Compose network. Override `ISHASTRA_OIDC_*` in the
 environment if the API is exposed at another URL. Existing SAML configuration
-is independent and is set through the `STRIX_SAML_*` variables below.
+is independent and is set through the `ISHASTRA_SAML_*` variables below.
 
 ---
 
@@ -428,7 +428,7 @@ is independent and is set through the `STRIX_SAML_*` variables below.
 - Batch requests where possible
 
 ### "Authentication encryption key not configured"
-- Set `STRIX_ENCRYPTION_KEY` (32 random bytes, base64 encoded)
+- Set `ISHASTRA_ENCRYPTION_KEY` (32 random bytes, base64 encoded)
 - Required for per-assessment auth configs
 
 ---
@@ -438,5 +438,5 @@ is independent and is set through the `STRIX_SAML_*` variables below.
 If upgrading from a version without tiered keys:
 
 1. All existing keys are treated as `enterprise` tier
-2. Run `strix admin migrate-keys` to assign explicit tiers
+2. Run `ishastra admin migrate-keys` to assign explicit tiers
 3. Update any hardcoded tier assumptions in client code

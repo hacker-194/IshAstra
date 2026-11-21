@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Run E2E tests locally against docker-compose stack.
 
@@ -47,7 +46,7 @@ def wait_for_service(url: str, timeout: int = 120, interval: int = 5) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Strix E2E tests locally")
+    parser = argparse.ArgumentParser(description="Run Ishastra E2E tests locally")
     parser.add_argument(
         "--compose-file",
         default="docker-compose.yml",
@@ -91,7 +90,6 @@ def main():
         print(f"error: scope file not found: {scope_file}", file=sys.stderr)
         return 1
 
-    # Generate secrets for local dev
     print("Generating local development secrets...")
     result = run_cmd(
         [
@@ -108,7 +106,6 @@ def main():
         print(f"error generating secrets: {result.stderr}", file=sys.stderr)
         return 1
 
-    # Source the env file
     env_file = project_root / ".env.secrets" / ".env.secrets"
     if env_file.exists():
         with open(env_file) as f:
@@ -118,7 +115,6 @@ def main():
                     key, value = line.split("=", 1)
                     os.environ[key] = value.strip('"')
 
-    # Start docker-compose
     if not args.no_start:
         print("Starting docker-compose stack...")
         result = run_cmd(["docker-compose", "-f", str(compose_file), "up", "-d", "--build"], cwd=project_root)
@@ -126,7 +122,6 @@ def main():
             print(f"error starting docker-compose: {result.stderr}", file=sys.stderr)
             return 1
 
-        # Wait for services
         print("Waiting for services to be healthy...")
         services = [
             (f"{args.base_url}/api/health", "ScopeGate API"),
@@ -143,11 +138,9 @@ def main():
                 return 1
             print(f"  ✓ {name} is healthy")
 
-    # Set required environment variables for E2E tests
-    os.environ["STRIX_E2E_BASE_URL"] = args.base_url
-    os.environ["STRIX_SCOPE_FILE"] = str(scope_file)
+    os.environ["ISHASTRA_E2E_BASE_URL"] = args.base_url
+    os.environ["ISHASTRA_SCOPE_FILE"] = str(scope_file)
 
-    # Run E2E tests
     print(f"\nRunning E2E tests from {args.test_path}...")
     result = run_cmd(
         [
@@ -162,7 +155,6 @@ def main():
         cwd=project_root,
     )
 
-    # Stop docker-compose
     if not args.no_stop:
         print("\nStopping docker-compose stack...")
         run_cmd(["docker-compose", "-f", str(compose_file), "down", "-v"], cwd=project_root)

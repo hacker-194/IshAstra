@@ -2,7 +2,7 @@
 
 # External Tool Adapters
 
-Strix wraps industry-standard security tools with Scope Gate enforcement.
+Ishastra wraps industry-standard security tools with Scope Gate enforcement.
 
 ## Overview
 
@@ -496,7 +496,7 @@ class NiktoAdapter(BaseAdapter):
 ### Via API
 
 ```bash
-curl -X POST https://api.strix.dev/api/v1/assessments \
+curl -X POST https://api.ishastra.dev/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -510,10 +510,10 @@ curl -X POST https://api.strix.dev/api/v1/assessments \
 
 ```bash
 # Run single external adapter
-strix adapter run nuclei --target https://example.com --scope scope.json
+ishastra adapter run nuclei --target https://example.com --scope scope.json
 
 # Run all external
-strix adapter run-external --target https://example.com --scope scope.json
+ishastra adapter run-external --target https://example.com --scope scope.json
 ```
 
 ---
@@ -523,8 +523,8 @@ strix adapter run-external --target https://example.com --scope scope.json
 ### Docker (Recommended)
 
 ```dockerfile
-# All tools pre-installed in Strix worker image
-FROM ghcr.io/strix/worker:3.5.0
+# All tools pre-installed in Ishastra worker image
+FROM ghcr.io/ishastra/worker:3.5.0
 # Includes: nmap, nuclei, sqlmap, nikto, and dependencies
 ```
 

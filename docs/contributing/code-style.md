@@ -2,7 +2,7 @@
 
 # Code Style Guide
 
-Consistent code style across all Strix components.
+Consistent code style across all Ishastra components.
 
 ## General Principles
 
@@ -67,8 +67,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 # Local
-from strix.core.scope_gate import ScopeGate
-from strix.models.assessment import Assessment
+from ishastra.core.scope_gate import ScopeGate
+from ishastra.models.assessment import Assessment
 ```
 
 ### Naming
@@ -104,7 +104,7 @@ async def run_adapters(target: str, adapters: list[str]) -> list[Finding]:
 
 ```python
 # Custom exceptions with context
-class ScopeGateError(StrixError):
+class ScopeGateError(IshastraError):
     def __init__(self, target: str, layer: int, reason: str):
         self.target = target
         self.layer = layer

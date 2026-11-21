@@ -1,0 +1,21 @@
+{{- if and .Values.k8sJobs.enabled .Values.seccompProfiles.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.seccompProfiles.configMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seccomp-profiles
+data:
+  ishastra-seccomp-default.json: |
+{{ include "ishastra.seccomp.default" . | indent 4 }}
+  nmap.json: |
+{{ include "ishastra.seccomp.nmap" . | indent 4 }}
+  nuclei.json: |
+{{ include "ishastra.seccomp.nuclei" . | indent 4 }}
+  nikto.json: |
+{{ include "ishastra.seccomp.nikto" . | indent 4 }}
+  sqlmap.json: |
+{{ include "ishastra.seccomp.sqlmap" . | indent 4 }}
+{{- end }}

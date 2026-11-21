@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from strix.audit import AuditChain
-from strix.core import store
-from strix.crypto import decrypt, generate_key
-from strix.monitor import Monitor, WebhookAlertSink
+from ishastra.audit import AuditChain
+from ishastra.core import store
+from ishastra.crypto import decrypt, generate_key
+from ishastra.monitor import Monitor, WebhookAlertSink
 
 
 def _monitor(*, encryption_key: str = "") -> Monitor:
@@ -21,7 +21,7 @@ def _monitor(*, encryption_key: str = "") -> Monitor:
 def test_webhook_sink_persistence_requires_encryption_key():
     monitor = _monitor()
 
-    with pytest.raises(RuntimeError, match="STRIX_ENCRYPTION_KEY"):
+    with pytest.raises(RuntimeError, match="ISHASTRA_ENCRYPTION_KEY"):
         monitor.add_sink(WebhookAlertSink("alerts", "https://hooks.example.com/events", "secret"))
 
 
@@ -35,7 +35,7 @@ async def test_loading_persisted_sink_requires_encryption_key(monkeypatch):
         AsyncMock(return_value=[{"name": "alerts", "url": "https://hooks.example.com/events"}]),
     )
 
-    with pytest.raises(RuntimeError, match="STRIX_ENCRYPTION_KEY"):
+    with pytest.raises(RuntimeError, match="ISHASTRA_ENCRYPTION_KEY"):
         await monitor.load_async()
 
 

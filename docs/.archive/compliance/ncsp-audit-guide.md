@@ -2,7 +2,7 @@
 
 **Auditor-Ready Documentation for National Cyber Security Policy 2080**
 
-This guide enables auditors to verify Strix assessment evidence against Nepal's National Cyber Security Policy 2080 for critical infrastructure protection and national cyber resilience.
+This guide enables auditors to verify Ishastra assessment evidence against Nepal's National Cyber Security Policy 2080 for critical infrastructure protection and national cyber resilience.
 
 ---
 
@@ -14,7 +14,7 @@ This guide enables auditors to verify Strix assessment evidence against Nepal's 
 | **Policy** | National Cyber Security Policy 2080 |
 | **Scope** | Critical Information Infrastructure (CII), All Sectors |
 | **Jurisdiction** | Nepal |
-| **Strix Coverage** | 14 controls (10 core + 4 sector-specific) |
+| **Ishastra Coverage** | 14 controls (10 core + 4 sector-specific) |
 
 ### Policy Sections Covered
 
@@ -37,7 +37,7 @@ This guide enables auditors to verify Strix assessment evidence against Nepal's 
 
 ### Core Policy Controls (Sections 3.1-3.7, 4, 5)
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NCSP-2080-01** | npCERT Coordination | `no_cert_integration`, `missing_threat_intel`, `uncoordinated_response`, `no_cert_reporting`, `missing_exercise_participation` | CERT MOU, threat feeds, exercise records, incident sharing, contacts |
 | **NCSP-2080-02** | CII Protection | `missing_cii_id`, `protection_gaps`, `untested_resilience`, `interdependency_unmapped`, `scada_exposure`, `ics_protocol_exposure`, `unidentified_cii`, `missing_protection`, `unreported_incidents`, `supply_chain_risk` | CII register, protection plan, resilience tests, dependency map, SCADA inventory, incident reports |
@@ -52,7 +52,7 @@ This guide enables auditors to verify Strix assessment evidence against Nepal's 
 
 ### Sector-Specific Controls
 
-| Control ID | Sector | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Sector | Title | Ishastra Detection Categories | Evidence Required |
 |------------|--------|-------|---------------------------|-------------------|
 | **NCSP-BANK-001** | Banking | Banking Cyber Resilience | `transaction_fraud`, `core_banking_exposure`, `swift_vulnerabilities`, `atm_security_gaps`, `mobile_banking_weakness`, `card_data_exposure` | Transaction monitoring, fraud rules, core banking segmentation, SWIFT CSP, ATM assessment, mobile test, PCI DSS |
 | **NCSP-TELCO-001** | Telecom | Telecom Cyber Resilience | `signaling_vulnerabilities`, `subscriber_data_leak`, `network_resilience_gaps`, `roaming_fraud`, `equipment_vulnerabilities` | Signaling firewall, subscriber data protection, redundancy design, roaming fraud monitoring, equipment cert |
@@ -63,7 +63,7 @@ This guide enables auditors to verify Strix assessment evidence against Nepal's 
 
 ## 3. Automated Compliance Checks
 
-Strix runs 8 automated verification checks for NCSP compliance:
+Ishastra runs 8 automated verification checks for NCSP compliance:
 
 ### 3.1 npCERT Coordination (NCSP-2080-01)
 
@@ -152,25 +152,25 @@ check_sector_resilience(job_findings, sector="banking")
 ### 4.1 JSON Evidence Pack
 
 ```bash
-strix evidence --target https://critical.gov.np --framework NCSP --output ncsp-evidence.json
+ishastra evidence --target https://critical.gov.np --framework NCSP --output ncsp-evidence.json
 ```
 
 ### 4.2 CSV Export
 
 ```bash
-strix evidence --target https://critical.gov.np --framework NCSP --format csv --output ncsp-audit.csv
+ishastra evidence --target https://critical.gov.np --framework NCSP --format csv --output ncsp-audit.csv
 ```
 
 ### 4.3 OSCAL Assessment Results
 
 ```bash
-strix evidence --target https://critical.gov.np --framework NCSP --format oscal --output ncsp-oscal.json
+ishastra evidence --target https://critical.gov.np --framework NCSP --format oscal --output ncsp-oscal.json
 ```
 
 ### 4.4 Bilingual HTML Report (Nepali for Government Submission)
 
 ```bash
-strix evidence --target https://critical.gov.np --framework NCSP --format html --locale ne_NP --output ncsp-report.html
+ishastra evidence --target https://critical.gov.np --framework NCSP --format html --locale ne_NP --output ncsp-report.html
 ```
 
 ---
@@ -180,7 +180,7 @@ strix evidence --target https://critical.gov.np --framework NCSP --format html -
 ### 5.1 Evidence Integrity
 
 ```bash
-strix audit verify --pack ncsp-evidence.json
+ishastra audit verify --pack ncsp-evidence.json
 ```
 
 ### 5.2 Control Coverage
@@ -217,9 +217,9 @@ Review `compliance_checks.ncsp` for 8 automated verifications.
 
 ---
 
-## 6. Strix Feature Coverage for NCSP
+## 6. Ishastra Feature Coverage for NCSP
 
-| Strix Feature | NCSP Controls Covered | Automated Checks |
+| Ishastra Feature | NCSP Controls Covered | Automated Checks |
 |---------------|---------------------|------------------|
 | Scope Enforcement | 3.2, 3.7 | CII scope, evidence chain |
 | Audit Chain | 3.1, 3.7 | HMAC integrity, chain verification |
@@ -345,7 +345,7 @@ stages:
 ### 8.1 Scheduled Evidence (Quarterly per NCSP)
 
 ```bash
-curl -X POST https://strix.example.com/api/schedules \
+curl -X POST https://ishastra.example.com/api/schedules \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "target": "https://critical.gov.np",
@@ -361,11 +361,11 @@ curl -X POST https://strix.example.com/api/schedules \
 ### 8.2 npCERT Webhook
 
 ```bash
-curl -X POST https://strix.example.com/api/alerts/webhook \
+curl -X POST https://ishastra.example.com/api/alerts/webhook \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "name": "ncert-evidence-push",
-    "url": "https://ncert.gov.np/api/strix/evidence",
+    "url": "https://ncert.gov.np/api/ishastra/evidence",
     "events": ["evidence_pack_generated", "critical_finding"],
     "frameworks": ["ncsp"]
   }'
@@ -374,7 +374,7 @@ curl -X POST https://strix.example.com/api/alerts/webhook \
 ### 8.3 Retention (Per Legal Requirements)
 
 ```bash
-export STRIX_RETENTION_DAYS=2555  # 7 years minimum
+export ISHASTRA_RETENTION_DAYS=2555  # 7 years minimum
 ```
 
 ---
@@ -382,7 +382,7 @@ export STRIX_RETENTION_DAYS=2555  # 7 years minimum
 ## 9. Auditor Checklist
 
 - [ ] Evidence pack JSON validates
-- [ ] HMAC audit chain verified (`strix audit verify`)
+- [ ] HMAC audit chain verified (`ishastra audit verify`)
 - [ ] All 14 NCSP controls assessed (100% coverage)
 - [ ] Finding `compliance_refs` map to correct NCSP controls
 - [ ] 8/8 automated checks executed
@@ -408,8 +408,8 @@ export STRIX_RETENTION_DAYS=2555  # 7 years minimum
 - [IEC 62443](https://iec.ch/62443) - Industrial Automation Security
 - [NIST SSDF](https://csrc.nist.gov/Projects/ssdf) - Secure Software Development Framework
 - [SLSA](https://slsa.dev) - Supply Chain Levels for Software Artifacts
-- [Strix Source](https://github.com/strix-project/strix) - MIT Licensed
+- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
 
 ---
 
-*Part of Strix open-source compliance evidence pack generator. All mappings MIT-licensed and auditable.*
+*Part of Ishastra open-source compliance evidence pack generator. All mappings MIT-licensed and auditable.*

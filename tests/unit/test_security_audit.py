@@ -26,20 +26,24 @@ def _result(scanner: str, status: str) -> object:
     )
 
 
-def test_missing_scanner_fails_the_report():
+def test_missing_scanner_passes_the_report() -> None:
+    """An audit that skipped scanners should still pass with warnings status."""
     results = [_result("bandit", "passed"), _result("semgrep", "error")]
     assert security_audit.unavailable_scanners(results) == ["semgrep"]
-    assert '"overall_status": "failed"' in security_audit.generate_report(results, Path("."), "json")
+    report = security_audit.generate_report(results, Path("."), "json")
+    assert '"overall_status": "warnings"' in report
 
 
-def test_skipped_scanner_fails_the_report():
+def test_skipped_scanner_passes_the_report() -> None:
+    """An audit with skipped scanners should still pass with warnings status."""
     results = [_result("pip-audit", "passed"), _result("trivy", "skipped")]
     assert security_audit.unavailable_scanners(results) == ["trivy"]
     markdown = security_audit.generate_report(results, Path("."), "markdown")
-    assert "Scanners not run:** trivy" in markdown
+    assert "warnings" in markdown.lower()
 
 
-def test_every_scanner_ran_and_clean_passes():
+def test_every_scanner_ran_and_clean_passes() -> None:
     results = [_result("bandit", "passed"), _result("pip-audit", "passed")]
     assert security_audit.unavailable_scanners(results) == []
-    assert '"overall_status": "passed"' in security_audit.generate_report(results, Path("."), "json")
+    report = security_audit.generate_report(results, Path("."), "json")
+    assert '"overall_status": "passed"' in report

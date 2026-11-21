@@ -156,15 +156,13 @@ api:
       external-dns.alpha.kubernetes.io/hostname: "ishastra.example.com,api.ishastra.example.com"
     hosts:
       - host: ishastra.example.com
-        http:
-          paths:
-            - path: /
-              pathType: Prefix
+        paths:
+          - path: /
+            pathType: Prefix
       - host: api.ishastra.example.com
-        http:
-          paths:
-            - path: /
-              pathType: Prefix
+        paths:
+          - path: /
+            pathType: Prefix
     tls:
       - secretName: ishastra-tls-prod
         hosts:

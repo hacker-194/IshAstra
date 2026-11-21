@@ -25,8 +25,8 @@ on:
           - 'MEDIUM,HIGH,CRITICAL'
 
 concurrency:
-  group: docker-security-${{ github.ref }}
-  cancel-in-progress: true
+  # Per-run group: a stuck historical run must never block new scans.
+  group: docker-security-${{ github.ref }}-${{ github.run_id }}
 
 env:
   REGISTRY: ghcr.io

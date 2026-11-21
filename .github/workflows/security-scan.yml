@@ -30,8 +30,8 @@ permissions:
   actions: read
 
 concurrency:
-  group: security-scan-${{ github.ref }}
-  cancel-in-progress: true
+  # Per-run group: a stuck historical run must never block new scans.
+  group: security-scan-${{ github.ref }}-${{ github.run_id }}
 
 jobs:
   security-scan:

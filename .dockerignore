@@ -56,7 +56,6 @@ migrations/
 monitoring/
 graphify-out/
 .claude/
-.freebuff/
 
 # Database files
 *.db

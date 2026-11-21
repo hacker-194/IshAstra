@@ -20,6 +20,8 @@ class _Entry:
 
 
 def _patch(monkeypatch, entries: list[_Entry]) -> None:
+    monkeypatch.setenv("ISHASTRA_ALLOW_PLUGINS", "1")
+
     def fake_entry_points(*, group: str):
         assert group == adapters.ADAPTER_PLUGIN_GROUP
         return entries
@@ -56,4 +58,14 @@ def test_broken_plugin_is_ignored(monkeypatch) -> None:
             raise ImportError("optional dependency missing")
 
     _patch(monkeypatch, [Broken(), _Entry("no-id", SimpleNamespace())])
+    assert adapters._load_plugin_adapters() == {}
+
+
+def test_plugins_are_opt_in(monkeypatch) -> None:
+    monkeypatch.delenv("ISHASTRA_ALLOW_PLUGINS", raising=False)
+    monkeypatch.setattr(
+        importlib.metadata,
+        "entry_points",
+        lambda *, group: [_Entry("custom", SimpleNamespace(id="custom-probe"))],
+    )
     assert adapters._load_plugin_adapters() == {}

@@ -5,7 +5,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 docker-compose up -d
 ```

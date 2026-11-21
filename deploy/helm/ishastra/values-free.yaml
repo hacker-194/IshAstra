@@ -18,7 +18,7 @@
 
 global:
   image:
-    repository: ghcr.io/your-org/ishastra
+    repository: ghcr.io/hacker-194/ishastra
     tag: sha-<GREEN_SHA>
     pullPolicy: IfNotPresent
   enableK8sJobs: false

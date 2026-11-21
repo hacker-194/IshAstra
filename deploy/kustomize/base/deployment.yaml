@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/your-org/ishastra:3.5.0
+          image: ghcr.io/hacker-194/ishastra:3.5.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

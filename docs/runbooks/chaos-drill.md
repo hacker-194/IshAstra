@@ -251,7 +251,7 @@ kubectl create namespace ishastra-staging
 helm upgrade --install ishastra-staging ./deploy/helm/ishastra \
   -n ishastra-staging \
   -f ./deploy/helm/ishastra/values-staging.yaml \
-  --set-string "global.image.repository=ghcr.io/your-org/ishastra" \
+  --set-string "global.image.repository=ghcr.io/hacker-194/ishastra" \
   --set-string "global.image.tag=sha-<LAST_GREEN_SHA>" \
   --wait --timeout 10m
 

@@ -1,4 +1,5 @@
 {{- if .Values.monitoring.prometheus.enabled }}
+{{ $fullname := include "ishastra.fullname" . }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -40,7 +41,7 @@ spec:
           annotations:
             summary: '{{ printf "High queue backlog for tenant %s" "{{ $labels.tenant }}" }}'
             description: '{{ printf "Tenant %s has %s jobs queued but not completed/failed/cancelled in the last 5 minutes.\nThis indicates the assessment workers cannot keep up with the submission rate." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
         - alert: IshastraQueueBacklogCritical
           expr: |
@@ -56,7 +57,7 @@ spec:
           annotations:
             summary: '{{ printf "Critical queue backlog for tenant %s" "{{ $labels.tenant }}" }}'
             description: '{{ printf "Tenant %s has %s jobs queued but not completed/failed/cancelled in the last 5 minutes.\nImmediate action required: scale workers or investigate worker failures." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
 
         - alert: IshastraJobLatencyHigh
@@ -69,7 +70,7 @@ spec:
           annotations:
             summary: '{{ printf "High job latency for tenant %s" "{{ $labels.tenant }}" }}'
             description: '{{ printf "95th percentile job duration for tenant %s is %s seconds.\nJobs are taking too long to complete. Check adapter timeouts and worker resources." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
         - alert: IshastraJobLatencyCritical
           expr: |
@@ -81,7 +82,7 @@ spec:
           annotations:
             summary: '{{ printf "Critical job latency for tenant %s" "{{ $labels.tenant }}" }}'
             description: '{{ printf "99th percentile job duration for tenant %s is %s seconds.\nJobs are hitting the hard timeout. Investigate immediately." "{{ $labels.tenant }}" "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
 
         - alert: IshastraAdapterSuccessRateLow
@@ -94,7 +95,7 @@ spec:
           annotations:
             summary: '{{ printf "Low adapter success rate for %s" "{{ $labels.adapter }}" }}'
             description: '{{ printf "Adapter %s success rate is %s (below 95%%).\nCheck adapter logs for errors and external tool availability." "{{ $labels.adapter }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
         - alert: IshastraAdapterSuccessRateCritical
           expr: |
@@ -106,7 +107,7 @@ spec:
           annotations:
             summary: '{{ printf "Critical adapter success rate for %s" "{{ $labels.adapter }}" }}'
             description: '{{ printf "Adapter %s success rate is %s (below 90%%).\nImmediate investigation required." "{{ $labels.adapter }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
 
         - alert: IshastraAuthFailureRateHigh
@@ -119,7 +120,7 @@ spec:
           annotations:
             summary: '{{ printf "High authentication failure rate (%s)" "{{ $labels.reason }}" }}'
             description: '{{ printf "Authentication failures for reason %s at %s/s.\nPossible brute-force attack or misconfigured clients." "{{ $labels.reason }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
         - alert: IshastraAuthFailureBurst
           expr: |
@@ -131,7 +132,7 @@ spec:
           annotations:
             summary: "Authentication failure burst detected"
             description: '{{ printf "%s authentication failures in the last minute.\nLikely brute-force attack or credential stuffing." "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
 
         - alert: IshastraAuditChainVerificationFailed
@@ -144,7 +145,7 @@ spec:
           annotations:
             summary: "Audit chain verification failed"
             description: '{{ printf "The audit chain verification check failed at startup or during runtime.\nThis indicates potential tampering with the audit log.\nInvestigate immediately - this is a security incident." }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
         - alert: IshastraAuditChainLengthAnomaly
           expr: |
@@ -156,7 +157,7 @@ spec:
           annotations:
             summary: "Audit chain length decreased"
             description: '{{ printf "The audit chain length has decreased, which should never happen.\nThis indicates potential data loss or tampering." }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
 
         - alert: IshastraHTTP5xxRateHigh
@@ -169,7 +170,7 @@ spec:
           annotations:
             summary: '{{ printf "High 5xx error rate on endpoint %s" "{{ $labels.endpoint }}" }}'
             description: '{{ printf "Endpoint %s has a 5xx error rate of %s (above 5%%).\nCheck application logs for internal server errors." "{{ $labels.endpoint }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
         - alert: IshastraHTTP5xxRateCritical
           expr: |
@@ -181,7 +182,7 @@ spec:
           annotations:
             summary: '{{ printf "Critical 5xx error rate on endpoint %s" "{{ $labels.endpoint }}" }}'
             description: '{{ printf "Endpoint %s has a 5xx error rate of %s (above 20%%).\nService degradation likely. Immediate investigation required." "{{ $labels.endpoint }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
 
         - alert: IshastraRateLimitExceededHigh
@@ -194,7 +195,7 @@ spec:
           annotations:
             summary: '{{ printf "High rate limit exceeded rate for %s (%s)" "{{ $labels.route_class }}" "{{ $labels.tier }}" }}'
             description: '{{ printf "Rate limit exceeded %s/s for route class %s tier %s.\nConsider adjusting rate limits or investigating abusive clients." "{{ $value | printf \"%.2f\" }}" "{{ $labels.route_class }}" "{{ $labels.tier }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/rate-limiting.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/rate-limiting.md"
 
 
         - alert: IshastraDBPoolExhausted
@@ -207,7 +208,7 @@ spec:
           annotations:
             summary: "Database connection pool nearly exhausted"
             description: '{{ printf "Database pool has only %s%% available connections.\nCheck for connection leaks or increase pool size." "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
         - alert: IshastraDBPoolAcquireSlow
           expr: |
@@ -219,7 +220,7 @@ spec:
           annotations:
             summary: "Slow database pool acquire time"
             description: '{{ printf "95th percentile database pool acquire time is %s seconds.\nPool may be undersized or database is overloaded." "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
 
         - alert: IshastraDiskSpaceCritical
@@ -232,7 +233,7 @@ spec:
           annotations:
             summary: "Critical disk space on Ishastra host"
             description: '{{ printf "Root filesystem has less than 5%% free space (%s%%).\nImmediate cleanup or volume expansion required." "{{ $value | printf \"%.1f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
         - alert: IshastraDiskSpaceWarning
           expr: |
@@ -244,7 +245,7 @@ spec:
           annotations:
             summary: "Low disk space on Ishastra host"
             description: '{{ printf "Root filesystem has less than 15%% free space (%s%%).\nPlan for cleanup or volume expansion." "{{ $value | printf \"%.1f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
 
         - alert: IshastraWebhookFailureRateHigh
@@ -257,7 +258,7 @@ spec:
           annotations:
             summary: '{{ printf "High webhook failure rate (%s)" "{{ $labels.error_type }}" }}'
             description: '{{ printf "Webhook delivery failures for error type %s at %s/s.\nCheck webhook endpoint availability and network connectivity." "{{ $labels.error_type }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/webhook-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/webhook-failures.md"
 
 
         - alert: IshastraFindingsVolumeAnomaly
@@ -270,9 +271,8 @@ spec:
           annotations:
             summary: '{{ printf "Unusual findings volume for tenant %s" "{{ $labels.tenant }}" }}'
             description: '{{ printf "Tenant %s is generating %s findings/s.\nThis may indicate a misconfigured scan or a target with many issues." "{{ $labels.tenant }}" "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/findings-volume.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/findings-volume.md"
 
-        {{- $fullname := include "ishastra.fullname" . -}}
 
         - alert: IshastraServiceDown
           expr: |
@@ -284,7 +284,7 @@ spec:
           annotations:
             summary: "Ishastra API service is down"
             description: '{{ printf "The Ishastra API service has been down for more than 1 minute.\nCheck service logs and container health." }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/service-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/service-down.md"
 
 
         - alert: IshastraAPIAvailabilityLow
@@ -297,7 +297,7 @@ spec:
           annotations:
             summary: "API availability below 99.9% (SLI breach)"
             description: '{{ printf "API availability is %s (below 99.9%% SLO).\nThis breaches the availability SLI." "{{ $value | printf \"%.4f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/api-availability.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/api-availability.md"
 
 
         - alert: IshastraJobCompletionRateLow
@@ -310,7 +310,7 @@ spec:
           annotations:
             summary: "Job completion rate below 95% (SLI breach)"
             description: '{{ printf "Job completion rate is %s (below 95%% SLO).\nThis breaches the job completion SLI." "{{ $value | printf \"%.4f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-completion.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-completion.md"
 
 
         - alert: IshastraP99LatencyHigh
@@ -323,7 +323,7 @@ spec:
           annotations:
             summary: "API p99 latency above 5s (SLI breach)"
             description: '{{ printf "API p99 latency is %ss (above 5s SLO).\nThis breaches the latency SLI." "{{ $value | printf \"%.2f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/latency.md"
 
 
         - alert: IshastraCriticalFindingsNew
@@ -336,7 +336,7 @@ spec:
           annotations:
             summary: "New critical findings detected"
             description: '{{ printf "%s new critical severity findings in the last hour.\nReview findings immediately." "{{ $value | printf \"%.0f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/critical-findings.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/critical-findings.md"
 
 
         - alert: IshastraComplianceScoreDrop
@@ -349,5 +349,5 @@ spec:
           annotations:
             summary: "Compliance score dropped below 80%"
             description: '{{ printf "Compliance score is %s%% (below 80%% threshold).\nReview recent assessments and findings." "{{ $value | printf \"%.1f\" }}" }}'
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/compliance-score.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/compliance-score.md"
 {{- end }}

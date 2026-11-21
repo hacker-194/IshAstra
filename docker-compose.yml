@@ -5,9 +5,10 @@ services:
     environment:
       POSTGRES_DB: ishastra
       POSTGRES_USER: ishastra
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ishastra_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (no default credential)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -24,6 +25,7 @@ services:
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
@@ -42,7 +44,7 @@ services:
     container_name: ishastra-scope-gate
     image: ishastra/scope-gate:dev
     environment:
-      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:-ishastra_dev_password}@postgres:5432/ishastra
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
       - ISHASTRA_REDIS_URL=redis://redis:6379/0
       - ISHASTRA_SCOPE_DIR=/etc/ishastra/scopes
       - ISHASTRA_SCOPE_JWKS=/etc/ishastra/scope-jwks.json
@@ -51,7 +53,7 @@ services:
       - ISHASTRA_OIDC_CLIENT_ID=${ISHASTRA_OIDC_CLIENT_ID:-}
       - ISHASTRA_OIDC_CLIENT_SECRET=${ISHASTRA_OIDC_CLIENT_SECRET:-}
       - ISHASTRA_OIDC_REDIRECT_URI=${ISHASTRA_OIDC_REDIRECT_URI:-}
-      - ISHASTRA_LOG_LEVEL=DEBUG
+      - ISHASTRA_LOG_LEVEL=INFO
       - ISHASTRA_METRICS_ENABLED=true
       - ISHASTRA_OTEL_ENABLED=false
       - PYTHONUNBUFFERED=1
@@ -66,6 +68,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
       interval: 30s
@@ -104,7 +108,7 @@ services:
     container_name: ishastra-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env (no default credential)}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
@@ -153,7 +157,7 @@ services:
     command: ["start-dev", "--http-port=8180", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-only-change-me}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env (no default credential)}
       KC_HOSTNAME: keycloak.localhost
       KC_HOSTNAME_PORT: 8180
       KC_HTTP_ENABLED: "true"

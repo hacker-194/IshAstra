@@ -28,7 +28,7 @@ Ishastra is an open-source security assessment platform built on a revolutionary
 
 ### Free Tier — $0/month
 ```bash
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
@@ -118,8 +118,8 @@ HTTP Probe, Crawler, Dynamic Validation, External (nmap, Nuclei, SQLMap, Nikto) 
 
 - **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
 - **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
-- **GitHub Issues**: [Bug reports & features](https://github.com/ishastra/ishastra/issues)
-- **Discussions**: [Q&A and ideas](https://github.com/ishastra/ishastra/discussions)
+- **GitHub Issues**: [Bug reports & features](https://github.com/hacker-194/IshAstra/issues)
+- **Discussions**: [Q&A and ideas](https://github.com/hacker-194/IshAstra/discussions)
 
 ## License
 

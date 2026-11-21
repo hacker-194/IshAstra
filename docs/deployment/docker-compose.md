@@ -83,4 +83,4 @@ afterwards.
 
 For the production checklist and topology table, read
 [Production deployment](../quickstart/production.md). For the operator runbook, read
-[`DEPLOYMENT.md`](https://github.com/ishastra/ishastra/blob/master/DEPLOYMENT.md).
+[`DEPLOYMENT.md`](https://github.com/hacker-194/IshAstra/blob/master/DEPLOYMENT.md).

@@ -103,4 +103,4 @@ the pre-upgrade backup only if a release notes an irreversible change.
 
 For capacity, backups and the go-live checklist see
 [Production deployment](../quickstart/production.md) and
-[`DEPLOYMENT.md`](https://github.com/ishastra/ishastra/blob/master/DEPLOYMENT.md).
+[`DEPLOYMENT.md`](https://github.com/hacker-194/IshAstra/blob/master/DEPLOYMENT.md).

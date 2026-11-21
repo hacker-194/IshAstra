@@ -23,9 +23,11 @@ inputs:
     required: false
     default: "false"
   ishastra-version:
-    description: Pinned ishastra version to install.
+    description: >-
+      Optional PyPI version to install. Leave empty to install the same
+      revision as the action (the package is not yet published to PyPI).
     required: false
-    default: "3.5.0"
+    default: ""
 
 outputs:
   sarif:
@@ -42,7 +44,16 @@ runs:
 
     - name: Install ishastra
       shell: bash
-      run: python -m pip install --disable-pip-version-check "ishastra==${{ inputs.ishastra-version }}"
+      env:
+        ISHASTRA_VERSION: ${{ inputs.ishastra-version }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        if [ -n "$ISHASTRA_VERSION" ]; then
+          python -m pip install --disable-pip-version-check "ishastra==$ISHASTRA_VERSION"
+        else
+          python -m pip install --disable-pip-version-check "$ACTION_PATH"
+        fi
 
     - name: Run authorized assessment
       id: assess

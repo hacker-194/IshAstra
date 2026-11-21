@@ -543,3 +543,21 @@ class TestRLSMigration:
             await conn.execute("ALTER TABLE jobs ENABLE ROW LEVEL SECURITY")
             row = await conn.fetchrow("SELECT relrowsecurity FROM pg_class WHERE relname = 'jobs'")
             assert row["relrowsecurity"] is True
+
+
+async def test_transaction_applies_tenant_context(pg_ready, tenant_a):
+    """RLS must be applied from the request context, not only by hand."""
+    db = await store.get_database()
+    assert db.is_postgresql()
+    db.set_tenant_context(tenant_a)
+    try:
+        async with db.transaction() as conn:
+            value = await conn.fetchval("SELECT current_setting('app.current_tenant', true)")
+            assert value == tenant_a
+    finally:
+        db.set_tenant_context(None)
+
+    # transaction-local setting must not leak through the pooled connection
+    async with db.transaction() as conn:
+        value = await conn.fetchval("SELECT current_setting('app.current_tenant', true)")
+        assert value in (None, "")

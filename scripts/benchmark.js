@@ -15,7 +15,7 @@ const errors = new Counter('errors');
 
 // Test configuration via environment variables
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
-const API_KEY = __ENV.STRIX_API_KEY || 'test-admin-key-123456';
+const API_KEY = __ENV.ISHASTRA_API_KEY || 'test-admin-key-123456';
 const TENANT_ID = __ENV.TENANT_ID || 'test-tenant';
 
 // Headers for authenticated requests

@@ -1,3 +1,5 @@
+# NOTE: Ishastra does not implement MFA; enforce it at your identity provider.
+
 # Break-Glass Dual Approval
 
 # Break-Glass Dual Approval
@@ -61,7 +63,6 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
       "ciso@example.com"
     ],
     "max_duration": "4h",
-    "require_mfa": true
   }
 }
 ```
@@ -71,7 +72,6 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
 | Requirement | Description |
 |-------------|-------------|
 | Minimum approvers | 2 (configured in scope) |
-| MFA | Required if `require_mfa: true` |
 | Identity | Must match email in approvers list |
 | Availability | At least 2 must be available |
 

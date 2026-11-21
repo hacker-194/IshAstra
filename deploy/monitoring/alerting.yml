@@ -19,7 +19,7 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} has {{ $value | printf "%.0f" }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
             This indicates the assessment workers cannot keep up with the submission rate.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
       - alert: IshastraQueueBacklogCritical
         expr: |
@@ -37,7 +37,7 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} has {{ $value | printf "%.0f" }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
             Immediate action required: scale workers or investigate worker failures.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
 
       - alert: IshastraJobLatencyHigh
@@ -52,7 +52,7 @@ groups:
           description: |
             95th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%.0f" }} seconds.
             Jobs are taking too long to complete. Check adapter timeouts and worker resources.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
       - alert: IshastraJobLatencyCritical
         expr: |
@@ -66,7 +66,7 @@ groups:
           description: |
             99th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%.0f" }} seconds.
             Jobs are hitting the hard timeout. Investigate immediately.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
 
       - alert: IshastraAdapterSuccessRateLow
@@ -81,7 +81,7 @@ groups:
           description: |
             Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%.2f" }} (below 95%).
             Check adapter logs for errors and external tool availability.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
       - alert: IshastraAdapterSuccessRateCritical
         expr: |
@@ -95,7 +95,7 @@ groups:
           description: |
             Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%.2f" }} (below 90%).
             Immediate investigation required.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
 
       - alert: IshastraAuthFailureRateHigh
@@ -110,7 +110,7 @@ groups:
           description: |
             Authentication failures for reason '{{ $labels.reason }}' at {{ $value | printf "%.2f" }}/s.
             Possible brute-force attack or misconfigured clients.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
       - alert: IshastraAuthFailureBurst
         expr: |
@@ -124,7 +124,7 @@ groups:
           description: |
             {{ $value | printf "%.0f" }} authentication failures in the last minute.
             Likely brute-force attack or credential stuffing.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
 
       - alert: IshastraAuditChainVerificationFailed
@@ -140,7 +140,7 @@ groups:
             The audit chain verification check failed at startup or during runtime.
             This indicates potential tampering with the audit log.
             Investigate immediately - this is a security incident.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
       - alert: IshastraAuditChainLengthAnomaly
         expr: |
@@ -154,7 +154,7 @@ groups:
           description: |
             The audit chain length has decreased, which should never happen.
             This indicates potential data loss or tampering.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
 
       - alert: IshastraHTTP5xxRateHigh
@@ -169,7 +169,7 @@ groups:
           description: |
             Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%.2f" }} (above 5%).
             Check application logs for internal server errors.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
       - alert: IshastraHTTP5xxRateCritical
         expr: |
@@ -183,7 +183,7 @@ groups:
           description: |
             Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%.2f" }} (above 20%).
             Service degradation likely. Immediate investigation required.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
 
       - alert: IshastraRateLimitExceededHigh
@@ -198,7 +198,7 @@ groups:
           description: |
             Rate limit exceeded {{ $value | printf "%.2f" }}/s for route class {{ $labels.route_class }} tier {{ $labels.tier }}.
             Consider adjusting rate limits or investigating abusive clients.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/rate-limiting.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/rate-limiting.md"
 
 
       - alert: IshastraDBPoolExhausted
@@ -213,7 +213,7 @@ groups:
           description: |
             Database pool has only {{ $value | printf "%.0f" }}% available connections.
             Check for connection leaks or increase pool size.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
       - alert: IshastraDBPoolAcquireSlow
         expr: |
@@ -227,7 +227,7 @@ groups:
           description: |
             95th percentile database pool acquire time is {{ $value | printf "%.2f" }} seconds.
             Pool may be undersized or database is overloaded.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
 
       - alert: IshastraDiskSpaceCritical
@@ -242,7 +242,7 @@ groups:
           description: |
             Root filesystem has less than 5% free space ({{ $value | printf "%.1f" }}%).
             Immediate cleanup or volume expansion required.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
       - alert: IshastraDiskSpaceWarning
         expr: |
@@ -256,7 +256,7 @@ groups:
           description: |
             Root filesystem has less than 15% free space ({{ $value | printf "%.1f" }}%).
             Plan for cleanup or volume expansion.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
 
       - alert: IshastraWebhookFailureRateHigh
@@ -271,7 +271,7 @@ groups:
           description: |
             Webhook delivery failures for error type '{{ $labels.error_type }}' at {{ $value | printf "%.2f" }}/s.
             Check webhook endpoint availability and network connectivity.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/webhook-failures.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/webhook-failures.md"
 
 
       - alert: IshastraFindingsVolumeAnomaly
@@ -286,7 +286,7 @@ groups:
           description: |
             Tenant {{ $labels.tenant }} is generating {{ $value | printf "%.2f" }} findings/s.
             This may indicate a misconfigured scan or a target with many issues.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/findings-volume.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/findings-volume.md"
 
 
       - alert: IshastraServiceDown
@@ -301,7 +301,7 @@ groups:
           description: |
             The Ishastra API service has been down for more than 1 minute.
             Check service logs and container health.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/service-down.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/service-down.md"
 
       - alert: IshastraPrometheusDown
         expr: |
@@ -315,7 +315,7 @@ groups:
           description: |
             Prometheus has been down for more than 1 minute.
             Metrics collection and alerting will not work.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/prometheus-down.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/prometheus-down.md"
 
       - alert: IshastraRedisDown
         expr: |
@@ -329,4 +329,4 @@ groups:
           description: |
             Redis has been down for more than 1 minute.
             Rate limiting, Celery queue, and caching will not work.
-          runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/redis-down.md"
+          runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/redis-down.md"

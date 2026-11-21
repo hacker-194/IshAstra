@@ -310,5 +310,5 @@ All source files should include this header:
 ## Related
 
 - [Contributing Guide](contributing/development.md)
-- [Code of Conduct](https://github.com/ishastra/ishastra/blob/main/CODE_OF_CONDUCT.md)
-- [Security Policy](https://github.com/ishastra/ishastra/blob/main/SECURITY.md)
+- [Code of Conduct](https://github.com/hacker-194/IshAstra/blob/main/CODE_OF_CONDUCT.md)
+- [Security Policy](https://github.com/hacker-194/IshAstra/blob/main/SECURITY.md)

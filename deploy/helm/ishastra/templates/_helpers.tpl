@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "strix.name" -}}
+{{- define "ishastra.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "strix.fullname" -}}
+{{- define "ishastra.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,36 +24,36 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "strix.chart" -}}
+{{- define "ishastra.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "strix.appSecretName" -}}
+{{- define "ishastra.appSecretName" -}}
 {{- if .Values.api.envFromSecrets }}
 {{- index (index .Values.api.envFromSecrets 0) "name" }}
 {{- else }}
-{{- printf "%s-secrets" (include "strix.fullname" .) }}
+{{- printf "%s-secrets" (include "ishastra.fullname" .) }}
 {{- end }}
 {{- end }}
 
-{{- define "strix.redisSecretName" -}}
-{{- default (printf "%s-redis-secret" (include "strix.fullname" .)) .Values.redis.auth.existingSecret }}
+{{- define "ishastra.redisSecretName" -}}
+{{- default (printf "%s-redis-secret" (include "ishastra.fullname" .)) .Values.redis.auth.existingSecret }}
 {{- end }}
 
-{{- define "strix.postgresqlSecretName" -}}
-{{- default (printf "%s-postgresql-secret" (include "strix.fullname" .)) .Values.postgresql.auth.existingSecret }}
+{{- define "ishastra.postgresqlSecretName" -}}
+{{- default (printf "%s-postgresql-secret" (include "ishastra.fullname" .)) .Values.postgresql.auth.existingSecret }}
 {{- end }}
 
-{{- define "strix.grafanaSecretName" -}}
-{{- default (printf "%s-grafana-secret" (include "strix.fullname" .)) .Values.monitoring.grafana.grafana.admin.existingSecret }}
+{{- define "ishastra.grafanaSecretName" -}}
+{{- default (printf "%s-grafana-secret" (include "ishastra.fullname" .)) .Values.monitoring.grafana.grafana.admin.existingSecret }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "strix.labels" -}}
-helm.sh/chart: {{ include "strix.chart" . }}
-{{ include "strix.selectorLabels" . }}
+{{- define "ishastra.labels" -}}
+helm.sh/chart: {{ include "ishastra.chart" . }}
+{{ include "ishastra.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -63,15 +63,15 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "strix.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "strix.name" . }}
+{{- define "ishastra.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "ishastra.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Common annotations
 */}}
-{{- define "strix.annotations" -}}
+{{- define "ishastra.annotations" -}}
 {{- if .Values.additionalAnnotations }}
 {{- toYaml .Values.additionalAnnotations | nindent 4 }}
 {{- end }}
@@ -80,7 +80,7 @@ Common annotations
 {{/*
 Security context for containers - generates restricted pod security standard
 */}}
-{{- define "strix.containerSecurityContext" -}}
+{{- define "ishastra.containerSecurityContext" -}}
 allowPrivilegeEscalation: false
 capabilities:
   drop:
@@ -96,7 +96,7 @@ seccompProfile:
 {{/*
 Security context for pods - generates restricted pod security standard
 */}}
-{{- define "strix.podSecurityContext" -}}
+{{- define "ishastra.podSecurityContext" -}}
 fsGroup: 10001
 fsGroupChangePolicy: OnRootMismatch
 runAsNonRoot: true
@@ -109,7 +109,7 @@ seccompProfile:
 {{/*
 Image pull secrets
 */}}
-{{- define "strix.imagePullSecrets" -}}
+{{- define "ishastra.imagePullSecrets" -}}
 {{- $pullSecrets := .Values.global.image.pullSecrets | default .Values.imagePullSecrets -}}
 {{- if $pullSecrets }}
 imagePullSecrets:
@@ -120,7 +120,7 @@ imagePullSecrets:
 {{/*
 Priority class name
 */}}
-{{- define "strix.priorityClassName" -}}
+{{- define "ishastra.priorityClassName" -}}
 {{- if .Values.priorityClassName }}
 {{ .Values.priorityClassName }}
 {{- end }}
@@ -129,7 +129,7 @@ Priority class name
 {{/*
 Topology spread constraints
 */}}
-{{- define "strix.topologySpreadConstraints" -}}
+{{- define "ishastra.topologySpreadConstraints" -}}
 {{- if .Values.topologySpreadConstraints }}
 topologySpreadConstraints:
 {{- toYaml .Values.topologySpreadConstraints | nindent 2 }}
@@ -139,7 +139,7 @@ topologySpreadConstraints:
 {{/*
 Affinity
 */}}
-{{- define "strix.affinity" -}}
+{{- define "ishastra.affinity" -}}
 {{- if .Values.api.affinity }}
 affinity:
 {{- toYaml .Values.api.affinity | nindent 2 }}
@@ -149,7 +149,7 @@ affinity:
 {{/*
 Scheduler affinity
 */}}
-{{- define "strix.scheduler.affinity" -}}
+{{- define "ishastra.scheduler.affinity" -}}
 {{- if .Values.scheduler.affinity }}
 affinity:
 {{- toYaml .Values.scheduler.affinity | nindent 2 }}
@@ -159,7 +159,7 @@ affinity:
 {{/*
 Worker affinity
 */}}
-{{- define "strix.worker.affinity" -}}
+{{- define "ishastra.worker.affinity" -}}
 {{- if .Values.worker.affinity }}
 affinity:
 {{- toYaml .Values.worker.affinity | nindent 2 }}
@@ -169,7 +169,7 @@ affinity:
 {{/*
 Tolerations
 */}}
-{{- define "strix.tolerations" -}}
+{{- define "ishastra.tolerations" -}}
 {{- if .Values.api.tolerations }}
 tolerations:
 {{- toYaml .Values.api.tolerations | nindent 2 }}
@@ -179,7 +179,7 @@ tolerations:
 {{/*
 Scheduler tolerations
 */}}
-{{- define "strix.scheduler.tolerations" -}}
+{{- define "ishastra.scheduler.tolerations" -}}
 {{- if .Values.scheduler.tolerations }}
 tolerations:
 {{- toYaml .Values.scheduler.tolerations | nindent 2 }}
@@ -189,7 +189,7 @@ tolerations:
 {{/*
 Worker tolerations
 */}}
-{{- define "strix.worker.tolerations" -}}
+{{- define "ishastra.worker.tolerations" -}}
 {{- if .Values.worker.tolerations }}
 tolerations:
 {{- toYaml .Values.worker.tolerations | nindent 2 }}
@@ -199,7 +199,7 @@ tolerations:
 {{/*
 K8s Jobs affinity
 */}}
-{{- define "strix.k8sJobs.affinity" -}}
+{{- define "ishastra.k8sJobs.affinity" -}}
 {{- if .Values.k8sJobs.affinity }}
 affinity:
 {{- toYaml .Values.k8sJobs.affinity | nindent 2 }}
@@ -209,7 +209,7 @@ affinity:
 {{/*
 K8s Jobs tolerations
 */}}
-{{- define "strix.k8sJobs.tolerations" -}}
+{{- define "ishastra.k8sJobs.tolerations" -}}
 {{- if .Values.k8sJobs.tolerations }}
 tolerations:
 {{- toYaml .Values.k8sJobs.tolerations | nindent 2 }}
@@ -219,7 +219,7 @@ tolerations:
 {{/*
 Operator affinity
 */}}
-{{- define "strix.operator.affinity" -}}
+{{- define "ishastra.operator.affinity" -}}
 {{- if .Values.operator.affinity }}
 affinity:
 {{- toYaml .Values.operator.affinity | nindent 2 }}
@@ -229,7 +229,7 @@ affinity:
 {{/*
 Operator tolerations
 */}}
-{{- define "strix.operator.tolerations" -}}
+{{- define "ishastra.operator.tolerations" -}}
 {{- if .Values.operator.tolerations }}
 tolerations:
 {{- toYaml .Values.operator.tolerations | nindent 2 }}
@@ -239,7 +239,7 @@ tolerations:
 {{/*
 Resource requirements
 */}}
-{{- define "strix.resources" -}}
+{{- define "ishastra.resources" -}}
 {{- if .Values.api.resources }}
 resources:
 {{- toYaml .Values.api.resources | nindent 12 }}
@@ -249,7 +249,7 @@ resources:
 {{/*
 Scheduler resource requirements
 */}}
-{{- define "strix.scheduler.resources" -}}
+{{- define "ishastra.scheduler.resources" -}}
 {{- if .Values.scheduler.resources }}
 resources:
 {{- toYaml .Values.scheduler.resources | nindent 12 }}
@@ -259,7 +259,7 @@ resources:
 {{/*
 Worker resource requirements
 */}}
-{{- define "strix.worker.resources" -}}
+{{- define "ishastra.worker.resources" -}}
 {{- if .Values.worker.resources }}
 resources:
 {{- toYaml .Values.worker.resources | nindent 12 }}
@@ -269,22 +269,22 @@ resources:
 {{/*
 Environment variables from config
 */}}
-{{- define "strix.env" -}}
+{{- define "ishastra.env" -}}
 {{- range $key, $value := .Values.api.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
 {{- if .Values.redis.enabled }}
-- name: STRIX_REDIS_REQUIRED
+- name: ISHASTRA_REDIS_REQUIRED
   value: "1"
 {{- end }}
-{{ include "strix.queue.env" . }}
+{{ include "ishastra.queue.env" . }}
 {{- end }}
 
 {{/*
 Scheduler environment variables
 */}}
-{{- define "strix.scheduler.env" -}}
+{{- define "ishastra.scheduler.env" -}}
 {{- range $key, $value := .Values.scheduler.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}
@@ -294,27 +294,27 @@ Scheduler environment variables
 {{/*
 Worker environment variables
 */}}
-{{- define "strix.worker.env" -}}
+{{- define "ishastra.worker.env" -}}
 {{- range $key, $value := .Values.worker.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
-{{ include "strix.queue.env" . }}
+{{ include "ishastra.queue.env" . }}
 {{- end }}
 
 {{/*
 Assessment queue environment: the mode has one source of truth here instead
 of being repeated (and drifting) in every service's env map.
 */}}
-{{- define "strix.queue.env" -}}
-- name: STRIX_QUEUE_MODE
+{{- define "ishastra.queue.env" -}}
+- name: ISHASTRA_QUEUE_MODE
   value: {{ .Values.queue.mode | quote }}
 {{- if eq .Values.queue.mode "redis-streams" }}
-- name: STRIX_REDIS_QUEUE_STREAM
+- name: ISHASTRA_REDIS_QUEUE_STREAM
   value: {{ .Values.queue.stream | quote }}
-- name: STRIX_REDIS_QUEUE_GROUP
+- name: ISHASTRA_REDIS_QUEUE_GROUP
   value: {{ .Values.queue.group | quote }}
-- name: STRIX_REDIS_QUEUE_VISIBILITY_SECONDS
+- name: ISHASTRA_REDIS_QUEUE_VISIBILITY_SECONDS
   value: {{ .Values.queue.visibilitySeconds | quote }}
 {{- end }}
 {{- end }}
@@ -324,7 +324,7 @@ Refuse a configuration the code cannot honour. The in-process queue holds an
 exclusive per-database worker lease, so a second pod exits with
 WorkerLeaseError instead of helping.
 */}}
-{{- define "strix.queue.validate" -}}
+{{- define "ishastra.queue.validate" -}}
 {{- $mode := .Values.queue.mode -}}
 {{- if not (has $mode (list "inprocess" "redis-streams" "k8s-jobs")) -}}
 {{- fail (printf "queue.mode must be inprocess, redis-streams or k8s-jobs (got %q)" $mode) -}}
@@ -345,7 +345,7 @@ WorkerLeaseError instead of helping.
 {{/*
 Environment from secrets
 */}}
-{{- define "strix.envFromSecrets" -}}
+{{- define "ishastra.envFromSecrets" -}}
 {{- range .Values.api.envFromSecrets }}
 - secretRef:
     name: {{ .name }}
@@ -356,7 +356,7 @@ Environment from secrets
 {{/*
 Scheduler environment from secrets
 */}}
-{{- define "strix.scheduler.envFromSecrets" -}}
+{{- define "ishastra.scheduler.envFromSecrets" -}}
 {{- range .Values.scheduler.envFromSecrets }}
 - secretRef:
     name: {{ .name }}
@@ -367,7 +367,7 @@ Scheduler environment from secrets
 {{/*
 Worker environment from secrets
 */}}
-{{- define "strix.worker.envFromSecrets" -}}
+{{- define "ishastra.worker.envFromSecrets" -}}
 {{- range .Values.worker.envFromSecrets }}
 - secretRef:
     name: {{ .name }}
@@ -378,7 +378,7 @@ Worker environment from secrets
 {{/*
 Operator environment from secrets
 */}}
-{{- define "strix.operator.envFromSecrets" -}}
+{{- define "ishastra.operator.envFromSecrets" -}}
 {{- range .Values.operator.envFromSecrets }}
 - secretRef:
     name: {{ .name }}
@@ -389,7 +389,7 @@ Operator environment from secrets
 {{/*
 Volumes
 */}}
-{{- define "strix.volumes" -}}
+{{- define "ishastra.volumes" -}}
 {{- if .Values.api.volumes }}
 volumes:
 {{- range .Values.api.volumes }}
@@ -427,7 +427,7 @@ volumes:
 {{/*
 Scheduler volumes
 */}}
-{{- define "strix.scheduler.volumes" -}}
+{{- define "ishastra.scheduler.volumes" -}}
 {{- if .Values.scheduler.volumes }}
 volumes:
 {{- range .Values.scheduler.volumes }}
@@ -465,7 +465,7 @@ volumes:
 {{/*
 Worker volumes
 */}}
-{{- define "strix.worker.volumes" -}}
+{{- define "ishastra.worker.volumes" -}}
 {{- if .Values.worker.volumes }}
 volumes:
 {{- range .Values.worker.volumes }}
@@ -503,7 +503,7 @@ volumes:
 {{/*
 Operator volumes
 */}}
-{{- define "strix.operator.volumes" -}}
+{{- define "ishastra.operator.volumes" -}}
 {{- if .Values.operator.volumes }}
 volumes:
 {{- range .Values.operator.volumes }}
@@ -541,7 +541,7 @@ volumes:
 {{/*
 Operator volume mounts
 */}}
-{{- define "strix.operator.volumeMounts" -}}
+{{- define "ishastra.operator.volumeMounts" -}}
 {{- if .Values.operator.volumeMounts }}
 volumeMounts:
 {{- range .Values.operator.volumeMounts }}
@@ -560,7 +560,7 @@ volumeMounts:
 {{/*
 Volume mounts
 */}}
-{{- define "strix.volumeMounts" -}}
+{{- define "ishastra.volumeMounts" -}}
 {{- if or .Values.api.volumeMounts .Values.scopeSigning.enabled }}
 volumeMounts:
 {{- range .Values.api.volumeMounts }}
@@ -585,7 +585,7 @@ volumeMounts:
 {{/*
 Scheduler volume mounts
 */}}
-{{- define "strix.scheduler.volumeMounts" -}}
+{{- define "ishastra.scheduler.volumeMounts" -}}
 {{- if .Values.scheduler.volumeMounts }}
 volumeMounts:
 {{- range .Values.scheduler.volumeMounts }}
@@ -604,7 +604,7 @@ volumeMounts:
 {{/*
 Worker volume mounts
 */}}
-{{- define "strix.worker.volumeMounts" -}}
+{{- define "ishastra.worker.volumeMounts" -}}
 {{- if .Values.worker.volumeMounts }}
 volumeMounts:
 {{- range .Values.worker.volumeMounts }}
@@ -623,77 +623,77 @@ volumeMounts:
 {{/*
 Liveness probe
 */}}
-{{- define "strix.livenessProbe" -}}
+{{- define "ishastra.livenessProbe" -}}
 {{- toYaml .Values.api.livenessProbe }}
 {{- end }}
 
 {{/*
 Scheduler liveness probe
 */}}
-{{- define "strix.scheduler.livenessProbe" -}}
+{{- define "ishastra.scheduler.livenessProbe" -}}
 {{- toYaml .Values.scheduler.livenessProbe }}
 {{- end }}
 
 {{/*
 Worker liveness probe
 */}}
-{{- define "strix.worker.livenessProbe" -}}
+{{- define "ishastra.worker.livenessProbe" -}}
 {{- toYaml .Values.worker.livenessProbe }}
 {{- end }}
 
 {{/*
 Readiness probe
 */}}
-{{- define "strix.readinessProbe" -}}
+{{- define "ishastra.readinessProbe" -}}
 {{- toYaml .Values.api.readinessProbe }}
 {{- end }}
 
 {{/*
 Scheduler readiness probe
 */}}
-{{- define "strix.scheduler.readinessProbe" -}}
+{{- define "ishastra.scheduler.readinessProbe" -}}
 {{- toYaml .Values.scheduler.readinessProbe }}
 {{- end }}
 
 {{/*
 Worker readiness probe
 */}}
-{{- define "strix.worker.readinessProbe" -}}
+{{- define "ishastra.worker.readinessProbe" -}}
 {{- toYaml .Values.worker.readinessProbe }}
 {{- end }}
 
 {{/*
 Startup probe
 */}}
-{{- define "strix.startupProbe" -}}
+{{- define "ishastra.startupProbe" -}}
 {{- toYaml .Values.api.startupProbe }}
 {{- end }}
 
 {{/*
 Update strategy
 */}}
-{{- define "strix.updateStrategy" -}}
+{{- define "ishastra.updateStrategy" -}}
 {{- toYaml .Values.api.updateStrategy | nindent 8 }}
 {{- end }}
 
 {{/*
 Scheduler update strategy
 */}}
-{{- define "strix.scheduler.updateStrategy" -}}
+{{- define "ishastra.scheduler.updateStrategy" -}}
 {{- toYaml .Values.scheduler.updateStrategy | nindent 8 }}
 {{- end }}
 
 {{/*
 Worker update strategy
 */}}
-{{- define "strix.worker.updateStrategy" -}}
+{{- define "ishastra.worker.updateStrategy" -}}
 {{- toYaml .Values.worker.updateStrategy | nindent 8 }}
 {{- end }}
 
 {{/*
 Service configuration
 */}}
-{{- define "strix.service" -}}
+{{- define "ishastra.service" -}}
 {{- if .Values.api.service }}
 {{- toYaml .Values.api.service | nindent 8 }}
 {{- end }}
@@ -702,7 +702,7 @@ Service configuration
 {{/*
 Scheduler service
 */}}
-{{- define "strix.scheduler.service" -}}
+{{- define "ishastra.scheduler.service" -}}
 {{- if .Values.scheduler.service }}
 {{- toYaml .Values.scheduler.service | nindent 8 }}
 {{- end }}
@@ -711,9 +711,9 @@ Scheduler service
 {{/*
 ServiceAccount name
 */}}
-{{- define "strix.serviceAccountName" -}}
+{{- define "ishastra.serviceAccountName" -}}
 {{- if .Values.serviceAccount.enabled }}
-{{- $name := .Values.serviceAccount.name | default (include "strix.fullname" .) -}}
+{{- $name := .Values.serviceAccount.name | default (include "ishastra.fullname" .) -}}
 {{- $name | quote -}}
 {{- else }}
 "default"
@@ -723,7 +723,7 @@ ServiceAccount name
 {{/*
 Seccomp profile for nmap
 */}}
-{{- define "strix.seccomp.nmap" -}}
+{{- define "ishastra.seccomp.nmap" -}}
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
@@ -804,7 +804,7 @@ Seccomp profile for nmap
 {{/*
 Seccomp profile for nuclei
 */}}
-{{- define "strix.seccomp.nuclei" -}}
+{{- define "ishastra.seccomp.nuclei" -}}
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
@@ -885,7 +885,7 @@ Seccomp profile for nuclei
 {{/*
 Seccomp profile for nikto
 */}}
-{{- define "strix.seccomp.nikto" -}}
+{{- define "ishastra.seccomp.nikto" -}}
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
@@ -966,7 +966,7 @@ Seccomp profile for nikto
 {{/*
 Seccomp profile for sqlmap
 */}}
-{{- define "strix.seccomp.sqlmap" -}}
+{{- define "ishastra.seccomp.sqlmap" -}}
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
@@ -1047,7 +1047,7 @@ Seccomp profile for sqlmap
 {{/*
 Default seccomp profile (baseline for all scanners)
 */}}
-{{- define "strix.seccomp.default" -}}
+{{- define "ishastra.seccomp.default" -}}
 {
   "defaultAction": "SCMP_ACT_ERRNO",
   "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_X86", "SCMP_ARCH_X32"],
@@ -1128,9 +1128,9 @@ Default seccomp profile (baseline for all scanners)
 SQLite is single-writer. Refuse to render more than one API pod on it: that is
 how two pods end up with two different databases and half the state disappears.
 */}}
-{{- define "strix.validateDatabase" -}}
+{{- define "ishastra.validateDatabase" -}}
 {{- $env := .Values.api.env | default dict -}}
-{{- $url := toString (index $env "STRIX_DATABASE_URL" | default "") -}}
+{{- $url := toString (index $env "ISHASTRA_DATABASE_URL" | default "") -}}
 {{- $postgres := or .Values.postgresql.enabled (hasPrefix "postgres" $url) -}}
 {{- $replicas := int (.Values.api.replicaCount | default 1) -}}
 {{- if .Values.api.hpa.enabled -}}
@@ -1138,23 +1138,23 @@ how two pods end up with two different databases and half the state disappears.
 {{- end -}}
 {{- $allow := get (default dict .Values.database) "allowSqliteMultiReplica" | default false -}}
 {{- if and (not $postgres) (not $allow) (gt $replicas 1) -}}
-{{- fail (printf "SQLite backs one API pod, but this render asks for %d. Enable postgresql.enabled (or set api.env.STRIX_DATABASE_URL to a postgres:// URL), or pin api.replicaCount: 1 and api.hpa.enabled: false." $replicas) -}}
+{{- fail (printf "SQLite backs one API pod, but this render asks for %d. Enable postgresql.enabled (or set api.env.ISHASTRA_DATABASE_URL to a postgres:// URL), or pin api.replicaCount: 1 and api.hpa.enabled: false." $replicas) -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
 Assessment Jobs run in their own pods and cannot read the API's SQLite file.
 */}}
-{{- define "strix.validateK8sJobs" -}}
+{{- define "ishastra.validateK8sJobs" -}}
 {{- if and .Values.k8sJobs.enabled (not .Values.postgresql.enabled) -}}
-{{- fail "k8sJobs requires PostgreSQL: Job pods cannot share the API's SQLite file. Set postgresql.enabled=true (or run STRIX_QUEUE_MODE=inprocess)." -}}
+{{- fail "k8sJobs requires PostgreSQL: Job pods cannot share the API's SQLite file. Set postgresql.enabled=true (or run ISHASTRA_QUEUE_MODE=inprocess)." -}}
 {{- end -}}
 {{- end -}}
 
 {{/*
 Scope-key rotation needs durable, shared storage for the signer and verifier.
 */}}
-{{- define "strix.validateScopeSigning" -}}
+{{- define "ishastra.validateScopeSigning" -}}
 {{- if and .Values.scopeSigning.enabled (not .Values.scopeSigning.existingClaim) -}}
 {{- fail "scopeSigning.enabled requires scopeSigning.existingClaim: provision a ReadWriteMany PVC and seed its public/scope-jwks.json with strix scope-keygen." -}}
 {{- end -}}
@@ -1166,12 +1166,12 @@ Scope-key rotation needs durable, shared storage for the signer and verifier.
 {{/*
 Worker command for Redis Streams mode
 */}}
-{{- define "strix.worker.command" -}}
+{{- define "ishastra.worker.command" -}}
 {{- if eq .Values.queue.mode "redis-streams" }}
 command:
   - python
   - -m
-  - strix
+  - ishastra
   - worker
   {{- if .Values.worker.concurrency }}
   - --concurrency
@@ -1190,7 +1190,7 @@ command:
 command:
   - python
   - -m
-  - strix
+  - ishastra
   - serve
   - --host
   - 0.0.0.0
@@ -1202,7 +1202,7 @@ command:
 {{/*
 Operator command and args
 */}}
-{{- define "strix.operator.command" -}}
+{{- define "ishastra.operator.command" -}}
 command:
   - /manager
 args:
@@ -1233,7 +1233,7 @@ args:
 {{/*
 Operator validation
 */}}
-{{- define "strix.operator.validate" -}}
+{{- define "ishastra.operator.validate" -}}
 {{- if .Values.operator.enabled }}
 {{- if and .Values.operator.webhook.enabled (not .Values.operator.webhook.caBundle) }}
 {{- fail "operator.webhook.enabled requires operator.webhook.caBundle: provide a CA bundle for the webhook server" -}}
@@ -1242,7 +1242,7 @@ Operator validation
 {{- fail "operator.enableRedisStreamsMode requires redis.enabled=true" -}}
 {{- end }}
 {{- if and .Values.operator.enableK8sJobsMode (not .Values.postgresql.enabled) }}
-{{- fail "operator.enableK8sJobsMode requires postgresql.enabled=true (or external database via STRIX_DATABASE_URL)" -}}
+{{- fail "operator.enableK8sJobsMode requires postgresql.enabled=true (or external database via ISHASTRA_DATABASE_URL)" -}}
 {{- end }}
 {{- end }}
 {{- end }}

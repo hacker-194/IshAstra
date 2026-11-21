@@ -23,10 +23,10 @@ Only the latest release on `master` receives security fixes.
 
 Use GitHub's private advisory flow:
 
-1. Open <https://github.com/ishastra/ishastra/security/advisories/new>.
+1. Open <https://github.com/hacker-194/IshAstra/security/advisories/new>.
 2. Describe the impact, affected version/commit, and a minimal reproduction.
 3. If the report involves a live target, use only targets you are authorized to
-   test — see `scope-pentest.json` for this project's own test scope.
+   test.
 
 There is **no paid bug bounty program** at this time. Reports are handled on a
 best-effort basis by the maintainers; this is a community project, not a vendor
@@ -75,7 +75,7 @@ Out of scope:
 
 Details: [`docs/scope-gate/concepts.md`](docs/scope-gate/concepts.md),
 [`ARCHITECTURE.md`](ARCHITECTURE.md),
-[`docs/deployment/production.md`](docs/quickstart/production.md).
+[`docs/quickstart/production.md`](docs/quickstart/production.md).
 
 ## Deliberate limitations
 

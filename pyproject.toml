@@ -95,11 +95,11 @@ ishastra-collab = "ishastra.core.collab:main"
 ishastra-operator = "ishastra.operator.main:run_operator"
 
 [project.urls]
-Homepage = "https://github.com/ishastra/ishastra"
-Documentation = "https://github.com/ishastra/ishastra/tree/master/docs"
-Repository = "https://github.com/ishastra/ishastra"
-Issues = "https://github.com/ishastra/ishastra/issues"
-Changelog = "https://github.com/ishastra/ishastra/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/hacker-194/IshAstra"
+Documentation = "https://github.com/hacker-194/IshAstra/tree/master/docs"
+Repository = "https://github.com/hacker-194/IshAstra"
+Issues = "https://github.com/hacker-194/IshAstra/issues"
+Changelog = "https://github.com/hacker-194/IshAstra/blob/master/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

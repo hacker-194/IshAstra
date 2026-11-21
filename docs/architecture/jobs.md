@@ -267,7 +267,7 @@ class ComplianceScheduler:
 Schedules are polled by the one process that owns the worker lease. There is no
 leader election and no distributed lock: a second process pointed at the same
 `ISHASTRA_DB` exits instead of double-running jobs (see
-[`DEPLOYMENT.md`](https://github.com/ishastra/ishastra/blob/master/DEPLOYMENT.md) §10).
+[`DEPLOYMENT.md`](https://github.com/hacker-194/IshAstra/blob/master/DEPLOYMENT.md) §10).
 
 Do not run a second scheduler against one database, and do not treat
 `k8s-jobs` as an HA queue — it is experimental. For more throughput, raise

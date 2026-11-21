@@ -1,4 +1,12 @@
-# SOC 2 Type II Mapping
+> **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
+> or PCI DSS attestation and no paid bug bounty. MFA at IdP is enforced by an external
+> identity provider when configured; Ishastra does not implement MFA at IdP. API
+> authentication is API keys plus OIDC/SAML browser sessions; there is no
+> API-key-to-OIDC session exchange. TLS is terminated by the operator. PostgreSQL RLS is
+> tested at the database layer and is not a substitute for application tenant
+> filters. High availability is not provided.
+
+# SOC 2 Mapping (not an attestation)
 
 # SOC 2 Type II Control Mapping
 
@@ -57,17 +65,17 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 |-----------|--------|---------------------|
 | CC5.1 | ✅ | Policy-as-Code, GitOps, CI/CD gates |
 | CC5.2 | ✅ | Scope Gate (default-deny), adapter sandboxing |
-| CC5.3 | ✅ | Network policies, mTLS, namespace isolation |
+| CC5.3 | ✅ | Network policies, network policy, namespace isolation |
 
 ### CC6.0 - Logical & Physical Access
 
 | Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
-| CC6.1 | ✅ | API keys, JWT, scoped tokens, 90-day rotation |
-| CC6.2 | ✅ | Break-glass dual approval, MFA, audit trail |
+| CC6.1 | ✅ | API keys, OIDC session, scoped tokens, 90-day rotation |
+| CC6.2 | ✅ | Break-glass dual approval, MFA at IdP, audit trail |
 | CC6.3 | ✅ | RLS, tenant isolation, ContextVar separation |
 | CC6.4 | ✅ | Network policies, egress control, Scope Gate |
-| CC6.5 | ✅ | Encryption at rest (AES-256), in transit (TLS 1.3) |
+| CC6.5 | ✅ | Encryption at rest (AES-256), in transit (TLS at proxy) |
 | CC6.6 | ✅ | Sealed secrets, External Secrets Operator, key rotation |
 | CC6.7 | ✅ | Immutable containers, distroless, no runtime install |
 | CC6.8 | ✅ | Container scanning, admission control, gVisor option |
@@ -77,7 +85,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 | Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC7.1 | ✅ | Vulnerability scanning: Trivy, Grype, nuclei in CI |
-| CC7.2 | ✅ | Penetration testing: annual third-party, continuous |
+| CC7.2 | 🔄 | No annual third-party test; continuous automated scans only |
 | CC7.3 | ✅ | Incident response: runbooks, break-glass, escalation |
 | CC7.4 | ✅ | Monitoring: real-time findings, PagerDuty, webhooks |
 | CC7.5 | ✅ | Forensics: Ishastra Proof, immutable audit trail, correlation IDs |
@@ -112,7 +120,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 | Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | C1.1 | ✅ | Data classification: finding severity, PII tags, scope tags |
-| C1.2 | ✅ | Encryption at rest, TLS 1.3, sealed secrets, key rotation |
+| C1.2 | ✅ | Encryption at rest, TLS at proxy, sealed secrets, key rotation |
 
 ## Processing Integrity (PI)
 
@@ -169,7 +177,7 @@ soc2-evidence/
 | CC6.1 | API key rotation | Daily | Rotation logs |
 | CC6.3 | Tenant isolation | Per-request | Scope Gate logs |
 | CC7.1 | Vulnerability scan | Per-commit + daily | Trivy/Gripe reports |
-| CC7.2 | Penetration test | Annual + continuous | Pentest report |
+| CC7.2 | Penetration test | Not performed | No third-party report; automated scan output only |
 | CC8.1 | Change control | Per-PR | Git history, CI logs |
 | A1.1 | Uptime | Continuous | Prometheus/Grafana |
 

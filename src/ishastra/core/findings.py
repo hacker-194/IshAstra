@@ -280,7 +280,7 @@ def to_sarif(findings: Iterable[Finding], *, tool_version: str = __version__) ->
                 "tool": {
                     "driver": {
                         "name": "ishastra",
-                        "informationUri": "https://github.com/useishastra/ishastra",
+                        "informationUri": "https://github.com/hacker-194/IshAstra",
                         "version": tool_version,
                         "rules": list(rules.values()),
                     }

@@ -8,6 +8,7 @@ metadata:
     {{- include "ishastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
   annotations:
+    {{- include "ishastra.annotations" . }}
     {{- with .Values.api.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -15,7 +16,9 @@ metadata:
     kubernetes.io/ingress.class: {{ .Values.api.ingress.className }}
     {{- end }}
 spec:
-  ingressClassName: {{ .Values.api.ingress.className }}
+  {{- with .Values.api.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
   {{- with .Values.api.ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}

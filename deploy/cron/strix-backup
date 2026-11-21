@@ -2,21 +2,21 @@
 # Hourly verified database backup. Install as e.g. /etc/cron.hourly/strix-backup.
 #
 # Writes one verified artifact per run (SQLite snapshot, or a pg_dump archive
-# when STRIX_DATABASE_URL points at PostgreSQL), then prunes old ones. A backup
+# when ISHASTRA_DATABASE_URL points at PostgreSQL), then prunes old ones. A backup
 # that fails verification makes this script exit non-zero, so the cron mail or
 # your monitoring sees it instead of discovering it during a failover.
 set -euo pipefail
 
-STRIX_BIN="${STRIX_BIN:-strix}"
-export STRIX_DB="${STRIX_DB:-/var/lib/strix/strix.db}"
-backup_dir="${STRIX_BACKUP_DIR:-/backups}"
-retain_days="${STRIX_BACKUP_RETAIN_DAYS:-14}"
+ISHASTRA_BIN="${ISHASTRA_BIN:-ishastra}"
+export ISHASTRA_DB="${ISHASTRA_DB:-/var/lib/strix/strix.db}"
+backup_dir="${ISHASTRA_BACKUP_DIR:-/backups}"
+retain_days="${ISHASTRA_BACKUP_RETAIN_DAYS:-14}"
 
 mkdir -p "$backup_dir"
 
-"$STRIX_BIN" backup --out "$backup_dir"
+"$ISHASTRA_BIN" backup --out "$backup_dir"
 
 # Keep the retention window; both artifacts are rotated by the same rule.
 find "$backup_dir" -maxdepth 1 -type f \
-  \( -name 'strix-*.db' -o -name 'strix-*.dump' \) \
+  \( -name 'ishastra-*.db' -o -name 'ishastra-*.dump' \) \
   -mtime "+${retain_days}" -delete

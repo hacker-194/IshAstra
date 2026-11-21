@@ -1373,9 +1373,7 @@ class SQLiteDatabase(Database):
             await connection.execute(
                 "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
-            cursor = await connection.execute(
-                "SELECT value FROM schema_meta WHERE key = 'mssp_version'"
-            )
+            cursor = await connection.execute("SELECT value FROM schema_meta WHERE key = 'mssp_version'")
             row = await cursor.fetchone()
             applied = int(row[0]) if row else 0
             for target, script in MIGRATIONS_MSSP:

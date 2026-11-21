@@ -8,8 +8,8 @@ site_name: Ishastra Documentation
 site_description: Authorization-First Security Assessment Platform
 site_url: https://ishastra.dev
 site_author: Ishastra Contributors
-repo_url: https://github.com/ishastra/ishastra
-repo_name: ishastra/ishastra
+repo_url: https://github.com/hacker-194/IshAstra
+repo_name: hacker-194/IshAstra
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2024 Ishastra Contributors — Apache-2.0
 
@@ -133,6 +133,7 @@ nav:
       - PCI DSS: compliance/pci-dss.md
   - Security:
       - Security Review: security-review.md
+  - Security Audit: security/audit-report.md
   - Contributing:
       - Development: contributing/development.md
       - Code Style: contributing/code-style.md
@@ -144,7 +145,7 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/ishastra/ishastra
+      link: https://github.com/hacker-194/IshAstra
     - icon: fontawesome/brands/discord
       link: https://discord.gg/ishastra
     - icon: fontawesome/brands/slack

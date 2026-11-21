@@ -5,7 +5,7 @@
 
 global:
   image:
-    repository: ghcr.io/your-org/ishastra
+    repository: ghcr.io/hacker-194/ishastra
     tag: "3.5.0"
     pullPolicy: IfNotPresent
     pullSecrets: []

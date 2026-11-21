@@ -8,7 +8,7 @@ Complete guide for contributing to Ishastra.
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/your-org/ishastra.git
+git clone https://github.com/hacker-194/IshAstra.git
 cd ishastra
 
 # 2. Start dev environment

@@ -276,7 +276,7 @@ monitoring:
     enabled: true
     exporter:
       image:
-        repository: "ghcr.io/your-org/ishastra-cost-exporter"
+        repository: "ghcr.io/hacker-194/ishastra-cost-exporter"
         tag: "v1.0.0"
       clusterName: "primary"
     alertInterval: "1m"

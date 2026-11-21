@@ -1457,10 +1457,14 @@ class NiktoAdapter(Adapter):
     ) -> AdapterResult:
         destination = checked_destination(target)
         parsed_target = parse_url(target)
-        host = parsed_target.hostname if parsed_target else None
-        port = destination.port if destination else (parsed_target.port if parsed_target else None)
-        if not host or not port:
-            raise AdapterError(f"no host/port in target {target}")
+        if parsed_target is None or not parsed_target.hostname:
+            raise AdapterError(f"no host in target {target}")
+        host = parsed_target.hostname
+        port = destination.port
+        ip_literal = f"[{destination.ip}]" if ":" in destination.ip else destination.ip
+        host_header = f"[{host}]" if ":" in host and not host.startswith("[") else host
+        if parsed_target.port is not None:
+            host_header = f"{host_header}:{parsed_target.port}"
 
         ok, detail = self.available()
         if not ok:
@@ -1470,7 +1474,9 @@ class NiktoAdapter(Adapter):
             shutil.which("nikto") or "nikto",
             "-nointeractive",
             "-host",
-            host,
+            ip_literal,
+            "-vhost",
+            host_header,
             "-port",
             str(port),
             "-Format",
@@ -1597,10 +1603,24 @@ class SqlmapAdapter(Adapter):
         cancel: threading.Event,
         context: dict[str, Any] | None = None,
     ) -> AdapterResult:
-        _ = checked_destination(target)
+        destination = checked_destination(target)
         parsed_target = parse_url(target)
         if parsed_target is None or not parsed_target.query:
             raise AdapterNotApplicable("no query parameters available; sql injection testing is inconclusive")
+        ip_literal = f"[{destination.ip}]" if ":" in destination.ip else destination.ip
+        host_header = (
+            f"[{parsed_target.hostname}]" if ":" in (parsed_target.hostname or "") else parsed_target.hostname
+        )
+        if parsed_target.port is not None:
+            host_header = f"{host_header}:{parsed_target.port}"
+        pinned_target = parsed_target._replace(netloc=f"{ip_literal}:{destination.port}").geturl()
+        proxy = os.environ.get("ISHASTRA_SQLMAP_PROXY", "").strip()
+        if parsed_target.scheme == "https" and not proxy:
+            raise AdapterError(
+                "SQLMap HTTPS requires ISHASTRA_SQLMAP_PROXY pointing at an egress proxy "
+                "that preserves the target hostname and pins the authorized destination"
+            )
+        tool_target = target if proxy else pinned_target
 
         ok, detail = self.available()
         if not ok:
@@ -1612,7 +1632,10 @@ class SqlmapAdapter(Adapter):
             argv = [
                 shutil.which("sqlmap") or "sqlmap",
                 "-u",
-                target,
+                tool_target,
+                "--host",
+                host_header or "",
+                "--ignore-redirects",
                 "--batch",
                 "--crawl",
                 "0",
@@ -1644,6 +1667,9 @@ class SqlmapAdapter(Adapter):
                         argv.extend(["--header", f"{k}: {v}"])
                 if auth.bearer:
                     argv.extend(["--header", f"Authorization: Bearer {auth.bearer}"])
+
+            if proxy:
+                argv.extend(["--proxy", proxy])
 
             code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
 
@@ -1703,6 +1729,9 @@ def _load_plugin_adapters() -> dict[str, Adapter]:
     from importlib.metadata import entry_points
 
     logger = logging.getLogger(__name__)
+    enabled = os.environ.get("ISHASTRA_ALLOW_PLUGINS", "").strip().lower()
+    if enabled not in {"1", "true", "yes"}:
+        return {}
     loaded: dict[str, Adapter] = {}
     for entry in entry_points(group=ADAPTER_PLUGIN_GROUP):
         try:

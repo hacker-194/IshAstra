@@ -4,7 +4,7 @@ description: Authorized security assessment platform - Kubernetes Helm Chart
 type: application
 version: 3.5.0
 appVersion: "3.5.0"
-home: https://github.com/your-org/ishastra
+home: https://github.com/hacker-194/IshAstra
 maintainers:
   - name: Ishastra Team
     email: ishastra@example.com
@@ -17,7 +17,7 @@ keywords:
   - redis
   - postgresql
 sources:
-  - https://github.com/your-org/ishastra
+  - https://github.com/hacker-194/IshAstra
 annotations:
   artifacthub.io/changes: |
     - kind: added

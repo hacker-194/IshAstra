@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,15 +16,18 @@ from ishastra.core.adapters import (
     CrawlerAdapter,
     DynamicValidationAdapter,
     HTTPAdapter,
+    NiktoAdapter,
     NmapAdapter,
     NucleiAdapter,
     OpenAPIAdapter,
+    SqlmapAdapter,
     SSRFOOBAdapter,
     select,
 )
 from ishastra.core.crawler import CrawlerAdapter as CoreCrawlerAdapter
 from ishastra.core.exposure import GitExposureAdapter
 from ishastra.core.ports import TCPPortAdapter
+from ishastra.core.scope import Destination
 
 
 class TestAdapterBase:
@@ -396,3 +400,67 @@ class TestAdapterNetBoundary:
         adapter = GitExposureAdapter()
         state = adapter.net_boundary_state()
         assert state == "none"
+
+
+class TestExternalScannerPinning:
+    """Nikto and SQLMap must use the gate's resolved IP, not resolve again."""
+
+    @staticmethod
+    def _destination(scheme: str = "https", port: int = 443) -> Destination:
+        return Destination(scheme=scheme, host="example.com", port=port, ip="203.0.113.10")
+
+    def test_nikto_uses_pinned_ip_and_vhost(self):
+        adapter = NiktoAdapter()
+        adapter._version = "test"
+        with (
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/nikto"),
+            patch("ishastra.core.adapters._run_tool", return_value=(0, "[]", "")) as run,
+        ):
+            adapter.assess("https://example.com/", timeout=5, cancel=threading.Event())
+        argv = run.call_args.args[0]
+        assert argv[argv.index("-host") + 1] == "203.0.113.10"
+        assert argv[argv.index("-vhost") + 1] == "example.com"
+        assert "-ssl" in argv
+
+    def test_sqlmap_refuses_unproxied_https(self):
+        adapter = SqlmapAdapter()
+        adapter._version = "test"
+        with (
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
+            patch.dict("os.environ", {}, clear=False),
+        ):
+            import os
+
+            os.environ.pop("ISHASTRA_SQLMAP_PROXY", None)
+            with pytest.raises(AdapterError, match="ISHASTRA_SQLMAP_PROXY"):
+                adapter.assess("https://example.com/search?q=1", timeout=20, cancel=threading.Event())
+
+    def test_sqlmap_uses_pinned_url_and_ignores_redirects(self):
+        adapter = SqlmapAdapter()
+        adapter._version = "test"
+        with (
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination("http", 80)),
+            patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
+            patch("ishastra.core.adapters._run_tool", return_value=(0, "", "")) as run,
+        ):
+            adapter.assess("http://example.com/search?q=1", timeout=20, cancel=threading.Event())
+        argv = run.call_args.args[0]
+        assert argv[argv.index("-u") + 1] == "http://203.0.113.10:80/search?q=1"
+        assert argv[argv.index("--host") + 1] == "example.com"
+        assert "--ignore-redirects" in argv
+
+    def test_sqlmap_https_with_proxy_preserves_hostname(self, monkeypatch):
+        adapter = SqlmapAdapter()
+        adapter._version = "test"
+        monkeypatch.setenv("ISHASTRA_SQLMAP_PROXY", "http://127.0.0.1:8081")
+        with (
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
+            patch("ishastra.core.adapters._run_tool", return_value=(0, "", "")) as run,
+        ):
+            adapter.assess("https://example.com/search?q=1", timeout=20, cancel=threading.Event())
+        argv = run.call_args.args[0]
+        assert argv[argv.index("-u") + 1] == "https://example.com/search?q=1"
+        assert argv[argv.index("--proxy") + 1] == "http://127.0.0.1:8081"

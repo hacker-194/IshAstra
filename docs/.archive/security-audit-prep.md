@@ -354,6 +354,6 @@ Include:
 
 ## 6. Contact
 
-For questions during audit: [GitHub Security Advisory](https://github.com/useishastra/ishastra/security/advisories/new)
+For questions during audit: [GitHub Security Advisory](https://github.com/hacker-194/IshAstra/security/advisories/new)
 
 **Ishastra is fully open source under MIT License.** No open-core split, no paid edition, no proprietary add-ons.

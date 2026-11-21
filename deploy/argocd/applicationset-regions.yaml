@@ -22,7 +22,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/useishastra/ishastra.git
+        repoURL: https://github.com/hacker-194/IshAstra.git
         targetRevision: main
         path: deploy/kustomize/overlays/{{region}}
       destination:

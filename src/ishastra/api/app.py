@@ -35,7 +35,7 @@ from ishastra.api.deps import (
 from ishastra.api.deps import (
     settings as deps_settings,
 )
-from ishastra.api.middleware import SecurityHeadersMiddleware
+from ishastra.api.middleware import RLSTenantMiddleware, SecurityHeadersMiddleware
 from ishastra.api.routers import assessments, assets, exceptions, findings, monitoring, probe, system, tenants
 from ishastra.api.routers import auth as auth_router
 from ishastra.api.routers import compliance as compliance_router
@@ -326,6 +326,7 @@ def create_app() -> FastAPI:
     test_mode = os.environ.get("ISHASTRA_TEST_MODE") == "1"
 
     app.add_middleware(MetricsMiddleware)
+    app.add_middleware(RLSTenantMiddleware)
     app.add_middleware(TenantStateMiddleware)
     app.add_middleware(
         BodyLimitMiddleware,

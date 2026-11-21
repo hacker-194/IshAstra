@@ -43,7 +43,8 @@ change.
 
    ```bash
    python3 -m venv /opt/ishastra/venv
-   /opt/ishastra/venv/bin/pip install --no-cache-dir -c constraints.txt ishastra==3.5.0
+   # PyPI publication is pending; install the release checkout/artifact.
+   /opt/ishastra/venv/bin/pip install --no-cache-dir -c constraints.txt /path/to/ishastra-3.5.0
    ```
 
    Containers: build/pull the image and pin it by digest, not by tag.

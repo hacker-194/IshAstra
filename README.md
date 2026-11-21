@@ -1,14 +1,14 @@
 # Ishastra — Authorization-First Security Assessment Platform
 
-[![License](https://img.shields.io/github/license/ishastra/ishastra)](LICENSE)
-[![CI](https://github.com/ishastra/ishastra/actions/workflows/ci.yml/badge.svg)](https://github.com/ishastra/ishastra/actions)
+[![License](https://img.shields.io/github/license/hacker-194/IshAstra)](LICENSE)
+[![CI](https://github.com/hacker-194/IshAstra/actions/workflows/ci.yml/badge.svg)](https://github.com/hacker-194/IshAstra/actions)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![Kubernetes](https://img.shields.io/badge/k8s-1.28+-blue)](https://kubernetes.io)
 
-> **The only security scanner that enforces authorization BEFORE every connection.**
+> **Authorization is enforced before every outbound connection Ishastra makes.**
 
 > **Project status:** pilot-grade for a single-tenant, single-host deployment.
-> The authorization core is TLA+-verified and CI-enforced; the platform has no
+> The authorization core is TLA+-model-checked and CI-enforced; the platform has no
 > HA or multi-node story yet. Read
 > [Production deployment](docs/quickstart/production.md) before promising
 > uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
@@ -25,12 +25,17 @@
 | **Policy-as-code (CIDR+ASN+Geo)** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **DNS rebinding protection** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Free-tier deployable** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **TLA+ formally verified** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **TLA+ model-checked** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ## Try It In One Command
 
+The package is not yet published to PyPI; install from the repository:
+
 ```bash
-pip install ishastra
+git clone https://github.com/hacker-194/IshAstra
+cd IshAstra
+python3 -m venv .venv && . .venv/bin/activate
+pip install -c constraints.txt -e .
 ishastra demo
 ```
 
@@ -41,7 +46,7 @@ bar. Nothing outside `.ishastra-demo/` is touched.
 In CI, the bundled action runs a scoped assessment and uploads SARIF:
 
 ```yaml
-- uses: ishastra/ishastra@v1
+- uses: hacker-194/IshAstra@master  # pin to a commit SHA in production
   with:
     target: https://staging.example.com
     scope-file: scope.json          # signed; the gate refuses anything else
@@ -59,6 +64,10 @@ my-probe = "my_package.adapters:MyProbe"
 
 A plugin can add an adapter id but cannot replace a built-in one.
 
+Third-party adapters are opt-in: set `ISHASTRA_ALLOW_PLUGINS=1` only for
+packages you trust, because plugins run in-process and can open network
+connections without the Scope Gate.
+
 ## Signed Evidence Bundles
 
 `ishastra bundle` packages a job's result, its findings as SARIF, the rendered HTML report, the audit-chain entries and the exact scope document into a zip whose manifest is Ed25519-signed and whose members are SHA-256 pinned. Verification is offline, and any member that was edited, added or removed after signing is rejected.
@@ -72,7 +81,7 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 
 ```bash
 # One-shot bootstrap on Oracle Cloud Always Free
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
@@ -90,9 +99,11 @@ chmod +x scripts/bootstrap-free.sh
 ## Local Development (Docker Compose)
 
 ```bash
-docker-compose up -d
+cp .env.example .env
+# Set POSTGRES_PASSWORD, GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD in .env
+docker compose up -d
 # API at http://localhost:8000
-# Grafana at http://localhost:3000 (admin/admin)
+# Grafana at http://localhost:3000 (log in with GRAFANA_PASSWORD)
 ```
 
 ## Architecture
@@ -103,8 +114,8 @@ docker-compose up -d
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │   REST API   │    │   Job Queue  │    │   Assessment Worker  │  │
-│  │  (FastAPI)   │───▶│  (In-Memory) │───▶│  (Threaded Pool)     │  │
+│  │   REST API   │    │  Job Queue  │    │   Assessment Worker  │  │
+│  │  (FastAPI)   │───▶│ in-process   │───▶│  (Threaded Pool)     │  │
 │  └──────────────┘    └──────────────┘    └──────────┬───────────┘  │
 │       │                                             │              │
 │       │                    ┌────────────────────────┼────────┐     │
@@ -180,8 +191,19 @@ Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, ve
 |-------------|---------|------|
 | **Free Tier (Oracle)** | `./scripts/bootstrap-free.sh` | $0/month |
 | **Single-host production** | systemd or Compose, one writer | Low |
-| **Local Dev** | `docker-compose up -d` | Free |
+| **Local Dev** | `docker compose up -d` (after setting the required passwords) | Free |
 | **Kind/Minikube** | `./scripts/bootstrap-kind.sh` | Free |
+
+### Data backend and queue modes
+
+- **SQLite** is the default and the supported single-host pilot backend.
+- **PostgreSQL** is available with `ISHASTRA_DB=postgresql://...` and the
+  `postgres` extra. It is experimental: schema, RLS and a single-host worker
+  path are tested, but there is no HA or multi-node failover.
+- **Queue:** `in-process` (default) holds queued work in memory, so a restart
+  loses queued jobs. Use `ISHASTRA_QUEUE_MODE=redis-streams` with
+  `ISHASTRA_REDIS_URL` for durable work shared by workers; `k8s-jobs` is
+  experimental. See [ARCHITECTURE.md](ARCHITECTURE.md#deployment-constraints).
 
 ## Contributing
 
@@ -203,9 +225,9 @@ Apache-2.0 — see [LICENSE](LICENSE)
 
 ## Community
 
-- **Questions and ideas**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
-- **Issues**: [GitHub Issues](https://github.com/ishastra/ishastra/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
+- **Questions and ideas**: [GitHub Discussions](https://github.com/hacker-194/IshAstra/discussions)
+- **Issues**: [GitHub Issues](https://github.com/hacker-194/IshAstra/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/hacker-194/IshAstra/discussions)
 
 ---
 

@@ -9,7 +9,7 @@
 global:
 
   image:
-    repository: ghcr.io/your-org/ishastra
+    repository: ghcr.io/hacker-194/ishastra
     tag: "3.5.0"
     pullPolicy: IfNotPresent
     pullSecrets: []
@@ -1387,7 +1387,7 @@ monitoringExtras:
     enabled: false
     exporter:
       image:
-        repository: "ghcr.io/your-org/ishastra-cost-exporter"
+        repository: "ghcr.io/hacker-194/ishastra-cost-exporter"
         tag: "v1.0.0"
       clusterName: "primary"
     alertInterval: "1m"
@@ -1426,7 +1426,7 @@ operator:
   replicas: 1
 
   image:
-    repository: ghcr.io/your-org/ishastra-operator
+    repository: ghcr.io/hacker-194/ishastra-operator
     tag: "v1.0.0"
     pullPolicy: IfNotPresent
 

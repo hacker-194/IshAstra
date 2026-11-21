@@ -1,4 +1,12 @@
-# PCI DSS 4.0.1 Mapping
+> **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
+> or PCI DSS attestation and no paid bug bounty. MFA at IdP is enforced by an external
+> identity provider when configured; Ishastra does not implement MFA at IdP. API
+> authentication is API keys plus OIDC/SAML browser sessions; there is no
+> API-key-to-OIDC session exchange. TLS is terminated by the operator. PostgreSQL RLS is
+> tested at the database layer and is not a substitute for application tenant
+> filters. High availability is not provided.
+
+# PCI DSS Mapping (not an attestation)
 
 # PCI DSS 4.0.1 Control Mapping
 
@@ -11,11 +19,11 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | Req 1: Network Security | 8 | 1 | 0 | 0 | Scope Gate = network segmentation |
 | Req 2: Secure Configuration | 7 | 0 | 1 | 0 | Hardened defaults, GitOps |
 | Req 3: Protect Cardholder Data | 5 | 0 | 0 | 1 | No CHD stored (assessment platform) |
-| Req 4: Encrypt Transmission | 4 | 0 | 0 | 0 | TLS 1.3 everywhere |
+| Req 4: Encrypt Transmission | 4 | 0 | 0 | 0 | TLS at proxy everywhere |
 | Req 5: Malware Protection | 4 | 0 | 0 | 0 | Container scanning, admission control |
 | Req 6: Secure Development | 12 | 1 | 1 | 0 | TDD, TLA+, security gates |
 | Req 7: Access Control | 6 | 0 | 0 | 0 | RBAC, Scope Gate, break-glass |
-| Req 8: Identity & Authentication | 8 | 0 | 0 | 0 | API keys, JWT, MFA |
+| Req 8: Identity & Authentication | 8 | 0 | 0 | 0 | API keys, OIDC session, MFA at IdP |
 | Req 9: Physical Access | 0 | 0 | 0 | 5 | Cloud provider responsibility |
 | Req 10: Logging & Monitoring | 10 | 1 | 0 | 0 | Ishastra Proof, immutable audit |
 | Req 11: Testing | 8 | 0 | 0 | 0 | Automated + manual pentest |
@@ -32,7 +40,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | 1.1.5 | Review network controls | ✅ | Quarterly review, automated validation |
 | 1.2.1 | Default-deny | ✅ | Scope Gate core feature |
 | 1.2.2 | Business justification | ✅ | Scope document = business justification |
-| 1.2.3 | Secure services | ✅ | TLS 1.3, mTLS, adapter sandboxing |
+| 1.2.3 | Secure services | ✅ | TLS at proxy, network policy, adapter sandboxing |
 | 1.3.1 | DMZ / segmentation | ✅ | Namespace isolation, network policies |
 | 1.3.2 | Wireless | ❌ N/A | Cloud provider |
 | 1.4.1 | Mobile / employee | ❌ N/A | Not applicable |
@@ -45,7 +53,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 |---------|-------|--------|---------------------|
 | 2.1.1 | Default passwords | ✅ | No defaults, generated secrets |
 | 2.1.2 | Unnecessary services | ✅ | Distroless, minimal attack surface |
-| 2.1.3 | Insecure protocols | ✅ | TLS 1.3 only, no HTTP |
+| 2.1.3 | Insecure protocols | ✅ | TLS at proxy only, no HTTP |
 | 2.2.1 | Configuration standards | ✅ | CIS benchmarks, hardened images |
 | 2.2.2 | System hardening | ✅ | Immutable containers, read-only FS |
 | 2.2.3 | Wireless | ❌ N/A | Cloud provider |
@@ -71,8 +79,8 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 | Sub-req | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
-| 4.1.1 | Strong cryptography | ✅ | TLS 1.3, AES-256-GCM, ChaCha20-Poly1305 |
-| 4.1.2 | TLS 1.3 | ✅ | Minimum TLS 1.3 everywhere |
+| 4.1.1 | Strong cryptography | ✅ | TLS at proxy, AES-256-GCM, ChaCha20-Poly1305 |
+| 4.1.2 | TLS at proxy | ✅ | Minimum TLS at proxy everywhere |
 | 4.2.1 | Pan-primary account number | ✅ | Not applicable (no PAN) |
 | 4.3.1 | End-user messaging | ✅ | Not applicable |
 
@@ -102,10 +110,10 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | 6.4.3 | Patches | ✅ | Automated Dependabot PRs |
 | 6.5.1 | Injection prevention | ✅ | Pydantic, parameterized queries, Scope Gate |
 | 6.5.2 | XSS prevention | ✅ | No direct HTML, sanitization |
-| 6.5.3 | Auth bypass | ✅ | Scope Gate per-request, JWT validation |
+| 6.5.3 | Auth bypass | ✅ | Scope Gate per-request, OIDC session validation |
 | 6.5.4 | IDOR | ✅ | Dynamic validation adapter tests IDOR |
 | 6.5.5 | Access control | ✅ | RBAC, RLS, break-glass dual approval |
-| 6.5.6 | Crypto failures | ✅ | TLS 1.3, Ed25519, JWKS rotation |
+| 6.5.6 | Crypto failures | ✅ | TLS at proxy, Ed25519, scope-key rotation |
 | 6.5.7 | Insecure deserialization | ✅ | Pydantic schemas, no pickle |
 | 6.5.8 | Logging failures | ✅ | Structured logging, correlation IDs |
 | 6.5.9 | SSRF | ✅ | Scope Gate (core), egress control |
@@ -125,12 +133,12 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 | Sub-req | Title | Status | Ishastra Implementation |
 |---------|-------|--------|---------------------|
-| 8.1.1 | Unique IDs | ✅ | API key IDs, JWT subjects |
-| 8.1.2 | MFA | ✅ | Required for break-glass, admin |
-| 8.2.1 | Strong auth | ✅ | 256-bit keys, Ed25519, JWT |
-| 8.2.2 | MFA for all | ✅ | Break-glass, admin, CI/CD |
-| 8.3.1 | Cryptographic auth | ✅ | API keys, JWT, mTLS |
-| 8.3.2 | MFA for remote | ✅ | VPN, mTLS, break-glass |
+| 8.1.1 | Unique IDs | ✅ | API key IDs, OIDC session subjects |
+| 8.1.2 | MFA at IdP | ✅ | Required for break-glass, admin |
+| 8.2.1 | Strong auth | ✅ | 256-bit keys, Ed25519, OIDC session |
+| 8.2.2 | MFA at IdP for all | ✅ | Break-glass, admin, CI/CD |
+| 8.3.1 | Cryptographic auth | ✅ | API keys, OIDC session, network policy |
+| 8.3.2 | MFA at IdP for remote | ✅ | VPN, network policy, break-glass |
 | 8.4.1 | Service accounts | ✅ | Scoped keys, no human passwords |
 | 8.5.1 | Third-party | ✅ | Vendor keys, scoped access |
 | 8.6.1 | No shared accounts | ✅ | Unique keys per identity |
@@ -163,7 +171,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | 11.1.1 | Wireless | ❌ N/A | Cloud provider |
 | 11.2.1 | Internal vuln scan | ✅ | Trivy, Grype daily |
 | 11.2.2 | External vuln scan | ✅ | Nuclei, third-party annually |
-| 11.3.1 | Penetration test | ✅ | Annual third-party, continuous |
+| 11.3.1 | Penetration test | 🔄 | No annual third-party test; continuous automated scans only |
 | 11.3.2 | Segmentation test | ✅ | Scope Gate validation per request |
 | 11.4.1 | Intrusion detection | ✅ | Prometheus alerts, finding webhooks |
 | 11.5.1 | Change detection | ✅ | ArgoCD drift detection, file integrity |

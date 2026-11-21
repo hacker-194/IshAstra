@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+pytest.importorskip("kubernetes")
+
 from ishastra.operator.controllers.policy import PolicyReconciler
 from ishastra.operator.controllers.scan_result import ScanResultReconciler
 

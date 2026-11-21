@@ -15,6 +15,8 @@
 
 ## Why Ishastra?
 
+Ishastra is a **guardrail** — it wraps tools like Nuclei, nmap, and ZAP with default-deny authorization, cryptographic audit trails, and signed evidence. It does not replace scanners; it makes their output trustworthy.
+
 | Feature | Ishastra | Nuclei | Trivy | OWASP ZAP | OpenVAS |
 |---------|-------|--------|-------|-----------|---------|
 | **Default-deny authorization** | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -24,8 +26,10 @@
 | **Runs Nuclei/nmap/SQLMap** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **Policy-as-code (CIDR+ASN+Geo)** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **DNS rebinding protection** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Free-tier deployable** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Free-tier deployable** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **TLA+ model-checked** | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+> **Note**: ZAP, Trivy, and OpenVAS are free. The table above reflects features *built into each tool*, not cost.
 
 ## Try It In One Command
 
@@ -39,14 +43,21 @@ pip install -c constraints.txt -e .
 ishastra demo
 ```
 
-The demo writes its own Ed25519-signed scope (localhost only), generates an
-admin key, uses SQLite, and prints the URL plus the key you paste into the top
-bar. Nothing outside `.ishastra-demo/` is touched.
+The demo writes its own Ed25519-signed scope (localhost only), generates an admin key, uses SQLite, and prints the URL plus the key you paste into the top bar. Nothing outside `.ishastra-demo/` is touched.
+
+**Quick demo of scope enforcement**:
+```bash
+ishastra demo
+# In another terminal:
+curl -H "Authorization: Bearer <demo-key>" \
+  "http://127.0.0.1:8000/api/probe?target=https://evil.com"
+# → 403 Forbidden: host not in scope
+```
 
 In CI, the bundled action runs a scoped assessment and uploads SARIF:
 
 ```yaml
-- uses: hacker-194/IshAstra@master  # pin to a commit SHA in production
+- uses: hacker-194/IshAstra@v1  # pin to a version tag in production
   with:
     target: https://staging.example.com
     scope-file: scope.json          # signed; the gate refuses anything else
@@ -77,26 +88,40 @@ ishastra bundle --job <job-id> --scope scope.json --key scope-signing-key.pem --
 ishastra bundle --verify evidence.zip --jwks jwks.json
 ```
 
-## Quick Start (Free Tier — $0/month)
+## Quick Start
+
+### Local Development (Docker Compose)
 
 ```bash
-# One-shot bootstrap on Oracle Cloud Always Free
 git clone https://github.com/hacker-194/IshAstra
-cd ishastra
+cd IshAstra
+cp .env.example .env
+# Set POSTGRES_PASSWORD, GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD in .env
+docker compose up -d
+# API at http://localhost:8000
+# Grafana at http://localhost:3000 (log in with GRAFANA_PASSWORD)
+```
+
+### Free Tier Cloud Deployment (Oracle Cloud Always Free — $0/month)
+
+One-shot bootstrap to a production-ready instance:
+
+```bash
+git clone https://github.com/hacker-194/IshAstra
+cd IshAstra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
 ```
 
-**What you get:**
-- k0s cluster on Oracle Always Free Arm (2 OCPU / 12GB total, halved by Oracle in June 2026); add a third controller for quorum
-- Neon PostgreSQL (serverless, 0.5GB free)
-- Upstash Redis (serverless, 256MB free)
-- Cloudflare Tunnel ingress (zero public IP, DDoS protection)
-- SealedSecrets for git-safe secret management
-- Prometheus + Grafana monitoring
-- Full Ishastra ScopeGate API at `https://api.yourdomain.com`
+**What you get:** k0s cluster on Oracle ARM, Neon PostgreSQL, Upstash Redis, Cloudflare Tunnel, SealedSecrets, Prometheus + Grafana. See [Free Tier Deployment](docs/deployment/free-tier.md) for details.
 
-## Local Development (Docker Compose)
+### Local Kubernetes (Kind)
+
+```bash
+./scripts/bootstrap-kind.sh
+```
+
+See [Kubernetes Deployment](docs/deployment/kubernetes.md) and [Helm Guide](docs/deployment/helm.md) for production options.
 
 ```bash
 cp .env.example .env

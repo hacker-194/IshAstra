@@ -81,7 +81,7 @@ otel = [
     "opentelemetry-exporter-prometheus>=0.65b0,<1.0",
 ]
 
-hexstrike = ["fastmcp>=0.2.0,<1.0", "aiohttp>=3.8,<4.0", "beautifulsoup4>=4.12,<5.0", "selenium>=4.15,<5.0", "webdriver-manager>=4.0,<5.0", "mitmproxy>=9.0,<11.0", "pwntools>=4.10,<5.0", "angr>=9.2,<10.0"]
+hexstrike = ["fastmcp>=0.2.0,<1.0", "aiohttp>=3.8,<4.0", "beautifulsoup4>=4.12,<5.0", "selenium>=4.15,<5.0", "webdriver-manager>=4.0,<5.0", "mitmproxy>=11.0,<13.0", "pwntools>=4.10,<5.0", "angr>=9.2,<10.0"]
 
 vault = ["hvac>=2.0,<3.0"]
 

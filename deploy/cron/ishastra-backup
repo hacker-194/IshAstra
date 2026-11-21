@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hourly verified database backup. Install as e.g. /etc/cron.hourly/strix-backup.
+# Hourly verified database backup. Install as e.g. /etc/cron.hourly/ishastra-backup.
 #
 # Writes one verified artifact per run (SQLite snapshot, or a pg_dump archive
 # when ISHASTRA_DATABASE_URL points at PostgreSQL), then prunes old ones. A backup

@@ -48,7 +48,7 @@ spec:
             description: |
               Tenant {{ $labels.tenant }} has {{ $value | printf "%%.0f' }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
               This indicates the assessment workers cannot keep up with the submission rate.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
         - alert: IshastraQueueBacklogCritical
           expr: |
@@ -66,7 +66,7 @@ spec:
             description: |
               Tenant {{ $labels.tenant }} has {{ $value | printf "%%.0f' }} jobs queued but not completed/failed/cancelled in the last 5 minutes.
               Immediate action required: scale workers or investigate worker failures.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/queue-backlog.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/queue-backlog.md"
 
 
         - alert: IshastraJobLatencyHigh
@@ -81,7 +81,7 @@ spec:
             description: |
               95th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%%.0f' }} seconds.
               Jobs are taking too long to complete. Check adapter timeouts and worker resources.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
         - alert: IshastraJobLatencyCritical
           expr: |
@@ -95,7 +95,7 @@ spec:
             description: |
               99th percentile job duration for tenant {{ $labels.tenant }} is {{ $value | printf "%%.0f' }} seconds.
               Jobs are hitting the hard timeout. Investigate immediately.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-latency.md"
 
 
         - alert: IshastraAdapterSuccessRateLow
@@ -110,7 +110,7 @@ spec:
             description: |
               Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%%.2f' }} (below 95%).
               Check adapter logs for errors and external tool availability.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
         - alert: IshastraAdapterSuccessRateCritical
           expr: |
@@ -124,7 +124,7 @@ spec:
             description: |
               Adapter {{ $labels.adapter }} success rate is {{ $value | printf "%%.2f' }} (below 90%).
               Immediate investigation required.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/adapter-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/adapter-errors.md"
 
 
         - alert: IshastraAuthFailureRateHigh
@@ -139,7 +139,7 @@ spec:
             description: |
               Authentication failures for reason '{{ $labels.reason }}' at {{ $value | printf "%%.2f' }}/s.
               Possible brute-force attack or misconfigured clients.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
         - alert: IshastraAuthFailureBurst
           expr: |
@@ -153,7 +153,7 @@ spec:
             description: |
               {{ $value | printf "%%.0f' }} authentication failures in the last minute.
               Likely brute-force attack or credential stuffing.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/auth-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/auth-failures.md"
 
 
         - alert: IshastraAuditChainVerificationFailed
@@ -169,7 +169,7 @@ spec:
               The audit chain verification check failed at startup or during runtime.
               This indicates potential tampering with the audit log.
               Investigate immediately - this is a security incident.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
         - alert: IshastraAuditChainLengthAnomaly
           expr: |
@@ -183,7 +183,7 @@ spec:
             description: |
               The audit chain length has decreased, which should never happen.
               This indicates potential data loss or tampering.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/audit-chain.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/audit-chain.md"
 
 
         - alert: IshastraHTTP5xxRateHigh
@@ -198,7 +198,7 @@ spec:
             description: |
               Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%%.2f' }} (above 5%).
               Check application logs for internal server errors.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
         - alert: IshastraHTTP5xxRateCritical
           expr: |
@@ -212,7 +212,7 @@ spec:
             description: |
               Endpoint {{ $labels.endpoint }} has a 5xx error rate of {{ $value | printf "%%.2f' }} (above 20%).
               Service degradation likely. Immediate investigation required.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/http-errors.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/http-errors.md"
 
 
         - alert: IshastraRateLimitExceededHigh
@@ -227,7 +227,7 @@ spec:
             description: |
               Rate limit exceeded {{ $value | printf "%%.2f' }}/s for route class {{ $labels.route_class }} tier {{ $labels.tier }}.
               Consider adjusting rate limits or investigating abusive clients.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/rate-limiting.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/rate-limiting.md"
 
 
         - alert: IshastraDBPoolExhausted
@@ -242,7 +242,7 @@ spec:
             description: |
               Database pool has only {{ $value | printf "%%.0f' }}% available connections.
               Check for connection leaks or increase pool size.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
         - alert: IshastraDBPoolAcquireSlow
           expr: |
@@ -256,7 +256,7 @@ spec:
             description: |
               95th percentile database pool acquire time is {{ $value | printf "%%.2f' }} seconds.
               Pool may be undersized or database is overloaded.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/db-pool.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/db-pool.md"
 
 
         - alert: IshastraDiskSpaceCritical
@@ -271,7 +271,7 @@ spec:
             description: |
               Root filesystem has less than 5% free space ({{ $value | printf "%%.1f' }}%).
               Immediate cleanup or volume expansion required.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
         - alert: IshastraDiskSpaceWarning
           expr: |
@@ -285,7 +285,7 @@ spec:
             description: |
               Root filesystem has less than 15% free space ({{ $value | printf "%%.1f' }}%).
               Plan for cleanup or volume expansion.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/disk-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/disk-pressure.md"
 
 
         - alert: IshastraWebhookFailureRateHigh
@@ -300,7 +300,7 @@ spec:
             description: |
               Webhook delivery failures for error type '{{ $labels.error_type }}' at {{ $value | printf "%%.2f' }}/s.
               Check webhook endpoint availability and network connectivity.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/webhook-failures.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/webhook-failures.md"
 
 
         - alert: IshastraFindingsVolumeAnomaly
@@ -315,7 +315,7 @@ spec:
             description: |
               Tenant {{ $labels.tenant }} is generating {{ $value | printf "%%.2f' }} findings/s.
               This may indicate a misconfigured scan or a target with many issues.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/findings-volume.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/findings-volume.md"
 
 
         - alert: IshastraServiceDown
@@ -330,7 +330,7 @@ spec:
             description: |
               The Ishastra API service has been down for more than 1 minute.
               Check service logs and container health.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/service-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/service-down.md"
 
         - alert: IshastraPrometheusDown
           expr: |
@@ -344,7 +344,7 @@ spec:
             description: |
               Prometheus has been down for more than 1 minute.
               Metrics collection and alerting will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/prometheus-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/prometheus-down.md"
 
         - alert: IshastraRedisDown
           expr: |
@@ -358,7 +358,7 @@ spec:
             description: |
               Redis has been down for more than 1 minute.
               Rate limiting, Celery queue, and caching will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/redis-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/redis-down.md"
 
 
         - alert: IshastraAPIAvailabilityLow
@@ -373,7 +373,7 @@ spec:
             description: |
               API availability is {{ $value | printf "%%.4f' }} (below 99.9% SLO).
               This breaches the availability SLI.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/api-availability.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/api-availability.md"
 
 
         - alert: IshastraJobCompletionRateLow
@@ -388,7 +388,7 @@ spec:
             description: |
               Job completion rate is {{ $value | printf "%%.4f' }} (below 95% SLO).
               This breaches the job completion SLI.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/job-completion.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/job-completion.md"
 
 
         - alert: IshastraP99LatencyHigh
@@ -403,7 +403,7 @@ spec:
             description: |
               API p99 latency is {{ $value | printf "%%.2f' }}s (above 5s SLO).
               This breaches the latency SLI.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/latency.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/latency.md"
 
 
         - alert: IshastraCriticalFindingsNew
@@ -418,7 +418,7 @@ spec:
             description: |
               {{ $value | printf "%%.0f' }} new critical severity findings in the last hour.
               Review findings immediately.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/critical-findings.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/critical-findings.md"
 
 
         - alert: IshastraAlertmanagerDown
@@ -433,7 +433,7 @@ spec:
             description: |
               Alertmanager has been down for more than 1 minute.
               Alert routing and notification will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/alertmanager-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/alertmanager-down.md"
 
         - alert: IshastraGrafanaDown
           expr: |
@@ -447,7 +447,7 @@ spec:
             description: |
               Grafana has been down for more than 1 minute.
               Dashboards and visualizations will not be available.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/grafana-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/grafana-down.md"
 
         - alert: IshastraLokiDown
           expr: |
@@ -461,7 +461,7 @@ spec:
             description: |
               Loki has been down for more than 1 minute.
               Log aggregation and querying will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/loki-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/loki-down.md"
 
         - alert: IshastraTempoDown
           expr: |
@@ -475,7 +475,7 @@ spec:
             description: |
               Tempo has been down for more than 1 minute.
               Distributed tracing will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/tempo-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/tempo-down.md"
 
         - alert: IshastraOTelCollectorDown
           expr: |
@@ -489,7 +489,7 @@ spec:
             description: |
               OTel Collector has been down for more than 1 minute.
               Trace collection and processing will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/otel-collector-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/otel-collector-down.md"
 
 
         - alert: IshastraKubePodNotReady
@@ -503,7 +503,7 @@ spec:
             summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} not ready"
             description: |
               Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been not ready for more than 5 minutes.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-pod-not-ready.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-pod-not-ready.md"
 
         - alert: IshastraKubeNodeNotReady
           expr: |
@@ -516,7 +516,7 @@ spec:
             summary: "Node {{ $labels.node }} is not ready"
             description: |
               Node {{ $labels.node }} has been not ready for more than 5 minutes.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-node-not-ready.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-node-not-ready.md"
 
         - alert: IshastraKubeCPUOvercommit
           expr: |
@@ -529,7 +529,7 @@ spec:
             summary: "'CPU overcommitted ({{ $value | printf \"%%%%.2f' }}x)"
             description: |
               Total CPU requests exceed allocatable CPU by {{ $value | printf "%%.2f' }}x.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-cpu-overcommit.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-cpu-overcommit.md"
 
         - alert: IshastraKubeMemoryOvercommit
           expr: |
@@ -542,7 +542,7 @@ spec:
             summary: "'Memory overcommitted ({{ $value | printf \"%%.2f\" }}x)"
             description: |
               Total memory requests exceed allocatable memory by {{ $value | printf "%%.2f' }}x.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-memory-overcommit.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-memory-overcommit.md"
 
 ---
 
@@ -574,7 +574,7 @@ spec:
             description: |
               The Kubernetes API server has been down for more than 1 minute.
               Cluster operations will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-api-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-api-down.md"
 
         - alert: KubeControllerManagerDown
           expr: |
@@ -588,7 +588,7 @@ spec:
             description: |
               The Kube Controller Manager has been down for more than 1 minute.
               Controller operations will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-controller-manager-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-controller-manager-down.md"
 
         - alert: KubeSchedulerDown
           expr: |
@@ -602,7 +602,7 @@ spec:
             description: |
               The Kube Scheduler has been down for more than 1 minute.
               Pod scheduling will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-scheduler-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-scheduler-down.md"
 
         - alert: KubeletDown
           expr: |
@@ -616,7 +616,7 @@ spec:
             description: |
               Kubelet has been down for more than 5 minutes on {{ $labels.instance }}.
               Pod management on this node will not work.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kubelet-down.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kubelet-down.md"
 
         - alert: KubePodCrashLooping
           expr: |
@@ -629,7 +629,7 @@ spec:
             summary: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping"
             description: |
               Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently ({{ $value | printf "%%.2f' }} restarts/minute).
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-pod-crash-looping.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-pod-crash-looping.md"
 
         - alert: KubePodOOMKilled
           expr: |
@@ -643,7 +643,7 @@ spec:
             description: |
               Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} was killed due to out of memory.
               Check memory limits and requests.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-pod-oom-killed.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-pod-oom-killed.md"
 
         - alert: KubeNodeDiskPressure
           expr: |
@@ -657,7 +657,7 @@ spec:
             description: |
               Node {{ $labels.node }} is experiencing disk pressure.
               Cleanup or add more disk space.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-node-disk-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-node-disk-pressure.md"
 
         - alert: KubeNodeMemoryPressure
           expr: |
@@ -671,7 +671,7 @@ spec:
             description: |
               Node {{ $labels.node }} is experiencing memory pressure.
               Check memory usage and consider scaling.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-node-memory-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-node-memory-pressure.md"
 
         - alert: KubeNodePIDPressure
           expr: |
@@ -685,7 +685,7 @@ spec:
             description: |
               Node {{ $labels.node }} is experiencing PID pressure.
               Too many processes running on the node.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-node-pid-pressure.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-node-pid-pressure.md"
 
         - alert: KubeDeploymentReplicasMismatch
           expr: |
@@ -698,7 +698,7 @@ spec:
             summary: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has replica mismatch"
             description: |
               Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} available replicas but {{ kube_deployment_spec_replicas{deployment="$labels.deployment",namespace="$labels.namespace"} | printf "%.0f" }} desired replicas.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-deployment-replicas-mismatch.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-deployment-replicas-mismatch.md"
 
         - alert: KubeStatefulSetReplicasMismatch
           expr: |
@@ -711,7 +711,7 @@ spec:
             summary: "StatefulSet {{ $labels.statefulset }} in namespace {{ $labels.namespace }} has replica mismatch"
             description: |
               StatefulSet {{ $labels.statefulset }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} ready replicas but {{ kube_statefulset_status_replicas{statefulset="$labels.statefulset",namespace="$labels.namespace"} | printf "%.0f" }} desired replicas.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-statefulset-replicas-mismatch.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-statefulset-replicas-mismatch.md"
 
         - alert: KubeDaemonSetRolloutStuck
           expr: |
@@ -724,7 +724,7 @@ spec:
             summary: "DaemonSet {{ $labels.daemonset }} in namespace {{ $labels.namespace }} rollout stuck"
             description: |
               DaemonSet {{ $labels.daemonset }} in namespace {{ $labels.namespace }} has {{ $value | printf "%%.0f' }} ready pods but {{ kube_daemonset_status_desired_number_scheduled{daemonset="$labels.daemonset",namespace="$labels.namespace"} | printf "%.0f" }} desired pods.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-daemonset-rollout-stuck.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-daemonset-rollout-stuck.md"
 
         - alert: KubePersistentVolumeUsageHigh
           expr: |
@@ -738,7 +738,7 @@ spec:
             description: |
               PersistentVolume {{ $labels.persistentvolume }} is at {{ $value | printf "%%.1f' }}% capacity.
               Consider expanding the volume or cleaning up data.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-pv-usage-high.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-pv-usage-high.md"
 
         - alert: KubePersistentVolumeUsageCritical
           expr: |
@@ -752,7 +752,7 @@ spec:
             description: |
               PersistentVolume {{ $labels.persistentvolume }} is at {{ $value | printf "%%.1f' }}% capacity.
               Immediate action required to prevent data loss.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-pv-usage-critical.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-pv-usage-critical.md"
 
         - alert: KubeHPAReplicasAtLimit
           expr: |
@@ -766,7 +766,7 @@ spec:
             description: |
               HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} has reached max replicas ({{ $value | printf "%%.0f' }}).
               Consider increasing max replicas or investigating load.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-hpa-at-limit.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-hpa-at-limit.md"
 
         - alert: KubeCertificateExpiring
           expr: |
@@ -780,7 +780,7 @@ spec:
             description: |
               Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} expires in less than 7 days.
               Ensure cert-manager is renewing it.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-cert-expiring.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-cert-expiring.md"
 
         - alert: KubeCertificateExpired
           expr: |
@@ -794,4 +794,4 @@ spec:
             description: |
               Certificate {{ $labels.certificate }} in namespace {{ $labels.namespace }} has expired.
               This may cause TLS failures.
-            runbook_url: "https://github.com/ishastra/ishastra/blob/main/docs/runbooks/kube-cert-expired.md"
+            runbook_url: "https://github.com/hacker-194/IshAstra/blob/main/docs/runbooks/kube-cert-expired.md"

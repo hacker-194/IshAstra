@@ -1,14 +1,14 @@
 # Ishastra — Authorization-First Security Assessment Platform
 
-[![License](https://img.shields.io/github/license/ishastra/ishastra)](LICENSE)
-[![CI](https://github.com/ishastra/ishastra/actions/workflows/ci.yml/badge.svg)](https://github.com/ishastra/ishastra/actions)
+[![License](https://img.shields.io/github/license/hacker-194/IshAstra)](LICENSE)
+[![CI](https://github.com/hacker-194/IshAstra/actions/workflows/ci.yml/badge.svg)](https://github.com/hacker-194/IshAstra/actions)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![Kubernetes](https://img.shields.io/badge/k8s-1.28+-blue)](https://kubernetes.io)
 
-> **The only security scanner that enforces authorization BEFORE every connection.**
+> **Authorization is enforced before every outbound connection Ishastra makes.**
 
 > **Project status:** pilot-grade for a single-tenant, single-host deployment.
-> The authorization core is TLA+-verified and CI-enforced; the platform has no
+> The authorization core is TLA+-model-checked and CI-enforced; the platform has no
 > HA or multi-node story yet. Read
 > [Production deployment](docs/quickstart/production.md) before promising
 > uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
@@ -25,7 +25,7 @@
 | **Policy-as-code (CIDR+ASN+Geo)** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **DNS rebinding protection** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Free-tier deployable** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **TLA+ formally verified** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **TLA+ model-checked** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ## Try It In One Command
 
@@ -41,7 +41,7 @@ bar. Nothing outside `.ishastra-demo/` is touched.
 In CI, the bundled action runs a scoped assessment and uploads SARIF:
 
 ```yaml
-- uses: ishastra/ishastra@v1
+- uses: hacker-194/IshAstra@master  # pin to a commit SHA in production
   with:
     target: https://staging.example.com
     scope-file: scope.json          # signed; the gate refuses anything else
@@ -72,7 +72,7 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 
 ```bash
 # One-shot bootstrap on Oracle Cloud Always Free
-git clone https://github.com/ishastra/ishastra
+git clone https://github.com/hacker-194/IshAstra
 cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
@@ -180,7 +180,7 @@ Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, ve
 |-------------|---------|------|
 | **Free Tier (Oracle)** | `./scripts/bootstrap-free.sh` | $0/month |
 | **Single-host production** | systemd or Compose, one writer | Low |
-| **Local Dev** | `docker-compose up -d` | Free |
+| **Local Dev** | `docker compose up -d` | Free |
 | **Kind/Minikube** | `./scripts/bootstrap-kind.sh` | Free |
 
 ## Contributing
@@ -203,9 +203,9 @@ Apache-2.0 — see [LICENSE](LICENSE)
 
 ## Community
 
-- **Questions and ideas**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
-- **Issues**: [GitHub Issues](https://github.com/ishastra/ishastra/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ishastra/ishastra/discussions)
+- **Questions and ideas**: [GitHub Discussions](https://github.com/hacker-194/IshAstra/discussions)
+- **Issues**: [GitHub Issues](https://github.com/hacker-194/IshAstra/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/hacker-194/IshAstra/discussions)
 
 ---
 

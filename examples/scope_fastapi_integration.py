@@ -1,5 +1,5 @@
 """
-Production-ready FastAPI integration for Strix ScopeGate.
+Production-ready FastAPI integration for Ishastra ScopeGate.
 
 This module provides a complete, working FastAPI application that demonstrates
 real-world ScopeGate integration with:
@@ -33,42 +33,42 @@ from pydantic import BaseModel, Field, HttpUrl
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from strix.core.scope import Scope, ScopeGate, load, configure, bound
-from strix.metrics import init_metrics
+from ishastra.core.scope import Scope, ScopeGate, load, configure, bound
+from ishastra.metrics import init_metrics
 
-# =============================================================================
-# Configuration
-# =============================================================================
+
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load config from environment
-SCOPE_DIR = Path(os.environ.get("STRIX_SCOPE_DIR", "/etc/strix/scopes"))
-DEFAULT_SCOPE_PATH = SCOPE_DIR / "default.json"
-JWKS_PATH = Path(os.environ.get("STRIX_SCOPE_JWKS", "/etc/strix/scope-jwks.json"))
-ALLOWED_ORIGINS = os.environ.get("STRIX_ALLOWED_ORIGINS", "").split(",") if os.environ.get("STRIX_ALLOWED_ORIGINS") else []
-API_KEYS_JSON = os.environ.get("STRIX_API_KEYS_JSON", "{}")
-RATE_LIMIT_REQUESTS = int(os.environ.get("STRIX_RATE_LIMIT_RPS", "100"))
-APP_VERSION = os.environ.get("STRIX_APP_VERSION", "3.5.0")
 
-# Parse API keys from JSON env var (format: {"key": {"tenant_id": "...", "role": "..."}})
+SCOPE_DIR = Path(os.environ.get("ISHASTRA_SCOPE_DIR", "/etc/ishastra/scopes"))
+DEFAULT_SCOPE_PATH = SCOPE_DIR / "default.json"
+JWKS_PATH = Path(os.environ.get("ISHASTRA_SCOPE_JWKS", "/etc/ishastra/scope-jwks.json"))
+ALLOWED_ORIGINS = os.environ.get("ISHASTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("ISHASTRA_ALLOWED_ORIGINS") else []
+API_KEYS_JSON = os.environ.get("ISHASTRA_API_KEYS_JSON", "{}")
+RATE_LIMIT_REQUESTS = int(os.environ.get("ISHASTRA_RATE_LIMIT_RPS", "100"))
+APP_VERSION = os.environ.get("ISHASTRA_APP_VERSION", "3.5.0")
+
+
 try:
     API_KEYS = json.loads(API_KEYS_JSON)
 except json.JSONDecodeError:
-    logger.warning("Invalid STRIX_API_KEYS_JSON, using empty key store")
+    logger.warning("Invalid ISHASTRA_API_KEYS_JSON, using empty key store")
     API_KEYS = {}
 
-# Initialize Prometheus metrics with strix prefix
+
 init_metrics()
 
 SCOPE_DECISIONS = Counter(
-    "strix_scope_gate_decisions_total",
+    "ishastra_scope_gate_decisions_total",
     "Scope gate decisions",
     ["decision", "reason", "tenant"]
 )
 SCOPE_LATENCY = Histogram(
-    "strix_scope_gate_latency_seconds",
+    "ishastra_scope_gate_latency_seconds",
     "Scope gate validation latency",
     ["operation"]
 )
@@ -83,14 +83,14 @@ HTTP_LATENCY = Histogram(
     ["method", "endpoint"]
 )
 
-# Rate limiting token buckets (in-memory, per-tenant)
-_rate_limit_buckets: dict[str, tuple[float, int]] = {}  # tenant -> (last_refill, tokens)
+
+_rate_limit_buckets: dict[str, tuple[float, int]] = {}
 _RATE_LIMIT_LOCK = asyncio.Lock()
 
 
-# =============================================================================
-# Models
-# =============================================================================
+
+
+
 
 class AssessRequest(BaseModel):
     target: HttpUrl = Field(..., description="Target URL to assess")
@@ -120,9 +120,9 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = None
 
 
-# =============================================================================
-# Scope Management (async file I/O)
-# =============================================================================
+
+
+
 
 class ScopeManager:
     """Production-ready scope manager with caching, hot-reload, and JWKS verification."""
@@ -159,7 +159,7 @@ class ScopeManager:
                 raise ValueError(f"No scope found for tenant {tenant_id} and no default configured")
             return self._default_scope
 
-        # Check cache (stat in thread pool)
+
         try:
             mtime = await asyncio.to_thread(lambda p: p.stat().st_mtime, scope_path)
         except OSError:
@@ -190,17 +190,17 @@ class ScopeManager:
     async def bound_scope(self, tenant_id: str):
         """Context manager for per-request scope binding with ContextVar isolation."""
         scope = await self.get_scope(tenant_id)
-        # bound is a sync context manager; wrap for async usage
+
         with bound(scope):
             try:
                 yield scope
             finally:
-                pass  # bound.__exit__ handles cleanup
+                pass
 
 
-# =============================================================================
-# Authentication & Authorization
-# =============================================================================
+
+
+
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -237,9 +237,9 @@ def require_role(required_role: str):
     return check_role
 
 
-# =============================================================================
-# Rate Limiting
-# =============================================================================
+
+
+
 
 async def rate_limit(tenant_id: str = Depends(get_tenant)):
     """Token bucket rate limiter per tenant."""
@@ -247,7 +247,7 @@ async def rate_limit(tenant_id: str = Depends(get_tenant)):
         now = time.time()
         last_refill, tokens = _rate_limit_buckets.get(tenant_id, (now, RATE_LIMIT_REQUESTS))
 
-        # Refill tokens based on elapsed time (1 token per 1/RATE_LIMIT_REQUESTS seconds)
+
         elapsed = now - last_refill
         tokens = min(RATE_LIMIT_REQUESTS, tokens + elapsed * RATE_LIMIT_REQUESTS)
 
@@ -263,16 +263,16 @@ async def rate_limit(tenant_id: str = Depends(get_tenant)):
         _rate_limit_buckets[tenant_id] = (now, tokens)
 
 
-# =============================================================================
-# Shared Validation Logic
-# =============================================================================
+
+
+
 
 async def validate_target_url(target: str, tenant_id: str, scope_manager: ScopeManager) -> tuple:
     """Shared validation logic for /validate and /assess endpoints."""
     start = time.time()
 
     async with scope_manager.bound_scope(tenant_id) as scope:
-        # Add timeout to prevent hanging on slow DNS/unresponsive hosts
+
         result = await asyncio.wait_for(
             ScopeGate.validate_outbound_async(target, scope),
             timeout=5.0
@@ -288,9 +288,9 @@ async def validate_target_url(target: str, tenant_id: str, scope_manager: ScopeM
     return result
 
 
-# =============================================================================
-# Middleware
-# =============================================================================
+
+
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     """Collect HTTP metrics."""
@@ -316,16 +316,16 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 class ScopeValidationMiddleware(BaseHTTPMiddleware):
     """Validate all outbound proxy requests through ScopeGate with SSRF protection."""
 
-    # Private IP ranges that should never be proxied to
+
     PRIVATE_RANGES = [
         "10.0.0.0/8",
         "172.16.0.0/12",
         "192.168.0.0/16",
         "127.0.0.0/8",
-        "169.254.0.0/16",  # Link-local / cloud metadata
+        "169.254.0.0/16",
         "::1/128",
-        "fc00::/7",  # Unique local addresses
-        "fe80::/10",  # Link-local IPv6
+        "fc00::/7",
+        "fe80::/10",
     ]
 
     def __init__(self, app, scope_manager: ScopeManager):
@@ -345,7 +345,7 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
         return False
 
     async def dispatch(self, request: Request, call_next):
-        # Only validate outbound proxy requests
+
         if request.url.path.startswith("/proxy/"):
             tenant = request.headers.get("X-Tenant-ID")
             if not tenant:
@@ -361,9 +361,9 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                     content={"error": "X-Target-URL header required for proxy"}
                 )
 
-            # SSRF Protection: Validate target URL before any DNS resolution
+
             try:
-                from strix.core.urls import parse_url
+                from ishastra.core.urls import parse_url
                 parsed = parse_url(target_url)
                 if not parsed:
                     return JSONResponse(
@@ -378,14 +378,14 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                         content={"error": "Target URL must have a host"}
                     )
 
-                # Block localhost and internal hostnames
+
                 if host.lower() in ("localhost", "localhost.localdomain"):
                     return JSONResponse(
                         status_code=403,
                         content={"error": "scope_violation", "reason": "localhost not allowed", "code": "internal_host"}
                     )
 
-                # Block cloud metadata endpoints
+
                 if host in ("169.254.169.254", "metadata.google.internal", "metadata.azure.com"):
                     return JSONResponse(
                         status_code=403,
@@ -422,7 +422,7 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                     }
                 )
 
-            # Additional SSRF check: verify resolved IPs are not private
+
             for ip in result.resolved_ips:
                 if self._is_private_ip(ip):
                     logger.warning(f"Blocked private IP {ip} for tenant {tenant}")
@@ -435,38 +435,38 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                         }
                     )
 
-            # Note: In real implementation, you'd proxy to the pinned IP using httpx.AsyncClient
-            # For this example, we just validate and pass through
+
+
 
         return await call_next(request)
 
 
-# =============================================================================
-# Application Factory
-# =============================================================================
+
+
+
 
 def create_app() -> FastAPI:
     scope_manager = ScopeManager(SCOPE_DIR, DEFAULT_SCOPE_PATH, JWKS_PATH)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Startup
-        logger.info("Starting Strix ScopeGate API")
-        # Verify default scope loads
+
+        logger.info("Starting Ishastra ScopeGate API")
+
         try:
             await scope_manager.get_scope("health-check")
         except Exception as e:
             logger.warning(f"Scope verification warning: {e}")
         yield
-        # Shutdown
-        logger.info("Shutting down Strix ScopeGate API")
+
+        logger.info("Shutting down Ishastra ScopeGate API")
 
     app = FastAPI(
-        title="Strix ScopeGate API",
+        title="Ishastra ScopeGate API",
         description="Production ScopeGate authorization service",
         version=APP_VERSION,
         lifespan=lifespan,
-        # Document error responses in OpenAPI
+
         responses={
             401: {"model": ErrorResponse, "description": "Authentication required"},
             403: {"model": ScopeValidationResponse, "description": "Scope violation or forbidden"},
@@ -475,7 +475,7 @@ def create_app() -> FastAPI:
         }
     )
 
-    # Middleware - CORS with explicit origins (no credentials with wildcard)
+
     if ALLOWED_ORIGINS and ALLOWED_ORIGINS != [""]:
         app.add_middleware(
             CORSMiddleware,
@@ -485,7 +485,7 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
     else:
-        # No credentials allowed with wildcard
+
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -494,12 +494,12 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
     app.add_middleware(MetricsMiddleware)
-    # Uncomment to enable proxy validation middleware:
-    # app.add_middleware(ScopeValidationMiddleware, scope_manager=scope_manager)
 
-    # =========================================================================
-    # Routes
-    # =========================================================================
+
+
+
+
+
 
     @app.get("/health", response_model=HealthResponse)
     async def health():
@@ -511,7 +511,7 @@ def create_app() -> FastAPI:
 
     @app.get("/ready", response_model=HealthResponse)
     async def ready():
-        # Verify scope system is operational
+
         try:
             await scope_manager.get_scope("readiness-check")
             return HealthResponse(
@@ -579,13 +579,13 @@ def create_app() -> FastAPI:
                 }
             )
 
-        # In production: create job in queue
+
         job_id = f"job_{int(time.time() * 1000)}"
 
-        # Only include scope decision if debug requested AND user is admin
+
         scope_decision = None
         if request.debug:
-            # Check if admin
+
             key_info = API_KEYS.get(request.headers.get("X-API-Key", ""))
             if key_info and key_info.get("role") == "admin":
                 scope_decision = result.model_dump()
@@ -644,9 +644,9 @@ def create_app() -> FastAPI:
     return app
 
 
-# =============================================================================
-# Entrypoint
-# =============================================================================
+
+
+
 
 app = create_app()
 

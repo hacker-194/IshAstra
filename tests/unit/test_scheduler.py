@@ -1,4 +1,4 @@
-"""Tests for strix.core.scheduler module."""
+"""Tests for ishastra.core.scheduler module."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from strix.core.scheduler import (
+from ishastra.core.scheduler import (
     DEFAULT_TIMEZONE,
     AssessmentSchedule,
     ScheduleFrequency,
@@ -172,26 +172,26 @@ class TestAssessmentSchedule:
         """Test compute_next_run calculates correct next run time."""
         schedule = AssessmentSchedule(
             target="https://example.com/",
-            cron_expression="0 2 * * *",  # Daily at 2 AM UTC
+            cron_expression="0 2 * * *",
             timezone="UTC",
         )
-        from_time = 1704067200.0  # 2024-01-01 00:00:00 UTC
+        from_time = 1704067200.0
         next_run = schedule.compute_next_run(from_time)
-        # Next 2 AM UTC after 2024-01-01 00:00:00 is 2024-01-01 02:00:00
+
         assert next_run == 1704074400.0
 
     def test_compute_next_run_different_timezone(self):
         """Test compute_next_run with different timezone."""
         schedule = AssessmentSchedule(
             target="https://example.com/",
-            cron_expression="0 9 * * *",  # Daily at 9 AM
+            cron_expression="0 9 * * *",
             timezone="America/New_York",
         )
-        from_time = 1704067200.0  # 2024-01-01 00:00:00 UTC
+        from_time = 1704067200.0
         next_run = schedule.compute_next_run(from_time)
-        # Just verify it returns a valid timestamp > from_time
+
         assert next_run > from_time
-        # Verify it's approximately the right day
+
         assert 1704090000 < next_run < 1704200000
 
     def test_validate_valid(self):
@@ -369,7 +369,7 @@ class TestScheduler:
         }
         mock_db.fetchall.return_value = [mock_row]
 
-        with patch("strix.core.store.get_db_async") as mock_get_db:
+        with patch("ishastra.core.store.get_db_async") as mock_get_db:
             mock_get_db.return_value.__aenter__.return_value = mock_db
             await scheduler._load_schedules()
 
@@ -383,11 +383,10 @@ class TestScheduler:
         mock_row = {"id": "bad_sched", "target": "https://example.com/"}
         mock_db.fetchall.return_value = [mock_row]
 
-        with patch("strix.core.store.get_db_async") as mock_get_db:
+        with patch("ishastra.core.store.get_db_async") as mock_get_db:
             mock_get_db.return_value.__aenter__.return_value = mock_db
             await scheduler._load_schedules()
 
-        # Should not crash, bad schedule is skipped
         assert "bad_sched" not in scheduler._schedules
 
     @pytest.mark.asyncio
@@ -405,7 +404,6 @@ class TestScheduler:
         mock_db = AsyncMock()
         mock_conn = AsyncMock()
 
-        # Mock the async context manager properly
         from contextlib import asynccontextmanager
 
         @asynccontextmanager
@@ -419,8 +417,8 @@ class TestScheduler:
         mock_db.transaction = mock_transaction
 
         with (
-            patch("strix.core.store.get_db_async", mock_get_db_async),
-            patch("strix.core.store._execute") as mock_execute,
+            patch("ishastra.core.store.get_db_async", mock_get_db_async),
+            patch("ishastra.core.store._execute") as mock_execute,
         ):
             await scheduler._save_schedule(schedule)
 
@@ -433,7 +431,7 @@ class TestScheduler:
             cron_expression="0 2 * * *",
             timezone="UTC",
         )
-        from_time = 1704067200.0  # 2024-01-01 00:00:00 UTC
+        from_time = 1704067200.0
         next_run = schedule.compute_next_run(from_time)
         assert next_run == 1704074400.0
 
@@ -443,7 +441,7 @@ class TestSchedulerConstants:
 
     def test_alert_severities(self):
         """Test ALERT_SEVERITIES constant."""
-        from strix.core.scheduler import ALERT_SEVERITIES
+        from ishastra.core.scheduler import ALERT_SEVERITIES
 
         assert "critical" in ALERT_SEVERITIES
         assert "high" in ALERT_SEVERITIES
@@ -452,7 +450,7 @@ class TestSchedulerConstants:
 
     def test_monitor_tenant(self):
         """Test MONITOR_TENANT constant."""
-        from strix.core.scheduler import MONITOR_TENANT
+        from ishastra.core.scheduler import MONITOR_TENANT
 
         assert MONITOR_TENANT == "system"
 
@@ -462,6 +460,6 @@ class TestSchedulerConstants:
 
     def test_max_missed_runs(self):
         """Test MAX_MISSED_RUNS constant."""
-        from strix.core.scheduler import MAX_MISSED_RUNS
+        from ishastra.core.scheduler import MAX_MISSED_RUNS
 
         assert MAX_MISSED_RUNS == 10

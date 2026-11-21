@@ -1,0 +1,156 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: scanresults.ishastra.io
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/managed-by: Helm
+spec:
+  group: ishastra.io
+  names:
+    kind: ScanResult
+    listKind: ScanResultList
+    plural: scanresults
+    singular: scanresult
+    shortNames:
+      - sr
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - jobRef
+                - tenantId
+              properties:
+                jobRef:
+                  type: string
+                  description: "Reference to the AssessmentJob"
+                tenantId:
+                  type: string
+                  description: "Tenant identifier"
+                assessmentId:
+                  type: string
+                  description: "Ishastra assessment ID"
+                findings:
+                  type: array
+                  description: "Security findings from the scan"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      title:
+                        type: string
+                      severity:
+                        type: string
+                        enum: ["critical", "high", "medium", "low", "info"]
+                      cvss:
+                        type: number
+                        minimum: 0
+                        maximum: 10
+                      cwe:
+                        type: string
+                      description:
+                        type: string
+                      evidence:
+                        type: object
+                      target:
+                        type: string
+                      port:
+                        type: integer
+                      protocol:
+                        type: string
+                      firstSeen:
+                        type: string
+                        format: date-time
+                      lastSeen:
+                        type: string
+                        format: date-time
+                      status:
+                        type: string
+                        enum: ["open", "in_progress", "resolved", "false_positive", "risk_accepted"]
+                summary:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                    critical:
+                      type: integer
+                    high:
+                      type: integer
+                    medium:
+                      type: integer
+                    low:
+                      type: integer
+                    info:
+                      type: integer
+                  description: "Summary of findings by severity"
+                scanDurationSeconds:
+                  type: integer
+                  description: "Total scan duration in seconds"
+                scannerVersion:
+                  type: string
+                  description: "Version of the scanner used"
+                scanConfig:
+                  type: object
+                  description: "Scanner configuration used"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Processing", "Completed", "Failed"]
+                  description: "Processing phase"
+                storedAt:
+                  type: string
+                  format: date-time
+                objectStorageRef:
+                  type: string
+                  description: "Reference to object storage location for full results"
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+  additionalPrinterColumns:
+    - name: Job
+      type: string
+      jsonPath: .spec.jobRef
+    - name: Tenant
+      type: string
+      jsonPath: .spec.tenantId
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Findings
+      type: integer
+      jsonPath: .spec.summary.total
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

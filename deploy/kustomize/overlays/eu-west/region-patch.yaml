@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: strix-api
+  name: ishastra-api
   labels:
     topology.kubernetes.io/region: eu-west
 spec:
@@ -13,5 +13,5 @@ spec:
       containers:
         - name: api
           env:
-            - name: STRIX_REGION
+            - name: ISHASTRA_REGION
               value: eu-west

@@ -1,0 +1,83 @@
+{{- if .Values.costOptimization.resourceQuota.enabled }}
+---
+
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Values.costOptimization.resourceQuota.name | default "ishastra-tenant-quota" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: resourcequota
+    ishastra.io/quota-type: "tenant"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    ishastra.io/tenant: "{{ .Values.costOptimization.resourceQuota.tenantId | default .Release.Namespace }}"
+    ishastra.io/project: "{{ .Values.costOptimization.resourceQuota.projectId | default "default" }}"
+    ishastra.io/budget-monthly-usd: "{{ .Values.costOptimization.resourceQuota.budgetMonthlyUSD | default "1000" }}"
+spec:
+  hard:
+
+    requests.cpu: {{ .Values.costOptimization.resourceQuota.limits.requestsCpu | default "32" }}
+    requests.memory: {{ .Values.costOptimization.resourceQuota.limits.requestsMemory | default "64Gi" }}
+    limits.cpu: {{ .Values.costOptimization.resourceQuota.limits.limitsCpu | default "64" }}
+    limits.memory: {{ .Values.costOptimization.resourceQuota.limits.limitsMemory | default "128Gi" }}
+
+    pods: {{ .Values.costOptimization.resourceQuota.limits.pods | default "100" }}
+
+    services: {{ .Values.costOptimization.resourceQuota.limits.services | default "20" }}
+    services.loadbalancers: {{ .Values.costOptimization.resourceQuota.limits.servicesLoadBalancers | default "5" }}
+    services.nodeports: {{ .Values.costOptimization.resourceQuota.limits.servicesNodePorts | default "0" }}
+
+    persistentvolumeclaims: {{ .Values.costOptimization.resourceQuota.limits.persistentVolumeClaims | default "20" }}
+    requests.storage: {{ .Values.costOptimization.resourceQuota.limits.requestsStorage | default "500Gi" }}
+
+    configmaps: {{ .Values.costOptimization.resourceQuota.limits.configMaps | default "50" }}
+    secrets: {{ .Values.costOptimization.resourceQuota.limits.secrets | default "50" }}
+
+    {{- if .Values.costOptimization.resourceQuota.limits.cpuBurst }}
+    requests.ephemeral-storage: {{ .Values.costOptimization.resourceQuota.limits.requestsEphemeralStorage | default "100Gi" }}
+    limits.ephemeral-storage: {{ .Values.costOptimization.resourceQuota.limits.limitsEphemeralStorage | default "200Gi" }}
+    {{- end }}
+---
+
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ .Values.costOptimization.resourceQuota.name | default "ishastra-tenant-quota" }}-limits
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: limitrange
+spec:
+  limits:
+
+    - type: Container
+      default:
+        cpu: {{ .Values.costOptimization.resourceQuota.defaultLimits.cpu | default "1000m" }}
+        memory: {{ .Values.costOptimization.resourceQuota.defaultLimits.memory | default "1Gi" }}
+      defaultRequest:
+        cpu: {{ .Values.costOptimization.resourceQuota.defaultRequests.cpu | default "250m" }}
+        memory: {{ .Values.costOptimization.resourceQuota.defaultRequests.memory | default "512Mi" }}
+      max:
+        cpu: {{ .Values.costOptimization.resourceQuota.maxLimits.cpu | default "8000m" }}
+        memory: {{ .Values.costOptimization.resourceQuota.maxLimits.memory | default "16Gi" }}
+      min:
+        cpu: {{ .Values.costOptimization.resourceQuota.minLimits.cpu | default "50m" }}
+        memory: {{ .Values.costOptimization.resourceQuota.minLimits.memory | default "128Mi" }}
+      maxLimitRequestRatio:
+        cpu: {{ .Values.costOptimization.resourceQuota.maxLimitRequestRatio.cpu | default "10" }}
+        memory: {{ .Values.costOptimization.resourceQuota.maxLimitRequestRatio.memory | default "10" }}
+
+    - type: Pod
+      max:
+        cpu: {{ .Values.costOptimization.resourceQuota.maxLimits.podCpu | default "16000m" }}
+        memory: {{ .Values.costOptimization.resourceQuota.maxLimits.podMemory | default "32Gi" }}
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: {{ .Values.costOptimization.resourceQuota.maxLimits.pvcStorage | default "100Gi" }}
+      min:
+        storage: {{ .Values.costOptimization.resourceQuota.minLimits.pvcStorage | default "1Gi" }}
+{{- end }}

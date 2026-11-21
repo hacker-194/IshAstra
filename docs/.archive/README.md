@@ -1,6 +1,6 @@
 # Documentation
 
-Start with the root [README](../README.md) for what Strix does and how to run it.
+Start with the root [README](../README.md) for what Ishastra does and how to run it.
 
 ## Operators
 

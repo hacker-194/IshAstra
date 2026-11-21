@@ -2,7 +2,7 @@
 
 **Auditor-Ready Documentation for Nepal Telecommunications Authority Cybersecurity Byelaw 2078**
 
-This guide enables auditors to verify Strix assessment evidence against NTA Cybersecurity Byelaw 2078 for telecommunications sector compliance.
+This guide enables auditors to verify Ishastra assessment evidence against NTA Cybersecurity Byelaw 2078 for telecommunications sector compliance.
 
 ---
 
@@ -14,7 +14,7 @@ This guide enables auditors to verify Strix assessment evidence against NTA Cybe
 | **Regulation** | Cybersecurity Byelaw 2078 |
 | **Sector** | Telecommunications / ISPs |
 | **Jurisdiction** | Nepal |
-| **Strix Coverage** | 16 controls (7 core + 9 telecom-specific) |
+| **Ishastra Coverage** | 16 controls (7 core + 9 telecom-specific) |
 
 ### Byelaw Scope
 
@@ -34,7 +34,7 @@ This guide enables auditors to verify Strix assessment evidence against NTA Cybe
 
 ### Core Byelaw Controls (Sections 4.1-4.7)
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NTA-4.1** | Network Perimeter Security | `open_tcp_port`, `service_exposure`, `banner_disclosure`, `exposed_database`, `open_management_ports`, `missing_segmentation`, `weak_firewall_rules`, `unencrypted_admin`, `signaling_exposure` | Firewall rulebase, topology, perimeter scans, IDS/IPS config, DMZ config |
 | **NTA-4.2** | Secure Configuration | `missing_hsts`, `weak_cipher_suite`, `default_credentials`, `weak_tls_config`, `missing_csp`, `missing_security_headers`, `weak_cookie_flags`, `debug_enabled`, `excessive_services`, `insecure_defaults` | Baseline configs, drift reports, change logs, hardening checklists, cipher config |
@@ -46,7 +46,7 @@ This guide enables auditors to verify Strix assessment evidence against NTA Cybe
 
 ### Telecom-Specific Signaling Controls
 
-| Control ID | Title | Strix Detection Categories | Evidence Required |
+| Control ID | Title | Ishastra Detection Categories | Evidence Required |
 |------------|-------|---------------------------|-------------------|
 | **NTA-SS7-001** | SS7 Signaling Security | `ss7_vulnerabilities`, `ss7_location_tracking`, `ss7_interception`, `ss7_fraud_indicators`, `roaming_fraud_indicators` | SS7 firewall config, message filtering, anomaly detection, roaming agreements, fraud monitoring |
 | **NTA-DIAMETER-001** | Diameter Protocol Security | `diameter_vulnerabilities`, `diameter_tls_missing`, `diameter_overload`, `diameter_replay` | Diameter agent config, TLS config, overload control, message validation |
@@ -57,7 +57,7 @@ This guide enables auditors to verify Strix assessment evidence against NTA Cybe
 
 ## 3. Automated Compliance Checks
 
-Strix runs 9 automated verification checks for NTA compliance:
+Ishastra runs 9 automated verification checks for NTA compliance:
 
 ### 3.1 Network Perimeter Security (NTA-4.1)
 
@@ -156,25 +156,25 @@ check_5g_security(job_findings)
 ### 4.1 JSON Evidence Pack
 
 ```bash
-strix evidence --target https://telco.example.com --framework NTA --output nta-evidence.json
+ishastra evidence --target https://telco.example.com --framework NTA --output nta-evidence.json
 ```
 
 ### 4.2 CSV Export (Auditor Workbook)
 
 ```bash
-strix evidence --target https://telco.example.com --framework NTA --format csv --output nta-audit.csv
+ishastra evidence --target https://telco.example.com --framework NTA --format csv --output nta-audit.csv
 ```
 
 ### 4.3 OSCAL Assessment Results
 
 ```bash
-strix evidence --target https://telco.example.com --framework NTA --format oscal --output nta-oscal.json
+ishastra evidence --target https://telco.example.com --framework NTA --format oscal --output nta-oscal.json
 ```
 
 ### 4.4 Bilingual HTML Report
 
 ```bash
-strix evidence --target https://telco.example.com --framework NTA --format html --locale ne_NP --output nta-report.html
+ishastra evidence --target https://telco.example.com --framework NTA --format html --locale ne_NP --output nta-report.html
 ```
 
 ---
@@ -184,7 +184,7 @@ strix evidence --target https://telco.example.com --framework NTA --format html 
 ### 5.1 Evidence Integrity
 
 ```bash
-strix audit verify --pack nta-evidence.json
+ishastra audit verify --pack nta-evidence.json
 ```
 
 ### 5.2 Control Coverage
@@ -218,9 +218,9 @@ Review `compliance_checks.nta` for 9 automated verifications.
 
 ---
 
-## 6. Strix Feature Coverage for NTA
+## 6. Ishastra Feature Coverage for NTA
 
-| Strix Feature | NTA Controls Covered | Automated Checks |
+| Ishastra Feature | NTA Controls Covered | Automated Checks |
 |---------------|---------------------|------------------|
 | Scope Enforcement | 4.1, 4.4 | Scope validation |
 | Audit Chain | 4.5, 4.6 | HMAC integrity |
@@ -316,7 +316,7 @@ cipher_suite = ECDHE-RSA-AES256-GCM-SHA384
 ### 8.1 Scheduled Evidence (Quarterly per NTA)
 
 ```bash
-curl -X POST https://strix.example.com/api/schedules \
+curl -X POST https://ishastra.example.com/api/schedules \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "target": "https://telco.example.com",
@@ -331,7 +331,7 @@ curl -X POST https://strix.example.com/api/schedules \
 ### 8.2 NTA Notification Webhook
 
 ```bash
-curl -X POST https://strix.example.com/api/alerts/webhook \
+curl -X POST https://ishastra.example.com/api/alerts/webhook \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "name": "nta-incident-alert",
@@ -344,7 +344,7 @@ curl -X POST https://strix.example.com/api/alerts/webhook \
 ### 8.3 Retention (7 Years for Signaling/Customer Data)
 
 ```bash
-export STRIX_RETENTION_DAYS=2555  # 7 years
+export ISHASTRA_RETENTION_DAYS=2555  # 7 years
 ```
 
 ---
@@ -352,7 +352,7 @@ export STRIX_RETENTION_DAYS=2555  # 7 years
 ## 9. Auditor Checklist
 
 - [ ] Evidence pack JSON validates against schema
-- [ ] HMAC audit chain verified (`strix audit verify`)
+- [ ] HMAC audit chain verified (`ishastra audit verify`)
 - [ ] All 17 NTA controls assessed (100% coverage)
 - [ ] Finding `compliance_refs` map to correct NTA controls
 - [ ] 9/9 automated checks executed
@@ -375,8 +375,8 @@ export STRIX_RETENTION_DAYS=2555  # 7 years
 - [3GPP TS 33.210](https://3gpp.org) - 3G/4G/5G security architecture
 - [3GPP TS 33.501](https://3gpp.org) - 5G security
 - [ISO 27001](https://iso.org/27001) - ISMS
-- [Strix Source](https://github.com/strix-project/strix) - MIT Licensed
+- [Ishastra Source](https://github.com/ishastra-project/ishastra) - MIT Licensed
 
 ---
 
-*Part of Strix open-source compliance evidence pack generator. All mappings MIT-licensed and auditable.*
+*Part of Ishastra open-source compliance evidence pack generator. All mappings MIT-licensed and auditable.*

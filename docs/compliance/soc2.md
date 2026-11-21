@@ -2,7 +2,7 @@
 
 # SOC 2 Type II Control Mapping
 
-Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availability, Confidentiality, Processing Integrity, Privacy).
+Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availability, Confidentiality, Processing Integrity, Privacy).
 
 ## Control Summary
 
@@ -18,17 +18,17 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC1.0 - Control Environment
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC1.1 | ✅ | Code of conduct, contributor agreement, security policy |
 | CC1.2 | ✅ | RBAC, separation of duties, break-glass dual approval |
 | CC1.3 | ✅ | Threat modeling, risk assessment, TLA+ verification |
 | CC1.4 | ✅ | Competency requirements, onboarding, security training |
-| CC1.5 | ✅ | Accountability via audit trail, Strix Proof, key rotation |
+| CC1.5 | ✅ | Accountability via audit trail, Ishastra Proof, key rotation |
 
 ### CC2.0 - Communication & Information
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC2.1 | ✅ | API docs, runbooks, incident communication plan |
 | CC2.2 | ✅ | Security.txt, responsible disclosure, webhook events |
@@ -36,7 +36,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC3.0 - Risk Assessment
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC3.1 | ✅ | Annual risk assessment, per-release threat modeling |
 | CC3.2 | ✅ | Supply chain risk: SBOM, Dependabot, Trivy, cosign |
@@ -45,7 +45,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC4.0 - Monitoring Activities
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC4.1 | ✅ | Prometheus, Grafana, health checks, alerting |
 | CC4.2 | ✅ | Log aggregation, correlation IDs, structured JSON |
@@ -53,7 +53,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC5.0 - Control Activities
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC5.1 | ✅ | Policy-as-Code, GitOps, CI/CD gates |
 | CC5.2 | ✅ | Scope Gate (default-deny), adapter sandboxing |
@@ -61,7 +61,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC6.0 - Logical & Physical Access
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC6.1 | ✅ | API keys, JWT, scoped tokens, 90-day rotation |
 | CC6.2 | ✅ | Break-glass dual approval, MFA, audit trail |
@@ -74,17 +74,17 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC7.0 - System Operations
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC7.1 | ✅ | Vulnerability scanning: Trivy, Grype, nuclei in CI |
 | CC7.2 | ✅ | Penetration testing: annual third-party, continuous |
 | CC7.3 | ✅ | Incident response: runbooks, break-glass, escalation |
 | CC7.4 | ✅ | Monitoring: real-time findings, PagerDuty, webhooks |
-| CC7.5 | ✅ | Forensics: Strix Proof, immutable audit trail, correlation IDs |
+| CC7.5 | ✅ | Forensics: Ishastra Proof, immutable audit trail, correlation IDs |
 
 ### CC8.0 - Change Management
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC8.1 | ✅ | GitFlow, PR required, CI validation, ArgoCD |
 | CC8.2 | ✅ | Automated testing: unit, integration, contract, E2E |
@@ -94,14 +94,14 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ### CC9.0 - Risk Mitigation
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | CC9.1 | ✅ | Business continuity: multi-region, RTO 1hr, RPO 5min |
 | CC9.2 | ✅ | Disaster recovery: documented runbooks, automated restore |
 
 ## Availability (A)
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | A1.1 | ✅ | k0s multi-cluster, multi-AZ, HPA, PDBs |
 | A1.2 | ✅ | Health checks, readiness/liveness probes, circuit breakers |
@@ -109,14 +109,14 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ## Confidentiality (C)
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | C1.1 | ✅ | Data classification: finding severity, PII tags, scope tags |
 | C1.2 | ✅ | Encryption at rest, TLS 1.3, sealed secrets, key rotation |
 
 ## Processing Integrity (PI)
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | PI1.1 | ✅ | Scope Gate validation per request, default-deny |
 | PI1.2 | ✅ | Idempotent assessment operations, deduplication |
@@ -126,7 +126,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ## Privacy (P)
 
-| Criterion | Status | Strix Implementation |
+| Criterion | Status | Ishastra Implementation |
 |-----------|--------|---------------------|
 | P1.1 | ✅ | Privacy notice in API docs, data processing agreement |
 | P1.2 | ✅ | Data minimization: only assessment targets, no PII collection |
@@ -141,7 +141,7 @@ Mapping of Strix controls to SOC 2 Trust Services Criteria (Security, Availabili
 
 ```bash
 # Generate SOC 2 evidence package
-strix compliance generate --framework soc2 --output ./soc2-evidence/
+ishastra compliance generate --framework soc2 --output ./soc2-evidence/
 
 # Structure:
 soc2-evidence/

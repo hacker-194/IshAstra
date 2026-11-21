@@ -127,8 +127,8 @@ class WebhookAlertSink(AlertSink):
         headers = {"Content-Type": "application/json", "User-Agent": "ishastra-alerts/1"}
         if self.secret:
             digest = hmac.new(self.secret.encode(), body, hashlib.sha256).hexdigest()
-            headers["X-Strix-Signature"] = f"sha256={digest}"
-            headers["X-Strix-Signature-Alg"] = "HMAC-SHA256"
+            headers["X-Ishastra-Signature"] = f"sha256={digest}"
+            headers["X-Ishastra-Signature-Alg"] = "HMAC-SHA256"
         return headers
 
     async def _ensure_pinned(self) -> tuple[Any, str]:

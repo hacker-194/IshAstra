@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Automated Security Audit Script for Strix.
+Automated Security Audit Script for Ishastra.
 
 Runs multiple security scanners and produces a consolidated report:
 - Bandit: Python AST-based static analysis
@@ -35,7 +34,7 @@ class ScanResult:
     """Result from a single security scanner."""
 
     scanner: str
-    status: str  # "passed", "failed", "error", "skipped"
+    status: str
     findings: list[dict[str, Any]]
     summary: dict[str, int]
     duration_seconds: float
@@ -82,18 +81,16 @@ def run_bandit(project_root: Path) -> ScanResult:
     log.info("Running Bandit...")
     start = time.time()
 
-    # Bandit configuration
     bandit_config = project_root / ".bandit"
-    if not bandit_config.exists():
-        bandit_config = project_root / "pyproject.toml"
 
     cmd = [
         "bandit",
+        "-q",  # progress output on stdout would corrupt the JSON payload
         "-r",
         "src/",
         "-f",
         "json",
-        "-ll",  # Only show LOW and above
+        "-ll",
     ]
 
     if bandit_config.exists():
@@ -125,7 +122,6 @@ def run_bandit(project_root: Path) -> ScanResult:
             "low": metrics.get("SEVERITY.LOW", 0),
         }
 
-        # Bandit doesn't have CRITICAL, map HIGH to critical for consistency
         for r in results:
             if r.get("issue_severity") == "HIGH" and r.get("issue_confidence") == "HIGH":
                 summary["critical"] += 1
@@ -156,10 +152,10 @@ def run_semgrep(project_root: Path) -> ScanResult:
     cmd = [
         "semgrep",
         "scan",
-        "--config=auto",  # Auto-detect rulesets
-        "--config=p/security-audit",  # Security audit ruleset
-        "--config=p/owasp-top-ten",  # OWASP Top 10 ruleset
-        "--config=p/secrets",  # Secrets detection
+        "--config=auto",
+        "--config=p/security-audit",
+        "--config=p/owasp-top-ten",
+        "--config=p/secrets",
         "--json",
         "--quiet",
         "src/",
@@ -216,7 +212,6 @@ def run_safety(project_root: Path) -> ScanResult:
     log.info("Running Safety...")
     start = time.time()
 
-    # Use constraints.txt if available for more accurate scanning
     constraints = project_root / "constraints.txt"
     req_file = project_root / "requirements.txt"
 
@@ -243,7 +238,7 @@ def run_safety(project_root: Path) -> ScanResult:
 
     try:
         data = json.loads(stdout) if stdout else []
-        # Safety returns a list of vulnerabilities
+
         findings = data if isinstance(data, list) else []
 
         summary = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -253,7 +248,7 @@ def run_safety(project_root: Path) -> ScanResult:
             if severity in summary:
                 summary[severity] += 1
             else:
-                summary["medium"] += 1  # Default
+                summary["medium"] += 1
 
         return ScanResult(
             scanner="safety",
@@ -299,7 +294,6 @@ def run_pip_audit(project_root: Path) -> ScanResult:
             error=stderr or "pip-audit not installed",
         )
 
-    # pip-audit returns non-zero on findings, but that's expected
     try:
         data = json.loads(stdout) if stdout else {"vulnerabilities": []}
         vulns = data.get("vulnerabilities", [])
@@ -397,6 +391,18 @@ def run_trivy(project_root: Path) -> ScanResult:
         )
 
 
+UNAVAILABLE_STATUSES = frozenset({"error", "skipped"})
+
+
+def unavailable_scanners(results: list[ScanResult]) -> list[str]:
+    """Scanners that produced no usable result (missing binary, crash, skip).
+
+    A scanner that never ran is not a clean result: reporting it as one is how
+    an audit says PASSED with three of five scanners missing.
+    """
+    return [r.scanner for r in results if r.status in UNAVAILABLE_STATUSES]
+
+
 def generate_report(results: list[ScanResult], project_root: Path, format: str = "json") -> str:
     """Generate consolidated report."""
     total_findings = sum(len(r.findings) for r in results)
@@ -405,7 +411,6 @@ def generate_report(results: list[ScanResult], project_root: Path, format: str =
     medium = sum(r.summary.get("medium", 0) for r in results)
     low = sum(r.summary.get("low", 0) for r in results)
 
-    # Read version from pyproject.toml
     version = "unknown"
     pyproject = project_root / "pyproject.toml"
     if pyproject.exists():
@@ -416,7 +421,7 @@ def generate_report(results: list[ScanResult], project_root: Path, format: str =
 
     report = AuditReport(
         timestamp=datetime.utcnow().isoformat() + "Z",
-        project="strix",
+        project="ishastra",
         version=version,
         scanners=results,
         total_findings=total_findings,
@@ -424,7 +429,7 @@ def generate_report(results: list[ScanResult], project_root: Path, format: str =
         high_count=high,
         medium_count=medium,
         low_count=low,
-        overall_status="failed" if critical > 0 or high > 0 else "passed",
+        overall_status=("failed" if critical > 0 or high > 0 or unavailable_scanners(results) else "passed"),
     )
 
     if format == "json":
@@ -448,9 +453,9 @@ def generate_sarif(report: AuditReport) -> str:
             {
                 "tool": {
                     "driver": {
-                        "name": "Strix Security Audit",
+                        "name": "Ishastra Security Audit",
                         "version": report.version,
-                        "informationUri": "https://github.com/usestrix/strix",
+                        "informationUri": "https://github.com/useishastra/ishastra",
                         "rules": [],
                     }
                 },
@@ -469,7 +474,6 @@ def generate_sarif(report: AuditReport) -> str:
 
     for scanner_result in report.scanners:
         for finding in scanner_result.findings:
-            # Create SARIF result
             rule_id = f"{scanner_result.scanner}:{finding.get('test_id', finding.get('check_id', 'unknown'))}"
 
             if rule_id not in rule_map:
@@ -527,7 +531,7 @@ def generate_sarif(report: AuditReport) -> str:
 def generate_markdown(report: AuditReport) -> str:
     """Generate Markdown format report."""
     lines = [
-        "# Strix Security Audit Report",
+        "# Ishastra Security Audit Report",
         "",
         f"**Project:** {report.project}",
         f"**Version:** {report.version}",
@@ -547,6 +551,11 @@ def generate_markdown(report: AuditReport) -> str:
         "## Scanner Results",
         "",
     ]
+
+    missing = unavailable_scanners(report.scanners)
+    if missing:
+        lines.append(f"**Scanners not run:** {', '.join(missing)} — this report is incomplete.")
+        lines.append("")
 
     for scanner in report.scanners:
         status_icon = (
@@ -577,7 +586,6 @@ def generate_markdown(report: AuditReport) -> str:
             lines.append(f"- **Error:** {scanner.error}")
             lines.append("")
 
-        # Top findings
         if scanner.findings:
             lines.append("#### Top Findings")
             lines.append("")
@@ -590,13 +598,13 @@ def generate_markdown(report: AuditReport) -> str:
             lines.append("")
 
     lines.append("---")
-    lines.append("*Generated by Strix Security Audit Script*")
+    lines.append("*Generated by Ishastra Security Audit Script*")
 
     return "\n".join(lines)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Strix Security Audit Script")
+    parser = argparse.ArgumentParser(description="Ishastra Security Audit Script")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -634,7 +642,6 @@ def main():
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine which scanners to run
     all_scanners = ["bandit", "semgrep", "safety", "pip-audit", "trivy"]
     scanners_to_run = all_scanners if "all" in args.scanners else args.scanners
 
@@ -642,7 +649,6 @@ def main():
     log.info(f"Project root: {project_root}")
     log.info(f"Output directory: {output_dir}")
 
-    # Scanner functions
     scanner_funcs = {
         "bandit": run_bandit,
         "semgrep": run_semgrep,
@@ -663,18 +669,16 @@ def main():
         else:
             log.warning(f"Unknown scanner: {scanner_name}")
 
-    # Generate reports
     timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     base_name = f"security-audit-{timestamp}"
 
-    for fmt in [args.format, "markdown"]:  # Always generate markdown too
+    for fmt in [args.format, "markdown"]:
         report_content = generate_report(results, project_root, fmt)
         ext = "md" if fmt == "markdown" else fmt
         output_file = output_dir / f"{base_name}.{ext}"
         output_file.write_text(report_content)
         log.info(f"Report written: {output_file}")
 
-    # Print summary
     print("\n" + "=" * 60)
     print("SECURITY AUDIT SUMMARY")
     print("=" * 60)
@@ -700,8 +704,6 @@ def main():
     print(f"  {'Low':12} | {'':8} | {report.low_count:4}")
     print("=" * 60)
 
-    # Determine exit code
-    # Count findings at or above threshold
     threshold_map = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     severity_levels = ["critical", "high", "medium", "low"]
     fail_level = threshold_map[args.fail_on]
@@ -711,12 +713,21 @@ def main():
         for sev in severity_levels[: fail_level + 1]:
             findings_at_threshold += r.summary.get(sev, 0)
 
+    missing = unavailable_scanners(results)
+    if missing:
+        print(
+            "\n❌ FAIL: scanner(s) did not run: "
+            + ", ".join(missing)
+            + " — an audit that skipped scanners cannot pass"
+        )
+        sys.exit(1)
+
     if findings_at_threshold > 0:
         print(f"\n❌ FAIL: {findings_at_threshold} findings at {args.fail_on} severity or higher")
         sys.exit(1)
-    else:
-        print(f"\n✅ PASS: No findings at {args.fail_on} severity or higher")
-        sys.exit(0)
+
+    print(f"\n✅ PASS: No findings at {args.fail_on} severity or higher")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

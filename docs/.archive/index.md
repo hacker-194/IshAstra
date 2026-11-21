@@ -1,18 +1,18 @@
-# Strix Documentation
+# Ishastra Documentation
 # Process: MkDocs builds this as the documentation homepage
 # Effect: Entry point for all documentation navigation
 # No secrets written in plain text
 # User instruction: "update all"
 
-# Strix — Authorization-First Security Assessment Platform
+# Ishastra — Authorization-First Security Assessment Platform
 
 > **The only security scanner that enforces authorization BEFORE every connection.**
 
-Strix is an open-source security assessment platform built on a revolutionary principle: **default-deny authorization for every outbound connection**. Unlike traditional scanners that connect first and ask questions later, Strix's Scope Gate validates every destination against explicit policy before a single packet leaves your infrastructure.
+Ishastra is an open-source security assessment platform built on a revolutionary principle: **default-deny authorization for every outbound connection**. Unlike traditional scanners that connect first and ask questions later, Ishastra's Scope Gate validates every destination against explicit policy before a single packet leaves your infrastructure.
 
-## Why Strix?
+## Why Ishastra?
 
-| Feature | Strix | Nuclei | Trivy | OWASP ZAP | OpenVAS |
+| Feature | Ishastra | Nuclei | Trivy | OWASP ZAP | OpenVAS |
 |---------|-------|--------|-------|-----------|---------|
 | **Default-deny authorization** | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Multi-tenant isolation** | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -28,8 +28,8 @@ Strix is an open-source security assessment platform built on a revolutionary pr
 
 ### Free Tier — $0/month
 ```bash
-git clone https://github.com/strix/strix
-cd strix
+git clone https://github.com/ishastra/ishastra
+cd ishastra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
 ```
@@ -46,7 +46,7 @@ docker-compose up -d
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Strix Platform                                │
+│                        Ishastra Platform                                │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
@@ -60,7 +60,7 @@ docker-compose up -d
 │  │                    Scope Gate (Authorization)                  │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │  │
 │  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer      │   │  │
-│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Strix Proof)    │   │  │
+│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Ishastra Proof)    │   │  │
 │  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                  │   │  │
 │  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
@@ -95,7 +95,7 @@ docker-compose up -d
 ### 2. Break-Glass Dual Approval
 Emergency authorization with dual approval workflow — time-bounded, audited, metrics-instrumented.
 
-### 3. Strix Proof — Cryptographic Audit Chain
+### 3. Ishastra Proof — Cryptographic Audit Chain
 Every gate decision receipted: `grant → gate → proof → verify` — tamper-evident, offline verifiable, compliance-ready.
 
 ### 4. Adapter Framework — Real Tools, Normalized Output
@@ -116,10 +116,10 @@ HTTP Probe, Crawler, Dynamic Validation, External (nmap, Nuclei, SQLMap, Nikto) 
 
 ## Community & Support
 
-- **Slack**: [slack.strix.dev](https://slack.strix.dev)
-- **Discord**: [discord.gg/strix](https://discord.gg/strix)
-- **GitHub Issues**: [Bug reports & features](https://github.com/strix/strix/issues)
-- **Discussions**: [Q&A and ideas](https://github.com/strix/strix/discussions)
+- **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
+- **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
+- **GitHub Issues**: [Bug reports & features](https://github.com/ishastra/ishastra/issues)
+- **Discussions**: [Q&A and ideas](https://github.com/ishastra/ishastra/discussions)
 
 ## License
 

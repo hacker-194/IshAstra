@@ -1,21 +1,35 @@
-# Contributing to Strix
+# Contributing to Ishastra
 
-Strix is an authorized security assessment platform. All contributions must preserve the **default-deny authorization model** — every outbound connection is validated against an authorization document before any network contact.
+Ishastra is an authorized security assessment platform. All contributions must preserve the **default-deny authorization model** — every outbound connection is validated against an authorization document before any network contact.
 
 ## License
 
-Strix is fully open source under the **Apache License 2.0** (`LICENSE`). Every
+Ishastra is fully open source under the **Apache License 2.0** (`LICENSE`). Every
 feature is in the open-source project; there is no proprietary edition or
 feature gated behind a commercial plan. By contributing, you agree that your
 contribution is licensed under the same Apache-2.0 terms. There is no
 contributor license agreement and no copyright assignment.
+
+### Sign-off (DCO)
+
+Every commit must carry a `Signed-off-by` line certifying the
+[Developer Certificate of Origin](DCO) v1.1:
+
+```bash
+git commit -s          # sign a new commit
+git rebase --signoff   # sign the commits already on your branch
+```
+
+`DCO` is the full text you are certifying; CI rejects pull requests whose
+commits are missing the trailer. Signing off is not a copyright assignment —
+you keep your copyright.
 
 ## Development Setup
 
 ```bash
 # Clone and install
 git clone <repo>
-cd strix
+cd ishastra
 pip install -c constraints.txt -e ".[dev]"
 
 # Configure authorization (required for any scan)
@@ -23,13 +37,13 @@ cp scope.example.json scope.json
 # Edit scope.json with hosts you are AUTHORIZED to test
 
 # Generate API key
-export STRIX_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export ISHASTRA_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
 # Run server
-strix serve --host 0.0.0.0 --port 8000
+ishastra serve --host 0.0.0.0 --port 8000
 
 # Or run inline assessment (for testing)
-strix assess --target https://example.com --profile web
+ishastra assess --target https://example.com --profile web
 ```
 
 ## Code Quality Gates
@@ -50,7 +64,7 @@ CI runs the same checks. PRs failing any gate are blocked.
 
 ### 1. Default-Deny Authorization
 - **Never** make an outbound connection without `scope.check()` or `scope.destination()`
-- The scope gate (`src/strix/core/scope.py`) is the single authorization point
+- The scope gate (`src/ishastra/core/scope.py`) is the single authorization point
 - Adapters MUST call `checked_destination(target)` before connecting
 
 ### 2. One Capability = One Adapter
@@ -65,10 +79,10 @@ CI runs the same checks. PRs failing any gate are blocked.
 
 ### 4. Redaction at Every Boundary
 - Credentials redacted from: evidence, job targets, errors, audit, SARIF, HTML, webhooks
-- Use `strix.core.redaction.redact()` and `sanitize_target()`
+- Use `ishastra.core.redaction.redact()` and `sanitize_target()`
 
 ### 5. Multi-Tenant Isolation
-- Per-task scope binding via `strix.core.scope.bound()` ContextVar
+- Per-task scope binding via `ishastra.core.scope.bound()` ContextVar
 - Job carries `policy_id` + `policy_version`; worker re-validates at execution
 - Revoked policy = job fails, never scans under another tenant's auth
 
@@ -77,12 +91,12 @@ CI runs the same checks. PRs failing any gate are blocked.
 ### 1. Create the Adapter Class
 
 ```python
-# src/strix/core/adapters.py (or new detector module)
-from strix.core.adapter_base import Adapter, AdapterResult, checked_destination
-from strix.core.findings import Finding
+# src/ishastra/core/adapters.py (or new detector module)
+from ishastra.core.adapter_base import Adapter, AdapterResult, checked_destination
+from ishastra.core.findings import Finding
 
 class MyNewAdapter(Adapter):
-    id = "strix-my-new"
+    id = "ishastra-my-new"
     version = "1.0"
     asset_types = ("web",)
     requires = ("mytool",)  # external binary name
@@ -110,7 +124,7 @@ ADAPTERS = {
 
 PROFILES = {
     # ...
-    "web-deep": (..., "strix-my-new"),
+    "web-deep": (..., "ishastra-my-new"),
 }
 ```
 
@@ -118,7 +132,7 @@ PROFILES = {
 - Call `checked_destination(target)` FIRST — before any network I/O
 - Respect `timeout` (wall clock) and `cancel` (threading.Event)
 - Return `AdapterResult` with `partial=True` if coverage incomplete
-- Findings must use normalized model (`Finding` from `strix.core.findings`)
+- Findings must use normalized model (`Finding` from `ishastra.core.findings`)
 - Tool output bounded (16MB), parsed safely (defusedxml for XML)
 
 ## Adding a New Finding Category
@@ -150,7 +164,7 @@ pytest tests/ -v
 pytest tests/integration/ -v
 
 # Lab evaluation (detection benchmark)
-python -m strix.lab --report lab-eval.json
+python -m ishastra.lab --report lab-eval.json
 ```
 
 ### Test Patterns
@@ -176,8 +190,8 @@ python -m strix.lab --report lab-eval.json
 
 ## Pull Request Process
 
-1. Fork → feature branch → PR
-2. All CI gates pass (ruff, mypy, tests, secret scan)
+1. Fork → feature branch → PR, commits signed off (`git commit -s`, see [DCO](DCO))
+2. All CI gates pass (ruff, mypy, tests, secret scan, DCO)
 3. Architecture review for:
    - New adapters follow framework contract
    - Scope gate not bypassed
@@ -191,7 +205,7 @@ python -m strix.lab --report lab-eval.json
 
 ## Release Process
 
-Version in `src/strix/__init__.py`. Tagged releases build Docker image and publish to PyPI.
+Version in `src/ishastra/__init__.py`. Tagged releases build Docker image and publish to PyPI.
 
 ## Code Style
 
@@ -206,15 +220,15 @@ Version in `src/strix/__init__.py`. Tagged releases build Docker image and publi
 
 | Area | Files |
 |------|-------|
-| Scope Gate | `src/strix/core/scope.py` |
-| Job Orchestration | `src/strix/core/jobs.py` |
-| Adapter Base | `src/strix/core/adapter_base.py` |
-| Built-in Adapters | `src/strix/core/adapters.py` |
-| Findings Model | `src/strix/core/findings.py` |
-| Persistence | `src/strix/core/store.py` |
-| Engagement Policies | `src/strix/core/policies.py` |
-| API Routes | `src/strix/api/routers/` |
-| Auth/Rate Limit | `src/strix/api/security.py` |
-| Strix Proof | `src/strix/proof.py` |
-| CLI Entry | `src/strix/cli.py` |
-| Config | `src/strix/config.py` |
+| Scope Gate | `src/ishastra/core/scope.py` |
+| Job Orchestration | `src/ishastra/core/jobs.py` |
+| Adapter Base | `src/ishastra/core/adapter_base.py` |
+| Built-in Adapters | `src/ishastra/core/adapters.py` |
+| Findings Model | `src/ishastra/core/findings.py` |
+| Persistence | `src/ishastra/core/store.py` |
+| Engagement Policies | `src/ishastra/core/policies.py` |
+| API Routes | `src/ishastra/api/routers/` |
+| Auth/Rate Limit | `src/ishastra/api/security.py` |
+| Ishastra Proof | `src/ishastra/proof.py` |
+| CLI Entry | `src/ishastra/cli.py` |
+| Config | `src/ishastra/config.py` |

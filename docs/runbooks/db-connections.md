@@ -2,7 +2,7 @@
 
 # Runbook: High Database Connections
 
-**Alert**: `StrixDatabaseConnectionsHigh`
+**Alert**: `IshastraDatabaseConnectionsHigh`
 **Severity**: Warning
 **Team**: Platform
 
@@ -19,29 +19,29 @@
 
 ```bash
 # Current connections
-kubectl exec -n strix-system deploy/strix-api -- psql "$DATABASE_URL" -c "SELECT count(*) FROM pg_stat_activity;"
+kubectl exec -n ishastra-system deploy/ishastra-api -- psql "$DATABASE_URL" -c "SELECT count(*) FROM pg_stat_activity;"
 
 # By state
-kubectl exec -n strix-system deploy/strix-api -- psql "$DATABASE_URL" -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;"
+kubectl exec -n ishastra-system deploy/ishastra-api -- psql "$DATABASE_URL" -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;"
 
 # By application
-kubectl exec -n strix-system deploy/strix-api -- psql "$DATABASE_URL" -c "SELECT application_name, count(*) FROM pg_stat_activity GROUP BY application_name;"
+kubectl exec -n ishastra-system deploy/ishastra-api -- psql "$DATABASE_URL" -c "SELECT application_name, count(*) FROM pg_stat_activity GROUP BY application_name;"
 ```
 
 ### 2. Check Connection Pool
 
 ```bash
 # PgBouncer stats (if used)
-kubectl exec -n strix-system deploy/pgbouncer -- pgbouncer -c "SHOW STATS;"
+kubectl exec -n ishastra-system deploy/pgbouncer -- pgbouncer -c "SHOW STATS;"
 
 # Pool utilization
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep db_pool
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep db_pool
 ```
 
 ### 3. Identify Long-Running Queries
 
 ```bash
-kubectl exec -n strix-system deploy/strix-api -- psql "$DATABASE_URL" -c "
+kubectl exec -n ishastra-system deploy/ishastra-api -- psql "$DATABASE_URL" -c "
 SELECT pid, now() - pg_stat_activity.query_start AS duration, query, state
 FROM pg_stat_activity
 WHERE (now() - pg_stat_activity.query_start) > interval '30 seconds'
@@ -63,15 +63,15 @@ AND state != 'idle';
 
 ```bash
 # Kill idle connections
-kubectl exec -n strix-system deploy/strix-api -- psql "$DATABASE_URL" -c "
+kubectl exec -n ishastra-system deploy/ishastra-api -- psql "$DATABASE_URL" -c "
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE state = 'idle' AND now() - state_change > interval '5 minutes';
 "
 
 # Increase max_connections (requires restart)
-kubectl exec -n strix-system deploy/postgres -- psql -c "ALTER SYSTEM SET max_connections = 500;"
-kubectl rollout restart deployment/postgres -n strix-system
+kubectl exec -n ishastra-system deploy/postgres -- psql -c "ALTER SYSTEM SET max_connections = 500;"
+kubectl rollout restart deployment/postgres -n ishastra-system
 ```
 
 ## Permanent Fix

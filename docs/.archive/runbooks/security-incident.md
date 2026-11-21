@@ -4,10 +4,10 @@
 
 | Alert | Severity | Source |
 |-------|----------|--------|
-| `StrixAuditChainVerificationFailed` | critical | Audit chain tampering detected |
-| `StrixAuditChainLengthAnomaly` | warning | Audit chain length decreased |
-| `StrixAuthFailureBurst` | critical | Authentication failure burst |
-| `StrixCriticalFindingsNew` | warning | New critical findings detected |
+| `IshastraAuditChainVerificationFailed` | critical | Audit chain tampering detected |
+| `IshastraAuditChainLengthAnomaly` | warning | Audit chain length decreased |
+| `IshastraAuthFailureBurst` | critical | Authentication failure burst |
+| `IshastraCriticalFindingsNew` | warning | New critical findings detected |
 | Manual report | - | Tenant report, external researcher |
 
 ---
@@ -22,7 +22,7 @@
 | **Audit Tampering** | Modified/deleted audit logs | SEV-1 |
 | **Infrastructure Compromise** | Container escape, node access | SEV-1 |
 | **Data Exfiltration** | Bulk findings download | SEV-1 |
-| **Vulnerability in Strix** | RCE, SQLi, auth bypass in platform | SEV-1 |
+| **Vulnerability in Ishastra** | RCE, SQLi, auth bypass in platform | SEV-1 |
 | **Denial of Service** | Resource exhaustion, queue saturation | SEV-2 |
 
 ---
@@ -40,7 +40,7 @@
 ### 2. Contain (Stop the Bleeding)
 ```bash
 # If API key compromised - REVOKE IMMEDIATELY
-curl -X POST http://strix.example.com/api/keys/revoke/<TENANT_ID> \
+curl -X POST http://ishastra.example.com/api/keys/revoke/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{"key_prefix": "sk_live_compromised"}'
 
@@ -50,11 +50,11 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: block-attacker-$(date +%s)
-  namespace: strix
+  namespace: ishastra
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: strix
+      app.kubernetes.io/name: ishastra
   policyTypes:
   - Ingress
   ingress:
@@ -66,18 +66,18 @@ spec:
 EOF
 
 # If audit chain tampered - STOP WRITERS
-kubectl scale deployment strix-api -n strix --replicas=0
-kubectl scale deployment strix-scheduler -n strix --replicas=0
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=0
 
 # Preserve forensic evidence
-kubectl exec -n strix strix-api-xxx -- cp /var/lib/strix/strix.db /var/lib/strix/strix.db.forensic.$(date +%s)
+kubectl exec -n ishastra ishastra-api-xxx -- cp /var/lib/ishastra/ishastra.db /var/lib/ishastra/ishastra.db.forensic.$(date +%s)
 ```
 
 ### 3. Assess Impact
 ```bash
 # Check what data was accessed
 # 1. Audit log query for suspicious activity
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT * FROM audit_log
 WHERE timestamp > datetime('now', '-24 hours')
 AND (actor = '<suspect_tenant>' OR action IN ('scope_violation', 'findings_export', 'key_rotation'))
@@ -85,7 +85,7 @@ ORDER BY timestamp DESC;
 "
 
 # 2. Check findings accessed
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT f.*, j.target, j.tenant_id FROM findings f
 JOIN jobs j ON f.job_id = j.id
 WHERE j.tenant_id = '<suspect_tenant>'
@@ -93,7 +93,7 @@ AND f.created_at > datetime('now', '-24 hours');
 "
 
 # 3. Check webhook deliveries
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT * FROM webhook_deliveries
 WHERE created_at > datetime('now', '-24 hours')
 AND status = 'delivered';
@@ -107,11 +107,11 @@ AND status = 'delivered';
 ### Forensic Evidence Collection
 ```bash
 # 1. Database snapshot
-kubectl cp strix/strix-api-xxx:/var/lib/strix/strix.db /forensics/strix.db.$(date +%s)
+kubectl cp ishastra/ishastra-api-xxx:/var/lib/ishastra/ishastra.db /forensics/ishastra.db.$(date +%s)
 
 # 2. Application logs (last 72 hours)
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --since=72h > /forensics/api-logs.$(date +%s).txt
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=scheduler --since=72h > /forensics/scheduler-logs.$(date +%s).txt
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --since=72h > /forensics/api-logs.$(date +%s).txt
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=scheduler --since=72h > /forensics/scheduler-logs.$(date +%s).txt
 
 # 3. Kubernetes audit logs
 kubectl get events -A --sort-by=.metadata.creationTimestamp > /forensics/k8s-events.$(date +%s).txt
@@ -126,14 +126,14 @@ kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --since=72
 ### Scope Bypass Investigation
 ```bash
 # 1. Identify all scope violations
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT actor, target, timestamp, user_agent FROM audit_log
 WHERE action = 'scope_violation'
 ORDER BY timestamp DESC;
 "
 
 # 2. Check if any violations resulted in completed scans
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT j.id, j.target, j.state, j.tenant_id, j.created_at FROM jobs j
 JOIN audit_log a ON j.tenant_id = a.actor
 WHERE a.action = 'scope_violation'
@@ -148,7 +148,7 @@ AND j.created_at > a.timestamp;
 ### Credential Compromise Investigation
 ```bash
 # 1. Check key usage patterns
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT k.prefix, k.tenant_id, k.last_used, k.created_at,
        COUNT(a.id) as api_calls
 FROM api_keys k
@@ -167,12 +167,12 @@ ORDER BY api_calls DESC;
 ### Audit Chain Tampering Investigation
 ```bash
 # 1. Verify current chain state
-curl -s -H "Authorization: Bearer $ADMIN_KEY" http://strix.example.com/api/audit/verify | jq .
+curl -s -H "Authorization: Bearer $ADMIN_KEY" http://ishastra.example.com/api/audit/verify | jq .
 
 # 2. Check secret presence and review secret-manager version history; never print
 # the environment or secret value.
-kubectl get secret strix-secrets -n strix \
-  -o 'jsonpath={.data.STRIX_AUDIT_HMAC_KEY}' | grep -q .
+kubectl get secret ishastra-secrets -n ishastra \
+  -o 'jsonpath={.data.ISHASTRA_AUDIT_HMAC_KEY}' | grep -q .
 
 # 3. If the API is unavailable and the database is SQLite, verify a forensic
 # copy with scripts/operational_check.py in a protected maintenance environment.
@@ -188,7 +188,7 @@ kubectl get secret strix-secrets -n strix \
 
 ### Internal SEV-1 Alert
 ```
-[SEV-1] Strix Security Incident
+[SEV-1] Ishastra Security Incident
 Time: <ISO8601 timestamp>
 Type: <Findings Exposure / Scope Bypass / Credential Compromise / etc.>
 Impact: <Number of tenants affected, data exposed>
@@ -202,7 +202,7 @@ War Room: <Video conference link>
 
 ### Customer Notification (If Data Exposed)
 ```
-Subject: Security Incident Notification - Strix Assessment Platform
+Subject: Security Incident Notification - Ishastra Assessment Platform
 
 Date: <Date>
 Incident ID: INC-YYYYMMDD-XXX
@@ -266,9 +266,9 @@ DPO Contact: dpo@example.com
 ### 3. Verify Clean State
 ```bash
 # Full health check
-curl -s http://strix.example.com/api/health
-curl -s http://strix.example.com/api/ready
-curl -s -H "Authorization: Bearer $ADMIN_KEY" http://strix.example.com/api/audit/verify
+curl -s http://ishastra.example.com/api/health
+curl -s http://ishastra.example.com/api/ready
+curl -s -H "Authorization: Bearer $ADMIN_KEY" http://ishastra.example.com/api/audit/verify
 
 # No unauthorized access in last 24h
 # All scope gates functioning
@@ -328,9 +328,9 @@ curl -s -H "Authorization: Bearer $ADMIN_KEY" http://strix.example.com/api/audit
 
 ## Grafana Dashboard Links
 
-- **Security Overview**: `https://grafana.example.com/d/strix-security/security-overview`
-- **Audit Chain**: `https://grafana.example.com/d/strix-audit/audit-chain`
-- **Auth Failures**: `https://grafana.example.com/d/strix-auth/auth-failures`
+- **Security Overview**: `https://grafana.example.com/d/ishastra-security/security-overview`
+- **Audit Chain**: `https://grafana.example.com/d/ishastra-audit/audit-chain`
+- **Auth Failures**: `https://grafana.example.com/d/ishastra-auth/auth-failures`
 
 **Key Panels:**
 - Audit Chain Verification Status (stat)

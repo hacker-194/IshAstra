@@ -1,0 +1,158 @@
+
+
+
+global:
+  image:
+    repository: ghcr.io/your-org/ishastra
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - name: ghcr-secret
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: security-assessment
+  podSecurityStandard: restricted
+
+
+api:
+  enabled: true
+
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  hpa:
+
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    hosts:
+      - host: ishastra-staging.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: ishastra-tls-staging
+        hosts:
+          - ishastra-staging.example.com
+  env:
+    ISHASTRA_LOG_LEVEL: "INFO"
+    ISHASTRA_LOG_FORMAT: "json"
+    ISHASTRA_DEBUG: "0"
+
+
+scheduler:
+  enabled: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+
+
+queue:
+  mode: redis-streams
+
+
+worker:
+  enabled: true
+  replicaCount: 2
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: "ishastra-redis-secret"
+    existingSecretPasswordKey: "redis-password"
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+
+
+postgresql:
+  enabled: true
+
+
+monitoring:
+  prometheus:
+    enabled: true
+    prometheus:
+      prometheusSpec:
+        retention: 7d
+        retentionSize: 5Gi
+  grafana:
+    enabled: true
+
+
+pvc:
+  ishastraData:
+    enabled: true
+    resources:
+      requests:
+        storage: 10Gi
+
+
+networkPolicy:
+  enabled: true
+
+
+secrets:
+  enabled: true
+  createSecrets: false
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "ishastra-secrets"
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "ishastra"
+    vault.hashicorp.com/secret-path: "secret/data/ishastra/staging"
+
+
+configMap:
+  enabled: true
+  scopeJson: |
+    {
+      "program": "Staging Assessment Program",
+      "authorized_by": "CISO",
+      "authorization_ref": "STAGING-001",
+      "include": ["*.staging.example.com", "api.staging.example.com"],
+      "exclude": ["test.staging.example.com"],
+      "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+      "allowed_ports": [80, 443, 8443],
+      "allow_broad_networks": false,
+      "auth": {
+        "users": []
+      }
+    }

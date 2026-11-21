@@ -43,7 +43,7 @@
   "metadata": {
     "engagement_type": "pentest",
     "compliance_frameworks": "NRB,NTA,NCSP",
-    "scope_creator": "strix scope-wizard",
+    "scope_creator": "ishastra scope-wizard",
     "tenant_id": "sample-bank"
   }
 }

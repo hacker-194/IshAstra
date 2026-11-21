@@ -2,7 +2,7 @@
 
 # Runbook: TLS Certificate Expiring Soon
 
-**Alert**: `StrixCertExpiringSoon`
+**Alert**: `IshastraCertExpiringSoon`
 **Severity**: Warning
 **Team**: Platform
 
@@ -18,13 +18,13 @@
 
 ```bash
 # List all certificates
-kubectl get certificates -n strix-system
+kubectl get certificates -n ishastra-system
 
 # Check specific certificate
-kubectl describe certificate strix-tls -n strix-system
+kubectl describe certificate ishastra-tls -n ishastra-system
 
 # Check cert-manager logs
-kubectl logs -n cert-manager deploy/cert-manager --tail=100 | grep -i "strix\|renew"
+kubectl logs -n cert-manager deploy/cert-manager --tail=100 | grep -i "ishastra\|renew"
 ```
 
 ### 2. Check Issuer/ClusterIssuer
@@ -37,8 +37,8 @@ kubectl describe clusterissuer letsencrypt-prod
 ### 3. Check ACME Challenges
 
 ```bash
-kubectl get challenges -n strix-system
-kubectl describe challenge -n strix-system
+kubectl get challenges -n ishastra-system
+kubectl describe challenge -n ishastra-system
 ```
 
 ## Common Causes & Fixes
@@ -55,28 +55,28 @@ kubectl describe challenge -n strix-system
 
 ```bash
 # Force renewal
-kubectl annotate certificate strix-tls -n strix-system cert-manager.io/force-renew=$(date +%s) --overwrite
+kubectl annotate certificate ishastra-tls -n ishastra-system cert-manager.io/force-renew=$(date +%s) --overwrite
 
 # Or delete and let cert-manager recreate
-kubectl delete certificate strix-tls -n strix-system
+kubectl delete certificate ishastra-tls -n ishastra-system
 
 # Check renewal status
-kubectl get certificate strix-tls -n strix-system -w
+kubectl get certificate ishastra-tls -n ishastra-system -w
 ```
 
 ## Manual Certificate Renewal (Emergency)
 
 ```bash
 # Generate new cert with cert-manager CLI
-cmctl renew strix-tls -n strix-system
+cmctl renew ishastra-tls -n ishastra-system
 
 # Or create temporary self-signed (last resort)
 openssl req -x509 -nodes -days 30 -newkey rsa:2048 \
   -keyout /tmp/tls.key -out /tmp/tls.crt \
-  -subj "/CN=api.strix.dev"
-kubectl create secret tls strix-tls-temp \
+  -subj "/CN=api.ishastra.dev"
+kubectl create secret tls ishastra-tls-temp \
   --cert=/tmp/tls.crt --key=/tmp/tls.key \
-  -n strix-system --dry-run=client -o yaml | kubectl apply -f -
+  -n ishastra-system --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ## Permanent Fix
@@ -91,19 +91,19 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: security@strix.dev
+    email: security@ishastra.dev
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
     - dns01:
         cloudflare:
-          email: dns@strix.dev
+          email: dns@ishastra.dev
           apiTokenSecretRef:
             name: cloudflare-api-token
             key: api-token
       selector:
         dnsZones:
-        - "strix.dev"
+        - "ishastra.dev"
 ```
 
 ```yaml
@@ -111,19 +111,19 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: strix-tls
-  namespace: strix-system
+  name: ishastra-tls
+  namespace: ishastra-system
   annotations:
     cert-manager.io/issue-tls: "true"
 spec:
-  secretName: strix-tls
+  secretName: ishastra-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: api.strix.dev
+  commonName: api.ishastra.dev
   dnsNames:
-  - api.strix.dev
-  - grafana.strix.dev
+  - api.ishastra.dev
+  - grafana.ishastra.dev
   renewBefore: 720h  # 30 days
   privateKey:
     algorithm: ECDSA

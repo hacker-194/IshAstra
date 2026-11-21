@@ -27,7 +27,7 @@ class TestAuthFlow:
     def test_metrics_endpoint(self, page, base_url: str):
         """Verify metrics endpoint exposes Prometheus metrics (requires admin)."""
         response = page.request.get(f"{base_url}/api/metrics/otel")
-        # Metrics endpoint requires admin API key - skip if 401
+
         if response.status == 401:
             pytest.skip("Metrics endpoint requires admin API key")
         assert response.ok
@@ -49,11 +49,11 @@ class TestAssessmentLifecycle:
         response = page.request.post(
             f"{base_url}/api/assess",
             headers=auth_headers,
-            data=payload,  # Let Playwright set Content-Type: application/json
+            data=payload,
         )
         assert response.ok, f"Failed: {response.text()}"
         data = response.json()
-        assert "job_id" in data or "id" in data  # API returns "id"
+        assert "job_id" in data or "id" in data
         assert data.get("status") == "queued" or data.get("state") == "queued"
 
     def test_list_assessments(self, page, base_url: str, auth_headers: dict):
@@ -70,7 +70,7 @@ class TestAssessmentLifecycle:
 
     def test_create_and_monitor_assessment(self, page, base_url: str, auth_headers: dict):
         """Create assessment and monitor until completion."""
-        # Create assessment
+
         payload = {
             "target": "https://httpbin.org/get",
             "profile": "web",
@@ -85,8 +85,7 @@ class TestAssessmentLifecycle:
         data = response.json()
         assessment_id = data.get("job_id") or data.get("id")
 
-        # Poll for completion (with timeout)
-        max_polls = 60  # Increased timeout
+        max_polls = 60
         for _ in range(max_polls):
             response = page.request.get(
                 f"{base_url}/api/assess/{assessment_id}",
@@ -110,7 +109,7 @@ class TestFindingsAndExport:
 
     def test_list_findings(self, page, base_url: str, auth_headers: dict):
         """List findings for an assessment."""
-        # First create and complete an assessment
+
         self._create_completed_assessment(page, base_url, auth_headers)
 
         response = page.request.get(
@@ -181,7 +180,7 @@ class TestTenantIsolation:
         Note: Full tenant isolation test requires multiple valid API keys.
         This test verifies the auth mechanism works with the test key.
         """
-        # Use the test auth headers
+
         payload = {"target": "https://httpbin.org", "profile": "web", "actor": "test-tenant-1"}
         response = page.request.post(
             f"{base_url}/api/assess",
@@ -192,7 +191,6 @@ class TestTenantIsolation:
         data = response.json()
         assessment_id = data.get("job_id") or data.get("id")
 
-        # Same tenant can access their own assessment
         response = page.request.get(
             f"{base_url}/api/assess/{assessment_id}",
             headers=auth_headers,
@@ -207,7 +205,7 @@ class TestScopeEnforcement:
     def test_out_of_scope_target_rejected(self, page, base_url: str, auth_headers: dict):
         """Targets outside scope should be rejected."""
         payload = {
-            "target": "https://google.com",  # Not in test scope
+            "target": "https://google.com",
             "profile": "web",
             "actor": "test-tenant-1",
         }
@@ -216,7 +214,7 @@ class TestScopeEnforcement:
             headers=auth_headers,
             data=payload,
         )
-        # Should be rejected (400, 403, or 422)
+
         assert response.status in (400, 403, 422)
         data = response.json()
         detail = data.get("detail", "").lower()

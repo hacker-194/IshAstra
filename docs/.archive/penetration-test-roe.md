@@ -3,22 +3,22 @@
 **Document Version:** 1.0  
 **Effective Date:** 2026-11-16  
 **Expiration Date:** 2027-02-16  
-**Program:** strix-v3.5.0-hardened  
+**Program:** ishastra-v3.5.0-hardened  
 **Authorization Reference:** PENTEST-2026-001
 
 ---
 
 ## 1. Purpose and Scope
 
-This document establishes the Rules of Engagement (RoE) for authorized penetration testing against the Strix v3.5.0-hardened platform. All testing activities MUST comply with these rules. Deviation requires written approval from the Security Team.
+This document establishes the Rules of Engagement (RoE) for authorized penetration testing against the Ishastra v3.5.0-hardened platform. All testing activities MUST comply with these rules. Deviation requires written approval from the Security Team.
 
 ### 1.1 Authorized Targets
 
 | Component | Base URL | Type | Authentication |
 |-----------|----------|------|----------------|
-| Strix API | https://api.strix.local | REST API | Bearer Token / Session Cookie |
-| Strix Web UI | https://app.strix.local | SPA | Session Cookie / API Key Header |
-| Strix Admin Panel | https://admin.strix.local | Admin Panel | Session Cookie + MFA / Admin API Key |
+| Ishastra API | https://api.ishastra.local | REST API | Bearer Token / Session Cookie |
+| Ishastra Web UI | https://app.ishastra.local | SPA | Session Cookie / API Key Header |
+| Ishastra Admin Panel | https://admin.ishastra.local | Admin Panel | Session Cookie + MFA / Admin API Key |
 
 ### 1.2 In-Scope API Endpoints
 
@@ -98,7 +98,7 @@ The following are **EXPLICITLY PROHIBITED**:
 - **Brute Force**: >10 auth attempts/minute against any endpoint
 - **Scanner Evasion**: Fragmentation, encoding evasion, timing evasion beyond 1000 req/min
 - **Data Exfiltration**: Attempting to access production data or PII
-- **Lateral Movement**: Pivoting from Strix to other systems
+- **Lateral Movement**: Pivoting from Ishastra to other systems
 - **Persistence**: Installing backdoors, webshells, or scheduled tasks
 - **Social Engineering**: Any human-targeted attacks
 
@@ -112,8 +112,8 @@ The following are **EXPLICITLY PROHIBITED**:
 |------|-----------------|--------------|
 | Test Tenant (Analyst) | API Key `strix_...` | Encrypted email / secure portal |
 | Test Admin | API Key `strix_...` | Encrypted email / secure portal |
-| Test OIDC User | `pentest-analyst@strix.example.com` | Password reset link |
-| Test OIDC Admin | `pentest-admin@strix.example.com` | Password reset link |
+| Test OIDC User | `pentest-analyst@ishastra.example.com` | Password reset link |
+| Test OIDC Admin | `pentest-admin@ishastra.example.com` | Password reset link |
 
 ### 3.2 Credential Handling
 
@@ -131,7 +131,7 @@ The following are **EXPLICITLY PROHIBITED**:
 
 | Event | Timeline | Channel |
 |-------|----------|---------|
-| Testing start | At window start | Email: security@strix.example.com |
+| Testing start | At window start | Email: security@ishastra.example.com |
 | CRITICAL finding | Within 1 hour | Email + Phone: +1-XXX-XXX-XXXX |
 | HIGH finding | Within 4 hours | Email |
 | Service disruption | Immediately | Email + Phone |
@@ -142,9 +142,9 @@ The following are **EXPLICITLY PROHIBITED**:
 
 | Role | Name | Email | Phone |
 |------|------|-------|-------|
-| Security Lead | [Name] | security@strix.example.com | +1-XXX-XXX-XXXX |
-| Platform Engineer | [Name] | platform@strix.example.com | +1-XXX-XXX-XXXX |
-| Incident Commander | [Name] | incident@strix.example.com | +1-XXX-XXX-XXXX |
+| Security Lead | [Name] | security@ishastra.example.com | +1-XXX-XXX-XXXX |
+| Platform Engineer | [Name] | platform@ishastra.example.com | +1-XXX-XXX-XXXX |
+| Incident Commander | [Name] | incident@ishastra.example.com | +1-XXX-XXX-XXXX |
 
 ### 4.3 Communication Format
 
@@ -308,12 +308,12 @@ This engagement is authorized by:
 Testing MUST comply with:
 - Computer Fraud and Abuse Act (CFAA) - authorized access only
 - GDPR/CCPA - no PII access, immediate reporting if encountered
-- Industry regulations applicable to Strix deployment
+- Industry regulations applicable to Ishastra deployment
 
 ### 10.3 Liability
 
 - Tester liability limited to gross negligence or willful misconduct
-- Strix not liable for tester equipment damage
+- Ishastra not liable for tester equipment damage
 - Both parties maintain independent insurance
 
 ---
@@ -356,7 +356,7 @@ Each finding MUST include:
 
 ### 12.2 Retest Process
 
-1. Strix team notifies tester of fix deployment
+1. Ishastra team notifies tester of fix deployment
 2. Tester validates fix within 7 days
 3. Tester updates finding status: FIXED / PARTIAL / NOT_FIXED
 4. If PARTIAL/NOT_FIXED, provide additional evidence
@@ -378,7 +378,7 @@ By conducting testing under this RoE, the tester acknowledges:
 
 **Tester Signature:** _________________________ **Date:** _______________
 
-**Strix Security Lead Signature:** _________________________ **Date:** _______________
+**Ishastra Security Lead Signature:** _________________________ **Date:** _______________
 
 ---
 

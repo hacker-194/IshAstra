@@ -1,12 +1,12 @@
 # Capacity Planning Runbook
 
 > **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
-> is defined in `src/strix/metrics.py` and has a data source.
+> is defined in `src/ishastra/metrics.py` and has a data source.
 > `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
 
 
 ## Overview
-Guidance for sizing, monitoring, and scaling Strix deployments.
+Guidance for sizing, monitoring, and scaling Ishastra deployments.
 
 ---
 
@@ -72,7 +72,7 @@ SELECT
 
 | Setting | Default | Max Recommended |
 |---------|---------|-----------------|
-| `STRIX_QUEUE_MAX` | 32 | 100 |
+| `ISHASTRA_QUEUE_MAX` | 32 | 100 |
 | Concurrent workers | 1 | 1 (single-process) |
 
 **Queue Full Behavior**: Returns 503 Service Unavailable
@@ -80,7 +80,7 @@ SELECT
 ### Sizing Formula
 
 ```
-Max Concurrent Jobs = STRIX_WORKERS * STRIX_QUEUE_MAX
+Max Concurrent Jobs = ISHASTRA_WORKERS * ISHASTRA_QUEUE_MAX
 Throughput (jobs/hour) = 3600 / Avg_Job_Duration * Workers
 ```
 
@@ -101,11 +101,11 @@ Throughput (jobs/hour) = 3600 / Avg_Job_Duration * Workers
 | Enterprise | 300 | 60 |
 
 Tier names are rate-limit profiles, not editions. Concurrency is controlled by
-`STRIX_WORKERS`, not by tier; all features remain MIT-licensed.
+`ISHASTRA_WORKERS`, not by tier; all features remain MIT-licensed.
 
 ### Redis Rate Limiter (Multi-Worker)
 
-When `STRIX_REDIS_REQUIRED=true` or `STRIX_WORKERS>1`:
+When `ISHASTRA_REDIS_REQUIRED=true` or `ISHASTRA_WORKERS>1`:
 
 - **Redis memory**: ~1 KB per active key
 - **10K tenants** ≈ 10 MB Redis
@@ -171,7 +171,7 @@ rate(strix_rate_limit_exceeded_total[5m]) > 0.16
 # Disk: Faster I/O → better SQLite performance, tool temp files
 
 # Tune timeouts for larger jobs
-export STRIX_JOB_TIMEOUT=900  # 15 min max
+export ISHASTRA_JOB_TIMEOUT=900  # 15 min max
 ```
 
 ### Horizontal Scaling (Requires Redis + Shared Queue)
@@ -179,14 +179,14 @@ export STRIX_JOB_TIMEOUT=900  # 15 min max
 ```yaml
 # docker-compose.scale.yml
 services:
-  strix:
+  ishastra:
     deploy:
       replicas: 3
     environment:
-      - STRIX_REDIS_URL=redis://redis:6379/0
-      - STRIX_REDIS_REQUIRED=true
-      - STRIX_WORKERS=1  # Per container
-      - STRIX_QUEUE_MODE=k8s-jobs  # If using k8s-jobs extra
+      - ISHASTRA_REDIS_URL=redis://redis:6379/0
+      - ISHASTRA_REDIS_REQUIRED=true
+      - ISHASTRA_WORKERS=1  # Per container
+      - ISHASTRA_QUEUE_MODE=k8s-jobs  # If using k8s-jobs extra
   redis:
     # Redis cluster for HA
 ```
@@ -208,7 +208,7 @@ True horizontal scaling still requires:
 |----------|---------------------------|
 | Light (web, probe) | 1 host, 1 worker, 2 vCPU, 4 GB |
 | Mixed (web + api-deep) | 1 host, 1 worker, 4 vCPU, 8 GB |
-| Heavy (continuous web-deep) | 1 host, higher `STRIX_WORKERS`, measured scanner concurrency |
+| Heavy (continuous web-deep) | 1 host, higher `ISHASTRA_WORKERS`, measured scanner concurrency |
 | Multi-tenant SaaS | **Not supported yet**; requires organizations, metering and HA |
 
 ---
@@ -244,7 +244,7 @@ True horizontal scaling still requires:
 ### Reduce Resource Usage
 ```bash
 # Shorter timeouts for faster queue turnover
-export STRIX_JOB_TIMEOUT=120
+export ISHASTRA_JOB_TIMEOUT=120
 
 # Disable expensive profiles if not needed
 # Remove nuclei from web-deep if not required
@@ -254,10 +254,10 @@ export STRIX_JOB_TIMEOUT=120
 ### Database Maintenance
 ```bash
 # Weekly vacuum (run during low traffic)
-sqlite3 /data/strix.db "VACUUM;"
+sqlite3 /data/ishastra.db "VACUUM;"
 
 # Monthly analyze
-sqlite3 /data/strix.db "ANALYZE;"
+sqlite3 /data/ishastra.db "ANALYZE;"
 
 # Prune old data (automatic via retention worker)
 # Manual trigger:
@@ -272,7 +272,7 @@ curl -X POST http://localhost:8000/api/admin/prune \
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
 | Jobs queueing, not running | Worker dead / stuck | Restart worker, check logs |
-| 503 Service Unavailable | Queue full (STRIX_QUEUE_MAX) | Increase limit or add workers |
+| 503 Service Unavailable | Queue full (ISHASTRA_QUEUE_MAX) | Increase limit or add workers |
 | High job latency | Slow external tools (nmap/nuclei) | Increase timeout, reduce profile scope |
 | OOM kills | Tool output too large | Reduce `max_output_bytes` in adapters |
 | SQLite locked | Concurrent writes | Single writer; check for leaked connections |

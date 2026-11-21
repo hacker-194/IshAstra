@@ -10,8 +10,8 @@ rules:
         matches: "^strix_assessment_queue_pending$"
         as: strix_assessment_queue_pending
       metricsQuery: "sum(<<.Series>>)"
-    - seriesQuery: 'strix_scope_gate_decision_latency_seconds_p95'
+    - seriesQuery: 'ishastra_scope_gate_decision_latency_seconds_p95'
       name:
-        matches: "^strix_scope_gate_decision_latency_seconds_p95$"
-        as: strix_scope_gate_decision_latency_seconds_p95
+        matches: "^ishastra_scope_gate_decision_latency_seconds_p95$"
+        as: ishastra_scope_gate_decision_latency_seconds_p95
       metricsQuery: "max(<<.Series>>)"

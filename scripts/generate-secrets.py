@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-Generate production-ready secrets for Strix Helm deployment.
+Generate production-ready secrets for Ishastra Helm deployment.
 
 Usage:
     python3 scripts/generate-secrets.py [--output-dir OUTPUT_DIR] [--values-file VALUES_FILE]
@@ -42,14 +41,14 @@ def generate_ed25519_key() -> tuple[bytes, str]:
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
-    # JWK format for Ed25519
+
     import base64
 
     jwk = {
         "kty": "OKP",
         "crv": "Ed25519",
         "x": base64.urlsafe_b64encode(public_bytes).decode().rstrip("="),
-        "kid": f"strix-{secrets.token_hex(8)}",
+        "kid": f"ishastra-{secrets.token_hex(8)}",
         "use": "sig",
         "alg": "EdDSA",
     }
@@ -83,7 +82,7 @@ def generate_database_url(host: str, port: int, username: str, password: str, da
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Strix production secrets")
+    parser = argparse.ArgumentParser(description="Generate Ishastra production secrets")
     parser.add_argument(
         "--output-dir",
         default=".",
@@ -96,13 +95,13 @@ def main():
     )
     parser.add_argument(
         "--namespace",
-        default="strix",
-        help="Kubernetes namespace (default: strix)",
+        default="ishastra",
+        help="Kubernetes namespace (default: ishastra)",
     )
     parser.add_argument(
         "--postgres-host",
-        default="strix-postgresql",
-        help="PostgreSQL host (default: strix-postgresql)",
+        default="ishastra-postgresql",
+        help="PostgreSQL host (default: ishastra-postgresql)",
     )
     parser.add_argument(
         "--postgres-port",
@@ -112,18 +111,18 @@ def main():
     )
     parser.add_argument(
         "--postgres-user",
-        default="strix",
-        help="PostgreSQL username (default: strix)",
+        default="ishastra",
+        help="PostgreSQL username (default: ishastra)",
     )
     parser.add_argument(
         "--postgres-db",
-        default="strix",
-        help="PostgreSQL database name (default: strix)",
+        default="ishastra",
+        help="PostgreSQL database name (default: ishastra)",
     )
     parser.add_argument(
         "--redis-host",
-        default="strix-redis-master",
-        help="Redis host (default: strix-redis-master)",
+        default="ishastra-redis-master",
+        help="Redis host (default: ishastra-redis-master)",
     )
     parser.add_argument(
         "--redis-port",
@@ -146,10 +145,9 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Generating Strix production secrets...")
+    print("Generating Ishastra production secrets...")
     print(f"Output directory: {output_dir}")
 
-    # Generate all secrets
     ed25519_private_pem, ed25519_jwk = generate_ed25519_key()
     strix_api_key = generate_api_key()
     strix_audit_hmac_key = generate_hmac_key()
@@ -159,7 +157,6 @@ def main():
     postgres_password = generate_password(32)
     grafana_admin_password = generate_password(24)
 
-    # Database URL
     database_url = generate_database_url(
         args.postgres_host,
         args.postgres_port,
@@ -168,8 +165,7 @@ def main():
         args.postgres_db,
     )
 
-    # Build Helm values snippet
-    values_content = f"""# Strix Production Secrets - Generated {datetime.now(UTC).isoformat()}
+    values_content = f"""# Ishastra Production Secrets - Generated {datetime.now(UTC).isoformat()}
 # ⚠️  THIS FILE CONTAINS SENSITIVE SECRETS - DO NOT COMMIT TO GIT
 # Store in a secret manager (Vault, SealedSecrets, External Secrets Operator)
 # and reference via `helm upgrade --install -f values-secrets.yaml`
@@ -178,11 +174,11 @@ secrets:
   enabled: true
   createSecrets: false  # Let External Secrets / SealedSecrets manage the actual Secret
   strixSecrets:
-    STRIX_API_KEY: "{strix_api_key}"
-    STRIX_AUDIT_HMAC_KEY: "{strix_audit_hmac_key}"
-    STRIX_WEBHOOK_SECRET: "{strix_webhook_secret}"
-    STRIX_ENCRYPTION_KEY: "{strix_encryption_key}"
-    STRIX_DATABASE_URL: "{database_url}"
+    ISHASTRA_API_KEY: "{strix_api_key}"
+    ISHASTRA_AUDIT_HMAC_KEY: "{strix_audit_hmac_key}"
+    ISHASTRA_WEBHOOK_SECRET: "{strix_webhook_secret}"
+    ISHASTRA_ENCRYPTION_KEY: "{strix_encryption_key}"
+    ISHASTRA_DATABASE_URL: "{database_url}"
   redisSecret:
     redis-password: "{redis_password}"
   postgresqlSecret:
@@ -191,10 +187,10 @@ secrets:
     admin-user: "admin"
     admin-password: "{grafana_admin_password}"
   annotations:
-    secrets-store.csi.k8s.io/secret-name: "strix-secrets"
+    secrets-store.csi.k8s.io/secret-name: "ishastra-secrets"
     vault.hashicorp.com/agent-inject: "true"
-    vault.hashicorp.com/role: "strix"
-    vault.hashicorp.com/secret-path: "secret/data/strix"
+    vault.hashicorp.com/role: "ishastra"
+    vault.hashicorp.com/secret-path: "secret/data/ishastra"
 """
 
     values_path = output_dir / args.values_file
@@ -202,7 +198,6 @@ secrets:
     values_path.chmod(0o600)
     print(f"✓ Helm values: {values_path} (mode 600)")
 
-    # Generate Kubernetes Secret manifest if requested
     if args.k8s_manifest:
         import yaml
 
@@ -210,21 +205,21 @@ secrets:
             "apiVersion": "v1",
             "kind": "Secret",
             "metadata": {
-                "name": "strix-secrets",
+                "name": "ishastra-secrets",
                 "namespace": args.namespace,
                 "labels": {
-                    "app.kubernetes.io/name": "strix",
+                    "app.kubernetes.io/name": "ishastra",
                     "app.kubernetes.io/component": "secrets",
                     "app.kubernetes.io/managed-by": "Helm",
                 },
             },
             "type": "Opaque",
             "stringData": {
-                "STRIX_API_KEY": strix_api_key,
-                "STRIX_AUDIT_HMAC_KEY": strix_audit_hmac_key,
-                "STRIX_WEBHOOK_SECRET": strix_webhook_secret,
-                "STRIX_ENCRYPTION_KEY": strix_encryption_key,
-                "STRIX_DATABASE_URL": database_url,
+                "ISHASTRA_API_KEY": strix_api_key,
+                "ISHASTRA_AUDIT_HMAC_KEY": strix_audit_hmac_key,
+                "ISHASTRA_WEBHOOK_SECRET": strix_webhook_secret,
+                "ISHASTRA_ENCRYPTION_KEY": strix_encryption_key,
+                "ISHASTRA_DATABASE_URL": database_url,
             },
         }
 
@@ -233,21 +228,20 @@ secrets:
         manifest_path.chmod(0o600)
         print(f"✓ K8s Secret manifest: {manifest_path} (mode 600)")
 
-    # Generate .env.secrets for local development
     if args.env_file:
-        env_content = f"""# Strix Local Development Secrets - Generated {datetime.now(UTC).isoformat()}
+        env_content = f"""# Ishastra Local Development Secrets - Generated {datetime.now(UTC).isoformat()}
 # Source this file: source .env.secrets
 # ⚠️  DO NOT COMMIT TO GIT
 
-export STRIX_API_KEY="{strix_api_key}"
-export STRIX_AUDIT_HMAC_KEY="{strix_audit_hmac_key}"
-export STRIX_WEBHOOK_SECRET="{strix_webhook_secret}"
-export STRIX_ENCRYPTION_KEY="{strix_encryption_key}"
-export STRIX_DATABASE_URL="{database_url}"
-export STRIX_REDIS_URL="redis://:{redis_password}@{args.redis_host}:{args.redis_port}/0"
-export STRIX_LOG_LEVEL="DEBUG"
-export STRIX_SCOPE_DIR="/etc/strix/scopes"
-export STRIX_SCOPE_JWKS="/etc/strix/scope-jwks.json"
+export ISHASTRA_API_KEY="{strix_api_key}"
+export ISHASTRA_AUDIT_HMAC_KEY="{strix_audit_hmac_key}"
+export ISHASTRA_WEBHOOK_SECRET="{strix_webhook_secret}"
+export ISHASTRA_ENCRYPTION_KEY="{strix_encryption_key}"
+export ISHASTRA_DATABASE_URL="{database_url}"
+export ISHASTRA_REDIS_URL="redis://:{redis_password}@{args.redis_host}:{args.redis_port}/0"
+export ISHASTRA_LOG_LEVEL="DEBUG"
+export ISHASTRA_SCOPE_DIR="/etc/ishastra/scopes"
+export ISHASTRA_SCOPE_JWKS="/etc/ishastra/scope-jwks.json"
 """
 
         env_path = output_dir / ".env.secrets"
@@ -255,13 +249,11 @@ export STRIX_SCOPE_JWKS="/etc/strix/scope-jwks.json"
         env_path.chmod(0o600)
         print(f"✓ Local env file: {env_path} (mode 600)")
 
-    # Save Ed25519 private key for scope signing
     key_path = output_dir / "scope-signing-key.pem"
     key_path.write_bytes(ed25519_private_pem)
     key_path.chmod(0o600)
     print(f"✓ Scope signing key: {key_path} (mode 600)")
 
-    # Save JWKS
     jwks_path = output_dir / "scope-jwks.json"
     jwks_path.write_text(json.dumps({"keys": [json.loads(ed25519_jwk)]}, indent=2) + "\n")
     jwks_path.chmod(0o644)
@@ -270,11 +262,11 @@ export STRIX_SCOPE_JWKS="/etc/strix/scope-jwks.json"
     print("\n" + "=" * 60)
     print("SECRET SUMMARY (save these securely!)")
     print("=" * 60)
-    print(f"STRIX_API_KEY:              {strix_api_key}")
-    print(f"STRIX_AUDIT_HMAC_KEY:       {strix_audit_hmac_key}")
-    print(f"STRIX_WEBHOOK_SECRET:       {strix_webhook_secret}")
-    print(f"STRIX_ENCRYPTION_KEY:       {strix_encryption_key}")
-    print(f"STRIX_DATABASE_URL:         {database_url}")
+    print(f"ISHASTRA_API_KEY:              {strix_api_key}")
+    print(f"ISHASTRA_AUDIT_HMAC_KEY:       {strix_audit_hmac_key}")
+    print(f"ISHASTRA_WEBHOOK_SECRET:       {strix_webhook_secret}")
+    print(f"ISHASTRA_ENCRYPTION_KEY:       {strix_encryption_key}")
+    print(f"ISHASTRA_DATABASE_URL:         {database_url}")
     print(f"Redis password:             {redis_password}")
     print(f"PostgreSQL password:        {postgres_password}")
     print(f"Grafana admin password:     {grafana_admin_password}")
@@ -284,7 +276,7 @@ export STRIX_SCOPE_JWKS="/etc/strix/scope-jwks.json"
     print("\nNext steps:")
     print("1. Store these secrets in your secret manager (Vault, AWS Secrets Manager, etc.)")
     print("2. Use External Secrets Operator or SealedSecrets to sync to Kubernetes")
-    print("3. Deploy with: helm upgrade --install strix ./deploy/helm/strix -f values-secrets.yaml")
+    print("3. Deploy with: helm upgrade --install ishastra ./deploy/helm/ishastra -f values-secrets.yaml")
     print("4. For local dev: source .env.secrets && docker-compose up -d")
 
 

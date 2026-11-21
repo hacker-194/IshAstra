@@ -1,4 +1,4 @@
-# Strix Security Audit
+# Ishastra Security Audit
 
 Date: 2026-11-13. Method: source inspection, route/schema inventory, and targeted
 test runs. This is **not** an independent penetration test, code audit or
@@ -46,7 +46,7 @@ compliance certification.
 ### Fixed
 
 **F1 — Distributed queue was not used by API routers (high).**
-`api/app.py` started the queue selected by `STRIX_QUEUE_MODE`, but the
+`api/app.py` started the queue selected by `ISHASTRA_QUEUE_MODE`, but the
 assessment and policy routers imported the concrete in-process
 `worker.assessment_worker`. In Celery mode, submissions and policy-revocation
 cancellations therefore stayed in the API process while the Celery worker
@@ -126,7 +126,7 @@ declaration with a documented install path.
 - **SARIF 2.1.0**: per-job and code-scan export.
 - **NIST CSF / CIS Controls / OWASP SAMM**: only as report references where a
   finding supplies `compliance_refs`; no organizational maturity assessment.
-- **SOC 2 / ISO 27001 / PCI DSS**: no certification or attestation. Strix can
+- **SOC 2 / ISO 27001 / PCI DSS**: no certification or attestation. Ishastra can
   produce evidence that may support an audit; an auditor decides relevance.
 
 ## 6. Recommended security backlog

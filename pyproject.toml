@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "strix"
+name = "ishastra"
 version = "3.5.0"
 description = "Authorized security assessment platform: scope gate, adapters, findings and evidence"
 readme = "README.md"
@@ -21,56 +21,56 @@ classifiers = [
 ]
 dependencies = [
     "fastapi>=0.162,<1.0",
-    # >=1.3.1: CVE-2025-62727 (unauthenticated Range-header CPU exhaustion in
-    # StaticFiles/FileResponse, fixed 0.49.1) and the Host-header request.url issues.
+
+
     "starlette>=1.3.1,<2.0",
-    "python-multipart>=0.0.9,<1.0",  # CSRF form parsing on every mutating route
+    "python-multipart>=0.0.9,<1.0",
     "uvicorn>=0.30,<1.0",
     "pydantic>=2.8,<3.0",
-    "defusedxml>=0.7.1,<1.0",   # parse nmap output without XML entity/DTD attacks
-    "aiosqlite>=0.20,<1.0",     # async SQLite database driver
-    "httpx>=0.27,<1.0",        # async HTTP client with connection pooling
-    "redis>=6.1,<7.0",          # Redis client for rate limiting and caching; Celery 5.7's transport requires >=6.1
-    "cryptography>=42.0,<51.0", # AES-GCM encryption for secrets at rest
-    "prometheus-client>=0.20,<1.0", # /api/metrics exposition; imported by strix.metrics
-    "apscheduler>=3.10,<4.0",   # cron-like scheduling for recurring assessments
-    "sqlalchemy>=2.0,<3.0",      # APScheduler SQLAlchemyJobStore (optional in apscheduler)
-    "croniter>=2.0,<8.0",        # cron expressions parsed by the compliance router
-    "pytz>=2024.1,<2025.0",     # timezone database for scheduling
-    "weasyprint>=61.0,<62.0",   # PDF generation from HTML/CSS
-    "pyjwt>=2.8,<3.0",         # JWT validation for OIDC ID tokens
-    "python3-saml>=1.16,<2.0",  # SAML 2.0 support for enterprise SSO
-    "jsonschema>=4.20,<5.0",   # JSON Schema validation for scope documents
+    "defusedxml>=0.7.1,<1.0",
+    "aiosqlite>=0.20,<1.0",
+    "httpx>=0.27,<1.0",
+    "redis>=6.1,<7.0",
+    "cryptography>=42.0,<51.0",
+    "prometheus-client>=0.20,<1.0",
+    "apscheduler>=3.10,<4.0",
+    "sqlalchemy>=2.0,<3.0",
+    "croniter>=2.0,<8.0",
+    "pytz>=2024.1,<2025.0",
+    "weasyprint>=61.0,<62.0",
+    "pyjwt>=2.8,<3.0",
+    "python3-saml>=1.16,<2.0",
+    "jsonschema>=4.20,<5.0",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.0",
-    "pytest-cov>=5,<8",  # pyproject addopts always passes --cov
+    "pytest-cov>=5,<8",
     "httpx>=0.27",
     "pytest-asyncio>=0.23",
     "pytest-playwright>=0.5",
     "hypothesis>=6.100,<7.0",
 ]
-# Experimental API-only PostgreSQL driver; the threaded worker is not supported.
+
 postgres = ["asyncpg>=0.30,<1.0"]
-# Database migrations for PostgreSQL
-# `dev` must cover every tool CI invokes (ruff, mypy) so `pip install -e ".[dev]"`
-# is sufficient to run the pipeline locally and in CI.
-dev = ["strix[test]", "ruff>=0.6", "mypy>=1.10"]
-# Mutation testing for the authorization gate. Kept out of `dev` because a full
-# run is slow; only the nightly/manual mutation-scope job installs it.
+
+
+
+dev = ["ishastra[test]", "ruff>=0.6", "mypy>=1.10"]
+
+
 mutation = ["mutmut>=3.7,<4.0"]
-# K8s Jobs queue for horizontal scaling (STRIX_QUEUE_MODE=k8s-jobs)
+
 k8s-jobs = ["kubernetes>=30.0,<31.0"]
-# OpenTelemetry observability (optional: auto-enabled when OTEL_EXPORTER_OTLP_ENDPOINT is set)
-# FastAPI >=0.162 itself requires opentelemetry-api >=1.44, so the extra must
-# not resolve to an older instrumentation family.
+
+
+
 otel = [
     "opentelemetry-api>=1.44,<2.0",
     "opentelemetry-sdk>=1.44,<2.0",
-    # Instrumentation packages publish only pre-releases (0.xbN); a bare
-    # >=0.44 excludes every available file because 0.44b0 sorts before 0.44.
+
+
     "opentelemetry-instrumentation-fastapi>=0.65b0,<1.0",
     "opentelemetry-instrumentation-httpx>=0.65b0,<1.0",
     "opentelemetry-instrumentation-redis>=0.65b0,<1.0",
@@ -80,28 +80,35 @@ otel = [
     "opentelemetry-exporter-otlp>=1.44,<2.0",
     "opentelemetry-exporter-prometheus>=0.65b0,<1.0",
 ]
-# HexStrike AI integration (optional): 150+ security tools via MCP
+
 hexstrike = ["fastmcp>=0.2.0,<1.0", "aiohttp>=3.8,<4.0", "beautifulsoup4>=4.12,<5.0", "selenium>=4.15,<5.0", "webdriver-manager>=4.0,<5.0", "mitmproxy>=9.0,<11.0", "pwntools>=4.10,<5.0", "angr>=9.2,<10.0"]
 
+vault = ["hvac>=2.0,<3.0"]
+
+slsa = ["in-toto>=1.0,<2.0"]
+
+dr = ["asyncpg>=0.30,<1.0", "boto3>=1.34,<2.0", "google-cloud-storage>=2.16,<3.0"]
+
 [project.scripts]
-strix = "strix.cli:main"
-strix-collab = "strix.core.collab:main"
+ishastra = "ishastra.cli:main"
+ishastra-collab = "ishastra.core.collab:main"
+ishastra-operator = "ishastra.operator.main:run_operator"
 
 [project.urls]
-Homepage = "https://github.com/strix/strix"
-Documentation = "https://github.com/strix/strix/tree/master/docs"
-Repository = "https://github.com/strix/strix"
-Issues = "https://github.com/strix/strix/issues"
-Changelog = "https://github.com/strix/strix/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/ishastra/ishastra"
+Documentation = "https://github.com/ishastra/ishastra/tree/master/docs"
+Repository = "https://github.com/ishastra/ishastra"
+Issues = "https://github.com/ishastra/ishastra/issues"
+Changelog = "https://github.com/ishastra/ishastra/blob/master/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"strix.api" = ["static/*"]
-"strix" = ["rules/*.yml"]
-"strix.core" = ["scope_schema.json"]
-"strix.lab" = ["oracle.json"]
+"ishastra.api" = ["static/*"]
+"ishastra" = ["rules/*.yml"]
+"ishastra.core" = ["scope_schema.json"]
+"ishastra.lab" = ["oracle.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -118,7 +125,7 @@ addopts = [
     "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=json",
-    "--cov-fail-under=50",  # suite currently ~63%; the floor stops regressions without pretending 100%
+    "--cov-fail-under=50",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -144,9 +151,9 @@ src = ["src", "tests", "scripts"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "PIE", "RET"]
 ignore = [
-    "B008",   # Depends() in defaults is the FastAPI idiom
-    "UP042",  # (str, Enum) kept: StrEnum changes str()/format() output
-    "C408",   # dict(...) reads fine in test fixtures
+    "B008",
+    "UP042",
+    "C408",
 ]
 
 [tool.mypy]
@@ -156,10 +163,10 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 
 [tool.mutmut]
-# Mutate only the authorization gate, and judge each mutant with the tests that
-# cover it. addopts is cleared so the mutant run does not pay for coverage.
+
+
 source_paths = ["src"]
-only_mutate = ["src/strix/core/scope.py"]
+only_mutate = ["src/ishastra/core/scope.py"]
 pytest_add_cli_args = ["-o", "addopts=", "-q", "-p", "no:cacheprovider"]
 pytest_add_cli_args_test_selection = [
     "tests/unit/test_scope.py",

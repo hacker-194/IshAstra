@@ -1,0 +1,133 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tenants.ishastra.io
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/managed-by: Helm
+spec:
+  group: ishastra.io
+  names:
+    kind: Tenant
+    listKind: TenantList
+    plural: tenants
+    singular: tenant
+    shortNames:
+      - tn
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - name
+                - displayName
+              properties:
+                name:
+                  type: string
+                  pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                  maxLength: 63
+                  description: "Unique tenant identifier (DNS-1123 label)"
+                displayName:
+                  type: string
+                  maxLength: 255
+                  description: "Human-readable tenant name"
+                description:
+                  type: string
+                  description: "Tenant description"
+                contactEmail:
+                  type: string
+                  format: email
+                  description: "Primary contact email"
+                settings:
+                  type: object
+                  description: "Tenant-specific settings"
+                  properties:
+                    defaultPolicy:
+                      type: string
+                    maxConcurrentAssessments:
+                      type: integer
+                      default: 10
+                    allowedRegions:
+                      type: array
+                      items:
+                        type: string
+                    quota:
+                      type: object
+                      properties:
+                        monthlyBudgetUSD:
+                          type: number
+                        maxAssessmentsPerMonth:
+                          type: integer
+                        maxFindingsRetentionDays:
+                          type: integer
+                status:
+                  type: string
+                  enum: ["Active", "Suspended", "Deleted"]
+                  default: "Active"
+                  description: "Tenant status"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Provisioning", "Ready", "Suspended", "Terminating"]
+                  description: "Current provisioning phase"
+                namespace:
+                  type: string
+                  description: "Kubernetes namespace for this tenant"
+                createdAt:
+                  type: string
+                  format: date-time
+                lastAssessmentAt:
+                  type: string
+                  format: date-time
+                assessmentsCount:
+                  type: integer
+                  default: 0
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+  additionalPrinterColumns:
+    - name: Name
+      type: string
+      jsonPath: .spec.name
+    - name: Display Name
+      type: string
+      jsonPath: .spec.displayName
+    - name: Status
+      type: string
+      jsonPath: .status.phase
+    - name: Namespace
+      type: string
+      jsonPath: .status.namespace
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

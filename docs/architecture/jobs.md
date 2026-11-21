@@ -2,7 +2,7 @@
 
 # Job Orchestration Architecture
 
-How Strix manages assessment workflows, scheduling, and worker pools.
+How Ishastra manages assessment workflows, scheduling, and worker pools.
 
 ## Overview
 
@@ -34,7 +34,7 @@ How Strix manages assessment workflows, scheduling, and worker pools.
 
 ### In-Memory Queue (Development)
 
-**File**: `src/strix/core/queue.py` — `InMemoryQueue`
+**File**: `src/ishastra/core/queue.py` — `InMemoryQueue`
 
 ```python
 class InMemoryQueue:
@@ -62,11 +62,11 @@ class InMemoryQueue:
 
 ### Redis Queue (Production)
 
-**File**: `src/strix/core/queue.py` — `RedisQueue`
+**File**: `src/ishastra/core/queue.py` — `RedisQueue`
 
 ```python
 class RedisQueue:
-    def __init__(self, redis: Redis, prefix: str = "strix:queue"):
+    def __init__(self, redis: Redis, prefix: str = "ishastra:queue"):
         self.redis = redis
         self.prefix = prefix
         self._lua_enqueue = redis.register_script(ENQUEUE_SCRIPT)
@@ -102,7 +102,7 @@ class RedisQueue:
 
 ### Threaded Worker (Sync Adapters)
 
-**File**: `src/strix/core/worker.py` — `ThreadedWorkerPool`
+**File**: `src/ishastra/core/worker.py` — `ThreadedWorkerPool`
 
 ```python
 class ThreadedWorkerPool:
@@ -178,7 +178,7 @@ class ThreadedWorkerPool:
 
 ### Async Worker (Async Adapters)
 
-**File**: `src/strix/core/worker.py` — `AsyncWorkerPool`
+**File**: `src/ishastra/core/worker.py` — `AsyncWorkerPool`
 
 ```python
 class AsyncWorkerPool:
@@ -220,7 +220,7 @@ class AsyncWorkerPool:
 
 ### Cron + Interval Scheduler
 
-**File**: `src/strix/core/scheduler.py` — `ComplianceScheduler`
+**File**: `src/ishastra/core/scheduler.py` — `ComplianceScheduler`
 
 ```python
 class ComplianceScheduler:
@@ -266,12 +266,12 @@ class ComplianceScheduler:
 
 Schedules are polled by the one process that owns the worker lease. There is no
 leader election and no distributed lock: a second process pointed at the same
-`STRIX_DB` exits instead of double-running jobs (see
-[`DEPLOYMENT.md`](../../DEPLOYMENT.md) §10).
+`ISHASTRA_DB` exits instead of double-running jobs (see
+[`DEPLOYMENT.md`](https://github.com/ishastra/ishastra/blob/master/DEPLOYMENT.md) §10).
 
 Do not run a second scheduler against one database, and do not treat
 `k8s-jobs` as an HA queue — it is experimental. For more throughput, raise
-`STRIX_WORKERS` (adapter threads) on the same host rather than adding replicas.
+`ISHASTRA_WORKERS` (adapter threads) on the same host rather than adding replicas.
 
 ---
 
@@ -368,8 +368,8 @@ curl -X POST -H "Authorization: Bearer $KEY" \
 
 ### Scaling
 
-Strix does not support autoscaling. One process owns the database's worker lease,
-so a second replica exits instead of sharing work. Raise `STRIX_WORKERS`
+Ishastra does not support autoscaling. One process owns the database's worker lease,
+so a second replica exits instead of sharing work. Raise `ISHASTRA_WORKERS`
 (adapter threads) and add CPU/RAM on the same host; do not apply the HPA
 manifests that older revisions of this page suggested.
 ### Queue Depth Metric
@@ -438,7 +438,7 @@ scheduler:
   enabled: true
   leaderElection:
     enabled: true
-    lockName: "strix-scheduler"
+    lockName: "ishastra-scheduler"
     ttl: 30
   checkInterval: 60
   timezone: "UTC"
@@ -480,15 +480,15 @@ k6 run load-test/job-orchestration.js
 | Jobs stuck in QUEUED | Worker process not running | Check the single service and `/api/ready` |
 | Jobs FAILED repeatedly | Adapter error, Scope Gate | Check logs, scope config |
 | Scheduler not running | Process not running | Check the service logs; there is no leader election |
-| High queue depth | Adapter threads saturated | Raise `STRIX_WORKERS`, add CPU/RAM |
+| High queue depth | Adapter threads saturated | Raise `ISHASTRA_WORKERS`, add CPU/RAM |
 | DLQ growing | Permanent failures | Investigate root cause |
 
 ### Debug Commands
 
 ```bash
 # Check queue status
-kubectl exec -n strix-system deploy/strix-api -- python -c "
-from strix.core.queue import get_queue
+kubectl exec -n ishastra-system deploy/ishastra-api -- python -c "
+from ishastra.core.queue import get_queue
 q = get_queue()
 print('Critical:', q._queues['CRITICAL'].qsize())
 print('High:', q._queues['HIGH'].qsize())
@@ -497,10 +497,10 @@ print('Low:', q._queues['LOW'].qsize())
 "
 
 # Check worker status
-kubectl get pods -n strix-system -l app=strix-worker
+kubectl get pods -n ishastra-system -l app=ishastra-worker
 
 # Check scheduler leader
-redis-cli GET strix:leader:strix-scheduler:heartbeat
+redis-cli GET ishastra:leader:ishastra-scheduler:heartbeat
 ```
 
 ---

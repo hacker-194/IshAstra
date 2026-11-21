@@ -6,7 +6,7 @@
 |-------|----------|-----------|----------|
 | `KubeCertificateExpiring` | warning | Expires in < 7 days | 1h |
 | `KubeCertificateExpired` | critical | Already expired | 1m |
-| `StrixTLSCertExpiring` (custom) | warning | Expires in < 30 days | 1h |
+| `IshastraTLSCertExpiring` (custom) | warning | Expires in < 30 days | 1h |
 
 ---
 
@@ -33,8 +33,8 @@
 kubectl get certificates -A
 
 # Check specific certificate details
-kubectl describe certificate strix-tls -n strix
-kubectl describe certificate strix-tls-staging -n strix
+kubectl describe certificate ishastra-tls -n ishastra
+kubectl describe certificate ishastra-tls-staging -n ishastra
 
 # Check certificate requests
 kubectl get certificaterequests -A
@@ -48,34 +48,34 @@ kubectl describe clusterissuer letsencrypt-staging
 ### 2. Check Certificate Expiry Directly
 ```bash
 # Check secret content
-kubectl get secret strix-tls -n strix -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout | grep -A2 "Validity"
+kubectl get secret ishastra-tls -n ishastra -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout | grep -A2 "Validity"
 
 # Check expiry date
-kubectl get secret strix-tls -n strix -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -enddate -noout
+kubectl get secret ishastra-tls -n ishastra -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -enddate -noout
 
 # Check all TLS secrets
-for secret in $(kubectl get secrets -n strix -o name | grep tls); do
+for secret in $(kubectl get secrets -n ishastra -o name | grep tls); do
   echo "=== $secret ==="
-  kubectl get $secret -n strix -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -enddate -noout -subject -issuer
+  kubectl get $secret -n ishastra -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -enddate -noout -subject -issuer
 done
 ```
 
 ### 3. Check Ingress & TLS Configuration
 ```bash
 # Check ingress TLS config
-kubectl get ingress -n strix -o yaml | grep -A5 "tls:"
+kubectl get ingress -n ishastra -o yaml | grep -A5 "tls:"
 
 # Check ingress controller logs
 kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --tail=100 | grep -iE "cert|tls|ssl"
 
 # Test TLS connection
-openssl s_client -connect strix.example.com:443 -servername strix.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
+openssl s_client -connect ishastra.example.com:443 -servername ishastra.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
 ```
 
 ### 4. Check cert-manager Logs
 ```bash
 # cert-manager controller logs
-kubectl logs -n cert-manager -l app=cert-manager --tail=100 | grep -iE "strix|error|fail"
+kubectl logs -n cert-manager -l app=cert-manager --tail=100 | grep -iE "ishastra|error|fail"
 
 # cert-manager webhook logs
 kubectl logs -n cert-manager -l app=webhook --tail=50
@@ -87,10 +87,10 @@ kubectl logs -n cert-manager -l app=cainjector --tail=50
 ### 5. External Validation
 ```bash
 # Check with SSL Labs (external)
-# https://www.ssllabs.com/ssltest/analyze.html?d=strix.example.com
+# https://www.ssllabs.com/ssltest/analyze.html?d=ishastra.example.com
 
 # Check certificate transparency logs
-# https://crt.sh/?q=strix.example.com
+# https://crt.sh/?q=ishastra.example.com
 ```
 
 ---
@@ -102,45 +102,45 @@ kubectl logs -n cert-manager -l app=cainjector --tail=50
 #### Option 1: Force cert-manager Renewal
 ```bash
 # Delete certificate request to trigger renewal
-kubectl delete certificaterequest -n strix -l cert-manager.io/certificate-name=strix-tls
+kubectl delete certificaterequest -n ishastra -l cert-manager.io/certificate-name=ishastra-tls
 
 # Or annotate certificate to force renewal
-kubectl annotate certificate strix-tls -n strix cert-manager.io/force-renew=$(date +%s) --overwrite
+kubectl annotate certificate ishastra-tls -n ishastra cert-manager.io/force-renew=$(date +%s) --overwrite
 
 # Check renewal triggered
-kubectl get certificaterequests -n strix -w
+kubectl get certificaterequests -n ishastra -w
 ```
 
 #### Option 2: Manual Certificate Replacement (Emergency)
 ```bash
 # 1. Generate new certificate (Let's Encrypt via certbot)
 # On a machine with certbot and DNS access:
-certbot certonly --dns-cloudflare -d strix.example.com -d api.strix.example.com
+certbot certonly --dns-cloudflare -d ishastra.example.com -d api.ishastra.example.com
 
 # 2. Create new TLS secret
-kubectl create secret tls strix-tls-new \
-  --cert=/etc/letsencrypt/live/strix.example.com/fullchain.pem \
-  --key=/etc/letsencrypt/live/strix.example.com/privkey.pem \
-  -n strix --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret tls ishastra-tls-new \
+  --cert=/etc/letsencrypt/live/ishastra.example.com/fullchain.pem \
+  --key=/etc/letsencrypt/live/ishastra.example.com/privkey.pem \
+  -n ishastra --dry-run=client -o yaml | kubectl apply -f -
 
 # 3. Update ingress to use new secret
-kubectl patch ingress strix -n strix -p '{"spec":{"tls":[{"secretName":"strix-tls-new","hosts":["strix.example.com"]}]}}'
+kubectl patch ingress ishastra -n ishastra -p '{"spec":{"tls":[{"secretName":"ishastra-tls-new","hosts":["ishastra.example.com"]}]}}'
 
 # 4. Verify
-openssl s_client -connect strix.example.com:443 -servername strix.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
+openssl s_client -connect ishastra.example.com:443 -servername ishastra.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
 
 # 5. Clean up old secret after verification
-kubectl delete secret strix-tls -n strix
-kubectl patch secret strix-tls-new -n strix -p '{"metadata":{"name":"strix-tls"}}'
+kubectl delete secret ishastra-tls -n ishastra
+kubectl patch secret ishastra-tls-new -n ishastra -p '{"metadata":{"name":"ishastra-tls"}}'
 ```
 
 #### Option 3: Switch to Staging Issuer (Temporary)
 ```bash
 # If production issuer failing, use staging (not trusted by browsers but works for API)
-kubectl patch certificate strix-tls -n strix -p '{"spec":{"issuerRef":{"name":"letsencrypt-staging","kind":"ClusterIssuer"}}}'
+kubectl patch certificate ishastra-tls -n ishastra -p '{"spec":{"issuerRef":{"name":"letsencrypt-staging","kind":"ClusterIssuer"}}}'
 
 # Force renewal
-kubectl annotate certificate strix-tls -n strix cert-manager.io/force-renew=$(date +%s) --overwrite
+kubectl annotate certificate ishastra-tls -n ishastra cert-manager.io/force-renew=$(date +%s) --overwrite
 ```
 
 ### Root Cause Resolution
@@ -148,8 +148,8 @@ kubectl annotate certificate strix-tls -n strix cert-manager.io/force-renew=$(da
 #### Cause 1: DNS Challenge Failure
 ```bash
 # Check DNS records exist
-dig TXT _acme-challenge.strix.example.com
-dig TXT _acme-challenge.api.strix.example.com
+dig TXT _acme-challenge.ishastra.example.com
+dig TXT _acme-challenge.api.ishastra.example.com
 
 # Check DNS provider credentials
 kubectl get secret cloudflare-api-token -n cert-manager -o yaml
@@ -161,7 +161,7 @@ kubectl logs -n cert-manager -l app=cert-manager --tail=50 | grep -i dns
 #### Cause 2: Rate Limited by Let's Encrypt
 ```bash
 # Check cert-manager events for rate limit errors
-kubectl get events -n strix --field-selector involvedObject.name=strix-tls
+kubectl get events -n ishastra --field-selector involvedObject.name=ishastra-tls
 
 # Wait for rate limit to reset (1 hour for identical certs)
 # Or use staging issuer temporarily
@@ -187,25 +187,25 @@ kubectl apply -f deploy/argocd/secrets/external-secrets/clusterissuer.yaml
 #### Cause 4: Private Key Compromise / Rotation Needed
 ```bash
 # Force private key rotation
-kubectl patch certificate strix-tls -n strix -p '{"spec":{"privateKey":{"rotationPolicy":"Always"}}}'
+kubectl patch certificate ishastra-tls -n ishastra -p '{"spec":{"privateKey":{"rotationPolicy":"Always"}}}'
 
 # Trigger renewal with new key
-kubectl annotate certificate strix-tls -n strix cert-manager.io/force-renew=$(date +%s) --overwrite
+kubectl annotate certificate ishastra-tls -n ishastra cert-manager.io/force-renew=$(date +%s) --overwrite
 ```
 
 ### Recovery Verification
 ```bash
 # 1. Verify certificate valid
-openssl s_client -connect strix.example.com:443 -servername strix.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
+openssl s_client -connect ishastra.example.com:443 -servername ishastra.example.com < /dev/null 2>/dev/null | openssl x509 -enddate -noout
 
 # 2. Verify full chain
-openssl s_client -connect strix.example.com:443 -servername strix.example.com -showcerts < /dev/null 2>/dev/null
+openssl s_client -connect ishastra.example.com:443 -servername ishastra.example.com -showcerts < /dev/null 2>/dev/null
 
 # 3. Test API access
-curl -v https://strix.example.com/api/health
+curl -v https://ishastra.example.com/api/health
 
 # 4. Check cert-manager shows Ready
-kubectl get certificate strix-tls -n strix -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+kubectl get certificate ishastra-tls -n ishastra -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
 
 # 5. Clear alert
 # Alert should auto-resolve when certificate Ready=True

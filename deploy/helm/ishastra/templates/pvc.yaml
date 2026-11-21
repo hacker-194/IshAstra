@@ -1,0 +1,35 @@
+{{- if .Values.pvc.ishastraData.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.pvc.ishastraData.name | default (include "ishastra.fullname" .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+  {{- if or .Values.additionalAnnotations .Values.pvc.ishastraData.annotations }}
+  annotations:
+    {{- if .Values.additionalAnnotations }}
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.pvc.ishastraData.annotations }}
+    {{- toYaml .Values.pvc.ishastraData.annotations | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  accessModes:
+    {{- toYaml .Values.pvc.ishastraData.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.pvc.ishastraData.resources.requests.storage }}
+  {{- if .Values.pvc.ishastraData.storageClassName }}
+  storageClassName: {{ .Values.pvc.ishastraData.storageClassName }}
+  {{- end }}
+  {{- if .Values.pvc.ishastraData.volumeMode }}
+  volumeMode: {{ .Values.pvc.ishastraData.volumeMode }}
+  {{- end }}
+  {{- if .Values.pvc.ishastraData.selector }}
+  selector:
+    {{- toYaml .Values.pvc.ishastraData.selector | nindent 4 }}
+  {{- end }}
+{{- end }}

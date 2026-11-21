@@ -33,8 +33,8 @@ Checks in the gate:
 |---|---|
 | Full suite with coverage | 1426 passed, 14 skipped, 64.97% coverage |
 | Ruff 0.17.2 + CI-pinned 0.6, check and format | Clean |
-| mypy | Clean across `src/strix` |
-| Wheel build | `strix-3.5.0-py3-none-any.whl`, 473,887 bytes |
+| mypy | Clean across `src/ishastra` |
+| Wheel build | `ishastra-3.5.0-py3-none-any.whl`, 473,887 bytes |
 | Container build | `docker build` succeeded; container runs as UID 10001 with a read-only rootfs, `/api/health` and `/api/ready` 200, `/docs` 404 |
 | Detection lab (real nmap) | 6/6 true positives, 0 false positives, precision/recall 1.0 |
 | Backup/restore drill | 27 tables, integrity ok, counts match, audit chain ok |
@@ -59,7 +59,7 @@ Checks in the gate:
 
 State these in writing before the first engagement:
 
-- **Single node only.** One Strix process per SQLite database; a second process
+- **Single node only.** One Ishastra process per SQLite database; a second process
   is refused by the worker lease. No HA, no failover, no multi-node scheduling.
   PostgreSQL and Kubernetes Jobs are experimental single-host paths.
 - **`partial` is not clean.** A partial job means at least one selected detector

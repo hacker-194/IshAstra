@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: strix-regions
+  name: ishastra-regions
   namespace: argocd
 spec:
   generators:
@@ -15,19 +15,19 @@ spec:
             cluster: ap-south
   template:
     metadata:
-      name: strix-{{region}}
+      name: ishastra-{{region}}
       labels:
-        app.kubernetes.io/part-of: strix-platform
+        app.kubernetes.io/part-of: ishastra-platform
         topology.kubernetes.io/region: '{{region}}'
     spec:
       project: default
       source:
-        repoURL: https://github.com/usestrix/strix.git
+        repoURL: https://github.com/useishastra/ishastra.git
         targetRevision: main
         path: deploy/kustomize/overlays/{{region}}
       destination:
         name: '{{cluster}}'
-        namespace: strix-{{region}}
+        namespace: ishastra-{{region}}
       syncPolicy:
         automated:
           prune: true

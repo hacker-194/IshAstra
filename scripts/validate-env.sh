@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# Strix Environment Validation Script
-# ===================================
-# Validates all required environment variables are set and correctly formatted.
-# Usage: ./scripts/validate-env.sh [--env-file .env.production] [--scope-file config/scope.json]
-# Exit codes: 0 = success, 1 = validation failed
+
+
+
+
+
 
 set -euo pipefail
 
-# Colors for output
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Default paths
+
 ENV_FILE="${1:-.env.production}"
 SCOPE_FILE="${2:-config/scope.json}"
-TLS_ENABLED="${STRIX_TLS_ENABLED:-0}"
+TLS_ENABLED="${ISHASTRA_TLS_ENABLED:-0}"
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
+
+while [[ $
     case $1 in
         --env-file)
             ENV_FILE="$2"
@@ -48,30 +48,30 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Load environment file
+
 if [[ ! -f "$ENV_FILE" ]]; then
     echo -e "${RED}✗ Error: Environment file not found: $ENV_FILE${NC}"
     exit 1
 fi
 
-# shellcheck source=/dev/null
+
 set -a
 source "$ENV_FILE"
 set +a
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║           Strix Environment Validation                       ║${NC}"
+echo -e "${BLUE}║           Ishastra Environment Validation                       ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo "Env file: $ENV_FILE"
 echo "Scope file: $SCOPE_FILE"
 echo "TLS enabled: $TLS_ENABLED"
 echo ""
 
-# Track validation results
+
 ERRORS=0
 WARNINGS=0
 
-# Helper functions
+
 check_var() {
     local var_name="$1"
     local var_value="${!var_name:-}"
@@ -91,7 +91,7 @@ check_var() {
         return 1
     fi
 
-    if [[ ${#var_value} -lt $min_length ]]; then
+    if [[ ${
         echo -e "${RED}✗ TOO SHORT: $var_name${NC} - $description (length: ${#var_value}, min: $min_length)"
         ((ERRORS++))
         return 1
@@ -103,7 +103,7 @@ check_var() {
             ((ERRORS++))
             return 1
         fi
-        # Check decoded length for 32+ bytes
+
         local decoded_len
         decoded_len=$(echo -n "$var_value" | base64 -d | wc -c)
         if [[ $decoded_len -lt 32 ]]; then
@@ -113,9 +113,9 @@ check_var() {
         fi
     fi
 
-    # Mask value for display
+
     local masked="${var_value:0:4}****${var_value: -4}"
-    if [[ ${#var_value} -le 8 ]]; then
+    if [[ ${
         masked="****"
     fi
     echo -e "${GREEN}✓ OK: $var_name${NC} = $masked"
@@ -158,7 +158,7 @@ check_json() {
         return 1
     fi
 
-    # Validate required scope fields
+
     local program
     program=$(jq -r '.program // empty' "$file_path")
     local authorized_by
@@ -192,7 +192,7 @@ check_tls_certs() {
         return 1
     fi
 
-    # Validate cert/key pair
+
     if ! openssl x509 -noout -modulus -in "$cert_path" 2>/dev/null | openssl md5 | grep -q "$(openssl rsa -noout -modulus -in "$key_path" 2>/dev/null | openssl md5)"; then
         echo -e "${YELLOW}⚠ TLS CERT/KEY MISMATCH: $cert_path / $key_path${NC}"
         ((WARNINGS++))
@@ -200,7 +200,7 @@ check_tls_certs() {
         echo -e "${GREEN}✓ TLS CERT/KEY PAIR VALID${NC}"
     fi
 
-    # Check expiry
+
     local expiry
     expiry=$(openssl x509 -noout -enddate -in "$cert_path" 2>/dev/null | cut -d= -f2)
     if [[ -n "$expiry" ]]; then
@@ -224,107 +224,107 @@ check_tls_certs() {
     return 0
 }
 
-# ============================================================
-# VALIDATION CHECKS
-# ============================================================
+
+
+
 
 echo -e "${BLUE}--- Core Required Variables ---${NC}"
 
-# Core secrets (base64, 32+ bytes)
-check_var "STRIX_API_KEY" "API authentication key (base64, 32+ bytes)" true true 44
-check_var "STRIX_AUDIT_HMAC_KEY" "Audit HMAC key (base64, 32+ bytes)" true true 44
-check_var "STRIX_WEBHOOK_SECRET" "Webhook HMAC secret (min 16 chars)" true false 16
 
-# Database & Scope
-check_var "STRIX_DB" "Database path/URL" true false 1
-check_var "STRIX_SCOPE_FILE" "Scope file path" true false 1
-check_var "STRIX_SCOPE_MODE" "Scope mode (auto|strict|permissive)" true false 1
+check_var "ISHASTRA_API_KEY" "API authentication key (base64, 32+ bytes)" true true 44
+check_var "ISHASTRA_AUDIT_HMAC_KEY" "Audit HMAC key (base64, 32+ bytes)" true true 44
+check_var "ISHASTRA_WEBHOOK_SECRET" "Webhook HMAC secret (min 16 chars)" true false 16
 
-# Worker & Queue
-check_var "STRIX_WORKERS" "Number of worker threads" true false 1
-check_var "STRIX_QUEUE_MAX" "Max queue size per worker" true false 1
-check_var "STRIX_RETENTION_DAYS" "Evidence retention days" true false 1
-check_var "STRIX_QUEUE_MODE" "Queue mode (inprocess|celery)" true false 1
 
-# Redis
-check_var "STRIX_REDIS_URL" "Redis connection URL" true false 1
-check_var "STRIX_REDIS_PASSWORD" "Redis password" false false 1
-check_var "STRIX_REDIS_REQUIRED" "Require Redis (1/0)" true false 1
+check_var "ISHASTRA_DB" "Database path/URL" true false 1
+check_var "ISHASTRA_SCOPE_FILE" "Scope file path" true false 1
+check_var "ISHASTRA_SCOPE_MODE" "Scope mode (auto|strict|permissive)" true false 1
 
-# Celery
-check_var "STRIX_CELERY_BROKER_URL" "Celery broker URL" false false 1
-check_var "STRIX_CELERY_RESULT_BACKEND" "Celery result backend" false false 1
 
-# Logging
-check_var "STRIX_LOG_FORMAT" "Log format (json|text)" true false 1
-check_var "STRIX_LOG_LEVEL" "Log level (DEBUG|INFO|WARN|ERROR)" true false 1
+check_var "ISHASTRA_WORKERS" "Number of worker threads" true false 1
+check_var "ISHASTRA_QUEUE_MAX" "Max queue size per worker" true false 1
+check_var "ISHASTRA_RETENTION_DAYS" "Evidence retention days" true false 1
+check_var "ISHASTRA_QUEUE_MODE" "Queue mode (inprocess|celery)" true false 1
 
-# Networking
-check_var "STRIX_TRUSTED_PROXIES" "Trusted proxy CIDRs" true false 1
 
-# Grafana
+check_var "ISHASTRA_REDIS_URL" "Redis connection URL" true false 1
+check_var "ISHASTRA_REDIS_PASSWORD" "Redis password" false false 1
+check_var "ISHASTRA_REDIS_REQUIRED" "Require Redis (1/0)" true false 1
+
+
+check_var "ISHASTRA_CELERY_BROKER_URL" "Celery broker URL" false false 1
+check_var "ISHASTRA_CELERY_RESULT_BACKEND" "Celery result backend" false false 1
+
+
+check_var "ISHASTRA_LOG_FORMAT" "Log format (json|text)" true false 1
+check_var "ISHASTRA_LOG_LEVEL" "Log level (DEBUG|INFO|WARN|ERROR)" true false 1
+
+
+check_var "ISHASTRA_TRUSTED_PROXIES" "Trusted proxy CIDRs" true false 1
+
+
 check_var "GRAFANA_PASSWORD" "Grafana admin password" true false 8
 
 echo ""
 echo -e "${BLUE}--- Integration Variables (optional but recommended) ---${NC}"
 
-# Alertmanager/SMTP
+
 check_var "SMTP_PASSWORD" "SMTP password for alerts" false false 1
 check_var "ALERTMANAGER_WEBHOOK_URL" "Alertmanager webhook URL" false false 1
 
-# Slack
+
 check_var "SLACK_WEBHOOK_URL" "Slack webhook URL" false false 1
 
-# Jira
+
 check_var "JIRA_API_TOKEN" "Jira API token" false false 1
 check_var "JIRA_BASE_URL" "Jira base URL" false false 1
 
-# GitHub
+
 check_var "GITHUB_TOKEN" "GitHub PAT (ghp_...)" false false 1
 
-# GitLab
+
 check_var "GITLAB_TOKEN" "GitLab PAT (glpat_...)" false false 1
 
-# Teams
+
 check_var "TEAMS_WEBHOOK_URL" "Teams webhook URL" false false 1
 
-# Splunk
+
 check_var "SPLUNK_HEC_TOKEN" "Splunk HEC token" false false 1
 
-# Datadog
+
 check_var "DATADOG_API_KEY" "Datadog API key" false false 1
 
-# Elasticsearch
+
 check_var "ELASTIC_API_KEY" "Elastic API key (base64)" false true 1
 
-# Azure Sentinel
+
 check_var "SENTINEL_WORKSPACE_ID" "Sentinel workspace ID" false false 1
 check_var "SENTINEL_SHARED_KEY" "Sentinel shared key (base64)" false true 1
 
-# ServiceNow
+
 check_var "SERVICENOW_PASSWORD" "ServiceNow password" false false 1
 
-# PagerDuty
+
 check_var "PAGERDUTY_SERVICE_KEY" "PagerDuty service key" false false 1
 
-# OpenTelemetry
+
 check_var "OTEL_ENDPOINT" "OTLP endpoint URL" false false 1
 
-# Sentry
+
 check_var "SENTRY_DSN" "Sentry DSN" false false 1
 
-# Vault
+
 check_var "VAULT_TOKEN" "Vault token" false false 1
 check_var "VAULT_ADDR" "Vault address" false false 1
 
-# AWS
+
 check_var "AWS_ACCESS_KEY_ID" "AWS access key" false false 1
 check_var "AWS_SECRET_ACCESS_KEY" "AWS secret key" false false 1
 
-# Azure Key Vault
+
 check_var "AZURE_KEYVAULT_URL" "Azure Key Vault URL" false false 1
 
-# GCP
+
 check_var "GCP_PROJECT_ID" "GCP project ID" false false 1
 
 echo ""
@@ -333,22 +333,22 @@ check_json "$SCOPE_FILE" "Scope configuration"
 
 echo ""
 echo -e "${BLUE}--- TLS Certificates ---${NC}"
-if [[ "$TLS_ENABLED" == "1" || "$STRIX_TLS_ENABLED" == "1" ]]; then
-    check_tls_certs "${STRIX_TLS_CERT_PATH:-/etc/letsencrypt/live/strix.example.com/fullchain.pem}" \
-                    "${STRIX_TLS_KEY_PATH:-/etc/letsencrypt/live/strix.example.com/privkey.pem}"
+if [[ "$TLS_ENABLED" == "1" || "$ISHASTRA_TLS_ENABLED" == "1" ]]; then
+    check_tls_certs "${ISHASTRA_TLS_CERT_PATH:-/etc/letsencrypt/live/ishastra.example.com/fullchain.pem}" \
+                    "${ISHASTRA_TLS_KEY_PATH:-/etc/letsencrypt/live/ishastra.example.com/privkey.pem}"
 else
-    echo -e "${YELLOW}⚠ TLS validation skipped (STRIX_TLS_ENABLED not set)${NC}"
+    echo -e "${YELLOW}⚠ TLS validation skipped (ISHASTRA_TLS_ENABLED not set)${NC}"
     ((WARNINGS++))
 fi
 
 echo ""
 echo -e "${BLUE}--- Placeholder Detection ---${NC}"
-# Check for unreplaced placeholders
+
 PLACEHOLDER_VARS=(
-    "STRIX_API_KEY"
-    "STRIX_AUDIT_HMAC_KEY"
-    "STRIX_WEBHOOK_SECRET"
-    "STRIX_REDIS_PASSWORD"
+    "ISHASTRA_API_KEY"
+    "ISHASTRA_AUDIT_HMAC_KEY"
+    "ISHASTRA_WEBHOOK_SECRET"
+    "ISHASTRA_REDIS_PASSWORD"
     "GRAFANA_PASSWORD"
     "SLACK_WEBHOOK_URL"
     "JIRA_API_TOKEN"
@@ -368,9 +368,9 @@ for var in "${PLACEHOLDER_VARS[@]}"; do
     fi
 done
 
-# ============================================================
-# SUMMARY
-# ============================================================
+
+
+
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║                     Validation Summary                       ║${NC}"

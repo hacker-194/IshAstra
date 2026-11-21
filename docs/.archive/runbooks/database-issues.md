@@ -1,7 +1,7 @@
 # Database Issues Runbook
 
 > **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
-> is defined in `src/strix/metrics.py` and has a data source.
+> is defined in `src/ishastra/metrics.py` and has a data source.
 > `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
 
 
@@ -9,10 +9,10 @@
 
 | Alert | Severity | Threshold | Duration |
 |-------|----------|-----------|----------|
-| `StrixDBPoolExhausted` | warning | Pool available < 10% | 5m |
-| `StrixDBPoolAcquireSlow` | warning | p95 acquire > 1s | 5m |
-| `StrixDiskSpaceCritical` | critical | Disk free < 5% | 5m |
-| `StrixDiskSpaceWarning` | warning | Disk free < 15% | 10m |
+| `IshastraDBPoolExhausted` | warning | Pool available < 10% | 5m |
+| `IshastraDBPoolAcquireSlow` | warning | p95 acquire > 1s | 5m |
+| `IshastraDiskSpaceCritical` | critical | Disk free < 5% | 5m |
+| `IshastraDiskSpaceWarning` | warning | Disk free < 15% | 10m |
 
 ---
 
@@ -38,22 +38,22 @@
 ### 1. Database Health Checks
 ```bash
 # Check database integrity
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
 
 # Check database size
-kubectl exec -n strix strix-api-xxx -- ls -lh /var/lib/strix/strix.db*
+kubectl exec -n ishastra ishastra-api-xxx -- ls -lh /var/lib/ishastra/ishastra.db*
 
 # Check WAL/SHM files
-kubectl exec -n strix strix-api-xxx -- ls -lh /var/lib/strix/
+kubectl exec -n ishastra ishastra-api-xxx -- ls -lh /var/lib/ishastra/
 
 # Check busy timeout
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA busy_timeout;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA busy_timeout;"
 
 # Check journal mode
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA journal_mode;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA journal_mode;"
 
 # Check page count and freelist
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA page_count; PRAGMA freelist_count;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA page_count; PRAGMA freelist_count;"
 ```
 
 ### 2. Connection Pool Metrics (PromQL)
@@ -74,25 +74,25 @@ strix_db_size_bytes / 1024 / 1024 / 1024
 ### 3. Disk Space & I/O
 ```bash
 # Check disk usage
-kubectl exec -n strix strix-api-xxx -- df -h /var/lib/strix
+kubectl exec -n ishastra ishastra-api-xxx -- df -h /var/lib/ishastra
 
 # Check PVC usage
-kubectl get pvc -n strix strix-data-pvc -o jsonpath='{.status.capacity.storage}'
+kubectl get pvc -n ishastra ishastra-data-pvc -o jsonpath='{.status.capacity.storage}'
 
 # Check I/O wait
-kubectl exec -n strix strix-api-xxx -- iostat -x 1 3
+kubectl exec -n ishastra ishastra-api-xxx -- iostat -x 1 3
 
 # Check for large temp files
-kubectl exec -n strix strix-api-xxx -- find /tmp -type f -size +100M -ls
+kubectl exec -n ishastra ishastra-api-xxx -- find /tmp -type f -size +100M -ls
 ```
 
 ### 4. Application Logs
 ```bash
 # Check for database errors
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=200 | grep -iE "database|sqlite|lock|pool|connection" | grep -iE "error|fail|timeout|locked"
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=200 | grep -iE "database|sqlite|lock|pool|connection" | grep -iE "error|fail|timeout|locked"
 
 # Check for slow queries
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=500 | grep -i "slow query"
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=500 | grep -i "slow query"
 ```
 
 ---
@@ -104,61 +104,61 @@ kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=500 |
 #### For Database Locked / Pool Exhausted
 ```bash
 # 1. Check for stuck transactions
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db ".tables"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db ".tables"
 
 # 2. Kill stuck connections (restart pods)
-kubectl rollout restart deployment/strix-api -n strix
-kubectl rollout restart deployment/strix-scheduler -n strix
+kubectl rollout restart deployment/ishastra-api -n ishastra
+kubectl rollout restart deployment/ishastra-scheduler -n ishastra
 
 # 3. Increase pool size temporarily
-kubectl set env deployment/strix-api -n strix STRIX_DB_POOL_SIZE=20
-kubectl rollout restart deployment/strix-api -n strix
+kubectl set env deployment/ishastra-api -n ishastra ISHASTRA_DB_POOL_SIZE=20
+kubectl rollout restart deployment/ishastra-api -n ishastra
 
 # 4. Increase busy timeout
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA busy_timeout=60000;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA busy_timeout=60000;"
 ```
 
 #### For Database Corruption
 ```bash
 # 1. STOP all writers immediately
-kubectl scale deployment strix-api -n strix --replicas=0
-kubectl scale deployment strix-scheduler -n strix --replicas=0
-kubectl scale deployment strix-worker -n strix --replicas=0  # if exists
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=0
+kubectl scale deployment ishastra-worker -n ishastra --replicas=0  # if exists
 
 # 2. Verify corruption
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
 
 # 3. Restore from backup
 # List available backups
-ls -lh /backups/strix.db.*
+ls -lh /backups/ishastra.db.*
 
 # Restore latest good backup
-kubectl cp /backups/strix.db.latest strix/strix-api-xxx:/var/lib/strix/strix.db
+kubectl cp /backups/ishastra.db.latest ishastra/ishastra-api-xxx:/var/lib/ishastra/ishastra.db
 
 # 4. Verify restored database
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "SELECT COUNT(*) FROM jobs;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "SELECT COUNT(*) FROM jobs;"
 
 # 5. Restart services
-kubectl scale deployment strix-api -n strix --replicas=3
-kubectl scale deployment strix-scheduler -n strix --replicas=1
+kubectl scale deployment ishastra-api -n ishastra --replicas=3
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=1
 ```
 
 #### For Disk Space Critical
 ```bash
 # 1. Clean temporary files
-kubectl exec -n strix strix-api-xxx -- find /tmp -type f -mtime +1 -delete
+kubectl exec -n ishastra ishastra-api-xxx -- find /tmp -type f -mtime +1 -delete
 
 # 2. Vacuum database (reclaims space)
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "VACUUM;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "VACUUM;"
 
 # 3. Prune old data via API
-curl -X POST http://strix.example.com/api/admin/prune \
+curl -X POST http://ishastra.example.com/api/admin/prune \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{"retention_days": 30}'
 
 # 4. Expand PVC (if supported by storage class)
-kubectl patch pvc strix-data-pvc -n strix -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+kubectl patch pvc ishastra-data-pvc -n ishastra -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
 
 # 5. Clean old Docker images / logs on node
 kubectl debug node/<node-name> -it --image=busybox -- chroot /host sh -c "docker image prune -f"
@@ -172,29 +172,29 @@ kubectl debug node/<node-name> -it --image=busybox -- chroot /host sh -c "docker
 # Look for: unclosed connections, missing context managers
 
 # Add connection tracking
-# STRIX_DB_DEBUG=1 to log pool events
-kubectl set env deployment/strix-api -n strix STRIX_DB_DEBUG=1
+# ISHASTRA_DB_DEBUG=1 to log pool events
+kubectl set env deployment/ishastra-api -n ishastra ISHASTRA_DB_DEBUG=1
 ```
 
 #### WAL Mode Issues
 ```bash
 # Ensure WAL mode enabled for better concurrency
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA journal_mode=WAL;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA journal_mode=WAL;"
 
 # Check synchronous mode
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA synchronous=NORMAL;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA synchronous=NORMAL;"
 ```
 
 #### Migration Issues
 ```bash
 # Check schema version
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db "PRAGMA user_version;"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA user_version;"
 
 # Run pending migrations
-kubectl exec -n strix strix-api-xxx -- /usr/local/bin/strix migrate
+kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/ishastra migrate
 
 # Verify migration
-kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db ".schema"
+kubectl exec -n ishastra ishastra-api-xxx -- sqlite3 /var/lib/ishastra/ishastra.db ".schema"
 ```
 
 ---
@@ -232,7 +232,7 @@ kubectl exec -n strix strix-api-xxx -- sqlite3 /var/lib/strix/strix.db ".schema"
 
 ## Grafana Dashboard Links
 
-- **Strix Database**: `https://grafana.example.com/d/strix-database/database-health`
+- **Ishastra Database**: `https://grafana.example.com/d/ishastra-database/database-health`
 - **Kubernetes PVC**: `https://grafana.example.com/d/k8s-pvc/pvc-usage`
 
 **Key Panels:**

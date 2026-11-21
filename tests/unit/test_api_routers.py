@@ -1,4 +1,4 @@
-"""Tests for strix.api.routers modules."""
+"""Tests for ishastra.api.routers modules."""
 
 from __future__ import annotations
 
@@ -8,39 +8,35 @@ import contextlib
 import pytest
 from fastapi.testclient import TestClient
 
-from strix.api.app import create_app
-from strix.core import store
+from ishastra.api.app import create_app
+from ishastra.core import store
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
     """Create test app with overrides."""
-    from strix.api.deps import reset_settings
-    from strix.api.security import api_keys
-    from strix.core import scope
+    from ishastra.api.deps import reset_settings
+    from ishastra.api.security import api_keys
+    from ishastra.core import scope
 
     reset_settings()
     api_keys.reset()
 
-    # Use unique temporary DB per test to avoid connection pool conflicts
     import os
     import tempfile
 
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="strix_test_")
-    os.close(db_fd)  # We just need the path, SQLite will create the file
+    os.close(db_fd)
 
-    os.environ["STRIX_DB"] = db_path
-    os.environ["STRIX_SCOPE_FILE"] = "/tmp/scope.json"
-    os.environ["STRIX_API_KEY"] = "test-key-12345678901234567890123456789012"
-    os.environ["STRIX_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
-    os.environ["STRIX_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
-    # Use 1 worker for tests (0 causes queue submission to fail with 503)
-    os.environ["STRIX_WORKERS"] = "1"
+    # monkeypatch restores these after the test, so one test's database, scope and
+    # keys cannot leak into the next module that runs in the same process.
+    monkeypatch.setenv("ISHASTRA_DB", db_path)
+    monkeypatch.setenv("ISHASTRA_SCOPE_FILE", "/tmp/scope.json")
+    monkeypatch.setenv("ISHASTRA_API_KEY", "test-key-12345678901234567890123456789012")
+    monkeypatch.setenv("ISHASTRA_ENCRYPTION_KEY", "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=")
+    monkeypatch.setenv("ISHASTRA_AUDIT_HMAC_KEY", "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==")
+    monkeypatch.setenv("ISHASTRA_WORKERS", "1")
 
-    # Create minimal scope. authorized_networks is left empty on purpose: a
-    # non-empty list is an exhaustive address allowlist, so example.com would be
-    # refused whenever it resolves outside it. These are router tests, not
-    # address-policy tests; network policy is covered in test_scope.py.
     scope_content = """{
   "program": "Test Program",
   "authorized_by": "Test Authorizer",
@@ -56,28 +52,24 @@ def app():
         f.write(scope_content)
         scope_path = f.name
 
-    # Close any existing database from other tests BEFORE creating new event loop.
-    # This ensures aiosqlite connections from previous event loops are properly closed.
     asyncio.run(store.close_db_pool())
 
-    # Create event loop FIRST, then do all async setup in it
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     store.configure(db_path)
     scope.load(scope_path)
 
-    # Initialize database and run migrations
     loop.run_until_complete(store.get_database())
 
     app = create_app()
 
     async def bootstrap():
-        from strix.api import deps
-        from strix.api.app import _bootstrap_admin_key_async
-        from strix.api.deps import init_http_client
-        from strix.core import policies
-        from strix.core.scheduler import create_scheduler
+        from ishastra.api import deps
+        from ishastra.api.app import _bootstrap_admin_key_async
+        from ishastra.api.deps import init_http_client
+        from ishastra.core import policies
+        from ishastra.core.scheduler import create_scheduler
 
         await init_http_client()
         await api_keys.load_async()
@@ -86,7 +78,7 @@ def app():
         await deps.monitor.load_async()
         await _bootstrap_admin_key_async()
 
-        from strix.api import app as app_module
+        from ishastra.api import app as app_module
 
         app_module._scheduler = await create_scheduler(
             audit_chain=deps.audit_chain,
@@ -101,18 +93,17 @@ def app():
 
     yield app
 
-    # Cleanup
-    from strix.api import app as app_module
+    from ishastra.api import app as app_module
 
     if app_module._scheduler is not None:
         loop.run_until_complete(app_module._scheduler.stop())
         app_module._scheduler = None
     loop.run_until_complete(store.close_db_pool())
-    # Allow aiosqlite background thread to finish before closing loop
+
     loop.run_until_complete(asyncio.sleep(0.1))
     loop.close()
     asyncio.set_event_loop(None)
-    # Clean up temp database file
+
     with contextlib.suppress(OSError):
         os.unlink(db_path)
 
@@ -168,7 +159,7 @@ class TestPoliciesRouter:
 
     def test_update_policy(self, auth_client):
         """Test PATCH /api/policies/{id}."""
-        # First create
+
         policy_data = {
             "tenant": "default",
             "program": "Test Program 2",
@@ -184,7 +175,6 @@ class TestPoliciesRouter:
         if create_resp.status_code in (200, 201):
             policy_id = create_resp.json()["policy_id"]
 
-            # Then update
             update_data = {"program": "Updated Program"}
             response = auth_client.patch(f"/api/policies/{policy_id}", json=update_data)
             assert response.status_code == 200
@@ -193,7 +183,7 @@ class TestPoliciesRouter:
 
     def test_revoke_policy(self, auth_client):
         """Test POST /api/policies/{id}/revoke (no DELETE endpoint)."""
-        # First create
+
         policy_data = {
             "tenant": "default",
             "program": "Test Program 3",
@@ -209,7 +199,6 @@ class TestPoliciesRouter:
         if create_resp.status_code in (200, 201):
             policy_id = create_resp.json()["policy_id"]
 
-            # Then revoke
             response = auth_client.post(f"/api/policies/{policy_id}/revoke")
             assert response.status_code == 200
             data = response.json()
@@ -228,7 +217,7 @@ class TestMonitoringRouter:
         """Test GET /api/metrics/otel returns Prometheus format."""
         response = auth_client.get("/api/metrics/otel")
         assert response.status_code == 200
-        # Returns Prometheus text format, not JSON
+
         assert response.text.startswith("# HELP") or "strix_" in response.text
 
     def test_get_health(self, auth_client):
@@ -254,7 +243,7 @@ class TestProbeRouter:
             "timeout": 6.0,
         }
         response = auth_client.post("/api/probe", json=probe_data)
-        # May return 200 (ok), 202 (accepted), 400 (bad request), or 422 (validation error)
+
         assert response.status_code in (200, 202, 400, 422)
 
     def test_probe_requires_auth(self, client):
@@ -268,7 +257,7 @@ class TestProofRouter:
 
     def test_verify_proof(self, auth_client):
         """Test POST /api/proof/verify."""
-        # Create a minimal valid proof pack
+
         proof_data = {
             "proof": {
                 "grant": {
@@ -294,10 +283,9 @@ class TestProofRouter:
 
     def test_proof_requires_no_auth(self, client):
         """Test proof endpoint is public (no authentication required)."""
-        # The /api/proof/verify endpoint is deliberately unauthenticated
-        # so anyone can verify a proof pack
+
         response = client.post("/api/proof/verify", json={"proof": {}})
-        assert response.status_code == 200  # Returns verification report even for empty proof
+        assert response.status_code == 200
         data = response.json()
         assert "ok" in data
         assert "errors" in data
@@ -397,7 +385,7 @@ class TestSchedulerRouter:
 
     def test_get_schedule(self, auth_client):
         """Test GET /api/schedules/{id}."""
-        # Create first
+
         schedule_data = {
             "target": "https://example.com/",
             "cron_expression": "0 2 * * *",
@@ -437,7 +425,7 @@ class TestSchedulerRouter:
         if create_resp.status_code in (200, 201):
             schedule_id = create_resp.json()["id"]
             response = auth_client.delete(f"/api/schedules/{schedule_id}")
-            # Returns 200 with {"deleted": true, "schedule_id": "..."}
+
             assert response.status_code in (200, 404)
             if response.status_code == 200:
                 data = response.json()
@@ -521,7 +509,7 @@ class TestAssessmentsRouter:
 
     def test_get_assessment(self, auth_client):
         """Test GET /api/assess/{job_id}."""
-        # Create first
+
         assessment_data = {"target": "https://example.com/", "profile": "web"}
         create_resp = auth_client.post("/api/assess", json=assessment_data)
         if create_resp.status_code in (200, 201, 202):
@@ -621,7 +609,7 @@ class TestPolicyDiffAndLifecycle:
         assert body["counts"]["active"] == len(body["policies"]["active"])
 
     def test_lifecycle_state_marks_revoked_and_draft(self):
-        from strix.core.policies import EngagementPolicy
+        from ishastra.core.policies import EngagementPolicy
 
         def policy(**over):
             fields = {

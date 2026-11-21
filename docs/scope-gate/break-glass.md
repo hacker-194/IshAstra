@@ -26,7 +26,7 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
 │     Temporary scope extension created                                       │
 │     → Signed with break-glass key                                           │
 │     → Time-bounded (max 4h default)                                         │
-│     → Audited in Strix Proof chain                                          │
+│     → Audited in Ishastra Proof chain                                          │
 │                                                                              │
 │  4. USE                                                                      │
 │     Worker uses extended scope                                              │
@@ -83,7 +83,7 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
 
 ```bash
 # API
-curl -X POST https://api.strix.dev/api/v1/break-glass \
+curl -X POST https://api.ishastra.dev/api/v1/break-glass \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -107,13 +107,13 @@ curl -X POST https://api.strix.dev/api/v1/break-glass \
 
 ```bash
 # First approver
-curl -X POST https://api.strix.dev/api/v1/break-glass/bg-req-456/approve \
+curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/approve \
   -H "Authorization: Bearer $APPROVER1_KEY" \
   -H "Content-Type: application/json" \
   -d '{"mfa_token": "123456"}'
 
 # Second approver
-curl -X POST https://api.strix.dev/api/v1/break-glass/bg-req-456/approve \
+curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/approve \
   -H "Authorization: Bearer $APPROVER2_KEY" \
   -H "Content-Type: application/json" \
   -d '{"mfa_token": "654321"}'
@@ -123,7 +123,7 @@ curl -X POST https://api.strix.dev/api/v1/break-glass/bg-req-456/approve \
 
 ```python
 # Worker automatically gets extended scope
-from strix.core.scope_breakglass import BreakGlassManager
+from ishastra.core.scope_breakglass import BreakGlassManager
 
 bg = BreakGlassManager()
 
@@ -143,7 +143,7 @@ if extended_scope:
 
 ### BreakGlassManager
 
-**File**: `src/strix/core/scope_breakglass.py` — `BreakGlassManager`
+**File**: `src/ishastra/core/scope_breakglass.py` — `BreakGlassManager`
 
 ```python
 class BreakGlassManager:
@@ -303,7 +303,7 @@ async def run_assessment(assessment: Assessment):
 
 ## Audit & Compliance
 
-### Strix Proof Integration
+### Ishastra Proof Integration
 
 Every break-glass action creates signed receipts:
 
@@ -337,7 +337,7 @@ class GateReceipt:
 
 ```bash
 # Generate break-glass audit report
-strix break-glass report --start 2024-01-01 --end 2024-01-31
+ishastra break-glass report --start 2024-01-01 --end 2024-01-31
 
 # Output:
 # BREAK-GLASS AUDIT REPORT
@@ -450,7 +450,7 @@ async def _expiry_check(self):
 
 ```bash
 # Any approver can revoke
-curl -X POST https://api.strix.dev/api/v1/break-glass/bg-req-456/revoke \
+curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/revoke \
   -H "Authorization: Bearer $APPROVER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"reason": "Incident resolved"}'

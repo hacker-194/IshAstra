@@ -1,15 +1,15 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: strix-api-ingress-eu-west
+  name: ishastra-api-ingress-eu-west
   labels:
-    app.kubernetes.io/name: strix
-    app.kubernetes.io/part-of: strix-platform
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/part-of: ishastra-platform
     topology.kubernetes.io/region: eu-west
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: strix
+      app.kubernetes.io/name: ishastra
       app.kubernetes.io/component: api
       topology.kubernetes.io/region: eu-west
   policyTypes:

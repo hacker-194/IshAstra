@@ -1,5 +1,5 @@
-# Tempo Configuration for Strix Distributed Tracing
-# Deploy with: docker compose -f docker-compose.monitoring.yml -f docker-compose.tempo.yml up -d
+
+
 
 server:
   http_listen_port: 3200
@@ -31,7 +31,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 336h  # 14 days
+    block_retention: 336h
     compacted_block_retention: 1h
   compaction_window: 1h
 
@@ -47,18 +47,18 @@ storage:
       path: /tempo/wal
       encoding: snappy
 
-# Blocklist for traces we don't want to store
+
 blocklist:
   poll_interval: 5m
 
-# Limits for multi-tenancy
+
 limits:
   ingestion_rate_limit: 10MB
   ingestion_burst_limit: 20MB
   max_spans_per_trace: 10000
   max_trace_idle_time: 5m
 
-# Query frontend
+
 query_frontend:
   search:
     duration_slo: 5s
@@ -69,7 +69,7 @@ metrics_generator:
   registry:
     external_labels:
       source: tempo
-      cluster: strix-production
+      cluster: ishastra-production
   storage:
     path: /tempo/metrics-generator
     remote_write:
@@ -87,9 +87,9 @@ metrics_generator:
         - span.kind
         - status.code
 
-# Reporting
+
 reporting:
   enabled: false
 
-# Logging
+
 log_level: info

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import strix.metrics as metrics
-from strix.core.scope import ScopeGate, configure
-from strix.metrics import get_registry, init_metrics
+import ishastra.metrics as metrics
+from ishastra.core.scope import ScopeGate, configure
+from ishastra.metrics import get_registry, init_metrics
 
-METRIC = "strix_scope_gate_decisions_total"
-DURATION_METRIC = "strix_scope_gate_decision_duration_seconds_count"
+METRIC = "ishastra_scope_gate_decisions_total"
+DURATION_METRIC = "ishastra_scope_gate_decision_duration_seconds_count"
 
 
 def _count(decision: str, reason: str, tenant: str) -> float:
@@ -36,7 +36,7 @@ def test_allowed_and_blocked_decisions_are_counted():
     blocked_before = _count("blocked", "out_of_scope", "acme")
     duration_before = get_registry().get_sample_value(DURATION_METRIC, {"decision": "allowed"}) or 0.0
 
-    with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+    with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
         assert scope.check("https://example.com/") == ("", "")
     assert _count("allowed", "allowed", "acme") == allowed_before + 1
     assert (
@@ -65,12 +65,12 @@ def test_validate_outbound_counts_the_denial_code():
 
 
 def test_a_decision_before_any_scrape_is_still_counted(monkeypatch):
-    # /metrics is scraped lazily; a decision taken first must not be lost.
+
     monkeypatch.setattr(metrics, "SCOPE_GATE_DECISIONS", None)
     monkeypatch.setattr(metrics, "_registry", None)
     scope = _scope("delta")
 
-    with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+    with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
         scope.check("https://example.com/")
 
     assert _count("allowed", "allowed", "delta") == 1.0

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from strix.compliance.mapping import (
+from ishastra.compliance.mapping import (
     SCOPE_CONTROLS,
     build_mapping_matrix,
     get_scope_control_matrix,

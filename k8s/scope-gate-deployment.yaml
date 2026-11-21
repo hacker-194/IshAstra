@@ -1,40 +1,40 @@
-# Strix ScopeGate - Production Kubernetes Deployment
-# 
-# This deployment includes:
-# - Deployment with HPA for autoscaling
-# - Service for internal load balancing
-# - ConfigMap for scope configuration
-# - Secret for signing keys
-# - ServiceMonitor for Prometheus
-# - NetworkPolicy for security
+
+
+
+
+
+
+
+
+
 
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: strix
+  name: ishastra
   labels:
-    name: strix
+    name: ishastra
     environment: production
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: strix-config
-  namespace: strix
+  name: ishastra-config
+  namespace: ishastra
 data:
-  STRIX_SCOPE_DIR: "/etc/strix/scopes"
-  STRIX_SCOPE_JWKS: "/etc/strix/scope-jwks.json"
-  STRIX_SCOPE_MAX_AGE_SECONDS: "86400"
-  STRIX_SCOPE_JIT_URL: ""
-  STRIX_LOG_LEVEL: "INFO"
-  STRIX_METRICS_ENABLED: "true"
-  STRIX_OTEL_ENABLED: "true"
+  ISHASTRA_SCOPE_DIR: "/etc/ishastra/scopes"
+  ISHASTRA_SCOPE_JWKS: "/etc/ishastra/scope-jwks.json"
+  ISHASTRA_SCOPE_MAX_AGE_SECONDS: "86400"
+  ISHASTRA_SCOPE_JIT_URL: ""
+  ISHASTRA_LOG_LEVEL: "INFO"
+  ISHASTRA_METRICS_ENABLED: "true"
+  ISHASTRA_OTEL_ENABLED: "true"
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: strix-secrets
-  namespace: strix
+  name: ishastra-secrets
+  namespace: ishastra
 type: Opaque
 stringData:
   SCOPE_SIGNING_KEY: "REPLACE_WITH_BASE64_ENCODED_ED25519_PRIVATE_KEY"
@@ -44,21 +44,21 @@ stringData:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: strix-scope-gate
-  namespace: strix
+  name: ishastra-scope-gate
+  namespace: ishastra
   labels:
-    app: strix-scope-gate
+    app: ishastra-scope-gate
     component: api
     version: v3.5.0
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: strix-scope-gate
+      app: ishastra-scope-gate
   template:
     metadata:
       labels:
-        app: strix-scope-gate
+        app: ishastra-scope-gate
         component: api
         version: v3.5.0
       annotations:
@@ -66,7 +66,7 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/api/metrics"
     spec:
-      serviceAccountName: strix-scope-gate
+      serviceAccountName: ishastra-scope-gate
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -75,7 +75,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: scope-gate
-          image: strix/scope-gate:v3.5.0
+          image: ishastra/scope-gate:v3.5.0
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -83,9 +83,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: strix-config
+                name: ishastra-config
             - secretRef:
-                name: strix-secrets
+                name: ishastra-secrets
           env:
             - name: POD_NAME
               valueFrom:
@@ -128,10 +128,10 @@ spec:
             failureThreshold: 30
           volumeMounts:
             - name: scopes
-              mountPath: /etc/strix/scopes
+              mountPath: /etc/ishastra/scopes
               readOnly: true
             - name: jwks
-              mountPath: /etc/strix/scope-jwks.json
+              mountPath: /etc/ishastra/scope-jwks.json
               subPath: scope-jwks.json
               readOnly: true
             - name: tmp
@@ -139,11 +139,11 @@ spec:
       volumes:
         - name: scopes
           configMap:
-            name: strix-scopes
+            name: ishastra-scopes
             defaultMode: 0444
         - name: jwks
           secret:
-            secretName: strix-jwks
+            secretName: ishastra-jwks
             defaultMode: 0444
         - name: tmp
           emptyDir:
@@ -158,16 +158,16 @@ spec:
                     - key: app
                       operator: In
                       values:
-                        - strix-scope-gate
+                        - ishastra-scope-gate
                 topologyKey: kubernetes.io/hostname
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: strix-scope-gate
-  namespace: strix
+  name: ishastra-scope-gate
+  namespace: ishastra
   labels:
-    app: strix-scope-gate
+    app: ishastra-scope-gate
 spec:
   type: ClusterIP
   ports:
@@ -176,18 +176,18 @@ spec:
       targetPort: 8000
       protocol: TCP
   selector:
-    app: strix-scope-gate
+    app: ishastra-scope-gate
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: strix-scope-gate-hpa
-  namespace: strix
+  name: ishastra-scope-gate-hpa
+  namespace: ishastra
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: strix-scope-gate
+    name: ishastra-scope-gate
   minReplicas: 3
   maxReplicas: 20
   metrics:
@@ -231,12 +231,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: strix-scope-gate-network-policy
-  namespace: strix
+  name: ishastra-scope-gate-network-policy
+  namespace: ishastra
 spec:
   podSelector:
     matchLabels:
-      app: strix-scope-gate
+      app: ishastra-scope-gate
   policyTypes:
     - Ingress
     - Egress
@@ -247,7 +247,7 @@ spec:
               name: ingress-nginx
         - podSelector:
             matchLabels:
-              app: strix-api-gateway
+              app: ishastra-api-gateway
       ports:
         - protocol: TCP
           port: 8000
@@ -289,40 +289,40 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-scope-gate-monitor
-  namespace: strix
+  name: ishastra-scope-gate-monitor
+  namespace: ishastra
   labels:
     release: prometheus
 spec:
   selector:
     matchLabels:
-      app: strix-scope-gate
+      app: ishastra-scope-gate
   endpoints:
     - port: http
       path: /api/metrics
       interval: 30s
       scrapeTimeout: 10s
-      # /api/metrics is administrator-only: send the bootstrap key.
+
       authorization:
         type: Bearer
         credentials:
-          name: strix-secrets
+          name: ishastra-secrets
           key: ADMIN_API_KEY
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: strix-scope-gate
-  namespace: strix
+  name: ishastra-scope-gate
+  namespace: ishastra
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: strix-scope-gate
-  namespace: strix
+  name: ishastra-scope-gate
+  namespace: ishastra
 rules:
   - apiGroups: [""]
     resources: ["configmaps", "secrets"]
@@ -334,13 +334,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: strix-scope-gate
-  namespace: strix
+  name: ishastra-scope-gate
+  namespace: ishastra
 subjects:
   - kind: ServiceAccount
-    name: strix-scope-gate
-    namespace: strix
+    name: ishastra-scope-gate
+    namespace: ishastra
 roleRef:
   kind: Role
-  name: strix-scope-gate
+  name: ishastra-scope-gate
   apiGroup: rbac.authorization.k8s.io

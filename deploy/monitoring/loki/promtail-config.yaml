@@ -1,5 +1,5 @@
-# Promtail Configuration for Strix Log Collection
-# Runs as a DaemonSet in Kubernetes or as a sidecar in Docker
+
+
 
 server:
   http_listen_port: 9080
@@ -19,15 +19,15 @@ clients:
       max_retries: 10
 
 scrape_configs:
-  # Strix API application logs (stdout/stderr from container)
-  - job_name: strix-api
+
+  - job_name: ishastra-api
     static_configs:
       - targets:
           - localhost
         labels:
-          job: strix-api
+          job: ishastra-api
           component: api
-          __path__: /var/log/strix/api/*.log
+          __path__: /var/log/ishastra/api/*.log
     pipeline_stages:
       - docker: {}
       - regex:
@@ -39,15 +39,15 @@ scrape_configs:
           source: timestamp
           format: RFC3339Nano
 
-  # Strix Scheduler logs
-  - job_name: strix-scheduler
+
+  - job_name: ishastra-scheduler
     static_configs:
       - targets:
           - localhost
         labels:
-          job: strix-scheduler
+          job: ishastra-scheduler
           component: scheduler
-          __path__: /var/log/strix/scheduler/*.log
+          __path__: /var/log/ishastra/scheduler/*.log
     pipeline_stages:
       - docker: {}
       - regex:
@@ -59,15 +59,15 @@ scrape_configs:
           source: timestamp
           format: RFC3339Nano
 
-  # Strix Worker logs (Celery workers)
-  - job_name: strix-worker
+
+  - job_name: ishastra-worker
     static_configs:
       - targets:
           - localhost
         labels:
-          job: strix-worker
+          job: ishastra-worker
           component: worker
-          __path__: /var/log/strix/worker/*.log
+          __path__: /var/log/ishastra/worker/*.log
     pipeline_stages:
       - docker: {}
       - regex:
@@ -79,7 +79,7 @@ scrape_configs:
           source: timestamp
           format: RFC3339Nano
 
-  # Nginx access logs
+
   - job_name: nginx-access
     static_configs:
       - targets:
@@ -102,7 +102,7 @@ scrape_configs:
             config:
               action: inc
 
-  # Nginx error logs
+
   - job_name: nginx-error
     static_configs:
       - targets:
@@ -121,7 +121,7 @@ scrape_configs:
           source: timestamp
           format: "2006/01/02 15:04:05"
 
-  # Redis logs
+
   - job_name: redis
     static_configs:
       - targets:
@@ -139,7 +139,7 @@ scrape_configs:
           source: timestamp
           format: RFC3339Nano
 
-  # System logs (if running on host)
+
   - job_name: systemd-journal
     static_configs:
       - targets:
@@ -161,38 +161,37 @@ scrape_configs:
           source: __REALTIME_TIMESTAMP
           format: unix_ms
 
-# For Kubernetes DaemonSet deployment, use this instead:
-# scrape_configs:
-#   - job_name: kubernetes-pods
-#     kubernetes_sd_configs:
-#       - role: pod
-#     relabel_configs:
-#       - source_labels: [__meta_kubernetes_pod_annotation_promtail_io_scrape]
-#         action: keep
-#         regex: true
-#       - source_labels: [__meta_kubernetes_pod_annotation_promtail_io_path]
-#         action: replace
-#         target_label: __path__
-#         regex: (.+)
-#       - source_labels: [__meta_kubernetes_pod_label_app]
-#         action: replace
-#         target_label: app
-#       - source_labels: [__meta_kubernetes_pod_label_component]
-#         action: replace
-#         target_label: component
-#       - source_labels: [__meta_kubernetes_namespace]
-#         action: replace
-#         target_label: namespace
-#       - source_labels: [__meta_kubernetes_pod_name]
-#         action: replace
-#         target_label: pod
-#     pipeline_stages:
-#       - docker: {}
-#       - regex:
-#           expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+(?P<message>.*)$'
-#       - labels:
-#           level:
-#           logger:
-#       - timestamp:
-#           source: timestamp
-#           format: RFC3339Nano
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

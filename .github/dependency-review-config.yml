@@ -1,12 +1,12 @@
-# Dependency Review Configuration for Strix
-# https://github.com/actions/dependency-review-action
 
-# Severity thresholds: fail the build if vulnerabilities of this severity or higher are found
-# Options: low, moderate, high, critical
+
+
+
+
 fail-on-severity: high
 
-# Licenses that are explicitly allowed
-# Using SPDX license identifiers
+
+
 allow-licenses:
   - MIT
   - BSD-2-Clause
@@ -25,7 +25,7 @@ allow-licenses:
   - OFL-1.1
   - BSL-1.0
 
-# Licenses that are explicitly denied (copyleft and other restrictive licenses)
+
 deny-licenses:
   - GPL-2.0
   - GPL-3.0
@@ -40,15 +40,15 @@ deny-licenses:
   - CPL-1.0
   - OSL-3.0
 
-# Allow transitive dependencies to have licenses not in allow-list if they're not direct dependencies
-# This is more permissive - only direct dependencies need to be in allow-list
+
+
 allow-licenses-if-transitive: false
 
-# Configuration for vulnerability scanning
+
 vulnerability-check:
-  # Whether to check for vulnerabilities in dependencies
+
   enabled: true
-  # Minimum severity to fail on
+
   severity-threshold: high
-  # Ignore vulnerabilities that have been fixed in a newer version we cannot upgrade to
+
   ignore-fixed: false

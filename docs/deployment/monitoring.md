@@ -2,7 +2,7 @@
 
 # Monitoring & Observability
 
-Complete monitoring stack for Strix deployments.
+Complete monitoring stack for Ishastra deployments.
 
 ## Overview
 
@@ -12,7 +12,7 @@ Complete monitoring stack for Strix deployments.
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐  │
-│  │  Strix Pods  │───▶│  Prometheus  │───▶│  Alertmanager│───▶│  PagerDuty│  │
+│  │  Ishastra Pods  │───▶│  Prometheus  │───▶│  Alertmanager│───▶│  PagerDuty│  │
 │  │  /metrics    │    │  (scrape)    │    │  (route)     │    │  / Slack │  │
 │  └──────────────┘    └──────┬───────┘    └──────────────┘    └──────────┘  │
 │                             │                                               │
@@ -33,14 +33,14 @@ Complete monitoring stack for Strix deployments.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-api
-  namespace: strix-system
+  name: ishastra-api
+  namespace: ishastra-system
   labels:
     release: prometheus
 spec:
   selector:
     matchLabels:
-      app: strix-api
+      app: ishastra-api
   endpoints:
   - port: http
     path: /metrics
@@ -48,26 +48,26 @@ spec:
     scrapeTimeout: 10s
   namespaceSelector:
     matchNames:
-    - strix-system
+    - ishastra-system
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-worker
-  namespace: strix-system
+  name: ishastra-worker
+  namespace: ishastra-system
   labels:
     release: prometheus
 spec:
   selector:
     matchLabels:
-      app: strix-worker
+      app: ishastra-worker
   endpoints:
   - port: http
     path: /metrics
     interval: 30s
   namespaceSelector:
     matchNames:
-    - strix-system
+    - ishastra-system
 ```
 
 ### PrometheusRule (Alerts)
@@ -77,28 +77,28 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: strix-alerts
-  namespace: strix-system
+  name: ishastra-alerts
+  namespace: ishastra-system
   labels:
     release: prometheus
 spec:
   groups:
-  - name: strix.rules
+  - name: ishastra.rules
     rules:
     # API Availability
-    - alert: StrixAPIDown
-      expr: up{job="strix-api",namespace="strix-system"} == 0
+    - alert: IshastraAPIDown
+      expr: up{job="ishastra-api",namespace="ishastra-system"} == 0
       for: 2m
       labels:
         severity: critical
         team: platform
       annotations:
-        summary: "Strix API is down"
+        summary: "Ishastra API is down"
         description: "API pod {{ $labels.pod }} has been down for 2 minutes"
-        runbook_url: "https://docs.strix.dev/runbooks/api-down"
+        runbook_url: "https://docs.ishastra.dev/runbooks/api-down"
 
-    - alert: StrixAPIHighLatency
-      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="strix-api"}[5m])) > 2
+    - alert: IshastraAPIHighLatency
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="ishastra-api"}[5m])) > 2
       for: 5m
       labels:
         severity: warning
@@ -107,8 +107,8 @@ spec:
         description: "p95 latency is {{ $value }}s"
 
     # Scope Gate
-    - alert: StrixScopeGateDenialsHigh
-      expr: rate(scope_gate_denials_total{namespace="strix-system"}[5m]) > 10
+    - alert: IshastraScopeGateDenialsHigh
+      expr: rate(scope_gate_denials_total{namespace="ishastra-system"}[5m]) > 10
       for: 5m
       labels:
         severity: warning
@@ -116,7 +116,7 @@ spec:
         summary: "High Scope Gate denial rate"
         description: "{{ $value }} denials/sec - possible misconfigured scope"
 
-    - alert: StrixScopeGateResolutionFailures
+    - alert: IshastraScopeGateResolutionFailures
       expr: rate(scope_gate_resolution_failures_total[5m]) > 5
       for: 2m
       labels:
@@ -126,7 +126,7 @@ spec:
         description: "{{ $value }} failures/sec - check DNS config"
 
     # Assessment Queue
-    - alert: StrixQueueDepthHigh
+    - alert: IshastraQueueDepthHigh
       expr: strix_queue_depth > 1000
       for: 10m
       labels:
@@ -135,7 +135,7 @@ spec:
         summary: "Assessment queue backing up"
         description: "Queue depth: {{ $value }} - consider scaling workers"
 
-    - alert: StrixQueueProcessingSlow
+    - alert: IshastraQueueProcessingSlow
       expr: rate(strix_assessment_duration_seconds_sum[5m]) / rate(strix_assessment_duration_seconds_count[5m]) > 600
       for: 15m
       labels:
@@ -145,17 +145,17 @@ spec:
         description: "Avg duration: {{ $value }}s"
 
     # Worker Health
-    - alert: StrixWorkerDown
-      expr: up{job="strix-worker",namespace="strix-system"} == 0
+    - alert: IshastraWorkerDown
+      expr: up{job="ishastra-worker",namespace="ishastra-system"} == 0
       for: 3m
       labels:
         severity: critical
       annotations:
-        summary: "Strix Worker down"
+        summary: "Ishastra Worker down"
         description: "Worker pod {{ $labels.pod }} down for 3 minutes"
 
-    - alert: StrixWorkerOOMKilled
-      expr: increase(container_oom_kills_total{namespace="strix-system",container="worker"}[10m]) > 0
+    - alert: IshastraWorkerOOMKilled
+      expr: increase(container_oom_kills_total{namespace="ishastra-system",container="worker"}[10m]) > 0
       labels:
         severity: critical
       annotations:
@@ -163,16 +163,16 @@ spec:
         description: "Worker {{ $labels.pod }} was OOM killed - increase memory limit"
 
     # Scheduler
-    - alert: StrixSchedulerDown
-      expr: up{job="strix-scheduler",namespace="strix-system"} == 0
+    - alert: IshastraSchedulerDown
+      expr: up{job="ishastra-scheduler",namespace="ishastra-system"} == 0
       for: 2m
       labels:
         severity: critical
       annotations:
-        summary: "Strix Scheduler down"
+        summary: "Ishastra Scheduler down"
         description: "Scheduler pod {{ $labels.pod }} down"
 
-    - alert: StrixSchedulerLeaderElectionFailures
+    - alert: IshastraSchedulerLeaderElectionFailures
       expr: rate(strix_scheduler_leader_election_failures_total[5m]) > 0.1
       for: 5m
       labels:
@@ -182,7 +182,7 @@ spec:
         description: "Frequent leader changes detected"
 
     # Database
-    - alert: StrixDatabaseConnectionsHigh
+    - alert: IshastraDatabaseConnectionsHigh
       expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
       for: 5m
       labels:
@@ -191,7 +191,7 @@ spec:
         summary: "Database connections near limit"
         description: "{{ $value | humanizePercentage }} of max connections used"
 
-    - alert: StrixDatabaseReplicationLag
+    - alert: IshastraDatabaseReplicationLag
       expr: pg_replication_lag_seconds > 30
       for: 5m
       labels:
@@ -201,7 +201,7 @@ spec:
         description: "Replica lag: {{ $value }}s"
 
     # Redis
-    - alert: StrixRedisMemoryHigh
+    - alert: IshastraRedisMemoryHigh
       expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
       for: 5m
       labels:
@@ -210,8 +210,8 @@ spec:
         summary: "Redis memory usage high"
         description: "{{ $value | humanizePercentage }} of max memory used"
 
-    - alert: StrixRedisDown
-      expr: up{job="redis",namespace="strix-system"} == 0
+    - alert: IshastraRedisDown
+      expr: up{job="redis",namespace="ishastra-system"} == 0
       for: 1m
       labels:
         severity: critical
@@ -220,8 +220,8 @@ spec:
         description: "Redis pod {{ $labels.pod }} down"
 
     # Kubernetes
-    - alert: StrixPodNotReady
-      expr: kube_pod_status_ready{namespace="strix-system",condition="true"} == 0
+    - alert: IshastraPodNotReady
+      expr: kube_pod_status_ready{namespace="ishastra-system",condition="true"} == 0
       for: 5m
       labels:
         severity: warning
@@ -229,8 +229,8 @@ spec:
         summary: "Pod not ready"
         description: "Pod {{ $labels.pod }} not ready for 5 minutes"
 
-    - alert: StrixHPAReplicasMaxed
-      expr: kube_horizontalpodautoscaler_status_desired_replicas{namespace="strix-system"} == kube_horizontalpodautoscaler_spec_max_replicas{namespace="strix-system"}
+    - alert: IshastraHPAReplicasMaxed
+      expr: kube_horizontalpodautoscaler_status_desired_replicas{namespace="ishastra-system"} == kube_horizontalpodautoscaler_spec_max_replicas{namespace="ishastra-system"}
       for: 10m
       labels:
         severity: warning
@@ -239,7 +239,7 @@ spec:
         description: "{{ $labels.horizontalpodautoscaler }} at max ({{ $value }}) - check if scaling is working"
 
     # Certificates
-    - alert: StrixCertExpiringSoon
+    - alert: IshastraCertExpiringSoon
       expr: certmanager_certificate_expiration_timestamp_seconds - time() < 86400 * 30
       for: 1h
       labels:
@@ -258,26 +258,26 @@ spec:
 # Dashboard IDs: 1860, 1861, 1862, 1863
 ```
 
-### Strix Overview Dashboard
+### Ishastra Overview Dashboard
 
 ```json
 {
-  "title": "Strix Overview",
+  "title": "Ishastra Overview",
   "panels": [
     {
       "title": "API Request Rate",
       "type": "graph",
       "targets": [
-        {"expr": "rate(http_requests_total{job=\"strix-api\"}[5m])", "legendFormat": "{{method}} {{handler}}"}
+        {"expr": "rate(http_requests_total{job=\"ishastra-api\"}[5m])", "legendFormat": "{{method}} {{handler}}"}
       ]
     },
     {
       "title": "API Latency (p50, p95, p99)",
       "type": "graph",
       "targets": [
-        {"expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"strix-api\"}[5m]))", "legendFormat": "p50"},
-        {"expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"strix-api\"}[5m]))", "legendFormat": "p95"},
-        {"expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"strix-api\"}[5m]))", "legendFormat": "p99"}
+        {"expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"ishastra-api\"}[5m]))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"ishastra-api\"}[5m]))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"ishastra-api\"}[5m]))", "legendFormat": "p99"}
       ]
     },
     {
@@ -309,7 +309,7 @@ spec:
       "title": "Worker Pool",
       "type": "graph",
       "targets": [
-        {"expr": "kube_pod_info{namespace=\"strix-system\",app=\"strix-worker\"}", "legendFormat": "Workers"}
+        {"expr": "kube_pod_info{namespace=\"ishastra-system\",app=\"ishastra-worker\"}", "legendFormat": "Workers"}
       ]
     }
   ]
@@ -320,7 +320,7 @@ spec:
 
 ```json
 {
-  "title": "Strix Scope Gate",
+  "title": "Ishastra Scope Gate",
   "panels": [
     {
       "title": "Layer 1 Decisions (URL/Host)",
@@ -384,16 +384,16 @@ data:
     clients:
       - url: http://loki:3100/loki/api/v1/push
     scrape_configs:
-    - job_name: strix
+    - job_name: ishastra
       kubernetes_sd_configs:
       - role: pod
         namespaces:
           names:
-          - strix-system
+          - ishastra-system
       relabel_configs:
       - source_labels: [__meta_kubernetes_pod_label_app]
         action: keep
-        regex: strix-(api|worker|scheduler)
+        regex: ishastra-(api|worker|scheduler)
       - source_labels: [__meta_kubernetes_pod_name]
         target_label: pod
       - source_labels: [__meta_kubernetes_namespace]
@@ -405,23 +405,23 @@ data:
 ### Log Queries
 
 ```logql
-# All Strix logs
-{namespace="strix-system", app=~"strix-.*"}
+# All Ishastra logs
+{namespace="ishastra-system", app=~"ishastra-.*"}
 
 # API errors
-{namespace="strix-system", app="strix-api"} |= "ERROR"
+{namespace="ishastra-system", app="ishastra-api"} |= "ERROR"
 
 # Scope Gate denials
-{namespace="strix-system", app=~"strix-.*"} |= "DENIED" | json
+{namespace="ishastra-system", app=~"ishastra-.*"} |= "DENIED" | json
 
 # Assessment failures
-{namespace="strix-system", app="strix-worker"} |= "FAILED" | json
+{namespace="ishastra-system", app="ishastra-worker"} |= "FAILED" | json
 
 # Break Glass events
-{namespace="strix-system"} |= "break_glass" | json
+{namespace="ishastra-system"} |= "break_glass" | json
 
 # Slow requests (>5s)
-{namespace="strix-system", app="strix-api"} | json | duration > 5000000000
+{namespace="ishastra-system", app="ishastra-api"} | json | duration > 5000000000
 ```
 
 ## Key Metrics Reference
@@ -502,11 +502,11 @@ route:
 receivers:
 - name: 'default'
   email_configs:
-  - to: 'alerts@strix.dev'
+  - to: 'alerts@ishastra.dev'
     send_resolved: true
   slack_configs:
   - api_url: 'https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>'
-    channel: '#strix-alerts'
+    channel: '#ishastra-alerts'
     send_resolved: true
 
 - name: 'critical'
@@ -515,13 +515,13 @@ receivers:
     severity: critical
   slack_configs:
   - api_url: 'https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>'
-    channel: '#strix-critical'
+    channel: '#ishastra-critical'
     send_resolved: true
 
 - name: 'warning'
   slack_configs:
   - api_url: 'https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>'
-    channel: '#strix-warnings'
+    channel: '#ishastra-warnings'
     send_resolved: true
 
 inhibit_rules:
@@ -570,31 +570,31 @@ startupProbe:
 
 ```bash
 # Liveness - process is alive
-curl https://api.strix.dev/health/live
+curl https://api.ishastra.dev/health/live
 # {"status": "alive"}
 
 # Readiness - ready to serve traffic
-curl https://api.strix.dev/health/ready
+curl https://api.ishastra.dev/health/ready
 # {"status": "ready", "checks": {"database": "ok", "redis": "ok", "scope_gate": "ok"}}
 
 # Startup - initial initialization complete
-curl https://api.strix.dev/health/startup
+curl https://api.ishastra.dev/health/startup
 # {"status": "started"}
 
 # Detailed - all dependency checks
-curl https://api.strix.dev/health/detailed
+curl https://api.ishastra.dev/health/detailed
 ```
 
 ## Runbook Links
 
 | Alert | Runbook |
 |-------|---------|
-| StrixAPIDown | [API Down](../runbooks/api-down.md) |
-| StrixScopeGateDenialsHigh | [Scope Gate Denials](../runbooks/scope-gate-denials.md) |
-| StrixQueueDepthHigh | [Queue Backlog](../runbooks/queue-backlog.md) |
-| StrixWorkerOOMKilled | [Worker OOM](../runbooks/worker-oom.md) |
-| StrixDatabaseConnectionsHigh | [DB Connections](../runbooks/db-connections.md) |
-| StrixCertExpiringSoon | [Cert Expiry](../runbooks/certificate-expiry.md) |
+| IshastraAPIDown | [API Down](../runbooks/api-down.md) |
+| IshastraScopeGateDenialsHigh | [Scope Gate Denials](../runbooks/scope-gate-denials.md) |
+| IshastraQueueDepthHigh | [Queue Backlog](../runbooks/queue-backlog.md) |
+| IshastraWorkerOOMKilled | [Worker OOM](../runbooks/worker-oom.md) |
+| IshastraDatabaseConnectionsHigh | [DB Connections](../runbooks/db-connections.md) |
+| IshastraCertExpiringSoon | [Cert Expiry](../runbooks/certificate-expiry.md) |
 
 ## Related
 

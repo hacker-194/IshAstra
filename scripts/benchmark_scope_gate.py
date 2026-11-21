@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import time
 
-from strix.core import scope as scope_module
+from ishastra.core import scope as scope_module
 
 ADDRESS = "93.184.216.34"
 URL = "https://example.com/login"

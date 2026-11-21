@@ -1,4 +1,4 @@
-"""Unit tests for Strix body depth middleware (src/strix/api/body_depth.py).
+"""Unit tests for Ishastra body depth middleware (src/ishastra/api/body_depth.py).
 
 Tests cover: json_depth calculation, rejection responses, and BodyLimitMiddleware
 ASGI middleware behavior for size and nesting limits.
@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from strix.api.body_depth import (
+from ishastra.api.body_depth import (
     _BODY_METHODS,
     MAX_BODY_BYTES,
     MAX_NESTING_DEPTH,
@@ -20,10 +20,6 @@ from strix.api.body_depth import (
     _send_rejection,
     json_depth,
 )
-
-# ---------------------------------------------------------------------------
-# json_depth Unit Tests
-# ---------------------------------------------------------------------------
 
 
 class TestJsonDepth:
@@ -56,7 +52,7 @@ class TestJsonDepth:
     def test_mixed_nesting(self):
         """Test depth with mixed objects and arrays."""
         data = {"a": [{"b": {"c": [1, 2, 3]}}]}
-        # dict > list > dict > dict > list: five containers
+
         assert json_depth(data) == 5
 
     def test_siblings_at_different_depths(self):
@@ -98,11 +94,6 @@ class TestJsonDepth:
         assert json_depth(["item1", "item2"]) == 1
 
 
-# ---------------------------------------------------------------------------
-# _send_rejection Unit Tests
-# ---------------------------------------------------------------------------
-
-
 class TestSendRejection:
     """Tests for the _send_rejection helper function."""
 
@@ -116,9 +107,9 @@ class TestSendRejection:
         await _send_rejection(scope, receive, send, 413, "Request too large")
 
         send.assert_called()
-        # Verify response was sent via JSONResponse
+
         calls = send.call_args_list
-        assert len(calls) >= 2  # start + body
+        assert len(calls) >= 2
 
     @pytest.mark.asyncio
     async def test_send_rejection_with_request_id(self):
@@ -133,7 +124,6 @@ class TestSendRejection:
 
         await _send_rejection(scope, receive, send, 400, "Bad request")
 
-        # Check that response includes X-Request-ID header
         send_calls = send.call_args_list
         start_call = send_calls[0]
         assert start_call[0][0]["type"] == "http.response.start"
@@ -176,19 +166,14 @@ class TestSendRejection:
         assert b"Request body exceeds 100 bytes" in body
 
 
-# ---------------------------------------------------------------------------
-# _get_max_body_bytes Unit Tests
-# ---------------------------------------------------------------------------
-
-
 class TestGetMaxBodyBytes:
     """Tests for the _get_max_body_bytes lazy accessor."""
 
     def test_uses_settings_when_constant_zero(self):
         """Test it uses Settings when MAX_BODY_BYTES is 0."""
         with (
-            patch("strix.api.body_depth.MAX_BODY_BYTES", 0),
-            patch("strix.api.body_depth.get_settings") as mock_settings,
+            patch("ishastra.api.body_depth.MAX_BODY_BYTES", 0),
+            patch("ishastra.api.body_depth.get_settings") as mock_settings,
         ):
             mock_settings.return_value.max_body_bytes = 5000
             result = _get_max_body_bytes()
@@ -196,14 +181,9 @@ class TestGetMaxBodyBytes:
 
     def test_uses_constant_when_nonzero(self):
         """Test it uses MAX_BODY_BYTES when set."""
-        with patch("strix.api.body_depth.MAX_BODY_BYTES", 10000):
+        with patch("ishastra.api.body_depth.MAX_BODY_BYTES", 10000):
             result = _get_max_body_bytes()
             assert result == 10000
-
-
-# ---------------------------------------------------------------------------
-# BodyLimitMiddleware Unit Tests
-# ---------------------------------------------------------------------------
 
 
 class TestBodyLimitMiddleware:
@@ -234,8 +214,6 @@ class TestBodyLimitMiddleware:
     def mock_send(self):
         """Create a mock send callable."""
         return AsyncMock()
-
-    # --- Non-HTTP and non-body method passthrough ---
 
     @pytest.mark.asyncio
     async def test_passthrough_non_http(self, mock_app, mock_receive, mock_send):
@@ -290,11 +268,10 @@ class TestBodyLimitMiddleware:
 
         await middleware(base_scope, mock_receive, mock_send)
 
-        # App should be called with replay_receive
         mock_app.assert_awaited_once()
         call_args = mock_app.call_args
         assert call_args[0][0] == base_scope
-        # The receive function should be our replay_receive
+
         replay_receive = call_args[0][1]
         assert callable(replay_receive)
 
@@ -346,7 +323,7 @@ class TestBodyLimitMiddleware:
     @pytest.mark.asyncio
     async def test_case_insensitive_method(self, mock_app, mock_receive, mock_send, base_scope):
         """Middleware handles method case-insensitively."""
-        base_scope["method"] = "post"  # lowercase
+        base_scope["method"] = "post"
         base_scope["headers"] = [(b"content-length", b"10")]
         mock_receive.side_effect = [
             {"type": "http.request", "body": b"hello", "more_body": False},
@@ -357,8 +334,6 @@ class TestBodyLimitMiddleware:
         await middleware(base_scope, mock_receive, mock_send)
 
         mock_app.assert_awaited_once()
-
-    # --- Content-Length validation ---
 
     @pytest.mark.asyncio
     async def test_invalid_content_length_non_numeric(self, mock_app, mock_receive, mock_send, base_scope):
@@ -420,7 +395,7 @@ class TestBodyLimitMiddleware:
     @pytest.mark.asyncio
     async def test_no_content_length_streaming(self, mock_app, mock_receive, mock_send, base_scope):
         """Handles requests without Content-Length by counting chunks."""
-        base_scope["headers"] = []  # No Content-Length
+        base_scope["headers"] = []
         mock_receive.side_effect = [
             {"type": "http.request", "body": b"chunk1", "more_body": True},
             {"type": "http.request", "body": b"chunk2", "more_body": False},
@@ -432,15 +407,13 @@ class TestBodyLimitMiddleware:
 
         mock_app.assert_awaited_once()
 
-    # --- Body size limit during streaming ---
-
     @pytest.mark.asyncio
     async def test_streaming_body_exceeds_limit_rejected(self, mock_app, mock_receive, mock_send, base_scope):
         """Rejects streaming request when accumulated body exceeds limit."""
         base_scope["headers"] = []
         mock_receive.side_effect = [
             {"type": "http.request", "body": b"x" * 50, "more_body": True},
-            {"type": "http.request", "body": b"x" * 60, "more_body": False},  # Total 110 > 100
+            {"type": "http.request", "body": b"x" * 60, "more_body": False},
             {"type": "http.disconnect"},
         ]
         middleware = BodyLimitMiddleware(mock_app, max_body_bytes=100)
@@ -460,7 +433,7 @@ class TestBodyLimitMiddleware:
         base_scope["headers"] = []
         mock_receive.side_effect = [
             {"type": "http.request", "body": b"x" * 50, "more_body": True},
-            {"type": "http.request", "body": b"x" * 50, "more_body": False},  # Total 100
+            {"type": "http.request", "body": b"x" * 50, "more_body": False},
             {"type": "http.disconnect"},
         ]
         middleware = BodyLimitMiddleware(mock_app, max_body_bytes=100)
@@ -468,8 +441,6 @@ class TestBodyLimitMiddleware:
         await middleware(base_scope, mock_receive, mock_send)
 
         mock_app.assert_awaited_once()
-
-    # --- Request disconnect handling ---
 
     @pytest.mark.asyncio
     async def test_client_disconnect_before_complete(self, mock_app, mock_receive, mock_send, base_scope):
@@ -483,17 +454,12 @@ class TestBodyLimitMiddleware:
 
         await middleware(base_scope, mock_receive, mock_send)
 
-        # Should not call app when client disconnects
         mock_app.assert_not_awaited()
-        # Should not send rejection response (peer already gone)
-        # The middleware just returns silently
-
-    # --- JSON nesting depth validation ---
 
     @pytest.mark.asyncio
     async def test_json_within_nesting_limit(self, mock_app, mock_receive, mock_send, base_scope):
         """Accepts JSON body within nesting limit."""
-        body = json.dumps({"a": {"b": {"c": 1}}})  # depth 3
+        body = json.dumps({"a": {"b": {"c": 1}}})
         base_scope["headers"] = [(b"content-type", b"application/json")]
         mock_receive.side_effect = [
             {"type": "http.request", "body": body.encode(), "more_body": False},
@@ -508,7 +474,7 @@ class TestBodyLimitMiddleware:
     @pytest.mark.asyncio
     async def test_json_exceeds_nesting_limit_rejected(self, mock_app, mock_receive, mock_send, base_scope):
         """Rejects JSON body exceeding nesting limit."""
-        # Create JSON with depth 11 (exceeds default MAX_NESTING_DEPTH of 10)
+
         data = {"a": 1}
         for _ in range(11):
             data = {"nested": data}
@@ -534,11 +500,11 @@ class TestBodyLimitMiddleware:
     @pytest.mark.asyncio
     async def test_json_nesting_limit_custom(self, mock_app, mock_receive, mock_send, base_scope):
         """Respects custom max_nesting_depth parameter."""
-        # Depth 5 JSON
+
         data = {"a": 1}
         for _ in range(4):
             data = {"nested": data}
-        body = json.dumps(data)  # depth 5
+        body = json.dumps(data)
 
         base_scope["headers"] = [(b"content-type", b"application/json")]
         mock_receive.side_effect = [
@@ -566,7 +532,6 @@ class TestBodyLimitMiddleware:
 
         await middleware(base_scope, mock_receive, mock_send)
 
-        # Should pass through to downstream app (which will handle JSON parse error)
         mock_app.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -587,7 +552,7 @@ class TestBodyLimitMiddleware:
     async def test_json_detected_by_body_start(self, mock_app, mock_receive, mock_send, base_scope):
         """JSON detected by body starting with { or [ even without content-type."""
         body = b'{"key": "value"}'
-        base_scope["headers"] = [(b"content-type", b"text/plain")]  # Wrong content-type
+        base_scope["headers"] = [(b"content-type", b"text/plain")]
         mock_receive.side_effect = [
             {"type": "http.request", "body": body, "more_body": False},
             {"type": "http.disconnect"},
@@ -628,8 +593,6 @@ class TestBodyLimitMiddleware:
 
         mock_app.assert_awaited_once()
 
-    # --- Body replay to downstream app ---
-
     @pytest.mark.asyncio
     async def test_body_replayed_to_downstream(self, mock_app, mock_receive, mock_send, base_scope):
         """Body is replayed to downstream app via custom receive."""
@@ -643,11 +606,9 @@ class TestBodyLimitMiddleware:
 
         await middleware(base_scope, mock_receive, mock_send)
 
-        # Get the replay_receive function passed to app
         call_args = mock_app.call_args
         replay_receive = call_args[0][1]
 
-        # Call replay_receive to get the body
         message = await replay_receive()
         assert message["type"] == "http.request"
         assert message["body"] == original_body
@@ -669,11 +630,9 @@ class TestBodyLimitMiddleware:
         call_args = mock_app.call_args
         replay_receive = call_args[0][1]
 
-        # First call returns buffered body
         msg1 = await replay_receive()
         assert msg1["body"] == original_body
 
-        # Second call delegates to original receive
         mock_receive.reset_mock()
         mock_receive.return_value = {"type": "http.disconnect"}
         msg2 = await replay_receive()
@@ -699,16 +658,14 @@ class TestBodyLimitMiddleware:
         assert message["body"] == b""
         assert message["more_body"] is False
 
-    # --- Max body bytes override ---
-
     @pytest.mark.asyncio
     async def test_max_body_bytes_override_via_constructor(
         self, mock_app, mock_receive, mock_send, base_scope
     ):
         """Constructor max_body_bytes overrides module constant."""
         with (
-            patch("strix.api.body_depth.MAX_BODY_BYTES", 0),
-            patch("strix.api.body_depth.get_settings") as mock_settings,
+            patch("ishastra.api.body_depth.MAX_BODY_BYTES", 0),
+            patch("ishastra.api.body_depth.get_settings") as mock_settings,
         ):
             mock_settings.return_value.max_body_bytes = 5000
             base_scope["headers"] = [(b"content-length", b"100")]
@@ -716,7 +673,7 @@ class TestBodyLimitMiddleware:
                 {"type": "http.request", "body": b"x" * 100, "more_body": False},
                 {"type": "http.disconnect"},
             ]
-            # Override with 50 bytes limit
+
             middleware = BodyLimitMiddleware(mock_app, max_body_bytes=50)
 
             await middleware(base_scope, mock_receive, mock_send)
@@ -730,8 +687,8 @@ class TestBodyLimitMiddleware:
     async def test_max_body_bytes_from_settings(self, mock_app, mock_receive, mock_send, base_scope):
         """Uses Settings when constructor param is None and MAX_BODY_BYTES is 0."""
         with (
-            patch("strix.api.body_depth.MAX_BODY_BYTES", 0),
-            patch("strix.api.body_depth.get_settings") as mock_settings,
+            patch("ishastra.api.body_depth.MAX_BODY_BYTES", 0),
+            patch("ishastra.api.body_depth.get_settings") as mock_settings,
         ):
             mock_settings.return_value.max_body_bytes = 200
             base_scope["headers"] = [(b"content-length", b"150")]
@@ -744,8 +701,6 @@ class TestBodyLimitMiddleware:
             await middleware(base_scope, mock_receive, mock_send)
 
             mock_app.assert_awaited_once()
-
-    # --- Edge cases ---
 
     @pytest.mark.asyncio
     async def test_multiple_chunks_combined(self, mock_app, mock_receive, mock_send, base_scope):
@@ -779,7 +734,6 @@ class TestBodyLimitMiddleware:
 
         await middleware(base_scope, mock_receive, mock_send)
 
-        # Depth is 2, limit is 1, so should reject
         mock_app.assert_not_awaited()
         mock_send.assert_called()
 
@@ -809,7 +763,7 @@ class TestBodyLimitMiddleware:
         ]
         middleware = BodyLimitMiddleware(mock_app, max_body_bytes=1000)
 
-        with patch("strix.api.body_depth.json.loads", side_effect=RecursionError()):
+        with patch("ishastra.api.body_depth.json.loads", side_effect=RecursionError()):
             await middleware(base_scope, mock_receive, mock_send)
 
             mock_app.assert_not_awaited()
@@ -855,11 +809,6 @@ class TestBodyLimitMiddleware:
         headers = dict(start_call[0][0]["headers"])
         assert b"x-nesting-depth" in headers
         assert headers[b"x-nesting-depth"] == b"12"
-
-
-# ---------------------------------------------------------------------------
-# Module Constants Tests
-# ---------------------------------------------------------------------------
 
 
 class TestModuleConstants:

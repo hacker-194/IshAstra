@@ -20,13 +20,13 @@
 
 ## Component(s) Affected
 
-- [ ] Scope Gate (`src/strix/core/scope.py`)
-- [ ] API (`src/strix/api/`)
-- [ ] Adapters (`src/strix/core/adapters.py`)
-- [ ] Workers (`src/strix/core/worker.py`)
-- [ ] Scheduler (`src/strix/core/scheduler.py`)
-- [ ] CLI (`src/strix/cli.py`)
-- [ ] Helm Chart (`deploy/helm/strix/`)
+- [ ] Scope Gate (`src/ishastra/core/scope.py`)
+- [ ] API (`src/ishastra/api/`)
+- [ ] Adapters (`src/ishastra/core/adapters.py`)
+- [ ] Workers (`src/ishastra/core/worker.py`)
+- [ ] Scheduler (`src/ishastra/core/scheduler.py`)
+- [ ] CLI (`src/ishastra/cli.py`)
+- [ ] Helm Chart (`deploy/helm/ishastra/`)
 - [ ] Documentation (`docs/`)
 - [ ] Tests (`tests/`)
 - [ ] Other: _____
@@ -44,6 +44,7 @@
 - [ ] Self-reviewed the code
 - [ ] Comments added for complex logic
 - [ ] Documentation updated if needed
+- [ ] Commits signed off for the DCO (`git commit -s`)
 - [ ] No secrets or credentials committed
 - [ ] CHANGELOG.md updated (if user-facing)
 - [ ] Migration script added (if DB schema changed)

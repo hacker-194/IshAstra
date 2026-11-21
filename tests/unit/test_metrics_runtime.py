@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import strix.metrics as metrics
-from strix.core.jobs import Job, JobState, execute
-from strix.metrics import get_registry, init_metrics
+import ishastra.metrics as metrics
+from ishastra.core.jobs import Job, JobState, execute
+from ishastra.metrics import get_registry, init_metrics
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +28,7 @@ def _value(name: str, labels: dict[str, str]) -> float:
 def test_failed_job_records_state_transition_tenant_and_duration():
     init_metrics()
     job = Job(target="https://example.com/", profile="web", actor="test", policy={})
-    job.scope_snapshot = None  # execute fails fast without an authorization
+    job.scope_snapshot = None
 
     failed_before = _value("strix_jobs_total", {"state": "failed", "tenant": "global"})
     transition_before = _value("strix_job_state_transitions_total", {"from": "queued", "to": "failed"})
@@ -47,7 +47,7 @@ def test_failed_job_records_state_transition_tenant_and_duration():
         _value("strix_job_duration_seconds_count", {"profile": "web", "tenant": "global"})
         == duration_before + 1
     )
-    # A job that never ran is not left counted as active.
+
     assert _value("strix_jobs_active", {"tenant": "global"}) == active_before
 
 
@@ -57,7 +57,7 @@ def test_running_job_moves_the_active_gauge():
     job.scope_snapshot = None
     before = _value("strix_jobs_active", {"tenant": "global"})
 
-    from strix.core.jobs import _set_state
+    from ishastra.core.jobs import _set_state
 
     _set_state(job, JobState.RUNNING)
     assert _value("strix_jobs_active", {"tenant": "global"}) == before + 1
@@ -70,27 +70,29 @@ def test_adapter_error_and_timeout_series():
     tenant = "acme"
     errors = _value(
         "strix_adapter_errors_total",
-        {"adapter": "strix-http", "error_type": "timeout", "tenant": tenant},
+        {"adapter": "ishastra-http", "error_type": "timeout", "tenant": tenant},
     )
-    timeouts = _value("strix_adapter_timeout_total", {"adapter": "strix-http", "tenant": tenant})
+    timeouts = _value("strix_adapter_timeout_total", {"adapter": "ishastra-http", "tenant": tenant})
 
-    from strix import metrics
+    from ishastra import metrics
 
-    metrics.record_adapter_error("strix-http", "timeout", tenant, timeout=True)
+    metrics.record_adapter_error("ishastra-http", "timeout", tenant, timeout=True)
 
     assert (
         _value(
             "strix_adapter_errors_total",
-            {"adapter": "strix-http", "error_type": "timeout", "tenant": tenant},
+            {"adapter": "ishastra-http", "error_type": "timeout", "tenant": tenant},
         )
         == errors + 1
     )
-    assert _value("strix_adapter_timeout_total", {"adapter": "strix-http", "tenant": tenant}) == timeouts + 1
+    assert (
+        _value("strix_adapter_timeout_total", {"adapter": "ishastra-http", "tenant": tenant}) == timeouts + 1
+    )
 
 
 def test_queue_and_worker_gauges_track_the_values_given():
     init_metrics()
-    from strix import metrics
+    from ishastra import metrics
 
     metrics.record_queue_depth(3, "inprocess")
     metrics.record_worker_occupancy(total=4, busy=2, mode="inprocess")
@@ -102,7 +104,7 @@ def test_queue_and_worker_gauges_track_the_values_given():
 
 def test_db_pool_gauges_and_acquire_histogram():
     init_metrics()
-    from strix import metrics
+    from ishastra import metrics
 
     metrics.record_db_pool("sqlite", 10, 7)
     before = _value("strix_db_pool_acquire_seconds_count", {"dialect": "sqlite"})
@@ -114,7 +116,7 @@ def test_db_pool_gauges_and_acquire_histogram():
 
 
 def test_audit_append_records_event_and_chain_length():
-    from strix.audit import AuditChain
+    from ishastra.audit import AuditChain
 
     init_metrics()
     before = _value("strix_audit_events_total", {"tenant": "acme", "event_type": "policy_created"})
@@ -129,10 +131,13 @@ def test_audit_append_records_event_and_chain_length():
 
 
 def test_job_findings_are_counted_by_severity_and_detector():
-    from strix.core.findings import Finding
+    from ishastra.core.findings import Finding
 
     init_metrics()
-    before = _value("strix_findings_total", {"tenant": "global", "severity": "high", "adapter": "strix-http"})
+    before = _value(
+        "strix_findings_total",
+        {"tenant": "global", "severity": "high", "adapter": "ishastra-http"},
+    )
     job = Job(target="https://example.com/", profile="web", actor="test", policy={})
     job.scope_snapshot = None
     job.findings = [
@@ -142,7 +147,7 @@ def test_job_findings_are_counted_by_severity_and_detector():
             title="Missing CSP",
             severity="high",
             confidence="high",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1",
             evidence="no header",
         )
@@ -151,14 +156,14 @@ def test_job_findings_are_counted_by_severity_and_detector():
     execute(job)
 
     assert (
-        _value("strix_findings_total", {"tenant": "global", "severity": "high", "adapter": "strix-http"})
+        _value("strix_findings_total", {"tenant": "global", "severity": "high", "adapter": "ishastra-http"})
         == before + 1
     )
 
 
 def test_queue_wait_and_webhook_and_auth_recorders():
     init_metrics()
-    from strix import metrics
+    from ishastra import metrics
 
     queue_before = _value("strix_job_queue_duration_seconds_count", {"profile": "web"})
     metrics.observe_job_queue("web", 0.4)

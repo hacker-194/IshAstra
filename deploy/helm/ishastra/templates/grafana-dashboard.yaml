@@ -1,0 +1,1233 @@
+{{- if and .Values.monitoring.prometheus.enabled .Values.monitoring.grafana.enabled }}
+{{- $fullname := include "ishastra.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-overview
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-overview.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${DS_PROMETHEUS}"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [
+        {
+          "asDropdown": true,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": true,
+          "name": "Job Latency",
+          "tags": ["latency"],
+          "targetBlank": true,
+          "title": "Job Latency",
+          "type": "dashboards",
+          "uid": "ishastra-job-latency",
+          "url": ""
+        },
+        {
+          "asDropdown": true,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": true,
+          "name": "Adapter Success Rates",
+          "tags": ["adapters"],
+          "targetBlank": true,
+          "title": "Adapter Success Rates",
+          "type": "dashboards",
+          "uid": "ishastra-adapter-success-rates",
+          "url": ""
+        },
+        {
+          "asDropdown": true,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": true,
+          "name": "Queue Depth",
+          "tags": ["queue"],
+          "targetBlank": true,
+          "title": "Queue Depth",
+          "type": "dashboards",
+          "uid": "ishastra-queue-depth",
+          "url": ""
+        },
+        {
+          "asDropdown": true,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": true,
+          "name": "Tenant Throughput",
+          "tags": ["tenant"],
+          "targetBlank": true,
+          "title": "Tenant Throughput",
+          "type": "dashboards",
+          "uid": "ishastra-tenant-throughput",
+          "url": ""
+        },
+        {
+          "asDropdown": true,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": true,
+          "name": "Error Rates",
+          "tags": ["errors"],
+          "targetBlank": true,
+          "title": "Error Rates",
+          "type": "dashboards",
+          "uid": "ishastra-error-rates",
+          "url": ""
+        }
+      ],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red", "index": 0}, "1": {"color": "green", "index": 1}}, "type": "value"}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "up{job=\"{{ $fullname }}-api\"}", "refId": "A"}],
+          "title": "Ishastra API Up",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red", "index": 0}, "1": {"color": "green", "index": 1}}, "type": "value"}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0},
+          "id": 2,
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "up{job=\"prometheus\"}", "refId": "A"}],
+          "title": "Prometheus Up",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red", "index": 0}, "1": {"color": "green", "index": 1}}, "type": "value"}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+          "id": 3,
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "up{job=\"grafana\"}", "refId": "A"}],
+          "title": "Grafana Up",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red", "index": 0}, "1": {"color": "green", "index": 1}}, "type": "value"}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+          "id": 4,
+          "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "up{job=\"redis\"}", "refId": "A"}],
+          "title": "Redis Up",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+          "id": 5,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "sum(rate(ishastra_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ishastra_http_requests_total[5m]))", "refId": "A"}],
+          "title": "Overall 5xx Error Rate",
+          "type": "gauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+          "id": 6,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [{"expr": "sum(ishastra_jobs_active)", "refId": "A"}],
+          "title": "Active Jobs",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "id": 7,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(ishastra_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(ishastra_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B"},
+            {"expr": "histogram_quantile(0.99, sum(rate(ishastra_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C"}
+          ],
+          "title": "HTTP Request Latency (p50/p95/p99)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 300}]},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "id": 8,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B"},
+            {"expr": "histogram_quantile(0.99, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C"}
+          ],
+          "title": "Job Duration (p50/p95/p99)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "id": 9,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m])))", "legendFormat": "Overall", "refId": "A"},
+            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "B"}
+          ],
+          "title": "Adapter Success Rates",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "id": 10,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"expr": "sum(increase(strix_jobs_total[5m])) by (state)", "legendFormat": "{{printf `{{state}}`}}", "refId": "A"}],
+          "title": "Job State Transitions (5m rate)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+          "id": 11,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"expr": "sum(rate(ishastra_http_requests_total[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}],
+          "title": "HTTP Request Rate by Tenant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+          "id": 12,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}],
+          "title": "Findings by Tenant & Severity (1h)",
+          "type": "barchart"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "overview", "observability"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(ishastra_http_requests_total, tenant)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Tenant",
+            "multi": true,
+            "name": "tenant",
+            "options": [],
+            "query": {"query": "label_values(ishastra_http_requests_total, tenant)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Observability Overview",
+      "uid": "ishastra-overview",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-queue-depth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-queue-depth.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 200}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(strix_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
+          ],
+          "title": "Queue Backlog by Tenant (5m)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(strix_jobs_queued) by (tenant, priority)", "legendFormat": "{{printf `{{tenant}} - {{ "{{priority}}" }}`}}", "refId": "A"}
+          ],
+          "title": "Queued Jobs by Tenant & Priority",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(ishastra_jobs_active) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
+          ],
+          "title": "Active Jobs by Tenant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 200}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {"expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(strix_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "refId": "A"}
+          ],
+          "title": "Total Queue Backlog",
+          "type": "gauge"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_jobs_total{state=\"started\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - started`}}", "refId": "A"},
+            {"expr": "sum(rate(strix_jobs_total{state=\"completed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - completed`}}", "refId": "B"},
+            {"expr": "sum(rate(strix_jobs_total{state=\"failed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - failed`}}", "refId": "C"},
+            {"expr": "sum(rate(strix_jobs_total{state=\"cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - cancelled`}}", "refId": "D"}
+          ],
+          "title": "Job State Transition Rates by Tenant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(strix_worker_count) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
+          ],
+          "title": "Worker Count by Tenant",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "queue", "backlog"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(strix_jobs_total, tenant)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Tenant",
+            "multi": true,
+            "name": "tenant",
+            "options": [],
+            "query": {"query": "label_values(strix_jobs_total, tenant)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Queue Depth",
+      "uid": "ishastra-queue-depth",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-job-latency
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-job-latency.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le, tenant))", "legendFormat": "{{printf `{{tenant}} - p50`}}", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le, tenant))", "legendFormat": "{{printf `{{tenant}} - p95`}}", "refId": "B"},
+            {"expr": "histogram_quantile(0.99, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le, tenant))", "legendFormat": "{{printf `{{tenant}} - p99`}}", "refId": "C"}
+          ],
+          "title": "Job Duration Percentiles by Tenant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum(rate(ishastra_job_duration_seconds_bucket{adapter!=\"\"}[5m])) by (le, adapter))", "legendFormat": "{{printf `{{adapter}} - p50`}}", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum(rate(ishastra_job_duration_seconds_bucket{adapter!=\"\"}[5m])) by (le, adapter))", "legendFormat": "{{printf `{{adapter}} - p95`}}", "refId": "B"},
+            {"expr": "histogram_quantile(0.99, sum(rate(ishastra_job_duration_seconds_bucket{adapter!=\"\"}[5m])) by (le, adapter))", "legendFormat": "{{printf `{{adapter}} - p99`}}", "refId": "C"}
+          ],
+          "title": "Job Duration Percentiles by Adapter",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_job_duration_seconds_sum[5m])) by (tenant) / sum(rate(strix_job_duration_seconds_count[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - avg`}}", "refId": "A"}
+          ],
+          "title": "Average Job Duration by Tenant",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_job_duration_seconds_sum[5m])) by (adapter) / sum(rate(strix_job_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
+          ],
+          "title": "Average Job Duration by Adapter",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "latency", "jobs"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(ishastra_job_duration_seconds_bucket, tenant)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Tenant",
+            "multi": true,
+            "name": "tenant",
+            "options": [],
+            "query": {"query": "label_values(ishastra_job_duration_seconds_bucket, tenant)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Job Latency",
+      "uid": "ishastra-job-latency",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-adapter-success-rates
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-adapter-success-rates.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.95}, {"color": "green", "value": 0.99}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "A"}
+          ],
+          "title": "Adapter Success Rate by Adapter",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.95}, {"color": "green", "value": 0.99}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter, tenant) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter, tenant))", "legendFormat": "{{printf `{{tenant}} - {{adapter}}`}}", "refId": "A"}
+          ],
+          "title": "Adapter Success Rate by Tenant & Adapter",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_adapter_errors_total[5m])) by (adapter, error_type)", "legendFormat": "{{printf `{{adapter}} - {{error_type}}`}}", "refId": "A"}
+          ],
+          "title": "Adapter Error Rates by Type",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_adapter_duration_seconds_sum[5m])) by (adapter) / sum(rate(strix_adapter_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
+          ],
+          "title": "Adapter Average Duration",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [{"options": {"0": {"color": "red", "index": 0}, "1": {"color": "yellow", "index": 1}, "2": {"color": "green", "index": 2}}, "type": "value"}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.95}, {"color": "green", "value": 0.99}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m])))", "refId": "A"}
+          ],
+          "title": "Overall Adapter Success Rate",
+          "type": "gauge"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "adapters", "success-rate"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(strix_adapter_errors_total, adapter)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Adapter",
+            "multi": true,
+            "name": "adapter",
+            "options": [],
+            "query": {"query": "label_values(strix_adapter_errors_total, adapter)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Adapter Success Rates",
+      "uid": "ishastra-adapter-success-rates",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-error-rates
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-error-rates.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(ishastra_http_requests_total{status=~\"5..\"}[5m])) by (endpoint) / sum(rate(ishastra_http_requests_total[5m])) by (endpoint)", "legendFormat": "{{printf `{{endpoint}}`}}", "refId": "A"}
+          ],
+          "title": "HTTP 5xx Error Rate by Endpoint",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(ishastra_http_requests_total{status=~\"4..\"}[5m])) by (endpoint) / sum(rate(ishastra_http_requests_total[5m])) by (endpoint)", "legendFormat": "{{printf `{{endpoint}}`}}", "refId": "A"}
+          ],
+          "title": "HTTP 4xx Error Rate by Endpoint",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(ishastra_http_requests_total[5m])) by (status)", "legendFormat": "{{printf `{{status}}`}}", "refId": "A"}
+          ],
+          "title": "HTTP Request Rate by Status Code",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_auth_failures_total[5m])) by (reason)", "legendFormat": "{{printf `{{ "{{reason}}" }}`}}", "refId": "A"}
+          ],
+          "title": "Authentication Failure Rate by Reason",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier)", "legendFormat": "{{printf `{{route_class}} - {{tier}}`}}", "refId": "A"}
+          ],
+          "title": "Rate Limit Exceeded by Route Class & Tier",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_webhook_failures_total[5m])) by (error_type)", "legendFormat": "{{printf `{{error_type}}`}}", "refId": "A"}
+          ],
+          "title": "Webhook Failure Rate by Error Type",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "errors", "http", "auth", "ratelimit"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(ishastra_http_requests_total, tenant)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Tenant",
+            "multi": true,
+            "name": "tenant",
+            "options": [],
+            "query": {"query": "label_values(ishastra_http_requests_total, tenant)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Error Rates",
+      "uid": "ishastra-error-rates",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-grafana-dashboard-findings-pipeline
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+    dashboard_folder: "Ishastra"
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+data:
+  ishastra-findings-pipeline.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_findings_total[5m])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
+          ],
+          "title": "Findings Rate by Tenant & Severity",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
+          ],
+          "title": "Findings Volume (1h) by Tenant & Severity",
+          "type": "barchart"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_findings_total[5m])) by (adapter, severity)", "legendFormat": "{{printf `{{adapter}} - {{severity}}`}}", "refId": "A"}
+          ],
+          "title": "Findings Rate by Adapter & Severity",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"tooltip": false, "viz": false, "legend": false}, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": true},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"expr": "sum(rate(strix_findings_total{severity=\"critical\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"},
+            {"expr": "sum(rate(strix_findings_total{severity=\"high\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "B"},
+            {"expr": "sum(rate(strix_findings_total{severity=\"medium\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "C"},
+            {"expr": "sum(rate(strix_findings_total{severity=\"low\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "D"}
+          ],
+          "title": "Findings Rate by Severity (Stacked)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [{"options": {"0": {"color": "red", "index": 0}, "1": {"color": "green", "index": 1}}, "type": "value"}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+          "id": 5,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
+          "pluginVersion": "11.2.0",
+          "targets": [
+            {"expr": "sum(rate(strix_findings_total[5m]))", "refId": "A"}
+          ],
+          "title": "Total Findings Rate",
+          "type": "stat"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["ishastra", "findings", "pipeline"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+            "definition": "label_values(strix_findings_total, tenant)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Tenant",
+            "multi": true,
+            "name": "tenant",
+            "options": [],
+            "query": {"query": "label_values(strix_findings_total, tenant)", "refId": "StandardVariableQuery"},
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 0,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Ishastra - Findings Pipeline",
+      "uid": "ishastra-findings-pipeline",
+      "version": 1,
+      "weekStart": ""
+    }
+{{- end }}

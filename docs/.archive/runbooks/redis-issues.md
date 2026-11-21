@@ -4,7 +4,7 @@
 
 | Alert | Severity | Threshold | Duration |
 |-------|----------|-----------|----------|
-| `StrixRedisDown` | critical | Redis up == 0 | 1m |
+| `IshastraRedisDown` | critical | Redis up == 0 | 1m |
 | `KubePodOOMKilled` (Redis pod) | critical | OOMKilled == 1 | 1m |
 | `KubeNodeMemoryPressure` | critical | MemoryPressure == 1 | 5m |
 
@@ -13,7 +13,7 @@
 ## Symptoms & Impact
 
 **Symptoms:**
-- Rate limiting fails (open or closed depending on `STRIX_REDIS_REQUIRED`)
+- Rate limiting fails (open or closed depending on `ISHASTRA_REDIS_REQUIRED`)
 - Scheduler fails to start (leader election)
 - Distributed locks fail (duplicate scheduled scans)
 - Kubernetes Jobs queue unavailable (if using k8s-jobs workers)
@@ -21,8 +21,8 @@
 - High Redis memory usage / eviction
 
 **Impact:**
-- **SEV-2** (Redis down, `STRIX_REDIS_REQUIRED=true`): Rate limiting, scheduling, distributed queue all fail
-- **SEV-3** (Redis down, `STRIX_REDIS_REQUIRED=false`): Falls back to in-memory, single-instance only
+- **SEV-2** (Redis down, `ISHASTRA_REDIS_REQUIRED=true`): Rate limiting, scheduling, distributed queue all fail
+- **SEV-3** (Redis down, `ISHASTRA_REDIS_REQUIRED=false`): Falls back to in-memory, single-instance only
 - **SEV-2** (OOM/Memory pressure): Evictions cause rate limit resets, lock loss
 
 ---
@@ -32,52 +32,52 @@
 ### 1. Redis Health Checks
 ```bash
 # Basic connectivity
-kubectl exec -n strix redis-master-0 -- redis-cli ping
+kubectl exec -n ishastra redis-master-0 -- redis-cli ping
 
 # Check Redis info
-kubectl exec -n strix redis-master-0 -- redis-cli INFO
-kubectl exec -n strix redis-master-0 -- redis-cli INFO memory
-kubectl exec -n strix redis-master-0 -- redis-cli INFO replication
-kubectl exec -n strix redis-master-0 -- redis-cli INFO persistence
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO memory
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO replication
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO persistence
 
 # Check connected clients
-kubectl exec -n strix redis-master-0 -- redis-cli CLIENT LIST
+kubectl exec -n ishastra redis-master-0 -- redis-cli CLIENT LIST
 
 # Check slow log
-kubectl exec -n strix redis-master-0 -- redis-cli SLOWLOG GET 20
+kubectl exec -n ishastra redis-master-0 -- redis-cli SLOWLOG GET 20
 ```
 
 ### 2. Kubernetes Redis Status
 ```bash
 # Check Redis pod status
-kubectl get pods -n strix -l app.kubernetes.io/name=redis
+kubectl get pods -n ishastra -l app.kubernetes.io/name=redis
 
 # Check Redis pod logs
-kubectl logs -n strix redis-master-0 --tail=100
-kubectl logs -n strix redis-replica-0 --tail=100  # if replication
+kubectl logs -n ishastra redis-master-0 --tail=100
+kubectl logs -n ishastra redis-replica-0 --tail=100  # if replication
 
 # Check Redis resources
-kubectl top pods -n strix -l app.kubernetes.io/name=redis
+kubectl top pods -n ishastra -l app.kubernetes.io/name=redis
 
 # Check PVC
-kubectl get pvc -n strix -l app.kubernetes.io/name=redis
+kubectl get pvc -n ishastra -l app.kubernetes.io/name=redis
 ```
 
 ### 3. Application-Level Redis Checks
 ```bash
-# Test from Strix API pod
-kubectl exec -n strix strix-api-xxx -- redis-cli -u redis://redis-master:6379/0 ping
+# Test from Ishastra API pod
+kubectl exec -n ishastra ishastra-api-xxx -- redis-cli -u redis://redis-master:6379/0 ping
 
 # Check rate limiter keys
-kubectl exec -n strix redis-master-0 -- redis-cli -n 0 KEYS "ratelimit:*" | head -20
-kubectl exec -n strix redis-master-0 -- redis-cli -n 0 DBSIZE
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 0 KEYS "ratelimit:*" | head -20
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 0 DBSIZE
 
 # Check scheduler locks
-kubectl exec -n strix redis-master-0 -- redis-cli -n 0 KEYS "scheduler:lock:*"
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 0 KEYS "scheduler:lock:*"
 
 # Check Kubernetes Jobs queue (if used)
-kubectl exec -n strix redis-master-0 -- redis-cli -n 1 LLEN k8s-jobs
-kubectl exec -n strix redis-master-0 -- redis-cli -n 1 KEYS "*" | head -20
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 1 LLEN k8s-jobs
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 1 KEYS "*" | head -20
 ```
 
 ### 4. Redis Metrics (PromQL)
@@ -110,32 +110,32 @@ redis_replication_lag_seconds
 #### Redis Down - Single Instance
 ```bash
 # 1. Check pod status
-kubectl get pods -n strix redis-master-0
+kubectl get pods -n ishastra redis-master-0
 
 # 2. If CrashLoopBackOff, check logs
-kubectl logs -n strix redis-master-0 --previous --tail=50
+kubectl logs -n ishastra redis-master-0 --previous --tail=50
 
 # 3. Restart Redis pod
-kubectl delete pod -n strix redis-master-0
+kubectl delete pod -n ishastra redis-master-0
 
 # 4. If PVC issue, check storage
-kubectl describe pvc -n strix redis-data-redis-master-0
+kubectl describe pvc -n ishastra redis-data-redis-master-0
 
 # 5. Verify recovery
-kubectl exec -n strix redis-master-0 -- redis-cli ping
+kubectl exec -n ishastra redis-master-0 -- redis-cli ping
 ```
 
 #### Redis Down - Replication Mode
 ```bash
 # 1. Check master/replica status
-kubectl exec -n strix redis-master-0 -- redis-cli INFO replication
-kubectl exec -n strix redis-replica-0 -- redis-cli INFO replication
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO replication
+kubectl exec -n ishastra redis-replica-0 -- redis-cli INFO replication
 
 # 2. If master down, promote replica
-kubectl exec -n strix redis-replica-0 -- redis-cli REPLICAOF NO ONE
+kubectl exec -n ishastra redis-replica-0 -- redis-cli REPLICAOF NO ONE
 
 # 3. Update service to point to new master
-kubectl patch svc redis-master -n strix -p '{"spec":{"selector":{"statefulset.kubernetes.io/pod-name":"redis-replica-0"}}}'
+kubectl patch svc redis-master -n ishastra -p '{"spec":{"selector":{"statefulset.kubernetes.io/pod-name":"redis-replica-0"}}}'
 
 # 4. Recreate old master as replica
 # (Handled by Redis operator/bitnami chart automatically)
@@ -144,36 +144,36 @@ kubectl patch svc redis-master -n strix -p '{"spec":{"selector":{"statefulset.ku
 #### Redis OOM / Memory Pressure
 ```bash
 # 1. Check memory usage
-kubectl exec -n strix redis-master-0 -- redis-cli INFO memory
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO memory
 
 # 2. Check eviction policy
-kubectl exec -n strix redis-master-0 -- redis-cli CONFIG GET maxmemory-policy
+kubectl exec -n ishastra redis-master-0 -- redis-cli CONFIG GET maxmemory-policy
 
 # 3. Set appropriate eviction policy (allkeys-lru for rate limiting)
-kubectl exec -n strix redis-master-0 -- redis-cli CONFIG SET maxmemory-policy allkeys-lru
+kubectl exec -n ishastra redis-master-0 -- redis-cli CONFIG SET maxmemory-policy allkeys-lru
 
 # 4. Increase memory limit (requires pod restart)
 # Edit values.yaml: redis.master.resources.limits.memory: "1Gi"
-helm upgrade strix ./deploy/helm/strix -n strix -f values.yaml
+helm upgrade ishastra ./deploy/helm/ishastra -n ishastra -f values.yaml
 
 # 5. Flush non-critical keys if emergency
 # WARNING: This resets rate limits!
-kubectl exec -n strix redis-master-0 -- redis-cli -n 0 FLUSHDB
+kubectl exec -n ishastra redis-master-0 -- redis-cli -n 0 FLUSHDB
 ```
 
 #### Redis Persistence Issues
 ```bash
 # Check AOF/RDB status
-kubectl exec -n strix redis-master-0 -- redis-cli INFO persistence
+kubectl exec -n ishastra redis-master-0 -- redis-cli INFO persistence
 
 # Force AOF rewrite
-kubectl exec -n strix redis-master-0 -- redis-cli BGREWRITEAOF
+kubectl exec -n ishastra redis-master-0 -- redis-cli BGREWRITEAOF
 
 # Check last save
-kubectl exec -n strix redis-master-0 -- redis-cli LASTSAVE
+kubectl exec -n ishastra redis-master-0 -- redis-cli LASTSAVE
 
 # Trigger manual save
-kubectl exec -n strix redis-master-0 -- redis-cli BGSAVE
+kubectl exec -n ishastra redis-master-0 -- redis-cli BGSAVE
 ```
 
 ### Root Cause Resolution
@@ -181,15 +181,15 @@ kubectl exec -n strix redis-master-0 -- redis-cli BGSAVE
 #### Network Policy Blocking Redis
 ```bash
 # Check network policy
-kubectl get networkpolicy -n strix
+kubectl get networkpolicy -n ishastra
 
-# Allow Strix pods to connect to Redis
+# Allow Ishastra pods to connect to Redis
 kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: strix-to-redis
-  namespace: strix
+  name: ishastra-to-redis
+  namespace: ishastra
 spec:
   podSelector:
     matchLabels:
@@ -200,7 +200,7 @@ spec:
   - from:
     - podSelector:
         matchLabels:
-          app.kubernetes.io/name: strix
+          app.kubernetes.io/name: ishastra
     ports:
     - protocol: TCP
       port: 6379
@@ -210,21 +210,21 @@ EOF
 #### Authentication Issues
 ```bash
 # Check Redis password in secret
-kubectl get secret strix-redis-secret -n strix \
+kubectl get secret ishastra-redis-secret -n ishastra \
   -o 'jsonpath={.data.redis-password}' | grep -q . \
   && echo "Redis password is present"
 
 # Test with password
-kubectl exec -n strix strix-api-xxx -- env REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping
+kubectl exec -n ishastra ishastra-api-xxx -- env REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping
 ```
 
 #### Clock Skew (Rate Limiter Issues)
 ```bash
 # Check time sync on Redis node
-kubectl exec -n strix redis-master-0 -- date
+kubectl exec -n ishastra redis-master-0 -- date
 
-# Check time sync on Strix pods
-kubectl exec -n strix strix-api-xxx -- date
+# Check time sync on Ishastra pods
+kubectl exec -n ishastra ishastra-api-xxx -- date
 
 # Fix: Ensure NTP running on all nodes
 # Check chrony/systemd-timesyncd status

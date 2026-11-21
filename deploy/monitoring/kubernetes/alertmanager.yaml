@@ -1,9 +1,9 @@
-# Alertmanager with Config from alertmanager.yml
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f alertmanager.yaml
+
+
+
 
 ---
-# ServiceAccount for Alertmanager
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,11 +12,11 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: alertmanager
 
 ---
-# Secret for Alertmanager configuration (from alertmanager.yml)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -25,22 +25,22 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   alertmanager.yml: |
     global:
       resolve_timeout: 5m
       smtp_smarthost: 'smtp.example.com:587'
-      smtp_from: 'alertmanager@strix.example.com'
+      smtp_from: 'alertmanager@ishastra.example.com'
       smtp_auth_username: 'alertmanager'
       smtp_auth_password: '${SMTP_PASSWORD}'
       smtp_require_tls: true
-      # Slack webhook URLs - replace with actual values or use ExternalSecrets
+
       slack_api_url: '${SLACK_WEBHOOK_URL}'
       slack_api_url_critical: '${SLACK_WEBHOOK_URL_CRITICAL}'
       slack_api_url_security: '${SLACK_WEBHOOK_URL_SECURITY}'
-      # PagerDuty service key
+
       pagerduty_service_key: '${PAGERDUTY_SERVICE_KEY}'
 
     route:
@@ -70,26 +70,26 @@ stringData:
     receivers:
       - name: 'default'
         email_configs:
-          - to: 'oncall@strix.example.com'
+          - to: 'oncall@ishastra.example.com'
             send_resolved: true
             html: '{{ template "email.default.html" . }}'
         slack_configs:
           - api_url: '${SLACK_WEBHOOK_URL}'
-            channel: '#strix-alerts'
+            channel: '#ishastra-alerts'
             send_resolved: true
             title: '{{ .GroupLabels.alertname }}'
             text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
-            icon_emoji: ':strix:'
+            icon_emoji: ':ishastra:'
             username: 'Alertmanager'
 
       - name: 'critical-alerts'
         email_configs:
-          - to: 'oncall-critical@strix.example.com'
+          - to: 'oncall-critical@ishastra.example.com'
             send_resolved: true
             html: '{{ template "email.critical.html" . }}'
         slack_configs:
           - api_url: '${SLACK_WEBHOOK_URL_CRITICAL}'
-            channel: '#strix-critical'
+            channel: '#ishastra-critical'
             send_resolved: true
             title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
             text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
@@ -107,12 +107,12 @@ stringData:
 
       - name: 'security-alerts'
         email_configs:
-          - to: 'security@strix.example.com'
+          - to: 'security@ishastra.example.com'
             send_resolved: true
             html: '{{ template "email.security.html" . }}'
         slack_configs:
           - api_url: '${SLACK_WEBHOOK_URL_SECURITY}'
-            channel: '#strix-security'
+            channel: '#ishastra-security'
             send_resolved: true
             title: '🔒 SECURITY: {{ .GroupLabels.alertname }}'
             text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
@@ -121,31 +121,31 @@ stringData:
 
       - name: 'sli-alerts'
         email_configs:
-          - to: 'sli-alerts@strix.example.com'
+          - to: 'sli-alerts@ishastra.example.com'
             send_resolved: true
         slack_configs:
           - api_url: '${SLACK_WEBHOOK_URL}'
-            channel: '#strix-sli'
+            channel: '#ishastra-sli'
             send_resolved: true
             title: '📊 SLI Alert: {{ .GroupLabels.alertname }}'
             text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
 
       - name: 'compliance-alerts'
         email_configs:
-          - to: 'compliance@strix.example.com'
+          - to: 'compliance@ishastra.example.com'
             send_resolved: true
         slack_configs:
           - api_url: '${SLACK_WEBHOOK_URL}'
-            channel: '#strix-compliance'
+            channel: '#ishastra-compliance'
             send_resolved: true
             title: '📋 Compliance Alert: {{ .GroupLabels.alertname }}'
             text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
 
-    # Templates for email notifications
+
     templates:
       - '/etc/alertmanager/templates/*.tmpl'
 
-    # Inhibit rules to reduce noise
+
     inhibit_rules:
       - source_match:
           severity: 'critical'
@@ -153,13 +153,13 @@ stringData:
           severity: 'warning'
         equal: ['alertname', 'component']
       - source_match:
-          alertname: 'StrixServiceDown'
+          alertname: 'IshastraServiceDown'
         target_match_re:
-          alertname: 'Strix.*'
+          alertname: 'Ishastra.*'
         equal: ['component']
 
 ---
-# TLS Secret for Alertmanager (generated by cert-manager or manually)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -168,14 +168,14 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# CA Secret for Alertmanager client verification
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -184,13 +184,13 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 data:
-  ca.crt: ""  # Base64 encoded CA cert
+  ca.crt: ""
 
 ---
-# Client cert for Prometheus to talk to Alertmanager
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -199,14 +199,14 @@ metadata:
   labels:
     app: prometheus
     app.kubernetes.io/name: prometheus
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded client cert
-  tls.key: ""  # Base64 encoded client key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# Alertmanager Configuration ConfigMap (templates)
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -215,7 +215,7 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 data:
   email.default.html: |
     {{ define "email.default.html" }}
@@ -280,7 +280,7 @@ data:
     {{ end }}
 
 ---
-# Alertmanager Custom Resource
+
 apiVersion: monitoring.coreos.com/v1
 kind: Alertmanager
 metadata:
@@ -289,23 +289,23 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: alertmanager
-    alertmanager: strix
+    alertmanager: ishastra
 spec:
-  # High availability - 3 replicas for HA quorum
+
   replicas: 3
 
-  # ServiceAccount for RBAC
+
   serviceAccountName: alertmanager
 
-  # Security context
+
   securityContext:
     fsGroup: 65534
     runAsNonRoot: true
     runAsUser: 65534
 
-  # Container resources
+
   resources:
     requests:
       cpu: 100m
@@ -314,7 +314,7 @@ spec:
       cpu: 500m
       memory: 512Mi
 
-  # Storage for Alertmanager data
+
   storage:
     volumeClaimTemplate:
       metadata:
@@ -328,10 +328,10 @@ spec:
             storage: 10Gi
         storageClassName: fast-ssd
 
-  # Enable cluster mode for HA
+
   enableClusterMode: true
 
-  # Cluster configuration for gossip
+
   cluster:
     peerTimeout: 15s
     peerAddress: ""
@@ -350,10 +350,10 @@ spec:
         - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
 
-  # Web configuration with TLS
+
   web:
     routePrefix: /
-    externalUrl: https://alertmanager.strix.example.com
+    externalUrl: https://alertmanager.ishastra.example.com
     tlsConfig:
       certFile: /etc/alertmanager/certs/tls.crt
       keyFile: /etc/alertmanager/certs/tls.key
@@ -365,13 +365,13 @@ spec:
         - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
         - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
 
-  # Configuration from secret
+
   configSecret: alertmanager-config
 
-  # Image configuration
+
   image: quay.io/prometheus/alertmanager:v0.26.0
 
-  # Node selector and tolerations for dedicated monitoring nodes
+
   nodeSelector:
     node-role.kubernetes.io/monitoring: "true"
   tolerations:
@@ -380,10 +380,10 @@ spec:
       value: "monitoring"
       effect: "NoSchedule"
 
-  # Priority class for Alertmanager pods
+
   priorityClassName: system-cluster-critical
 
-  # Volumes for TLS certificates
+
   volumes:
     - name: alertmanager-tls
       secret:
@@ -395,7 +395,7 @@ spec:
       configMap:
         name: alertmanager-templates
 
-  # Volume mounts
+
   volumeMounts:
     - name: alertmanager-tls
       mountPath: /etc/alertmanager/certs
@@ -409,7 +409,7 @@ spec:
       readOnly: true
 
 ---
-# Service for Alertmanager (web UI and API)
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -418,7 +418,7 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: alertmanager
 spec:
   type: ClusterIP
@@ -437,10 +437,10 @@ spec:
       protocol: TCP
   selector:
     app: alertmanager
-    alertmanager: strix
+    alertmanager: ishastra
 
 ---
-# Headless Service for Alertmanager gossip (cluster communication)
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -449,7 +449,7 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: alertmanager
 spec:
   type: ClusterIP
@@ -469,10 +469,10 @@ spec:
       protocol: TCP
   selector:
     app: alertmanager
-    alertmanager: strix
+    alertmanager: ishastra
 
 ---
-# ServiceMonitor for Alertmanager self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -482,12 +482,12 @@ metadata:
     release: prometheus
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
       app: alertmanager
-      alertmanager: strix
+      alertmanager: ishastra
   endpoints:
     - port: http-web
       path: /metrics
@@ -505,7 +505,7 @@ spec:
       - monitoring
 
 ---
-# PodDisruptionBudget for Alertmanager HA
+
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -514,16 +514,16 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   minAvailable: 2
   selector:
     matchLabels:
       app: alertmanager
-      alertmanager: strix
+      alertmanager: ishastra
 
 ---
-# HorizontalPodAutoscaler for Alertmanager
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -532,7 +532,7 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   scaleTargetRef:
     apiVersion: monitoring.coreos.com/v1
@@ -572,7 +572,7 @@ spec:
       selectPolicy: Max
 
 ---
-# NetworkPolicy for Alertmanager
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -581,17 +581,17 @@ metadata:
   labels:
     app: alertmanager
     app.kubernetes.io/name: alertmanager
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
       app: alertmanager
-      alertmanager: strix
+      alertmanager: ishastra
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    # Allow Prometheus to send alerts
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -599,16 +599,16 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 9093
-    # Allow Alertmanager cluster gossip
+
     - from:
         - podSelector:
             matchLabels:
               app: alertmanager
-              alertmanager: strix
+              alertmanager: ishastra
       ports:
         - protocol: TCP
           port: 9093
@@ -616,7 +616,7 @@ spec:
           port: 9094
         - protocol: TCP
           port: 9095
-    # Allow Prometheus Operator to manage
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -632,7 +632,7 @@ spec:
         - protocol: TCP
           port: 9095
   egress:
-    # Allow Alertmanager to send notifications (SMTP, Slack, PagerDuty)
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -644,7 +644,7 @@ spec:
           port: 587
         - protocol: TCP
           port: 443
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -652,12 +652,12 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Allow Alertmanager cluster gossip
+
     - to:
         - podSelector:
             matchLabels:
               app: alertmanager
-              alertmanager: strix
+              alertmanager: ishastra
       ports:
         - protocol: TCP
           port: 9093

@@ -1,43 +1,59 @@
 # Free Tier Deployment
 
-# Free Tier Deployment
+Run **Ishastra** for **$0/month** using Oracle Cloud Free Tier + **Coolify** (self-hosted PaaS).
 
-Run Strix for $0/month using Oracle Cloud Free Tier, Neon, Upstash, Cloudflare, and GHCR.
+> **Always Free limits, checked November 2026.** The Arm allowance is **2 OCPU / 12 GB
+> of memory in total** (1,500 OCPU-hours + 9,000 GB-hours per month). Oracle halved it
+> from 4 OCPU / 24 GB in June 2026 and terminates instances above the new allowance, so
+> size every A1 instance together, not each one. Also included: two AMD Micro VMs
+> (1/8 OCPU, 1 GB each), 200 GB block storage, 10 TB egress. A debit/credit card is
+> required at sign-up for identity verification — temporary holds only, nothing is
+> charged inside the allowance. Resources must be created in your **home region**, and
+> Oracle may reclaim an instance that stays under 20% CPU, network and (A1 only) memory
+> over a 7-day window, so a scanner left idle can be reclaimed: keep it doing real work
+> and keep off-box backups. Confirm your tenancy's numbers in the console before sizing.
 
-> **Scaling warning:** the free-tier stack is still single-writer. One API/worker
-> replica per database; do not enable HPA or add replicas. See
-> [Production deployment](../quickstart/production.md).
+> **Why Coolify?** It manages PostgreSQL, Redis, TLS certs, deployments, and rollbacks — no k0s/Helm complexity. Single ARM instance runs everything.
 
-## Architecture
+> **Scaling warning:** Free tier is single-writer (1 API, 1 worker replica). Do not enable HPA. See [Production deployment](../quickstart/production.md).
+
+## Architecture (Coolify — Recommended)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Free Tier Architecture ($0/month)                    │
-├─────────────────────────────────────────────────────────────────────────────┤
+│                    Oracle Cloud Free Tier ($0/month)                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                    ARM Instance (2 OCPU, 12GB RAM)                   │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │    │
+│  │  │                      Coolify (Port 8000)                     │   │    │
+│  │  │  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────┐  │   │    │
+│  │  │  │PostgreSQL│  │  Redis   │  │   Ishastra │  │  Cloud-  │  │   │    │
+│  │  │  │(managed) │  │(managed) │  │  API/Worker│  │  flared  │  │   │    │
+│  │  │  └──────────┘  └──────────┘  └────────────┘  └──────────┘  │   │    │
+│  │  └─────────────────────────────────────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                 │
-│  │   Cloudflare │────▶│  Oracle ARM  │◀───▶│    Neon      │                 │
-│  │   (DNS, TLS, │     │  (4 Ampere,  │     │  (PostgreSQL,│                 │
-│  │   WAF, CDN)  │     │   24GB RAM)  │     │   512MB)     │                 │
-│  └──────────────┘     └──────┬───────┘     └──────────────┘                 │
-│                             │                                               │
-│                    ┌────────▼────────┐     ┌──────────────┐                 │
-│                    │   k0s Cluster   │◀───▶│   Upstash    │                 │
-│                    │  (k3s/k0s)      │     │  (Redis,     │                 │
-│                    │  Strix Pods     │     │   256MB)     │                 │
-│                    └─────────────────┘     └──────────────┘                 │
+│  AMD Instance (1/8 OCPU, 6GB) — Optional: CI runner, monitoring             │
 │                                                                              │
-│  Container Images: GHCR (1GB free)                                           │
-│  Monitoring: Cloudflare Analytics + Prometheus (self-hosted)                │
-│                                                                              │
+│  Your Domain → Cloudflare (DNS, TLS, WAF) → Oracle ARM:80/443               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Resource Limits (Free Tier)
 
-| Resource | Limit | Strix Usage |
+| Resource | Limit | Ishastra Usage |
+|----------|-------|----------------|
+| Oracle ARM | 2 OCPU, 12GB RAM total | Coolify + Postgres + Redis + API (1C/2G) + Worker (1C/2G) |
+| Oracle AMD | 1/8 OCPU, 6GB RAM | Optional: CI, monitoring |
+| Oracle Boot Volume | 200GB | OS + containers + DB data |
+| Cloudflare | Unlimited | DNS, TLS, WAF, CDN, Tunnel |
+| GHCR | 1GB storage | ~500MB for 5 multi-arch images |
+
+## Resource Limits (Free Tier)
+
+| Resource | Limit | Ishastra Usage |
 |----------|-------|-------------|
-| Oracle ARM | 4 OCPU, 24GB RAM | API (1C/2G), Worker (2C/4G), Scheduler (0.5C/0.5G) |
+| Oracle ARM | 2 OCPU, 12GB RAM total | API (1C/2G), Worker (1C/3G), Scheduler (0.25C/0.5G) |
 | Neon PostgreSQL | 512MB storage | ~100MB for assessments |
 | Upstash Redis | 256MB storage | Queue + cache |
 | Cloudflare | Unlimited requests | DNS, TLS, WAF, CDN |
@@ -48,29 +64,35 @@ Run Strix for $0/month using Oracle Cloud Free Tier, Neon, Upstash, Cloudflare, 
 
 - Oracle Cloud account (Always Free tier)
 - Cloudflare account (free)
-- Neon account (free tier)
-- Upstash account (free tier)
 - GitHub account (for GHCR)
 - Domain name (or use Cloudflare Pages subdomain)
 
 ## Step 1: Oracle Cloud Setup
 
-### Create VM Instance
+### Create VM Instances
 
+**ARM Instance (Main — runs everything):**
 ```bash
 # Via Oracle Cloud Console:
 # 1. Create VM instance: "VM.Standard.A1.Flex" (ARM)
-# 2. Shape: 4 OCPU, 24GB RAM
+# 2. Shape: 1 OCPU, 6GB RAM (x2 instances = the 2 OCPU/12GB Always Free total)
 # 3. Image: Ubuntu 22.04 Minimal
 # 4. SSH keys: Add your public key
 # 5. Network: Create VCN with public subnet
-# 6. Security lists: Allow 22, 80, 443, 6443 (k0s)
+# 6. Security lists: Allow 22, 80, 443
 ```
 
-### Initialize Server
+**AMD Instance (Optional — CI runner):**
+```bash
+# 1. Create VM instance: "VM.Standard.E2.1.Micro" (AMD)
+# 2. Shape: 1/8 OCPU, 6GB RAM
+# 3. Same VCN, same SSH key
+```
+
+### Initialize ARM Server
 
 ```bash
-ssh ubuntu@<oracle-ip>
+ssh ubuntu@<ARM_PUBLIC_IP>
 
 # Update and install basics
 sudo apt-get update && sudo apt-get upgrade -y
@@ -80,57 +102,31 @@ sudo apt-get install -y docker.io docker-compose-plugin git curl jq
 sudo usermod -aG docker ubuntu
 newgrp docker
 
+# Enable swap (the free 12GB instance is shared)
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
 # Verify
 docker run hello-world
 ```
 
-### Install k0s (Lightweight Kubernetes)
+### Install Coolify
 
 ```bash
-# Download and install k0s
-curl -sSLf https://get.k0s.sh | sudo sh
+# Coolify install (takes 5-10 min)
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
 
-# Create config
-sudo mkdir -p /etc/k0s
-cat <<EOF | sudo tee /etc/k0s/k0s.yaml
-apiVersion: k0s.k0sproject.io/v1beta1
-kind: ClusterConfig
-metadata:
-  name: strix-free
-spec:
-  api:
-    address: 0.0.0.0
-    port: 6443
-    extraArgs:
-      enable-admission-plugins: "NodeRestriction,PodSecurityPolicy"
-  controllerManager:
-    extraArgs:
-      bind-address: "0.0.0.0"
-  scheduler:
-    extraArgs:
-      bind-address: "0.0.0.0"
-  network:
-    provider: kube-router
-    calico: {}
-  storage:
-    type: local
-    localPath:
-      path: /var/lib/k0s/local-path-provisioner
-  telemetry:
-    enabled: false
-EOF
-
-# Start k0s
-sudo k0s install controller --single --config /etc/k0s/k0s.yaml
-sudo k0s start
-
-# Get kubeconfig
-sudo k0s kubeconfig admin > ~/kubeconfig
-export KUBECONFIG=~/kubeconfig
-
-# Verify
-kubectl get nodes
+# Follow prompts:
+# - Choose "Docker" as installation type
+# - Set Coolify URL (e.g., coolify.yourdomain.com) — or use IP:8000 initially
+# - Generate encryption key (SAVE IT!)
+# - Create admin user
 ```
+
+After install, Coolify runs on port 8000. Access via `http://<ARM_IP>:8000`.
 
 ## Step 2: Cloudflare Setup
 
@@ -138,8 +134,9 @@ kubectl get nodes
 
 ```
 Type    Name    Content                  Proxy
-A       @       <oracle-ip>              Proxied
-A       api     <oracle-ip>              Proxied
+A       @       <ARM_PUBLIC_IP>          Proxied
+A       api     <ARM_PUBLIC_IP>          Proxied
+A       coolify <ARM_PUBLIC_IP>          Proxied
 CNAME   www     yourdomain.com           Proxied
 ```
 
@@ -149,272 +146,157 @@ CNAME   www     yourdomain.com           Proxied
 - Always Use HTTPS: **On**
 - Automatic HTTPS Rewrites: **On**
 
-### Workers (Optional - for auth)
+## Step 3: GitHub Container Registry (GHCR)
 
-```javascript
-// Cloudflare Worker for API key validation
-export default {
-  async fetch(request, env) {
-    const apiKey = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!apiKey || !await validateKey(apiKey, env)) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-    return fetch(request);
-  }
+### Create GHCR Token
+
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
+2. Name: `ishastra-ci`
+3. Resource owner: your user/org
+4. Repository access: Select your Ishastra fork
+5. Permissions: `Packages` → Read/Write, `Contents` → Read
+6. Generate token → Copy!
+
+### Login Docker (Local Machine)
+
+```bash
+echo <GHCR_TOKEN> | docker login ghcr.io -u <YOUR_GITHUB_USER> --password-stdin
+```
+
+## Step 4: Build & Push Images
+
+```bash
+# Clone repo
+git clone https://github.com/<YOUR_USER>/ishastra.git
+cd ishastra
+
+# Build and push all 5 images from single Dockerfile (multi-arch)
+make build-and-push REGISTRY=ghcr.io/<YOUR_USER> TAG=v3.5.0
+```
+
+This pushes:
+- `ghcr.io/<USER>/ishastra:v3.5.0` (base)
+- `ghcr.io/<USER>/ishastra-operator:v3.5.0`
+- `ghcr.io/<USER>/ishastra-api:v3.5.0`
+- `ghcr.io/<USER>/ishastra-worker:v3.5.0`
+- `ghcr.io/<USER>/ishastra-scheduler:v3.5.0`
+
+### Verify Images
+
+```bash
+docker pull ghcr.io/<USER>/ishastra-api:v3.5.0
+docker run --rm ghcr.io/<USER>/ishastra-api:v3.5.0 ishastra --version
+```
+
+## Step 5: Deploy via Coolify
+
+### 5.1 Configure Coolify
+
+1. Open `http://<ARM_IP>:8000` (or your Coolify domain)
+2. **Servers** → Add your ARM instance as "Local" (auto-detected)
+3. **Projects** → Create "ishastra"
+4. **Databases** → Add PostgreSQL + Redis (Coolify manages these)
+   - PostgreSQL: Name `ishastra-db`, Version 16
+   - Redis: Name `ishastra-redis`, Version 7
+
+### 5.2 Create Application
+
+1. **Applications** → New → **Docker Compose**
+2. Repository: Your GitHub fork (public or private with deploy key)
+3. Build pack: **Docker Compose**
+4. Compose file: `docker-compose.yml`
+5. Enable "Pull on deploy"
+
+### 5.3 Environment Variables
+
+Click "Add" for each:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `ISHASTRA_DATABASE_URL` | `postgresql://postgres:<PASS>@ishastra-db:5432/ishastra` | From Coolify Postgres |
+| `ISHASTRA_REDIS_URL` | `redis://ishastra-redis:6379/0` | From Coolify Redis |
+| `ISHASTRA_SCOPE_FILE` | `/etc/ishastra/scope.json` | Mounted config |
+| `ISHASTRA_ENCRYPTION_KEY` | `<32-byte-base64>` | `openssl rand -base64 32` |
+| `ISHASTRA_AUDIT_HMAC_KEY` | `<32-byte-base64>` | `openssl rand -base64 32` |
+| `ISHASTRA_WORKERS` | `2` | Concurrency |
+| `ISHASTRA_LOG_FORMAT` | `json` | Structured logs |
+| `ISHASTRA_LOG_LEVEL` | `INFO` | |
+
+### 5.4 Scope Configuration
+
+1. Create `scope.json` locally:
+```json
+{
+  "program": "My Security Program",
+  "authorized_by": "John Doe",
+  "authorization_ref": "CONTRACT-2024-001",
+  "include": ["*.yourdomain.com", "api.yourdomain.com"],
+  "exclude": ["admin.yourdomain.com"],
+  "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+  "allowed_ports": [80, 443, 8080],
+  "allow_broad_networks": false
 }
 ```
 
-## Step 3: Neon Database
-
-### Create Project
-
-1. Go to console.neon.tech
-2. Create project: `strix-free`
-3. Region: US East (closest to Oracle)
-4. Copy connection string
-
-```
-postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/strix?sslmode=require
+2. **Optional — Sign scope** (recommended):
+```bash
+ishastra scope-keygen --kid key-1 --key scope-key.pem --jwks scope-jwks.json
+ishastra scope-sign --scope scope.json --key scope-key.pem --kid key-1 --expires-in 30d
+# Publish JWKS to public URL, set ISHASTRA_SCOPE_JWKS_URL
 ```
 
-### Run Migrations
+3. Coolify → Application → Volumes → New Volume → Config Map
+   - Name: `ishastra-scope`
+   - Key: `scope.json` → Value: (paste signed scope.json)
+   - Mount Path: `/etc/ishastra/scope.json`
+
+### 5.5 Ports & Health
+
+- **Ports**: Expose 8000 (HTTP)
+- **Health Check**: `/api/health`
+- **Deploy!**
+
+### 5.6 Configure Domain
+
+1. Coolify → Application → Domains
+2. Add `ishastra.yourdomain.com` (or `api.yourdomain.com`)
+3. Enable **Force HTTPS** (Let's Encrypt auto)
+4. Save → Coolify provisions cert
+
+## Step 7: First Assessment
 
 ```bash
-# From local machine
-export DATABASE_URL="postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/strix?sslmode=require"
-docker run --rm -e DATABASE_URL ghcr.io/strix/strix:3.5.0 alembic upgrade head
-```
+# Open UI
+https://ishastra.yourdomain.com
 
-## Step 4: Upstash Redis
-
-### Create Database
-
-1. Go to console.upstash.com
-2. Create database: `strix-free`
-3. Region: US East
-4. Type: Regional (free)
-5. Copy REST URL and token
-
-```
-UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
-UPSTASH_REDIS_REST_TOKEN=xxx
-```
-
-### Convert to Redis URL
-
-```bash
-# Upstash REST to Redis URL format
-redis://:TOKEN@HOST:6379/0
-# Example:
-redis://:abc123@us1-xxx.upstash.io:6379/0
-```
-
-## Step 5: GHCR Images
-
-### Build and Push
-
-```bash
-# Login to GHCR
-echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-
-# Build images
-docker build -t ghcr.io/your-org/strix-api:3.5.0 -f Dockerfile.api .
-docker build -t ghcr.io/your-org/strix-worker:3.5.0 -f Dockerfile.worker .
-docker build -t ghcr.io/your-org/strix-scheduler:3.5.0 -f Dockerfile.scheduler .
-
-# Push
-docker push ghcr.io/your-org/strix-api:3.5.0
-docker push ghcr.io/your-org/strix-worker:3.5.0
-docker push ghcr.io/your-org/strix-scheduler:3.5.0
-```
-
-### Create Image Pull Secret
-
-```bash
-# On Oracle VM
-kubectl create secret docker-registry ghcr-secret \
-  --docker-server=ghcr.io \
-  --docker-username=YOUR_GITHUB_USERNAME \
-  --docker-password=YOUR_GITHUB_TOKEN \
-  --namespace=strix-system
-```
-
-## Step 6: Deploy Strix
-
-### Create Namespace
-
-```bash
-kubectl create namespace strix-system
-```
-
-### Create ConfigMap (Scope Document)
-
-```bash
-# Create scope.json first (see Scope Gate docs)
-kubectl create configmap strix-scope \
-  --from-file=scope.json=/path/to/scope.json \
-  -n strix-system
-```
-
-### Create Secrets
-
-```bash
-kubectl create secret generic strix-secrets \
-  --from-literal=database-url="postgresql://user:pass@ep-xxx.us-east-1.aws.neon.tech/strix?sslmode=require" \
-  --from-literal=redis-url="redis://:token@us1-xxx.upstash.io:6379/0" \
-  --from-literal=jwt-secret="$(openssl rand -base64 32)" \
-  --from-literal=api-key="strix-$(openssl rand -hex 16)" \
-  -n strix-system
-```
-
-### Deploy with Helm (Free Tier Values)
-
-```bash
-# Get Helm chart
-git clone https://github.com/strix/strix.git
-cd strix/deploy/helm/strix
-
-# Install with free tier values
-helm install strix . -f values-free.yaml -n strix-system
-```
-
-### values-free.yaml
-
-```yaml
-# deploy/helm/strix/values-free.yaml
-
-global:
-  imageRegistry: ghcr.io
-  imagePullSecrets:
-    - ghcr-secret
-
-api:
-  replicaCount: 1
-  image:
-    repository: your-org/strix-api
-    tag: "3.5.0"
-  resources:
-    limits:
-      cpu: "1000m"
-      memory: "2Gi"
-    requests:
-      cpu: "100m"
-      memory: "256Mi"
-  autoscaling:
-    enabled: true
-    minReplicas: 1
-    maxReplicas: 3
-
-worker:
-  replicaCount: 1
-  image:
-    repository: your-org/strix-worker
-    tag: "3.5.0"
-  resources:
-    limits:
-      cpu: "2000m"
-      memory: "4Gi"
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-  autoscaling:
-    enabled: true
-    minReplicas: 0
-    maxReplicas: 5
-
-scheduler:
-  replicaCount: 1
-  image:
-    repository: your-org/strix-scheduler
-    tag: "3.5.0"
-  resources:
-    limits:
-      cpu: "500m"
-      memory: "512Mi"
-    requests:
-      cpu: "50m"
-      memory: "128Mi"
-
-scopeGate:
-  enabled: true
-
-postgresql:
-  enabled: false
-externalDatabase:
-  host: "ep-xxx.us-east-1.aws.neon.tech"
-  port: 5432
-  database: "strix"
-  sslMode: "require"
-
-redis:
-  enabled: false
-externalRedis:
-  host: "us1-xxx.upstash.io"
-  port: 6379
-  tls: true
-
-ingress:
-  enabled: true
-  className: "cloudflare"
-  annotations:
-    kubernetes.io/ingress.class: "cloudflare"
-  hosts:
-    - host: api.yourdomain.com
-      paths: ["/"]
-
-monitoring:
-  prometheus:
-    enabled: true
-    serviceMonitor: true
-  grafana:
-    enabled: false  # Disable to save resources
-```
-
-## Step 7: Verify Deployment
-
-```bash
-# Check pods
-kubectl get pods -n strix-system -w
-
-# Check logs
-kubectl logs -n strix-system -l app=strix-api
-kubectl logs -n strix-system -l app=strix-worker
-
-# Test API
-curl https://api.yourdomain.com/health
-
-# Test assessment
-curl -X POST https://api.yourdomain.com/api/v1/assessments \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scope_id": "default",
-    "targets": ["https://httpbin.org"],
-    "adapters": ["http_probe"]
-  }'
+# 1. Settings → API Keys → New → Name: admin-key → Copy key
+# 2. Dashboard → Assessments → New Assessment
+#    Target: https://api.yourdomain.com (or any authorized target)
+#    Profile: web-deep
+#    Run!
+# 3. Watch findings populate in real-time
 ```
 
 ## Cost Breakdown
 
 | Service | Monthly Cost | Notes |
 |---------|--------------|-------|
-| Oracle ARM VM | $0 | Always Free: 4 OCPU, 24GB |
-| Neon PostgreSQL | $0 | Free: 512MB storage |
-| Upstash Redis | $0 | Free: 256MB storage |
-| Cloudflare | $0 | Free: DNS, TLS, WAF, CDN |
+| Oracle ARM VM | $0 | Always Free: 2 OCPU, 12GB total (changed June 2026) |
+| Oracle AMD VM | $0 | Always Free: 1/8 OCPU, 6GB (optional CI) |
+| Cloudflare | $0 | Free: DNS, TLS, WAF, CDN, Tunnel |
 | GHCR | $0 | Free: 1GB storage |
 | **Total** | **$0** | |
 
-## Scaling Limits
+## Scaling Limits (Coolify Free Tier)
 
 | Component | Free Tier Max | Upgrade Path |
 |-----------|---------------|--------------|
-| API replicas | 3 | Increase Oracle OCPU or add nodes |
-| Worker replicas | 5 | Add Oracle VM, use spot instances |
-| Concurrent assessments | ~10 | Horizontal worker scaling |
-| Assessment queue | 1000 | Redis upgrade (paid Upstash) |
-| Database size | 512MB | Neon paid plan ($19/mo for 10GB) |
-| Redis storage | 256MB | Upstash paid plan |
+| API replicas | 1 | Add RAM/CPU to ARM; paid Oracle or managed K8s |
+| Worker replicas | 1 | Vertical scale; add second ARM instance |
+| Concurrent assessments | ~5 | Horizontal worker scaling |
+| Assessment queue | 5000 | Coolify Redis persistence; paid Upstash |
+| Database size | ~10GB | Coolify Postgres on 200GB boot volume |
+| Redis storage | ~5GB | Same |
 
 ## Troubleshooting
 
@@ -422,29 +304,30 @@ curl -X POST https://api.yourdomain.com/api/v1/assessments \
 
 | Issue | Fix |
 |-------|-----|
-| Pods OOMKilled | Reduce memory limits, increase swap |
-| ImagePullBackOff | Check GHCR secret, rate limits |
-| Neon connection timeout | Check security groups, SSL mode |
-| Upstash connection refused | Verify TLS, correct host/port |
-| Ingress 502 | Check Cloudflare proxy, k0s port |
+| Deploy fails | Check Coolify logs; verify `docker-compose.yml` syntax |
+| Database connection refused | Verify `ISHASTRA_DATABASE_URL` matches Coolify Postgres creds |
+| Redis connection refused | Verify `ISHASTRA_REDIS_URL` uses `ishastra-redis:6379` |
+| Scope gate blocks scans | Check scope.json includes target; verify JWKS URL if signed |
+| Certificates not issuing | Ensure domain A record points to ARM IP; port 80 open |
+| Container OOMKilled | Reduce memory limits in Coolify; increase swap |
 
 ### Resource Monitoring
 
 ```bash
-# Node resources
-kubectl top nodes
+# On ARM instance
+docker stats
 
-# Pod resources
-kubectl top pods -n strix-system
+# Coolify dashboard → Server → Resources
+# Coolify → Application → Logs
 
-# Check events
-kubectl get events -n strix-system --sort-by='.lastTimestamp'
+# Check swap
+free -h
 ```
 
 ### Oracle ARM Specific
 
 ```bash
-# Enable swap (critical for 24GB RAM)
+# Enable swap (the free 12GB instance is shared) — run once
 sudo fallocate -l 4G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
@@ -452,18 +335,19 @@ sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 # Check ARM compatibility
-docker run --rm --platform linux/arm64 ghcr.io/your-org/strix-api:3.5.0 --version
+docker run --rm --platform linux/arm64 ghcr.io/<USER>/ishastra-api:v3.5.0 --version
 ```
 
 ## Upgrade Path
 
 ### To Production
 
-1. **Database**: Neon Pro ($19/mo) → 10GB, read replicas, PITR
-2. **Redis**: Upstash Pro → 1GB, multi-AZ, persistence
-3. **Compute**: Oracle paid VMs or AWS/GCP/Azure managed K8s
-4. **Monitoring**: Grafana Cloud or self-hosted stack
-5. **Security**: Add WAF rules, SIEM integration
+1. **Database**: Coolify Postgres → Managed PostgreSQL (Neon Pro $19/mo, AWS RDS, CloudSQL) for PITR, read replicas
+2. **Redis**: Coolify Redis → Managed Redis (Upstash Pro, AWS ElastiCache) for multi-AZ, persistence
+3. **Compute**: Single ARM → Oracle paid VMs or AWS/GCP/Azure managed K8s (EKS/GKE/AKS)
+4. **Orchestration**: Coolify → Helm + ArgoCD on K8s for GitOps
+5. **Monitoring**: Coolify built-in → Grafana Cloud / Prometheus + Grafana stack
+6. **Security**: Cloudflare WAF rules, SIEM integration, SLSA provenance on releases
 
 ## Related
 

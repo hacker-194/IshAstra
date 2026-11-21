@@ -2,11 +2,11 @@
 
 # Adapter Framework Architecture
 
-How Strix runs real security tools with normalized output and Scope Gate enforcement.
+How Ishastra runs real security tools with normalized output and Scope Gate enforcement.
 
 ## Overview
 
-The Adapter Framework is Strix's plugin system for security tools. Every adapter — built-in or external — **re-checks Scope Gate before each connection**.
+The Adapter Framework is Ishastra's plugin system for security tools. Every adapter — built-in or external — **re-checks Scope Gate before each connection**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -42,7 +42,7 @@ The Adapter Framework is Strix's plugin system for security tools. Every adapter
 
 ## Base Adapter Interface
 
-**File**: `src/strix/core/adapters.py` — `BaseAdapter` class
+**File**: `src/ishastra/core/adapters.py` — `BaseAdapter` class
 
 ```python
 from abc import ABC, abstractmethod
@@ -97,7 +97,7 @@ class BaseAdapter(ABC):
 
 ### 1. HTTP Probe Adapter
 
-**File**: `src/strix/core/adapters.py` — `HTTPProbeAdapter`
+**File**: `src/ishastra/core/adapters.py` — `HTTPProbeAdapter`
 
 **Purpose**: Passive header analysis, security headers, technology detection
 
@@ -147,7 +147,7 @@ class HTTPProbeAdapter(BaseAdapter):
 
 ### 2. Crawler Adapter
 
-**File**: `src/strix/core/adapters.py` — `CrawlerAdapter`
+**File**: `src/ishastra/core/adapters.py` — `CrawlerAdapter`
 
 **Purpose**: Link discovery, form extraction, JavaScript analysis
 
@@ -208,7 +208,7 @@ class CrawlerAdapter(BaseAdapter):
 
 ### 3. Dynamic Validation Adapter
 
-**File**: `src/strix/core/adapters.py` — `DynamicValidationAdapter`
+**File**: `src/ishastra/core/adapters.py` — `DynamicValidationAdapter`
 
 **Purpose**: Runtime behavior testing, authentication flows, business logic
 
@@ -269,7 +269,7 @@ class DynamicValidationAdapter(BaseAdapter):
 
 ## External Tool Adapters
 
-External tools run as subprocesses. Strix wraps them with Scope Gate enforcement.
+External tools run as subprocesses. Ishastra wraps them with Scope Gate enforcement.
 
 ### Architecture
 
@@ -421,8 +421,8 @@ class NiktoAdapter(BaseAdapter):
 
 ```python
 # my_adapters/custom_ssh.py
-from strix.core.adapters import BaseAdapter, AdapterConfig, Finding
-from strix.core.scope import Severity
+from ishastra.core.adapters import BaseAdapter, AdapterConfig, Finding
+from ishastra.core.scope import Severity
 
 class CustomSSHAdapter(BaseAdapter):
     name = "custom_ssh"
@@ -454,7 +454,7 @@ class CustomSSHAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"ciphers": weak},
-                references=["https://strix.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
                 metadata={}
             )
 ```
@@ -463,7 +463,7 @@ class CustomSSHAdapter(BaseAdapter):
 
 ```python
 # In your application startup
-from strix.core.adapters import adapter_registry
+from ishastra.core.adapters import adapter_registry
 from my_adapters.custom_ssh import CustomSSHAdapter
 
 adapter_registry.register(CustomSSHAdapter)
@@ -480,7 +480,7 @@ POST /api/v1/assessments
 ### SDK Helper Functions
 
 ```python
-from strix.core.adapters import (
+from ishastra.core.adapters import (
     BaseAdapter,
     AdapterConfig,
     Finding,
@@ -536,8 +536,8 @@ Raw Tool Output
        │
        ▼
 ┌─────────────┐
-│ Map         │  Tool severity → Strix severity
-│ Severity    │  Tool IDs → Strix finding IDs
+│ Map         │  Tool severity → Ishastra severity
+│ Severity    │  Tool IDs → Ishastra finding IDs
 └──────┬──────┘
        │
        ▼
@@ -658,8 +658,8 @@ resources:
 ```python
 # tests/unit/test_adapters.py
 import pytest
-from strix.core.adapters import HTTPProbeAdapter, AdapterConfig
-from strix.core.scope import ScopeDocument
+from ishastra.core.adapters import HTTPProbeAdapter, AdapterConfig
+from ishastra.core.scope import ScopeDocument
 
 @pytest.fixture
 def mock_scope():
@@ -720,10 +720,10 @@ async def test_nmap_adapter_real_scan():
 
 ```bash
 # Enable adapter debug logging
-STRIX_LOG_LEVEL=DEBUG STRIX_ADAPTER_DEBUG=1 python -m strix
+ISHASTRA_LOG_LEVEL=DEBUG ISHASTRA_ADAPTER_DEBUG=1 python -m ishastra
 
 # Run single adapter manually
-python -m strix.adapters.nmap --target http://example.com --scope scope.json
+python -m ishastra.adapters.nmap --target http://example.com --scope scope.json
 ```
 
 ---

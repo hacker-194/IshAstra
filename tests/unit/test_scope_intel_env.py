@@ -1,4 +1,4 @@
-"""Deployment-supplied ASN/GeoIP tables from ``STRIX_SCOPE_INTEL_FILE``."""
+"""Deployment-supplied ASN/GeoIP tables from ``ISHASTRA_SCOPE_INTEL_FILE``."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from strix.core import scope as scope_module
+from ishastra.core import scope as scope_module
 
 
 @pytest.fixture(autouse=True)

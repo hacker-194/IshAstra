@@ -1,0 +1,38 @@
+name: DCO
+
+
+
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  signoff:
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Every commit carries a Signed-off-by trailer
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          status=0
+          while read -r sha; do
+            if ! git log -1 --format=%B "$sha" | grep -Eq '^Signed-off-by: .+ <.+@.+>$'; then
+              subject=$(git log -1 --format=%s "$sha")
+              echo "::error::commit $sha is missing a Signed-off-by line: $subject"
+              status=1
+            fi
+          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+          if [ "$status" -ne 0 ]; then
+            echo "Amend with: git commit --amend -s  (or rebase with: git rebase --signoff)"
+          fi
+          exit "$status"

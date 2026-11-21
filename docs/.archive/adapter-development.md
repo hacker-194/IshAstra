@@ -1,24 +1,24 @@
 # Adapter Development Guide
 
-Strix's adapter framework follows the principle: **One Capability = One Adapter = One Tool**. This guide covers creating, registering, and testing custom adapters.
+Ishastra's adapter framework follows the principle: **One Capability = One Adapter = One Tool**. This guide covers creating, registering, and testing custom adapters.
 
 ---
 
 ## Adapter Contract
 
-Every adapter implements the `Adapter` base class from `strix.core.adapter_base`:
+Every adapter implements the `Adapter` base class from `ishastra.core.adapter_base`:
 
 ```python
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
-from strix.core.adapter_base import Adapter, AdapterResult, checked_destination
-from strix.core.findings import Finding
+from ishastra.core.adapter_base import Adapter, AdapterResult, checked_destination
+from ishastra.core.findings import Finding
 
 
 class MyCustomAdapter(Adapter):
     # Required class attributes
-    id: ClassVar[str] = "strix-my-custom"
+    id: ClassVar[str] = "ishastra-my-custom"
     version: ClassVar[str] = "1.0"
     asset_types: ClassVar[tuple[str, ...]] = ("web", "api")
     requires: ClassVar[tuple[str, ...]] = ("mytool",)  # External binary name
@@ -115,7 +115,7 @@ class AdapterResult:
 ### 4. Handle `AdapterNotApplicable` for Non-Applicable Cases
 
 ```python
-from strix.core.adapter_base import AdapterNotApplicable
+from ishastra.core.adapter_base import AdapterNotApplicable
 
 def assess(self, target, *, timeout, cancel, context=None):
     if not context or not context.get("discovered_urls"):
@@ -128,7 +128,7 @@ This is **not a failure** — orchestrator records as `REJECTED` coverage.
 ### 5. Use Normalized Finding Model
 
 ```python
-from strix.core.findings import Finding, Severity, Confidence, Verification
+from ishastra.core.findings import Finding, Severity, Confidence, Verification
 
 finding = Finding(
     category="custom_finding_category",
@@ -154,7 +154,7 @@ finding = Finding(
 ### 6. Redact Credentials in Evidence
 
 ```python
-from strix.core.redaction import redact
+from ishastra.core.redaction import redact
 
 evidence = {
     "response": redact(raw_response),  # Strips passwords, tokens, JWTs, AWS keys, private keys
@@ -166,7 +166,7 @@ evidence = {
 
 ## Registering Your Adapter
 
-### 1. Add to `src/strix/core/adapters.py`
+### 1. Add to `src/ishastra/core/adapters.py`
 
 ```python
 # Import your adapter
@@ -185,16 +185,16 @@ ADAPTERS = {
 PROFILES = {
     # ... existing profiles ...
     "web-deep": (
-        "strix-crawl",
-        "strix-http",
-        "strix-dynamic-validation",
-        "strix-git-exposure",
-        "strix-nuclei",
-        "strix-my-custom",  # ← Add here
+        "ishastra-crawl",
+        "ishastra-http",
+        "ishastra-dynamic-validation",
+        "ishastra-git-exposure",
+        "ishastra-nuclei",
+        "ishastra-my-custom",  # ← Add here
     ),
     "custom-profile": (
-        "strix-http",
-        "strix-my-custom",
+        "ishastra-http",
+        "ishastra-my-custom",
     ),
 }
 ```
@@ -212,7 +212,7 @@ For adapters wrapping external binaries (nmap, nuclei, etc.):
 ### Safe Execution Pattern (`_run_tool`)
 
 ```python
-from strix.core.adapter_base import _run_tool, AdapterTimeout, AdapterCancelled
+from ishastra.core.adapter_base import _run_tool, AdapterTimeout, AdapterCancelled
 
 def assess(self, target, *, timeout, cancel, context=None):
     destination = checked_destination(target)
@@ -286,8 +286,8 @@ def assess(self, target, *, timeout, cancel, context=None):
 # tests/test_my_custom_adapter.py
 import pytest
 from unittest.mock import patch, MagicMock
-from strix.core.adapters import MyCustomAdapter
-from strix.core.adapter_base import AdapterNotApplicable
+from ishastra.core.adapters import MyCustomAdapter
+from ishastra.core.adapter_base import AdapterNotApplicable
 
 
 def test_available_when_tool_missing():
@@ -308,7 +308,7 @@ def test_available_when_tool_present():
 
 def test_assess_calls_checked_destination_first():
     adapter = MyCustomAdapter()
-    with patch("strix.core.adapters.checked_destination") as mock_gate:
+    with patch("ishastra.core.adapters.checked_destination") as mock_gate:
         mock_gate.return_value = MagicMock(ip="1.2.3.4", port=443, scheme="https", host="example.com")
         with patch("shutil.which", return_value="/usr/bin/mytool"):
             with patch.object(adapter, "_run_tool", return_value=("", "", 0)):
@@ -318,7 +318,7 @@ def test_assess_calls_checked_destination_first():
 
 def test_assess_returns_findings():
     adapter = MyCustomAdapter()
-    with patch("strix.core.adapters.checked_destination") as mock_gate:
+    with patch("ishastra.core.adapters.checked_destination") as mock_gate:
         mock_gate.return_value = MagicMock(ip="1.2.3.4", port=443, scheme="https", host="example.com")
         with patch("shutil.which", return_value="/usr/bin/mytool"):
             with patch.object(adapter, "_run_tool", return_value=("finding output", "", 0)):
@@ -334,9 +334,9 @@ def test_assess_returns_findings():
 @pytest.mark.integration
 def test_my_custom_adapter_end_to_end():
     """Requires mytool installed and authorized target in scope."""
-    from strix.core.jobs import run_assessment
-    from strix.core.scope import load
-    from strix.config import Settings
+    from ishastra.core.jobs import run_assessment
+    from ishastra.core.scope import load
+    from ishastra.config import Settings
 
     # Load test scope
     scope.load("tests/fixtures/scope.json")
@@ -349,7 +349,7 @@ def test_my_custom_adapter_end_to_end():
 
     assert job.state == "completed"
     # Verify your adapter ran
-    adapter_runs = [r for r in job.runs if r.adapter == "strix-my-custom"]
+    adapter_runs = [r for r in job.runs if r.adapter == "ishastra-my-custom"]
     assert len(adapter_runs) == 1
     assert adapter_runs[0].state == "ok"
 ```
@@ -391,10 +391,10 @@ WEB_CHECKS = {
 
 ```bash
 # Run single adapter inline
-strix assess --target https://example.com --profile web-deep --wait
+ishastra assess --target https://example.com --profile web-deep --wait
 
 # Enable debug logging
-STRIX_LOG_LEVEL=DEBUG strix serve
+ISHASTRA_LOG_LEVEL=DEBUG ishastra serve
 
 # Check adapter availability
 curl -H "Authorization: Bearer $KEY" http://localhost:8000/api/adapters
@@ -404,7 +404,7 @@ curl -H "Authorization: Bearer $KEY" http://localhost:8000/api/adapters
 
 ## Publishing Custom Adapters
 
-1. **Fork** the Strix repository
+1. **Fork** the Ishastra repository
 2. **Implement** adapter following this guide
 3. **Test** thoroughly (unit + integration)
 4. **Document** in PR description:

@@ -1,4 +1,4 @@
-# Strix Chaos Engineering & Disaster Recovery Drill
+# Ishastra Chaos Engineering & Disaster Recovery Drill
 
 **Version:** 1.0  
 **Last updated:** 2026-11-18  
@@ -8,14 +8,14 @@
 
 ## Purpose
 
-Validate that Strix survives infrastructure failures without data loss, maintains audit chain integrity, and recovers automatically within RTO/RPO targets.
+Validate that Ishastra survives infrastructure failures without data loss, maintains audit chain integrity, and recovers automatically within RTO/RPO targets.
 
 ---
 
 ## Prerequisites
 
 - Staging cluster deployed and healthy
-- `kubectl` access to staging namespace (`strix-staging`)
+- `kubectl` access to staging namespace (`ishastra-staging`)
 - PostgreSQL and Redis managed instances with failover capability
 - Grafana/Prometheus alerting configured
 - Current backup verified (see `docs/runbooks/backup.md`)
@@ -42,13 +42,13 @@ Validate that Strix survives infrastructure failures without data loss, maintain
 
 ```bash
 # 1. Identify API pod
-kubectl get pods -n strix-staging -l app.kubernetes.io/component=api
+kubectl get pods -n ishastra-staging -l app.kubernetes.io/component=api
 
 # 2. Delete pod (simulates OOM kill, node failure, etc.)
-kubectl delete pod -n strix-staging <api-pod-name>
+kubectl delete pod -n ishastra-staging <api-pod-name>
 
 # 3. Verify recovery
-kubectl rollout status deployment/strix-strix-api -n strix-staging --timeout=2m
+kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-staging --timeout=2m
 
 # 4. Smoke test
 kubectl run smoke-test --rm -i --restart=Never \
@@ -71,9 +71,9 @@ kubectl run smoke-test --rm -i --restart=Never \
 
 ```bash
 # 1. Create a scheduled assessment (cron)
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
-from strix.core.scheduler import create_scheduler
+from ishastra.core.scheduler import create_scheduler
 import asyncio
 asyncio.run(create_scheduler().add_job(
   'test-scheduled', '0 * * * *',  # hourly
@@ -84,15 +84,15 @@ asyncio.run(create_scheduler().add_job(
 "
 
 # 2. Delete scheduler pod
-kubectl delete pod -n strix-staging -l app.kubernetes.io/component=scheduler
+kubectl delete pod -n ishastra-staging -l app.kubernetes.io/component=scheduler
 
 # 3. Verify recovery
-kubectl rollout status deployment/strix-strix-scheduler -n strix-staging --timeout=2m
+kubectl rollout status deployment/ishastra-ishastra-scheduler -n ishastra-staging --timeout=2m
 
 # 4. Verify schedule persisted
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
-from strix.core.store import get_scheduler
+from ishastra.core.store import get_scheduler
 import asyncio
 jobs = asyncio.run(get_scheduler().get_jobs())
 print([j.id for j in jobs])
@@ -117,22 +117,22 @@ JOB_ID=$(curl -s -X POST https://staging-api.your-domain.com/api/assess \
   -d '{"target":"http://httpbin.org/delay/10","profile":"web-deep"}' | jq -r .job_id)
 
 # 2. Wait for job to reach "running" state
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
-from strix.core.store import get_assessment
+from ishastra.core.store import get_assessment
 import asyncio
 job = asyncio.run(get_assessment('$JOB_ID'))
 print(job.state)
 " | grep -q running
 
 # 3. Kill worker pod processing this job
-WORKER_POD=$(kubectl get pods -n strix-staging -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}')
-kubectl delete pod -n strix-staging $WORKER_POD
+WORKER_POD=$(kubectl get pods -n ishastra-staging -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}')
+kubectl delete pod -n ishastra-staging $WORKER_POD
 
 # 4. Verify job requeued and completes
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
-from strix.core.store import get_assessment
+from ishastra.core.store import get_assessment
 import asyncio
 import time
 for _ in range(30):
@@ -158,18 +158,18 @@ for _ in range(30):
 
 ```bash
 # 1. Verify current primary
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
 import os, asyncpg
-conn = asyncpg.connect(os.environ['STRIX_DATABASE_URL'])
+conn = asyncpg.connect(os.environ['ISHASTRA_DATABASE_URL'])
 print(await conn.fetchval('SELECT pg_is_in_recovery()'))
 await conn.close()
 "
 
 # 2. Trigger failover (cloud console / CLI / reboot primary)
-# AWS RDS: aws rds reboot-db-instance --db-instance-identifier strix-staging --force-failover
-# GCP Cloud SQL: gcloud sql instances failover strix-staging
-# Azure: az postgres flexible-server failover --name strix-staging
+# AWS RDS: aws rds reboot-db-instance --db-instance-identifier ishastra-staging --force-failover
+# GCP Cloud SQL: gcloud sql instances failover ishastra-staging
+# Azure: az postgres flexible-server failover --name ishastra-staging
 
 # 3. Verify app recovers (may see brief 500s during failover)
 for i in {1..30}; do
@@ -197,17 +197,17 @@ python scripts/readiness_check.py
 
 ```bash
 # 1. Verify Redis connectivity
-kubectl exec -n strix-staging deploy/strix-strix-api -- \
+kubectl exec -n ishastra-staging deploy/ishastra-ishastra-api -- \
   python -c "
 import os, redis
-r = redis.from_url(os.environ['STRIX_REDIS_URL'])
+r = redis.from_url(os.environ['ISHASTRA_REDIS_URL'])
 print(r.ping())
 "
 
 # 2. Trigger failover (cloud console / CLI)
 # AWS ElastiCache: AWS console → failover
-# GCP Memorystore: gcloud redis instances failover strix-staging
-# Azure: az redis force-reboot --name strix-staging --reboot-type PrimaryNode
+# GCP Memorystore: gcloud redis instances failover ishastra-staging
+# Azure: az redis force-reboot --name ishastra-staging --reboot-type PrimaryNode
 
 # 3. Verify rate limiting still works
 for i in {1..15}; do
@@ -234,24 +234,24 @@ curl -sf https://staging-api.your-domain.com/api/health
 
 ```bash
 # 1. Take current backup
-python scripts/operational_check.py --db strix.db --out /tmp/dr-backup.db
+python scripts/operational_check.py --db ishastra.db --out /tmp/dr-backup.db
 
 # 2. Simulate cluster loss: delete namespace
-kubectl delete namespace strix-staging --wait=false
+kubectl delete namespace ishastra-staging --wait=false
 
 # 3. Wait for namespace deletion
-kubectl wait --for=delete namespace/strix-staging --timeout=5m
+kubectl wait --for=delete namespace/ishastra-staging --timeout=5m
 
 # 4. Recreate namespace and prerequisites
-kubectl create namespace strix-staging
+kubectl create namespace ishastra-staging
 # Re-apply secrets (ExternalSecrets/SealedSecrets)
 # Re-apply PostgreSQL/Redis secrets manually if needed
 
 # 5. Deploy from Helm (uses same tag)
-helm upgrade --install strix-staging ./deploy/helm/strix \
-  -n strix-staging \
-  -f ./deploy/helm/strix/values-staging.yaml \
-  --set-string "global.image.repository=ghcr.io/your-org/strix" \
+helm upgrade --install ishastra-staging ./deploy/helm/ishastra \
+  -n ishastra-staging \
+  -f ./deploy/helm/ishastra/values-staging.yaml \
+  --set-string "global.image.repository=ghcr.io/your-org/ishastra" \
   --set-string "global.image.tag=sha-<LAST_GREEN_SHA>" \
   --wait --timeout 10m
 
@@ -279,7 +279,7 @@ kubectl run smoke-test --rm -i --restart=Never \
 
 ```bash
 # Automated runner (creates results JSON)
-python scripts/chaos_drill.py --namespace strix-staging --output drill-results-$(date +%Y%m%d).json
+python scripts/chaos_drill.py --namespace ishastra-staging --output drill-results-$(date +%Y%m%d).json
 ```
 
 **Expected runtime:** 45-60 minutes for all 6 scenarios

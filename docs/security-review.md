@@ -2,7 +2,7 @@
 
 # Security Review Process
 
-Strix follows a structured security review process for all code changes, releases, and operational procedures.
+Ishastra follows a structured security review process for all code changes, releases, and operational procedures.
 
 ## Review Types
 
@@ -76,9 +76,9 @@ Before each release:
 
 ### Reporting
 
-Report security issues to: **security@strix.dev**
+Report security issues to: **security@ishastra.dev**
 
-- PGP key: Available at https://strix.dev/.well-known/pgp-key
+- PGP key: Available at https://ishastra.dev/.well-known/pgp-key
 - Response SLA: 48 hours acknowledgment
 - Disclosure: Coordinated disclosure preferred
 

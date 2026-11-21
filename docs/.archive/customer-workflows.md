@@ -1,4 +1,4 @@
-# Strix Customer Workflows
+# Ishastra Customer Workflows
 
 Status: verified against the current working tree on 2026-11-14. Each step is
 marked **Implemented**, **Partial** or **Missing**. "Partial" means a real
@@ -10,7 +10,7 @@ of completeness.
 | Step | Status | How it works today |
 |---|---|---|
 | Create organization | Implemented | `POST /api/v2/orgs`; organizations group tenants and support member management, OIDC/SAML SSO and SCIM 2.0. Phase 1 has no billing. |
-| Configure administrator | Implemented | `STRIX_API_KEY` bootstraps an admin key at startup. |
+| Configure administrator | Implemented | `ISHASTRA_API_KEY` bootstraps an admin key at startup. |
 | Create tenant | Implemented | `POST /api/keys/create` (admin), raw key shown once. |
 | Configure authorization policy | Implemented | `POST /api/policies` (admin, managed mode). |
 | Register authorized assets | Partial | Authorization still lives in the policy's hosts/networks. Assessments now populate a tenant-scoped asset inventory with owner, criticality and last-seen; there is no explicit asset-registration or policy-linkage step yet. |
@@ -55,8 +55,8 @@ unit of ownership.
 | Step | Status | How it works today |
 |---|---|---|
 | Connect an authorized repository | Missing | Only a local checkout path is supported; remote repository acquisition is not implemented. |
-| Perform local code/dependency analysis | Implemented | `strix-code-scan PATH` with packaged Semgrep rules, Bandit and Trivy. |
-| Generate SARIF | Implemented | `strix-code-scan --sarif`. |
+| Perform local code/dependency analysis | Implemented | `ishastra-code-scan PATH` with packaged Semgrep rules, Bandit and Trivy. |
+| Generate SARIF | Implemented | `ishastra-code-scan --sarif`. |
 | Integrate with CI/CD | Partial | CI/CD connectors can format/send payloads; no verified end-to-end GitHub App or GitLab pipeline workflow. |
 | Report findings in pull requests | Missing | No PR comment/check-run integration. |
 | Track remediation | Partial | Status lifecycle, owner/deadline and timeline in the platform; code-scan findings are not automatically linked to a repository identity. |
@@ -76,7 +76,7 @@ verification until these exist and are tested against real providers.
 | Collect evidence | Implemented | Normalized findings, coverage, redacted evidence, sealed audit chain. |
 | Review findings | Implemented | Triage lifecycle with audited transitions. |
 | Generate professional reports | Implemented | JSON evidence bundle, self-contained HTML, PDF (WeasyPrint). |
-| Produce verifiable Proof package | Implemented | `strix proof` / `POST /api/proof/verify`, offline verification, pinned issuer key. |
+| Produce verifiable Proof package | Implemented | `ishastra proof` / `POST /api/proof/verify`, offline verification, pinned issuer key. |
 
 This is the workflow to validate first: it is the only one that is
 substantially complete end to end today.
@@ -93,7 +93,7 @@ substantially complete end to end today.
 | Finding exception/risk acceptance | Fields only (API; no approval workflow) |
 | Asset inventory | Yes (derived from assessments; no explicit registration) |
 | Scoped/read-only API keys | Yes for read/write; read keys are limited to safe HTTP methods. Tenants also support multiple member keys with admin/analyst/viewer roles. |
-| Production fail-closed startup | Yes (`STRIX_ENV=production`) |
+| Production fail-closed startup | Yes (`ISHASTRA_ENV=production`) |
 | Organization/RBAC/SSO | No |
 | Billing/paid tiers | Not planned; all features are MIT |
 | Remote repository onboarding | No |

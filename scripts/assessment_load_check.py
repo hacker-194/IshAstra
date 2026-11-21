@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """End-to-end assessment throughput benchmark.
 
 Starts a real uvicorn API with a bounded in-process worker pool and a temporary
@@ -24,7 +23,7 @@ from pathlib import Path
 
 import httpx
 
-from strix.lab.target import LabTarget
+from ishastra.lab.target import LabTarget
 
 API_KEY = "assessment-load-admin-key-123456"
 AUDIT_KEY = "assessment-load-audit-key-123456"
@@ -109,12 +108,12 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent.parent
-    with tempfile.TemporaryDirectory(prefix="strix-assessment-load-") as tmp, LabTarget() as lab:
+    with tempfile.TemporaryDirectory(prefix="ishastra-assessment-load-") as tmp, LabTarget() as lab:
         scope_path = Path(tmp) / "scope.json"
         scope_path.write_text(
             json.dumps(
                 {
-                    "program": "Strix assessment load check",
+                    "program": "Ishastra assessment load check",
                     "authorized_by": "Benchmark",
                     "authorization_ref": "BENCH-ASSESS",
                     "include": ["127.0.0.1"],
@@ -126,19 +125,17 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "STRIX_DATABASE_URL": args.database_url,
-                "STRIX_API_KEY": API_KEY,
-                "STRIX_AUDIT_HMAC_KEY": AUDIT_KEY,
-                "STRIX_DB": str(Path(tmp) / "assess.db") if not args.database_url else "",
-                "STRIX_SCOPE_FILE": str(scope_path),
-                "STRIX_SCOPE_MODE": "global",
-                "STRIX_WORKERS": str(args.workers),
-                "STRIX_QUEUE_MAX": "128",
-                # Isolate scanner throughput from the API rate limiter; the
-                # limiter has its own Redis test.
-                "STRIX_RATE_LIMIT_DISABLED": "1",
-                "STRIX_SKIP_REDIS_INIT": "1",
-                "STRIX_LOG_LEVEL": "WARNING",
+                "ISHASTRA_DATABASE_URL": args.database_url,
+                "ISHASTRA_API_KEY": API_KEY,
+                "ISHASTRA_AUDIT_HMAC_KEY": AUDIT_KEY,
+                "ISHASTRA_DB": str(Path(tmp) / "assess.db") if not args.database_url else "",
+                "ISHASTRA_SCOPE_FILE": str(scope_path),
+                "ISHASTRA_SCOPE_MODE": "global",
+                "ISHASTRA_WORKERS": str(args.workers),
+                "ISHASTRA_QUEUE_MAX": "128",
+                "ISHASTRA_RATE_LIMIT_DISABLED": "1",
+                "ISHASTRA_SKIP_REDIS_INIT": "1",
+                "ISHASTRA_LOG_LEVEL": "WARNING",
             }
         )
         process = subprocess.Popen(
@@ -146,7 +143,7 @@ def main() -> int:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "strix.api.app:create_app",
+                "ishastra.api.app:create_app",
                 "--factory",
                 "--host",
                 "127.0.0.1",

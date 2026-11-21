@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Ishastra — Multi-tenant Security Assessment Platform for authorized DAST, network scanning, and compliance auditing." />
+  <title>Ishastra — Security Assessment Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+</head>
+<body class="theme-light" data-theme="light">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Bar: Global Header -->
+  <header class="global-header" role="banner">
+    <div class="header-inner">
+      <!-- Brand -->
+      <div class="header-brand" aria-label="Ishastra">
+        <a href="/" class="brand-link" aria-label="Ishastra home">
+          <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="32" height="32">
+            <rect width="32" height="32" rx="8" fill="currentColor"/>
+            <path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="brand-name">Ishastra</span>
+        </a>
+        <span class="brand-badge" aria-label="Version 3.5.0">v3.5.0</span>
+      </div>
+
+      <!-- Global Actions -->
+      <div class="header-actions">
+        <!-- Theme Toggle -->
+        <button class="icon-btn" id="theme-toggle" aria-label="Switch to dark mode" title="Toggle theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+
+        <!-- API Key Status -->
+        <div class="api-status" id="api-status" aria-live="polite">
+          <span class="status-indicator" data-status="unknown"></span>
+          <span class="status-text" id="api-status-text">Checking...</span>
+        </div>
+
+        <!-- User Menu (for future OIDC) -->
+        <div class="user-menu" id="user-menu" hidden>
+          <button class="icon-btn user-avatar" id="user-menu-trigger" aria-expanded="false" aria-haspopup="true" aria-label="User menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </button>
+          <div class="user-dropdown" id="user-dropdown" role="menu" hidden>
+            <div class="dropdown-header">
+              <span class="dropdown-user-name" id="dropdown-user-name"></span>
+              <span class="dropdown-user-email" id="dropdown-user-email"></span>
+            </div>
+            <hr class="dropdown-divider"/>
+            <button class="dropdown-item" role="menuitem" id="btn-profile">Profile</button>
+            <button class="dropdown-item" role="menuitem" id="btn-api-keys">API Keys</button>
+            <hr class="dropdown-divider"/>
+            <button class="dropdown-item destructive" role="menuitem" id="btn-logout">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tenant Selector Bar (shown when authenticated) -->
+    <div class="tenant-bar" id="tenant-bar" hidden role="navigation" aria-label="Tenant context">
+      <div class="tenant-inner">
+        <label for="tenant-select" class="visually-hidden">Select tenant</label>
+        <select id="tenant-select" class="tenant-select" aria-label="Current tenant context">
+          <option value="" disabled>Select a tenant…</option>
+        </select>
+        <span class="tenant-divider" aria-hidden="true"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-new-tenant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>New Tenant</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Layout: Sidebar + Content -->
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <nav class="sidebar-nav">
+        <ul class="nav-list" role="list">
+          <li class="nav-section">
+            <span class="nav-section-label">Workspace</span>
+          </li>
+          <li>
+            <button class="nav-item active" data-view="dashboard" aria-current="page">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+              <span class="nav-label">Dashboard</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="assessments">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                <line x1="17" y1="12" x2="22" y2="12"/>
+              </svg>
+              <span class="nav-label">Assessments</span>
+              <span class="nav-badge" id="nav-badge-assessments" aria-label="Active assessments" hidden>0</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="targets">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span class="nav-label">Targets</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="findings">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span class="nav-label">Findings</span>
+              <span class="nav-badge" id="nav-badge-findings" aria-label="Open findings" hidden>0</span>
+            </button>
+          </li>
+
+          <li class="nav-section">
+            <span class="nav-section-label">Configuration</span>
+          </li>
+          <li>
+            <button class="nav-item" data-view="policies">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span class="nav-label">Policies</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="scopes">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              <span class="nav-label">Scopes</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="tenants">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span class="nav-label">Tenants</span>
+            </button>
+          </li>
+
+          <li class="nav-section">
+            <span class="nav-section-label">Compliance</span>
+          </li>
+          <li>
+            <button class="nav-item" data-view="audit">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span class="nav-label">Audit Log</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="compliance">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M9 12l2 2 4-4"/>
+                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+              </svg>
+              <span class="nav-label">Compliance</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="evidence">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span class="nav-label">Evidence</span>
+            </button>
+          </li>
+
+          <li class="nav-section">
+            <span class="nav-section-label">Settings</span>
+          </li>
+          <li>
+            <button class="nav-item" data-view="settings">
+              <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span class="nav-label">Settings</span>
+            </button>
+          </li>
+        </ul>
+
+        <!-- Sidebar Footer: System Status -->
+        <div class="sidebar-footer">
+          <div class="system-status">
+            <span class="status-dot" data-status="healthy"></span>
+            <span class="status-text">API Connected</span>
+          </div>
+          <div class="version-info" id="version-info">v3.5.0</div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" aria-hidden="true"></div>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content" role="main">
+      <!-- Mobile Header -->
+      <header class="mobile-header" role="banner">
+        <button class="icon-btn" id="mobile-menu-btn" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <h1 class="mobile-title" id="mobile-view-title">Dashboard</h1>
+        <div class="mobile-actions">
+          <button class="icon-btn" id="mobile-theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Page Header -->
+      <header class="page-header" id="page-header">
+        <div class="page-header-inner">
+          <div class="page-title-group">
+            <h1 class="page-title" id="page-title">Dashboard</h1>
+            <p class="page-description" id="page-description">Overview of your security assessment activity</p>
+          </div>
+          <div class="page-actions" id="page-actions">
+            <!-- View-specific actions injected here -->
+          </div>
+        </div>
+      </header>
+
+      <!-- Toast Container -->
+      <div class="toast-container" id="toast-container" role="region" aria-label="Notifications" aria-live="polite"></div>
+
+      <!-- Focus-visible improvements: skip to content enhances keyboard navigation -->
+      <a href="#main-content" class="skip-link">Skip to main content</a>
+
+      <!-- View Panels -->
+      <!-- Dashboard View -->
+      <section class="view-panel active" id="view-dashboard" aria-labelledby="page-title">
+        <div class="dashboard-grid">
+          <!-- KPI Cards -->
+          <div class="kpi-row" role="region" aria-label="Key metrics">
+            <article class="kpi-card" data-kpi="assessments">
+              <div class="kpi-header">
+                <span class="kpi-label">Assessments</span>
+                <span class="kpi-tag tag-neutral">Total Runs</span>
+              </div>
+              <div class="kpi-value" id="kpi-assessments">0</div>
+              <div class="kpi-trend">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                  <polyline points="17 6 23 6 23 12"/>
+                </svg>
+                <span id="kpi-assessments-trend">—</span>
+              </div>
+            </article>
+            <article class="kpi-card" data-kpi="findings">
+              <div class="kpi-header">
+                <span class="kpi-label">Findings</span>
+                <span class="kpi-tag tag-warning">Open</span>
+              </div>
+              <div class="kpi-value" id="kpi-findings">0</div>
+              <div class="kpi-trend">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                  <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+                  <polyline points="17 18 23 18 23 12"/>
+                </svg>
+                <span id="kpi-findings-trend">—</span>
+              </div>
+            </article>
+            <article class="kpi-card" data-kpi="targets">
+              <div class="kpi-header">
+                <span class="kpi-label">Targets</span>
+                <span class="kpi-tag tag-neutral">Tracked</span>
+              </div>
+              <div class="kpi-value" id="kpi-targets">0</div>
+              <div class="kpi-trend">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                  <polyline points="17 6 23 6 23 12"/>
+                </svg>
+                <span id="kpi-targets-trend">—</span>
+              </div>
+            </article>
+            <article class="kpi-card" data-kpi="compliance">
+              <div class="kpi-header">
+                <span class="kpi-label">Compliance</span>
+                <span class="kpi-tag tag-success">Score</span>
+              </div>
+              <div class="kpi-value" id="kpi-compliance">—</div>
+              <div class="kpi-trend">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                  <polyline points="17 6 23 6 23 12"/>
+                </svg>
+                <span id="kpi-compliance-trend">—</span>
+              </div>
+            </article>
+          </div>
+
+          <!-- Quick Actions + Recent Activity -->
+          <div class="dashboard-main-row">
+            <section class="card card-quick-actions" aria-labelledby="quick-actions-title">
+              <header class="card-header">
+                <h2 class="card-title" id="quick-actions-title">Quick Actions</h2>
+              </header>
+              <div class="card-body">
+                <div class="action-grid">
+                  <button class="action-card" data-action="new-assessment">
+                    <div class="action-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                      </svg>
+                    </div>
+                    <div class="action-content">
+                      <h3>New Assessment</h3>
+                      <p>Run a DAST scan against an authorized target</p>
+                    </div>
+                  </button>
+                  <button class="action-card" data-action="new-policy">
+                    <div class="action-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                    </div>
+                    <div class="action-content">
+                      <h3>Create Policy</h3>
+                      <p>Define assessment scope and rules</p>
+                    </div>
+                  </button>
+                  <button class="action-card" data-action="new-scope">
+                    <div class="action-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                      </svg>
+                    </div>
+                    <div class="action-content">
+                      <h3>Define Scope</h3>
+                      <p>Set authorized targets and network ranges</p>
+                    </div>
+                  </button>
+                  <button class="action-card" data-action="new-tenant">
+                    <div class="action-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                    </div>
+                    <div class="action-content">
+                      <h3>Add Tenant</h3>
+                      <p>Onboard a new organization or team</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="card card-recent-activity" aria-labelledby="recent-activity-title">
+              <header class="card-header">
+                <h2 class="card-title" id="recent-activity-title">Recent Activity</h2>
+                <button class="btn btn-ghost btn-sm" id="btn-view-all-activity">View all</button>
+              </header>
+              <div class="card-body">
+                <div class="activity-list" id="activity-list">
+                  <div class="empty-state">
+                    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <h3>No activity yet</h3>
+                    <p>Run your first assessment to see activity here</p>
+                    <button class="btn btn-primary" data-action="new-assessment">Run Assessment</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Finding Trends Chart -->
+          <section class="card card-trends" aria-labelledby="trends-title">
+            <header class="card-header">
+              <h2 class="card-title" id="trends-title">Finding Trends (30 days)</h2>
+              <div class="card-header-actions">
+                <select class="select" id="trends-period" aria-label="Time period">
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d" selected>Last 30 days</option>
+                  <option value="90d">Last 90 days</option>
+                </select>
+              </div>
+            </header>
+            <div class="card-body">
+              <div class="chart-container" role="img" aria-label="Finding trends chart showing critical, high, medium, low findings over time">
+                <canvas id="trends-chart" width="800" height="300"></canvas>
+                <div class="chart-legend" id="chart-legend" role="list" aria-label="Chart series legend"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- Assessments View -->
+      <section class="view-panel" id="view-assessments" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="assessment-status-filter" class="visually-hidden">Filter by status</label>
+            <select class="select" id="assessment-status-filter" aria-label="Assessment status">
+              <option value="all">All Statuses</option>
+              <option value="running">Running</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <label for="assessment-search" class="visually-hidden">Search assessments</label>
+            <input type="search" class="input" id="assessment-search" placeholder="Search assessments…" aria-label="Search assessments">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-run-assessment">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <span>Run Assessment</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Assessments table" tabindex="0">
+              <table class="data-table" id="assessments-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Assessment</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Policy</th>
+                    <th scope="col">Profile</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Findings</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Started</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="assessments-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="9" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                      </svg>
+                      <h3>No assessments yet</h3>
+                      <p>Run your first security assessment to get started</p>
+                      <button class="btn btn-primary" id="btn-first-assessment">Run Assessment</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Targets View -->
+      <section class="view-panel" id="view-targets" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="target-search" class="visually-hidden">Search targets</label>
+            <input type="search" class="input" id="target-search" placeholder="Search targets…" aria-label="Search targets">
+            <label for="target-type-filter" class="visually-hidden">Filter by type</label>
+            <select class="select" id="target-type-filter" aria-label="Target type">
+              <option value="all">All Types</option>
+              <option value="web">Web Application</option>
+              <option value="api">API Endpoint</option>
+              <option value="network">Network Range</option>
+            </select>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-add-target">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Add Target</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Targets table" tabindex="0">
+              <table class="data-table" id="targets-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Target</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Last Scanned</th>
+                    <th scope="col">Findings</th>
+                    <th scope="col">Risk Score</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="targets-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="7" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      <h3>No targets configured</h3>
+                      <p>Add your first target to begin scanning</p>
+                      <button class="btn btn-primary" id="btn-first-target">Add Target</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Findings View -->
+      <section class="view-panel" id="view-findings" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="finding-severity-filter" class="visually-hidden">Filter by severity</label>
+            <select class="select" id="finding-severity-filter" aria-label="Finding severity">
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="info">Info</option>
+            </select>
+            <label for="finding-status-filter" class="visually-hidden">Filter by status</label>
+            <select class="select" id="finding-status-filter" aria-label="Finding status">
+              <option value="all">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="false_positive">False Positive</option>
+              <option value="risk_accepted">Risk Accepted</option>
+            </select>
+            <label for="finding-search" class="visually-hidden">Search findings</label>
+            <input type="search" class="input" id="finding-search" placeholder="Search findings…" aria-label="Search findings">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-secondary" id="btn-export-findings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+              </svg>
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Findings table" tabindex="0">
+              <table class="data-table" id="findings-table">
+                <thead>
+                  <tr>
+                    <th scope="col"><input type="checkbox" id="findings-select-all" aria-label="Select all findings"></th>
+                    <th scope="col">Finding</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Assessment</th>
+                    <th scope="col">First Seen</th>
+                    <th scope="col">Last Seen</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="findings-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="9" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      <h3>No findings recorded</h3>
+                      <p>Run an assessment to discover security findings</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Bulk Actions Bar -->
+          <div class="bulk-actions-bar" id="findings-bulk-actions" hidden>
+            <span class="bulk-count" id="bulk-selected-count">0 selected</span>
+            <div class="bulk-actions">
+              <button class="btn btn-secondary btn-sm" id="bulk-mark-resolved">Mark Resolved</button>
+              <button class="btn btn-secondary btn-sm" id="bulk-mark-fp">Mark False Positive</button>
+              <button class="btn btn-secondary btn-sm" id="bulk-export">Export Selected</button>
+              <button class="btn btn-ghost btn-sm" id="bulk-clear">Clear Selection</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Policies View -->
+      <section class="view-panel" id="view-policies" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="policy-search" class="visually-hidden">Search policies</label>
+            <input type="search" class="input" id="policy-search" placeholder="Search policies…" aria-label="Search policies">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-create-policy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Create Policy</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Policies table" tabindex="0">
+              <table class="data-table" id="policies-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Policy</th>
+                    <th scope="col">Tenant</th>
+                    <th scope="col">Version</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Targets</th>
+                    <th scope="col">Ports</th>
+                    <th scope="col">Updated</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="policies-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="8" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <h3>No policies defined</h3>
+                      <p>Create a policy to define assessment scope and rules</p>
+                      <button class="btn btn-primary" id="btn-first-policy">Create Policy</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scopes View -->
+      <section class="view-panel" id="view-scopes" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-upload-scope">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Upload Scope</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div id="scope-content">
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <h3>No scope document loaded</h3>
+                <p>Upload a signed scope document to define authorized targets</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tenants View -->
+      <section class="view-panel" id="view-tenants" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="tenant-search" class="visually-hidden">Search tenants</label>
+            <input type="search" class="input" id="tenant-search" placeholder="Search tenants…" aria-label="Search tenants">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-create-tenant">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Create Tenant</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Tenants table" tabindex="0">
+              <table class="data-table" id="tenants-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Tenant</th>
+                    <th scope="col">Display Name</th>
+                    <th scope="col">Tier</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Assessments</th>
+                    <th scope="col">Members</th>
+                    <th scope="col">Created</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="tenants-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="8" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                      </svg>
+                      <h3>No tenants configured</h3>
+                      <p>Create your first tenant to get started</p>
+                      <button class="btn btn-primary" id="btn-first-tenant">Create Tenant</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Audit Log View -->
+      <section class="view-panel" id="view-audit" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="audit-search" class="visually-hidden">Search audit log</label>
+            <input type="search" class="input" id="audit-search" placeholder="Search audit events…" aria-label="Search audit events">
+            <label for="audit-event-filter" class="visually-hidden">Filter by event type</label>
+            <select class="select" id="audit-event-filter" aria-label="Event type">
+              <option value="all">All Events</option>
+              <option value="assessment_started">Assessment Started</option>
+              <option value="assessment_completed">Assessment Completed</option>
+              <option value="finding_created">Finding Created</option>
+              <option value="policy_changed">Policy Changed</option>
+              <option value="tenant_created">Tenant Created</option>
+              <option value="user_login">User Login</option>
+            </select>
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-secondary" id="btn-export-audit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+              </svg>
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Audit log table" tabindex="0">
+              <table class="data-table" id="audit-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">Event</th>
+                    <th scope="col">Actor</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Details</th>
+                    <th scope="col">Integrity</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="6" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <h3>No audit events</h3>
+                      <p>Audit events will appear here as actions are performed</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Compliance View -->
+      <section class="view-panel" id="view-compliance" aria-labelledby="page-title" hidden>
+        <div class="dashboard-grid">
+          <div class="kpi-row" role="region" aria-label="Compliance metrics">
+            <article class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">PCI DSS</span>
+                <span class="kpi-tag tag-info">v4.0</span>
+              </div>
+              <div class="kpi-value" id="compliance-pci">—</div>
+              <div class="kpi-trend"><span id="compliance-pci-trend">Run assessment</span></div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">ISO 27001</span>
+                <span class="kpi-tag tag-info">2022</span>
+              </div>
+              <div class="kpi-value" id="compliance-iso">—</div>
+              <div class="kpi-trend"><span id="compliance-iso-trend">Run assessment</span></div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">SOC 2</span>
+                <span class="kpi-tag tag-info">Type II</span>
+              </div>
+              <div class="kpi-value" id="compliance-soc2">—</div>
+              <div class="kpi-trend"><span id="compliance-soc2-trend">Run assessment</span></div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">NIST CSF</span>
+                <span class="kpi-tag tag-info">2.0</span>
+              </div>
+              <div class="kpi-value" id="compliance-nist">—</div>
+              <div class="kpi-trend"><span id="compliance-nist-trend">Run assessment</span></div>
+            </article>
+          </div>
+
+          <section class="card" aria-labelledby="compliance-detail-title">
+            <header class="card-header">
+              <h2 class="card-title" id="compliance-detail-title">Control Coverage</h2>
+            </header>
+            <div class="card-body">
+              <div id="compliance-controls">
+                <div class="empty-state">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                    <path d="M9 12l2 2 4-4"/>
+                    <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+                  </svg>
+                  <h3>No compliance data</h3>
+                  <p>Run assessments with compliance profiles to populate coverage</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- Evidence View -->
+      <section class="view-panel" id="view-evidence" aria-labelledby="page-title" hidden>
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <label for="evidence-search" class="visually-hidden">Search evidence</label>
+            <input type="search" class="input" id="evidence-search" placeholder="Search evidence bundles…" aria-label="Search evidence">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" id="btn-generate-evidence">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span>Generate Bundle</span>
+            </button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body p-0">
+            <div class="table-wrapper" role="region" aria-label="Evidence bundles table" tabindex="0">
+              <table class="data-table" id="evidence-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Bundle</th>
+                    <th scope="col">Assessment</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Format</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Generated</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="evidence-tbody">
+                  <tr class="table-empty-row">
+                    <td colspan="7" class="table-empty">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <h3>No evidence bundles</h3>
+                      <p>Generate evidence bundles from completed assessments</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings View -->
+      <section class="view-panel" id="view-settings" aria-labelledby="page-title" hidden>
+        <div class="settings-layout">
+          <nav class="settings-nav" aria-label="Settings sections">
+            <ul role="list">
+              <li><button class="settings-nav-item active" data-setting="general">General</button></li>
+              <li><button class="settings-nav-item" data-setting="api">API Keys</button></li>
+              <li><button class="settings-nav-item" data-setting="integrations">Integrations</button></li>
+              <li><button class="settings-nav-item" data-setting="notifications">Notifications</button></li>
+              <li><button class="settings-nav-item" data-setting="security">Security</button></li>
+              <li><button class="settings-nav-item" data-setting="advanced">Advanced</button></li>
+            </ul>
+          </nav>
+          <div class="settings-content">
+            <!-- General Settings -->
+            <div class="settings-panel active" id="setting-general" role="tabpanel" aria-labelledby="general-title">
+              <h2 id="general-title" class="settings-panel-title">General Settings</h2>
+              <form class="settings-form" id="general-form">
+                <div class="form-group">
+                  <label for="setting-org-name" class="form-label">Organization Name</label>
+                  <input type="text" class="input" id="setting-org-name" placeholder="Your organization name">
+                </div>
+                <div class="form-group">
+                  <label for="setting-timezone" class="form-label">Timezone</label>
+                  <select class="select" id="setting-timezone">
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern Time</option>
+                    <option value="America/Chicago">Central Time</option>
+                    <option value="America/Denver">Mountain Time</option>
+                    <option value="America/Los_Angeles">Pacific Time</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Europe/Paris">Paris</option>
+                    <option value="Asia/Tokyo">Tokyo</option>
+                    <option value="Asia/Singapore">Singapore</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="setting-date-format" class="form-label">Date Format</label>
+                  <select class="select" id="setting-date-format">
+                    <option value="ISO">ISO 8601 (YYYY-MM-DD)</option>
+                    <option value="US">US (MM/DD/YYYY)</option>
+                    <option value="EU">EU (DD/MM/YYYY)</option>
+                  </select>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- API Keys Settings -->
+            <div class="settings-panel" id="setting-api" role="tabpanel" aria-labelledby="api-title" hidden>
+              <h2 id="api-title" class="settings-panel-title">API Keys</h2>
+              <div class="settings-panel-header">
+                <p class="settings-panel-desc">Manage API keys for programmatic access. Keys are shown only once upon creation.</p>
+              </div>
+              <div class="card">
+                <div class="card-body p-0">
+                  <div class="table-wrapper">
+                    <table class="data-table" id="api-keys-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Name</th>
+                          <th scope="col">Prefix</th>
+                          <th scope="col">Tier</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Last Used</th>
+                          <th scope="col">Created</th>
+                          <th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="api-keys-tbody">
+                        <tr class="table-empty-row">
+                          <td colspan="7" class="table-empty">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="48" height="48">
+                              <rect x="2" y="3" width="20" height="14" rx="2"/>
+                              <line x1="8" y1="21" x2="16" y2="21"/>
+                              <line x1="12" y1="17" x2="12" y2="21"/>
+                            </svg>
+                            <h3>No API keys</h3>
+                            <p>Create an API key to enable programmatic access</p>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Manual API Key Entry (Bootstrap) -->
+              <div class="card" id="manual-api-key-card" style="margin-top: var(--space-6);">
+                <div class="card-header">
+                  <h3 class="card-title">Manual API Key Entry</h3>
+                </div>
+                <div class="card-body">
+                  <p class="card-subtitle">If you have an existing API key (from CLI or another deployment), enter it here to authenticate this session.</p>
+                  <div class="form-group" style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 280px;">
+                      <label for="api-key-input" class="form-label">API Key</label>
+                      <input type="password" class="input" id="api-key-input" placeholder="strix_..." autocomplete="off" aria-describedby="api-key-help">
+                      <span class="form-hint" id="api-key-help">Paste your full API key (starts with <code>strix_</code>). Stored in session only.</span>
+                    </div>
+                    <button class="btn btn-primary" id="btn-save-api-key" style="height: fit-content;">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                      </svg>
+                      <span>Save Key</span>
+                    </button>
+                    <button class="btn btn-ghost" id="btn-clear-api-key" style="height: fit-content;">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                      <span>Clear</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button class="btn btn-primary" id="btn-create-api-key">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span>Create API Key</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Integrations Settings -->
+            <div class="settings-panel" id="setting-integrations" role="tabpanel" aria-labelledby="integrations-title" hidden>
+              <h2 id="integrations-title" class="settings-panel-title">Integrations</h2>
+              <div class="integrations-grid">
+                <article class="integration-card">
+                  <div class="integration-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="32" height="32">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div class="integration-info">
+                    <h3>Slack</h3>
+                    <p>Send assessment notifications to Slack channels</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm">Configure</button>
+                </article>
+                <article class="integration-card">
+                  <div class="integration-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="32" height="32">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/>
+                    </svg>
+                  </div>
+                  <div class="integration-info">
+                    <h3>Jira</h3>
+                    <p>Create tickets for findings automatically</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm">Configure</button>
+                </article>
+                <article class="integration-card">
+                  <div class="integration-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="32" height="32">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                  </div>
+                  <div class="integration-info">
+                    <h3>Webhooks</h3>
+                    <p>Receive real-time events via HTTP callbacks</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm">Configure</button>
+                </article>
+              </div>
+            </div>
+
+            <!-- Notifications Settings -->
+            <div class="settings-panel" id="setting-notifications" role="tabpanel" aria-labelledby="notifications-title" hidden>
+              <h2 id="notifications-title" class="settings-panel-title">Notifications</h2>
+              <form class="settings-form" id="notifications-form">
+                <fieldset class="form-fieldset">
+                  <legend class="fieldset-legend">Email Notifications</legend>
+                  <div class="toggle-group">
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>Assessment Complete</h4>
+                        <p>Notify when an assessment finishes</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="notify-assessment-complete" checked>
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>Critical Findings</h4>
+                        <p>Immediate alert for critical severity findings</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="notify-critical" checked>
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>Weekly Digest</h4>
+                        <p>Summary of weekly assessment activity</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="notify-weekly">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </fieldset>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">Save Preferences</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Security Settings -->
+            <div class="settings-panel" id="setting-security" role="tabpanel" aria-labelledby="security-title" hidden>
+              <h2 id="security-title" class="settings-panel-title">Security</h2>
+              <div class="card">
+                <div class="card-body">
+                  <h3 class="card-title">Session Management</h3>
+                  <div class="form-group">
+                    <label for="setting-session-timeout" class="form-label">Session Timeout (minutes)</label>
+                    <input type="number" class="input" id="setting-session-timeout" value="60" min="15" max="480">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">
+                      <input type="checkbox" id="setting-require-mfa"> Require MFA for all users
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-body">
+                  <h3 class="card-title">Data Retention</h3>
+                  <div class="form-group">
+                    <label for="setting-retention-days" class="form-label">Assessment Data Retention (days)</label>
+                    <input type="number" class="input" id="setting-retention-days" value="365" min="30" max="2555">
+                  </div>
+                  <div class="form-group">
+                    <label for="setting-audit-retention" class="form-label">Audit Log Retention (days)</label>
+                    <input type="number" class="input" id="setting-audit-retention" value="2555" min="365" max="3650">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="settings-panel" id="setting-advanced" role="tabpanel" aria-labelledby="advanced-title" hidden>
+              <h2 id="advanced-title" class="settings-panel-title">Advanced</h2>
+              <div class="card">
+                <div class="card-body">
+                  <h3 class="card-title">Feature Flags</h3>
+                  <div class="toggle-group">
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>Kubernetes Job Runner</h4>
+                        <p>Run assessments as Kubernetes Jobs</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="flag-k8s-jobs">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>Distributed Rate Limiting</h4>
+                        <p>Use Redis for cross-worker rate limiting</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="flag-distributed-rl">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="toggle-item">
+                      <div class="toggle-info">
+                        <h4>OpenTelemetry Tracing</h4>
+                        <p>Enable distributed tracing</p>
+                      </div>
+                      <label class="toggle-switch">
+                        <input type="checkbox" id="flag-otel">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="card card-danger">
+                <div class="card-body">
+                  <h3 class="card-title">Danger Zone</h3>
+                  <p>These actions are irreversible.</p>
+                  <div class="danger-actions">
+                    <button class="btn btn-danger" id="btn-reset-data">Reset All Data</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  <!-- Run Assessment Modal -->
+  <dialog class="modal" id="modal-assessment" aria-modal="true" aria-labelledby="modal-assessment-title">
+    <form class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="modal-assessment-title">Run New Assessment</h2>
+        <button class="modal-close" value="cancel" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="assess-target" class="form-label required">Target URL</label>
+          <input type="url" class="input" id="assess-target" placeholder="https://example.com/" required aria-describedby="assess-target-hint">
+          <p id="assess-target-hint" class="form-hint">Must be within the authorized scope for the selected tenant</p>
+        </div>
+        <div class="form-group">
+          <label for="assess-policy" class="form-label required">Policy</label>
+          <select class="select" id="assess-policy" required>
+            <option value="" disabled selected>Select a policy…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="assess-profile" class="form-label required">Profile</label>
+          <select class="select" id="assess-profile" required>
+            <option value="web" selected>Web — Headers & Reflection</option>
+            <option value="network">Network — Web + Nmap</option>
+            <option value="web-deep">Web Deep — Web + Nuclei</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="assess-priority" class="form-label">Priority</label>
+          <select class="select" id="assess-priority">
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-assessment" value="default">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="16" height="16">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          <span>Start Assessment</span>
+        </button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Create Policy Modal -->
+  <dialog class="modal" id="modal-policy" aria-modal="true" aria-labelledby="modal-policy-title">
+    <form class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="modal-policy-title">Create Policy</h2>
+        <button class="modal-close" value="cancel" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="policy-name" class="form-label required">Policy Name</label>
+          <input type="text" class="input" id="policy-name" placeholder="Web Application Assessment" required>
+        </div>
+        <div class="form-group">
+          <label for="policy-description" class="form-label">Description</label>
+          <textarea class="textarea" id="policy-description" rows="3" placeholder="Describe the assessment scope and rules…"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="policy-tenant" class="form-label required">Tenant</label>
+            <select class="select" id="policy-tenant" required>
+              <option value="" disabled selected>Select tenant…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="policy-version" class="form-label">Version</label>
+            <input type="number" class="input" id="policy-version" value="1" min="1" max="999">
+          </div>
+        </div>
+        <fieldset class="form-fieldset">
+          <legend class="fieldset-legend">Network Scope</legend>
+          <div class="form-group">
+            <label for="policy-include" class="form-label">Include (CIDR or hostname, one per line)</label>
+            <textarea class="textarea textarea-mono" id="policy-include" rows="4" placeholder="10.0.0.0/8&#10;*.example.com&#10;api.example.com"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="policy-exclude" class="form-label">Exclude (CIDR or hostname, one per line)</label>
+            <textarea class="textarea textarea-mono" id="policy-exclude" rows="3" placeholder="10.0.0.1/32&#10;admin.example.com"></textarea>
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset">
+          <legend class="fieldset-legend">Ports & Protocols</legend>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="policy-ports" class="form-label">Allowed Ports (comma-separated)</label>
+              <input type="text" class="input" id="policy-ports" placeholder="80, 443, 8080, 8443">
+            </div>
+            <div class="form-group">
+              <label class="form-label">
+                <input type="checkbox" id="policy-broad-networks"> Allow broad network ranges
+              </label>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-policy" value="default">Create Policy</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Create Tenant Modal -->
+  <dialog class="modal" id="modal-tenant" aria-modal="true" aria-labelledby="modal-tenant-title">
+    <form class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="modal-tenant-title">Create Tenant</h2>
+        <button class="modal-close" value="cancel" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="tenant-name" class="form-label required">Tenant ID</label>
+          <input type="text" class="input" id="tenant-name" placeholder="acme-corp" pattern="^[a-z0-9-]+$" required aria-describedby="tenant-name-hint">
+          <p id="tenant-name-hint" class="form-hint">Lowercase, alphanumeric and hyphens only. Used in API calls.</p>
+        </div>
+        <div class="form-group">
+          <label for="tenant-display" class="form-label required">Display Name</label>
+          <input type="text" class="input" id="tenant-display" placeholder="Acme Corporation" required>
+        </div>
+        <div class="form-group">
+          <label for="tenant-email" class="form-label required">Contact Email</label>
+          <input type="email" class="input" id="tenant-email" placeholder="security@acme.com" required>
+        </div>
+        <div class="form-group">
+          <label for="tenant-tier" class="form-label">Tier</label>
+          <select class="select" id="tenant-tier">
+            <option value="standard" selected>Standard</option>
+            <option value="pro">Professional</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-tenant" value="default">Create Tenant</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Add Target Modal -->
+  <dialog class="modal" id="modal-target" aria-modal="true" aria-labelledby="modal-target-title">
+    <form class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="modal-target-title">Add Target</h2>
+        <button class="modal-close" value="cancel" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="target-url" class="form-label required">Target URL</label>
+          <input type="url" class="input" id="target-url" placeholder="https://app.example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="target-type" class="form-label required">Type</label>
+          <select class="select" id="target-type" required>
+            <option value="web" selected>Web Application</option>
+            <option value="api">API Endpoint</option>
+            <option value="network">Network Range</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="target-tags" class="form-label">Tags (comma-separated)</label>
+          <input type="text" class="input" id="target-tags" placeholder="production, pci-dss, external">
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-target" value="default">Add Target</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Create API Key Modal -->
+  <dialog class="modal" id="modal-api-key" aria-modal="true" aria-labelledby="modal-api-key-title">
+    <form class="modal-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="modal-api-key-title">Create API Key</h2>
+        <button class="modal-close" value="cancel" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="apikey-name" class="form-label required">Key Name</label>
+          <input type="text" class="input" id="apikey-name" placeholder="CI/CD Pipeline" required>
+        </div>
+        <div class="form-group">
+          <label for="apikey-tier" class="form-label required">Tier</label>
+          <select class="select" id="apikey-tier" required>
+            <option value="standard" selected>Standard (60 req/min)</option>
+            <option value="elevated">Elevated (300 req/min)</option>
+            <option value="unlimited">Unlimited</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="apikey-expires" class="form-label">Expires In (days, 0 = never)</label>
+          <input type="number" class="input" id="apikey-expires" value="90" min="0" max="3650">
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-api-key" value="default">Create Key</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- API Key Created Modal (shows key once) -->
+  <dialog class="modal" id="modal-api-key-created" aria-modal="true" aria-labelledby="modal-api-key-created-title">
+    <div class="modal-form">
+      <header class="modal-header">
+        <h2 id="modal-api-key-created-title">API Key Created</h2>
+      </header>
+      <div class="modal-body">
+        <div class="alert alert-success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="24" height="24">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <div>
+            <h3>Your API key is ready</h3>
+            <p>Copy it now — you won't be able to see it again.</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="apikey-value" class="form-label">API Key</label>
+          <div class="input-with-copy">
+            <input type="text" class="input input-mono" id="apikey-value" readonly aria-describedby="apikey-copy-hint">
+            <button class="btn btn-ghost btn-icon" id="btn-copy-apikey" aria-label="Copy API key">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
+          </div>
+          <p id="apikey-copy-hint" class="form-hint">Click the copy button or select and copy manually</p>
+        </div>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-primary" id="btn-apikey-done" value="default">Done</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Confirmation Modal -->
+  <dialog class="modal modal-confirm" id="modal-confirm" aria-modal="true" aria-labelledby="modal-confirm-title">
+    <div class="modal-form">
+      <header class="modal-header">
+        <h2 id="modal-confirm-title">Confirm Action</h2>
+      </header>
+      <div class="modal-body">
+        <p id="modal-confirm-message"></p>
+      </div>
+      <footer class="modal-footer">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-danger" id="modal-confirm-ok" value="default">Confirm</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Toast Template (cloned by JS) -->
+  <template id="toast-template">
+    <div class="toast" role="alert" aria-live="assertive">
+      <div class="toast-icon"></div>
+      <div class="toast-content">
+        <h4 class="toast-title"></h4>
+        <p class="toast-message"></p>
+      </div>
+      <button class="toast-close" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </template>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

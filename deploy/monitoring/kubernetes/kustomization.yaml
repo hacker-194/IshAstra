@@ -1,114 +1,114 @@
-# Kustomize overlay for Strix Observability Stack - Production
-# Apply with: kubectl apply -k deploy/monitoring/kubernetes/
-# Requires: Prometheus Operator CRDs installed, cert-manager for TLS
+
+
+
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Common metadata applied to all resources
+
 commonLabels:
-  app.kubernetes.io/name: strix-observability
-  app.kubernetes.io/part-of: strix
+  app.kubernetes.io/name: ishastra-observability
+  app.kubernetes.io/part-of: ishastra
   app.kubernetes.io/managed-by: kustomize
   app.kubernetes.io/version: "3.5.0"
   environment: production
 
-# Namespace for all resources
+
 namespace: monitoring
 
-# Resources in dependency order (CRDs first, then operators, then CRs)
+
 resources:
-  # 1. Prometheus Operator CRDs + Operator deployment (must be first)
+
   - prometheus-operator.yaml
 
-  # 2. Core monitoring components (Prometheus, Alertmanager, Grafana)
+
   - prometheus.yaml
   - alertmanager.yaml
   - grafana.yaml
 
-  # 3. Logging stack (Loki + Promtail)
+
   - loki.yaml
 
-  # 4. Tracing stack (Tempo + OTel Collector)
+
   - tempo.yaml
 
-  # 5. ServiceMonitors and PodMonitors for scraping
+
   - servicemonitors.yaml
 
-  # 6. PrometheusRules for alerting
+
   - prometheusrules.yaml
 
-  # 7. Grafana datasources and dashboards
+
   - grafana-datasources.yaml
   - grafana-dashboards.yaml
 
-# ConfigMapGenerator for TLS certificates (create from files or cert-manager)
-# These will be replaced by cert-manager in production
-# configMapGenerator:
-#   - name: prometheus-tls
-#     namespace: monitoring
-#     files:
-#       - prometheus-client.crt=certs/prometheus-client.crt
-#       - prometheus-client.key=certs/prometheus-client.key
-#       - prometheus-ca.crt=certs/prometheus-ca.crt
-#   - name: alertmanager-tls
-#     namespace: monitoring
-#     files:
-#       - alertmanager.crt=certs/alertmanager.crt
-#       - alertmanager.key=certs/alertmanager.key
-#       - alertmanager-ca.crt=certs/alertmanager-ca.crt
-#   - name: grafana-tls
-#     namespace: monitoring
-#     files:
-#       - grafana.crt=certs/grafana.crt
-#       - grafana.key=certs/grafana.key
-#   - name: loki-tls
-#     namespace: monitoring
-#     files:
-#       - loki.crt=certs/loki.crt
-#       - loki.key=certs/loki.key
-#       - loki-ca.crt=certs/loki-ca.crt
-#   - name: tempo-tls
-#     namespace: monitoring
-#     files:
-#       - tempo.crt=certs/tempo.crt
-#       - tempo.key=certs/tempo.key
-#       - tempo-ca.crt=certs/tempo-ca.crt
 
-# SecretGenerator for sensitive data (create from files or external-secrets)
-# These will be replaced by external-secrets operator in production
-# secretGenerator:
-#   - name: alertmanager-config
-#     namespace: monitoring
-#     files:
-#       - alertmanager.yml=secrets/alertmanager.yml
-#   - name: grafana-admin
-#     namespace: monitoring
-#     literals:
-#       - admin-user=admin
-#       - admin-password=changeme
-#   - name: smtp-credentials
-#     namespace: monitoring
-#     literals:
-#       - smtp-user=alerts@strix.example.com
-#       - smtp-password=changeme
-#   - name: slack-webhook
-#     namespace: monitoring
-#     literals:
-#       - url=https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>
-#   - name: pagerduty-key
-#     namespace: monitoring
-#     literals:
-#       - integration-key=changeme
 
-# Patches for production-specific configurations
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 patches:
-  # Increase Prometheus retention for production
+
   - patch: |-
       apiVersion: monitoring.coreos.com/v1
       kind: Prometheus
       metadata:
-        name: strix-prometheus
+        name: ishastra-prometheus
         namespace: monitoring
       spec:
         retention: 30d
@@ -120,9 +120,9 @@ patches:
                   storage: 100Gi
     target:
       kind: Prometheus
-      name: strix-prometheus
+      name: ishastra-prometheus
 
-  # Increase Grafana replicas for HA
+
   - patch: |-
       apiVersion: apps/v1
       kind: Deployment
@@ -135,7 +135,7 @@ patches:
       kind: Deployment
       name: grafana
 
-  # Increase Loki retention for production
+
   - patch: |-
       apiVersion: v1
       kind: StatefulSet
@@ -152,12 +152,12 @@ patches:
                   - -target=all
                 env:
                   - name: LOKI_S3_BUCKET
-                    value: strix-loki-production
+                    value: ishastra-loki-production
     target:
       kind: StatefulSet
       name: loki
 
-  # Increase Tempo retention for production
+
   - patch: |-
       apiVersion: v1
       kind: StatefulSet
@@ -174,17 +174,17 @@ patches:
                   - -target=all
                 env:
                   - name: TEMPO_S3_BUCKET
-                    value: strix-tempo-production
+                    value: ishastra-tempo-production
     target:
       kind: StatefulSet
       name: tempo
 
-  # Increase Alertmanager storage for production
+
   - patch: |-
       apiVersion: monitoring.coreos.com/v1
       kind: Alertmanager
       metadata:
-        name: strix-alertmanager
+        name: ishastra-alertmanager
         namespace: monitoring
       spec:
         storage:
@@ -195,16 +195,16 @@ patches:
                   storage: 20Gi
     target:
       kind: Alertmanager
-      name: strix-alertmanager
+      name: ishastra-alertmanager
 
-# Replica count overrides for production HA
+
 replicas:
   - name: prometheus-operator
     count: 2
   - name: grafana
     count: 3
 
-# Images with specific tags for production (pin to specific versions)
+
 images:
   - name: quay.io/prometheus-operator/prometheus-operator
     newTag: v0.75.2
@@ -233,9 +233,9 @@ images:
   - name: nginx/nginx-prometheus-exporter
     newTag: v0.11.0
 
-# ConfigMap for environment-specific settings
+
 configMapGenerator:
-  - name: strix-observability-config
+  - name: ishastra-observability-config
     namespace: monitoring
     behavior: merge
     literals:
@@ -246,38 +246,37 @@ configMapGenerator:
       - TRACES_RETENTION=7d
       - SAMPLE_RATE=0.1
       - ENABLE_EXEMPLARS=true
-      - CLUSTER_NAME=strix-production
+      - CLUSTER_NAME=ishastra-production
 
-# Secret for TLS certificates (managed by cert-manager in production)
-# These are placeholders - cert-manager will create actual secrets
-# secretGenerator:
-#   - name: prometheus-tls
-#     namespace: monitoring
-#     type: kubernetes.io/tls
-#   - name: alertmanager-tls
-#     namespace: monitoring
-#     type: kubernetes.io/tls
-#   - name: grafana-tls
-#     namespace: monitoring
-#     type: kubernetes.io/tls
-#   - name: loki-tls
-#     namespace: monitoring
-#     type: kubernetes.io/tls
-#   - name: tempo-tls
-#     namespace: monitoring
-#     type: kubernetes.io/tls
 
-# Validation and ordering
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 vars:
   - name: ENVIRONMENT
     objref:
       kind: ConfigMap
-      name: strix-observability-config
+      name: ishastra-observability-config
       apiVersion: v1
     fieldref:
       fieldpath: data.ENVIRONMENT
 
-# Prune options for production (remove resources not in kustomization)
-# prune: true
-# pruneOptions:
-#   labelSelector: app.kubernetes.io/part-of=strix-observability
+
+
+

@@ -1,9 +1,9 @@
-# Grafana Deployment with Dashboards from ConfigMaps
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f grafana.yaml
+
+
+
 
 ---
-# ServiceAccount for Grafana
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,11 +12,11 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana
 
 ---
-# Secret for Grafana admin password
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -25,14 +25,14 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   admin-user: admin
-  admin-password: ${GRAFANA_ADMIN_PASSWORD}  # Replace with actual password or use ExternalSecrets
+  admin-password: ${GRAFANA_ADMIN_PASSWORD}
 
 ---
-# Secret for Grafana database (if using external DB)
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -41,15 +41,15 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: Opaque
 stringData:
   database-url: "postgres://grafana:${GRAFANA_DB_PASSWORD}@postgres.monitoring.svc.cluster.local:5432/grafana?sslmode=require"
-  # Or for SQLite (default, no external DB needed)
-  # database-url: "sqlite:///var/lib/grafana/grafana.db"
+
+
 
 ---
-# TLS Secret for Grafana
+
 apiVersion: v1
 kind: Secret
 metadata:
@@ -58,14 +58,14 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 type: kubernetes.io/tls
 data:
-  tls.crt: ""  # Base64 encoded cert
-  tls.key: ""  # Base64 encoded key
+  tls.crt: ""
+  tls.key: ""
 
 ---
-# Grafana Configuration ConfigMap
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -74,12 +74,12 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 data:
   grafana.ini: |
     [server]
-    domain = grafana.strix.example.com
-    root_url = https://grafana.strix.example.com/
+    domain = grafana.ishastra.example.com
+    root_url = https://grafana.ishastra.example.com/
     serve_from_sub_path = false
     router_logging = false
     static_root_path = public
@@ -91,7 +91,7 @@ data:
     http_port = 3000
 
     [database]
-    # Using SQLite by default, can be overridden by env var GF_DATABASE_URL
+
     type = sqlite3
     path = /var/lib/grafana/grafana.db
     max_idle_conn = 2
@@ -151,7 +151,7 @@ data:
     verify_email_enabled = false
     login_hint = email or username
     default_theme = dark
-    home_page = /d/strix-overview/strix-observability-overview
+    home_page = /d/ishastra-overview/ishastra-observability-overview
 
     [auth]
     disable_login_form = false
@@ -457,7 +457,7 @@ data:
     enable =
 
 ---
-# Grafana Datasources ConfigMap
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -466,7 +466,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_datasource: "1"
 data:
   datasources.yaml: |
@@ -550,7 +550,7 @@ data:
           httpHeaderValue1: ""
 
 ---
-# Grafana Dashboards Provider ConfigMap
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -559,20 +559,20 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 data:
   dashboards.yaml: |
     apiVersion: 1
     providers:
-      - name: 'Strix Dashboards'
+      - name: 'Ishastra Dashboards'
         orgId: 1
-        folder: 'Strix'
+        folder: 'Ishastra'
         type: file
         disableDeletion: false
         updateIntervalSeconds: 30
         allowUiUpdates: true
         options:
-          path: /var/lib/grafana/dashboards/strix
+          path: /var/lib/grafana/dashboards/ishastra
       - name: 'Kubernetes Dashboards'
         orgId: 1
         folder: 'Kubernetes'
@@ -593,189 +593,189 @@ data:
           path: /var/lib/grafana/dashboards/infrastructure
 
 ---
-# Grafana Dashboards ConfigMaps (10 dashboards from deploy/monitoring/grafana/dashboards/)
-# These are created as separate ConfigMaps for each dashboard
-# Dashboard: Strix Overview
+
+
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-overview
+  name: grafana-dashboard-ishastra-overview
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-overview.json: |
-{{- $overview := .Files.Get "deploy/monitoring/grafana/dashboards/strix-overview.json" }}
+  ishastra-overview.json: |
+{{- $overview := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-overview.json" }}
 {{ $overview | indent 4 }}
 
 ---
-# Dashboard: Strix Queue Depth
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-queue-depth
+  name: grafana-dashboard-ishastra-queue-depth
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-queue-depth.json: |
-{{- $queueDepth := .Files.Get "deploy/monitoring/grafana/dashboards/strix-queue-depth.json" }}
+  ishastra-queue-depth.json: |
+{{- $queueDepth := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-queue-depth.json" }}
 {{ $queueDepth | indent 4 }}
 
 ---
-# Dashboard: Strix Job Latency
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-job-latency
+  name: grafana-dashboard-ishastra-job-latency
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-job-latency.json: |
-{{- $jobLatency := .Files.Get "deploy/monitoring/grafana/dashboards/strix-job-latency.json" }}
+  ishastra-job-latency.json: |
+{{- $jobLatency := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-job-latency.json" }}
 {{ $jobLatency | indent 4 }}
 
 ---
-# Dashboard: Strix Adapter Success Rates
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-adapter-success-rates
+  name: grafana-dashboard-ishastra-adapter-success-rates
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-adapter-success-rates.json: |
-{{- $adapterRates := .Files.Get "deploy/monitoring/grafana/dashboards/strix-adapter-success-rates.json" }}
+  ishastra-adapter-success-rates.json: |
+{{- $adapterRates := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-adapter-success-rates.json" }}
 {{ $adapterRates | indent 4 }}
 
 ---
-# Dashboard: Strix Error Rates
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-error-rates
+  name: grafana-dashboard-ishastra-error-rates
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-error-rates.json: |
-{{- $errorRates := .Files.Get "deploy/monitoring/grafana/dashboards/strix-error-rates.json" }}
+  ishastra-error-rates.json: |
+{{- $errorRates := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-error-rates.json" }}
 {{ $errorRates | indent 4 }}
 
 ---
-# Dashboard: Strix Findings Pipeline
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-findings-pipeline
+  name: grafana-dashboard-ishastra-findings-pipeline
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-findings-pipeline.json: |
-{{- $findingsPipeline := .Files.Get "deploy/monitoring/grafana/dashboards/strix-findings-pipeline.json" }}
+  ishastra-findings-pipeline.json: |
+{{- $findingsPipeline := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-findings-pipeline.json" }}
 {{ $findingsPipeline | indent 4 }}
 
 ---
-# Dashboard: Strix Security Events
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-security-events
+  name: grafana-dashboard-ishastra-security-events
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-security-events.json: |
-{{- $securityEvents := .Files.Get "deploy/monitoring/grafana/dashboards/strix-security-events.json" }}
+  ishastra-security-events.json: |
+{{- $securityEvents := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-security-events.json" }}
 {{ $securityEvents | indent 4 }}
 
 ---
-# Dashboard: Strix System Health
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-system-health
+  name: grafana-dashboard-ishastra-system-health
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-system-health.json: |
-{{- $systemHealth := .Files.Get "deploy/monitoring/grafana/dashboards/strix-system-health.json" }}
+  ishastra-system-health.json: |
+{{- $systemHealth := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-system-health.json" }}
 {{ $systemHealth | indent 4 }}
 
 ---
-# Dashboard: Strix Tenant Isolation
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-tenant-isolation
+  name: grafana-dashboard-ishastra-tenant-isolation
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-tenant-isolation.json: |
-{{- $tenantIsolation := .Files.Get "deploy/monitoring/grafana/dashboards/strix-tenant-isolation.json" }}
+  ishastra-tenant-isolation.json: |
+{{- $tenantIsolation := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-tenant-isolation.json" }}
 {{ $tenantIsolation | indent 4 }}
 
 ---
-# Dashboard: Strix Tenant Throughput
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-tenant-throughput
+  name: grafana-dashboard-ishastra-tenant-throughput
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-tenant-throughput.json: |
-{{- $tenantThroughput := .Files.Get "deploy/monitoring/grafana/dashboards/strix-tenant-throughput.json" }}
+  ishastra-tenant-throughput.json: |
+{{- $tenantThroughput := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-tenant-throughput.json" }}
 {{ $tenantThroughput | indent 4 }}
 
 ---
-# Grafana Deployment
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -784,7 +784,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana
 spec:
   replicas: 2
@@ -801,7 +801,7 @@ spec:
       labels:
         app: grafana
         app.kubernetes.io/name: grafana
-        app.kubernetes.io/part-of: strix-observability
+        app.kubernetes.io/part-of: ishastra-observability
         app.kubernetes.io/component: grafana
       annotations:
         prometheus.io/scrape: "true"
@@ -846,9 +846,9 @@ spec:
                   key: admin-password
                   optional: true
             - name: GF_SERVER_ROOT_URL
-              value: "https://grafana.strix.example.com/"
+              value: "https://grafana.ishastra.example.com/"
             - name: GF_SERVER_DOMAIN
-              value: "grafana.strix.example.com"
+              value: "grafana.ishastra.example.com"
             - name: GF_SERVER_PROTOCOL
               value: "https"
             - name: GF_SERVER_CERT_FILE
@@ -910,8 +910,8 @@ spec:
             - name: grafana-tls
               mountPath: /etc/grafana/certs
               readOnly: true
-            - name: grafana-dashboards-strix
-              mountPath: /var/lib/grafana/dashboards/strix
+            - name: grafana-dashboards-ishastra
+              mountPath: /var/lib/grafana/dashboards/ishastra
               readOnly: true
             - name: grafana-data
               mountPath: /var/lib/grafana
@@ -928,14 +928,14 @@ spec:
         - name: grafana-tls
           secret:
             secretName: grafana-tls
-        - name: grafana-dashboards-strix
+        - name: grafana-dashboards-ishastra
           configMap:
-            name: grafana-dashboard-strix-overview
+            name: grafana-dashboard-ishastra-overview
         - name: grafana-data
           emptyDir: {}
 
 ---
-# Service for Grafana
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -944,7 +944,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana
 spec:
   type: ClusterIP
@@ -957,7 +957,7 @@ spec:
     app: grafana
 
 ---
-# ServiceMonitor for Grafana self-monitoring
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -967,7 +967,7 @@ metadata:
     release: prometheus
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   selector:
     matchLabels:
@@ -989,7 +989,7 @@ spec:
       - monitoring
 
 ---
-# PodDisruptionBudget for Grafana HA
+
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -998,7 +998,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   minAvailable: 1
   selector:
@@ -1006,7 +1006,7 @@ spec:
       app: grafana
 
 ---
-# HorizontalPodAutoscaler for Grafana
+
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -1015,7 +1015,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -1055,7 +1055,7 @@ spec:
       selectPolicy: Max
 
 ---
-# NetworkPolicy for Grafana
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -1064,7 +1064,7 @@ metadata:
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 spec:
   podSelector:
     matchLabels:
@@ -1073,7 +1073,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Prometheus to scrape Grafana metrics
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -1081,11 +1081,11 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 3000
-    # Allow ingress controller (if using ingress)
+
     - from:
         - namespaceSelector:
             matchLabels:
@@ -1094,7 +1094,7 @@ spec:
         - protocol: TCP
           port: 3000
   egress:
-    # Allow Grafana to query Prometheus
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -1102,11 +1102,11 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
-              prometheus: strix
+              prometheus: ishastra
       ports:
         - protocol: TCP
           port: 9090
-    # Allow Grafana to query Loki
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -1117,7 +1117,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow Grafana to query Tempo
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -1128,7 +1128,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3200
-    # Allow Grafana to query Alertmanager
+
     - to:
         - namespaceSelector:
             matchLabels:
@@ -1136,11 +1136,11 @@ spec:
           podSelector:
             matchLabels:
               app: alertmanager
-              alertmanager: strix
+              alertmanager: ishastra
       ports:
         - protocol: TCP
           port: 9093
-    # Allow DNS resolution
+
     - to:
         - namespaceSelector: {}
       ports:
@@ -1148,7 +1148,7 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Allow Grafana to connect to external auth providers (if configured)
+
     - to:
         - namespaceSelector: {}
       ports:

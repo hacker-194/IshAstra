@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from strix.core import queue
+from ishastra.core import queue
 
 
 def test_default_mode_is_the_in_process_worker(monkeypatch):
@@ -16,7 +16,7 @@ def test_default_mode_is_the_in_process_worker(monkeypatch):
 
 def test_unknown_mode_fails_instead_of_silently_degrading(monkeypatch):
     monkeypatch.setattr(queue, "QUEUE_MODE", "celery")
-    with pytest.raises(ValueError, match="STRIX_QUEUE_MODE must be one of"):
+    with pytest.raises(ValueError, match="ISHASTRA_QUEUE_MODE must be one of"):
         queue.get_assessment_queue()
 
 
@@ -24,8 +24,8 @@ def test_k8s_jobs_mode_returns_the_job_queue(monkeypatch):
     import sys
     import types
 
-    stub = types.ModuleType("strix.core.k8s_queue")
+    stub = types.ModuleType("ishastra.core.k8s_queue")
     stub.get_k8s_assessment_queue = lambda **kwargs: "k8s-queue"
-    monkeypatch.setitem(sys.modules, "strix.core.k8s_queue", stub)
+    monkeypatch.setitem(sys.modules, "ishastra.core.k8s_queue", stub)
     monkeypatch.setattr(queue, "QUEUE_MODE", "k8s-jobs")
     assert queue.get_assessment_queue() == "k8s-queue"

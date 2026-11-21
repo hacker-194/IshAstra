@@ -1,4 +1,4 @@
-"""Tests for strix.core.standby module - Warm standby promotion."""
+"""Tests for ishastra.core.standby module - Warm standby promotion."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from strix.audit import AuditChain
-from strix.config import Settings
-from strix.core import store
-from strix.core.standby import (
+from ishastra.audit import AuditChain
+from ishastra.config import Settings
+from ishastra.core import store
+from ishastra.core.standby import (
     StandbyError,
     acquire_standby_lease,
     promote_standby,
@@ -41,17 +41,15 @@ async def temp_db():
 @pytest_asyncio.fixture
 async def backup_db(temp_db):
     """Create a valid backup database with all required tables."""
-    # Create a fresh database as backup
+
     backup_path = temp_db.replace(".db", "_backup.db")
     store.configure(backup_path)
     db = await store.get_database()
     await db.migrate()
 
-    # Add some audit chain entries
     chain = AuditChain(persistent=True, hmac_key="test-hmac-key")
     await chain.append_async({"event": "test_event", "data": "test"})
 
-    # Set schema version (PRAGMA user_version)
     db_conn = await db._get_conn()
     await db_conn.execute("PRAGMA user_version = 1")
     await db_conn.commit()
@@ -59,7 +57,6 @@ async def backup_db(temp_db):
 
     yield backup_path
 
-    # Cleanup
     await store.close_database()
     Path(backup_path).unlink(missing_ok=True)
     for suffix in ("-wal", "-shm"):
@@ -121,16 +118,16 @@ class TestVerifyBackup:
 
     @pytest.mark.asyncio
     async def test_verify_backup_invalid_sqlite(self, tmp_path):
-        """Test verify_backup raises error for invalid SQLite."""
+        """A file that is neither a SQLite snapshot nor a pg_dump archive is refused."""
         invalid_file = tmp_path / "invalid.db"
         invalid_file.write_bytes(b"not a sqlite database")
-        with pytest.raises(StandbyError, match="not a valid SQLite database"):
+        with pytest.raises(StandbyError, match="unrecognised backup format"):
             await verify_backup(invalid_file)
 
     @pytest.mark.asyncio
     async def test_verify_backup_missing_tables(self, tmp_path):
         """Test verify_backup raises error for missing required tables."""
-        # Create a SQLite DB with only some tables
+
         db_path = tmp_path / "incomplete.db"
         conn = sqlite3.connect(db_path)
         conn.execute("CREATE TABLE jobs (id TEXT PRIMARY KEY)")
@@ -208,9 +205,8 @@ class TestRestoreDatabase:
         restore_database(Path(backup_db), target_path)
 
         assert target_path.exists()
-        assert target_path.stat().st_mode & 0o777 == 0o600  # Owner-only permissions
+        assert target_path.stat().st_mode & 0o777 == 0o600
 
-        # Verify restored DB has the data
         conn = sqlite3.connect(target_path)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM audit_chain")
@@ -230,15 +226,15 @@ class TestRestoreDatabase:
     @pytest.mark.asyncio
     async def test_restore_database_removes_wal_shm(self, tmp_path):
         """Test restore_database removes existing WAL/SHM files."""
-        # Create a valid backup database
+
         backup_path = tmp_path / "backup.db"
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(str(backup_path))
         db = await store.get_database()
         await db.migrate()
 
-        from strix.audit import AuditChain
+        from ishastra.audit import AuditChain
 
         chain = AuditChain(persistent=True, hmac_key="test-hmac-key")
         await chain.append_async({"event": "test_event", "data": "test"})
@@ -251,7 +247,7 @@ class TestRestoreDatabase:
         await store.close_database()
 
         target_path = tmp_path / "restored.db"
-        # Create target with WAL/SHM
+
         target_path.write_bytes(b"existing")
         wal_path = Path(str(target_path) + "-wal")
         shm_path = Path(str(target_path) + "-shm")
@@ -280,11 +276,11 @@ class TestAcquireStandbyLease:
     @pytest.mark.asyncio
     async def test_acquire_standby_lease_success(self, temp_db, mock_settings):
         """Test successful lease acquisition."""
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
 
-            with patch("strix.core.worker.acquire_worker_lease", return_value="/tmp/lease.lock"):
+            with patch("ishastra.core.worker.acquire_worker_lease", return_value="/tmp/lease.lock"):
                 lease_path = await acquire_standby_lease(temp_db)
 
                 assert lease_path == "/tmp/lease.lock"
@@ -294,12 +290,12 @@ class TestAcquireStandbyLease:
     @pytest.mark.asyncio
     async def test_acquire_standby_lease_failure(self, temp_db):
         """Test lease acquisition failure raises StandbyError."""
-        from strix.core.worker import WorkerLeaseError
+        from ishastra.core.worker import WorkerLeaseError
 
         with (
-            patch("strix.core.standby.store") as mock_store,
+            patch("ishastra.core.standby.store") as mock_store,
             patch(
-                "strix.core.worker.acquire_worker_lease",
+                "ishastra.core.worker.acquire_worker_lease",
                 side_effect=WorkerLeaseError("Lease held by another process"),
             ),
             pytest.raises(StandbyError, match="Lease held by another process"),
@@ -315,7 +311,7 @@ class TestRunReadinessChecks:
     @pytest.mark.asyncio
     async def test_run_readiness_checks_success(self, temp_db, mock_settings, audit_chain):
         """Test successful readiness checks."""
-        # Create a temp scope file so Path.exists() returns True
+
         scope_content = """{
   "program": "Test Program",
   "authorized_by": "Test Authorizer",
@@ -330,16 +326,14 @@ class TestRunReadinessChecks:
             f.write(scope_content)
             scope_path = f.name
 
-        # Update mock_settings to point to our temp file
         mock_settings.scope_file = scope_path
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
             mock_store.chain_count = AsyncMock(return_value=10)
 
-            # Mock database for admin keys check
             mock_db = AsyncMock()
             mock_store.get_database = AsyncMock(return_value=mock_db)
             mock_conn = AsyncMock()
@@ -347,13 +341,13 @@ class TestRunReadinessChecks:
             mock_transaction.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_transaction.__aexit__ = AsyncMock()
             mock_db.transaction = MagicMock(return_value=mock_transaction)
-            mock_store._fetchone = AsyncMock(return_value=(1,))  # admin_keys = 1
+            mock_store._fetchone = AsyncMock(return_value=(1,))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 patch.object(audit_chain, "verify_async", return_value=(True, "ok")),
-                patch("strix.core.scope.load", return_value=MagicMock(program="Test Program")),
+                patch("ishastra.core.scope.load", return_value=MagicMock(program="Test Program")),
             ):
                 results = await run_readiness_checks(temp_db)
 
@@ -367,7 +361,7 @@ class TestRunReadinessChecks:
     @pytest.mark.asyncio
     async def test_run_readiness_checks_audit_chain_fails(self, temp_db, mock_settings):
         """Test readiness checks fail on audit chain verification."""
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
@@ -377,8 +371,8 @@ class TestRunReadinessChecks:
             mock_audit_chain.verify_async = AsyncMock(return_value=(False, "chain broken"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 pytest.raises(StandbyError, match="audit chain verification failed"),
             ):
                 await run_readiness_checks(temp_db)
@@ -388,33 +382,32 @@ class TestRunReadinessChecks:
         """Test readiness checks fail when no admin keys (managed mode)."""
         mock_settings = MagicMock(spec=Settings)
         mock_settings.audit_hmac_key = "test-hmac-key"
-        mock_settings.scope_mode = "managed"  # Bypass scope file check
+        mock_settings.scope_mode = "managed"
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
             mock_store.chain_count = AsyncMock(return_value=10)
-            mock_store.load_policies = AsyncMock(return_value=[{"status": "active"}])  # Has active policy
+            mock_store.load_policies = AsyncMock(return_value=[{"status": "active"}])
 
             mock_db = AsyncMock()
             mock_store.get_database = AsyncMock(return_value=mock_db)
 
-            # Create proper async context manager for transaction
             mock_conn = AsyncMock()
             mock_transaction = MagicMock()
             mock_transaction.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_transaction.__aexit__ = AsyncMock()
             mock_db.transaction = MagicMock(return_value=mock_transaction)
 
-            mock_store._fetchone = AsyncMock(return_value=(0,))  # admin_keys = 0
+            mock_store._fetchone = AsyncMock(return_value=(0,))
 
             mock_audit_chain = AsyncMock()
             mock_audit_chain.verify_async = AsyncMock(return_value=(True, "ok"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 pytest.raises(StandbyError, match="no active admin API keys found"),
             ):
                 await run_readiness_checks(temp_db)
@@ -424,33 +417,32 @@ class TestRunReadinessChecks:
         """Test readiness checks fail when no admin API keys exist (managed mode)."""
         mock_settings = MagicMock(spec=Settings)
         mock_settings.audit_hmac_key = "test-hmac-key"
-        mock_settings.scope_mode = "managed"  # Bypass scope file check
+        mock_settings.scope_mode = "managed"
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
             mock_store.chain_count = AsyncMock(return_value=10)
-            mock_store.load_policies = AsyncMock(return_value=[{"status": "active"}])  # Has active policy
+            mock_store.load_policies = AsyncMock(return_value=[{"status": "active"}])
 
             mock_db = AsyncMock()
             mock_store.get_database = AsyncMock(return_value=mock_db)
 
-            # Create proper async context manager for transaction
             mock_conn = AsyncMock()
             mock_transaction = MagicMock()
             mock_transaction.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_transaction.__aexit__ = AsyncMock()
             mock_db.transaction = MagicMock(return_value=mock_transaction)
 
-            mock_store._fetchone = AsyncMock(return_value=(0,))  # admin_keys = 0
+            mock_store._fetchone = AsyncMock(return_value=(0,))
 
             mock_audit_chain = AsyncMock()
             mock_audit_chain.verify_async = AsyncMock(return_value=(True, "ok"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 pytest.raises(StandbyError, match="no active admin API keys found"),
             ):
                 await run_readiness_checks(temp_db)
@@ -462,12 +454,12 @@ class TestRunReadinessChecks:
         mock_settings.audit_hmac_key = "test-hmac-key"
         mock_settings.scope_mode = "managed"
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
             mock_store.chain_count = AsyncMock(return_value=10)
-            mock_store.load_policies = AsyncMock(return_value=[])  # No active policies
+            mock_store.load_policies = AsyncMock(return_value=[])
 
             mock_db = AsyncMock()
             mock_store.get_database = AsyncMock(return_value=mock_db)
@@ -480,8 +472,8 @@ class TestRunReadinessChecks:
             mock_audit_chain.verify_async = AsyncMock(return_value=(True, "ok"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 pytest.raises(StandbyError, match="no active engagement policies found"),
             ):
                 await run_readiness_checks(temp_db)
@@ -494,7 +486,7 @@ class TestRunReadinessChecks:
         mock_settings.scope_mode = "global"
         mock_settings.scope_file = "/nonexistent/scope.json"
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
@@ -511,8 +503,8 @@ class TestRunReadinessChecks:
             mock_audit_chain.verify_async = AsyncMock(return_value=(True, "ok"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 pytest.raises(StandbyError, match="scope file not found"),
             ):
                 await run_readiness_checks(temp_db)
@@ -525,7 +517,7 @@ class TestRunReadinessChecks:
         mock_settings.scope_mode = "global"
         mock_settings.scope_file = "/tmp/scope.json"
 
-        with patch("strix.core.standby.store") as mock_store:
+        with patch("ishastra.core.standby.store") as mock_store:
             mock_store.configure = MagicMock()
             mock_store.reset_database = AsyncMock()
             mock_store.schema_version = AsyncMock(return_value=1)
@@ -542,10 +534,10 @@ class TestRunReadinessChecks:
             mock_audit_chain.verify_async = AsyncMock(return_value=(True, "ok"))
 
             with (
-                patch("strix.core.standby.AuditChain", return_value=mock_audit_chain),
-                patch("strix.core.standby.get_settings", return_value=mock_settings),
+                patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
+                patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 patch("pathlib.Path.exists", return_value=True),
-                patch("strix.core.scope.load", return_value=None),
+                patch("ishastra.core.scope.load", return_value=None),
                 pytest.raises(StandbyError, match="scope file exists but failed to load"),
             ):
                 await run_readiness_checks(temp_db)
@@ -567,19 +559,18 @@ class TestPromoteStandby:
     @pytest.mark.asyncio
     async def test_promote_standby_success(self, tmp_path, mock_settings, audit_chain):
         """Test successful standby promotion."""
-        # Create backup directory with a properly named backup file
+
         backup_dir = tmp_path / "backups"
         backup_dir.mkdir()
-        backup_path = backup_dir / "strix-backup.db"
+        backup_path = backup_dir / "ishastra-backup.db"
 
-        # Create a valid backup database
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(str(backup_path))
         db = await store.get_database()
         await db.migrate()
 
-        from strix.audit import AuditChain
+        from ishastra.audit import AuditChain
 
         chain = AuditChain(persistent=True, hmac_key="test-hmac-key")
         await chain.append_async({"event": "test_event", "data": "test"})
@@ -593,7 +584,7 @@ class TestPromoteStandby:
 
         db_path = tmp_path / "promoted.db"
 
-        with patch("strix.core.standby.verify_backup") as mock_verify:
+        with patch("ishastra.core.standby.verify_backup") as mock_verify:
             mock_verify.return_value = {
                 "path": str(backup_path),
                 "size_bytes": 1024,
@@ -603,12 +594,12 @@ class TestPromoteStandby:
             }
 
             with (
-                patch("strix.core.standby.restore_database") as mock_restore,
+                patch("ishastra.core.standby.restore_database") as mock_restore,
                 patch(
-                    "strix.core.standby.acquire_standby_lease",
+                    "ishastra.core.standby.acquire_standby_lease",
                     return_value="/tmp/lease.lock",
                 ) as mock_lease,
-                patch("strix.core.standby.run_readiness_checks") as mock_readiness,
+                patch("ishastra.core.standby.run_readiness_checks") as mock_readiness,
             ):
                 mock_readiness.return_value = {
                     "audit_chain": {"ok": True, "reason": "ok"},
@@ -627,7 +618,6 @@ class TestPromoteStandby:
                 assert "timings_ms" in result
                 assert "rto_ms" in result
 
-                # Verify all steps called
                 mock_verify.assert_called_once()
                 mock_restore.assert_called_once()
                 mock_lease.assert_called_once()
@@ -640,21 +630,18 @@ class TestStandbyIntegration:
     @pytest.mark.asyncio
     async def test_full_promotion_workflow(self, tmp_path, mock_settings):
         """Test complete promotion workflow with real databases."""
-        # Create backup directory with a valid backup
+
         backup_dir = tmp_path / "backups"
         backup_dir.mkdir()
 
-        # Create a valid backup database
-        backup_path = backup_dir / "strix-backup.db"
+        backup_path = backup_dir / "ishastra-backup.db"
         store.configure(str(backup_path))
         db = await store.get_database()
         await db.migrate()
 
-        # Add audit chain entry
         chain = AuditChain(persistent=True, hmac_key="test-hmac-key")
         await chain.append_async({"event": "test", "data": "test"})
 
-        # Set schema version
         db_conn = await db._get_conn()
         await db_conn.execute("UPDATE settings SET value = '1' WHERE key = 'schema_version'")
         await db_conn.commit()
@@ -662,21 +649,18 @@ class TestStandbyIntegration:
 
         await store.close_database()
 
-        # Target database path
         db_path = tmp_path / "promoted.db"
 
-        # Create mock settings with managed mode and active policies
         mock_settings_managed = MagicMock(spec=Settings)
         mock_settings_managed.audit_hmac_key = "test-hmac-key"
         mock_settings_managed.scope_mode = "managed"
         mock_settings_managed.scope_file = "/tmp/scope.json"
 
-        # Mock the settings and audit chain for readiness checks
         with (
-            patch("strix.core.standby.get_settings", return_value=mock_settings_managed),
-            patch("strix.core.standby.AuditChain") as mock_chain_class,
-            patch("strix.core.worker.acquire_worker_lease", return_value="/tmp/lease.lock"),
-            patch("strix.core.standby.store") as mock_store,
+            patch("ishastra.core.standby.get_settings", return_value=mock_settings_managed),
+            patch("ishastra.core.standby.AuditChain") as mock_chain_class,
+            patch("ishastra.core.worker.acquire_worker_lease", return_value="/tmp/lease.lock"),
+            patch("ishastra.core.standby.store") as mock_store,
         ):
             mock_chain = AsyncMock()
             mock_chain.verify_async = AsyncMock(return_value=(True, "ok"))

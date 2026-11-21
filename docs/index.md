@@ -1,10 +1,10 @@
-# Strix Documentation
+# Ishastra Documentation
 
-# Strix
+# Ishastra
 
 **Authorization-First Security Assessment Platform**
 
-Strix is a security assessment platform built on a **default-deny authorization engine** (Scope Gate) that prevents unauthorized outbound connections during security testing.
+Ishastra is a security assessment platform built on a **default-deny authorization engine** (Scope Gate) that prevents unauthorized outbound connections during security testing.
 
 ## Core Features
 
@@ -19,7 +19,7 @@ Strix is a security assessment platform built on a **default-deny authorization 
 - **External**: Nmap, Nuclei, SQLMap, Nikto (wrapped with Scope Gate)
 - **Custom**: SDK for building your own adapters
 
-### Strix Proof (Cryptographic Audit Chain)
+### Ishastra Proof (Cryptographic Audit Chain)
 - **Grant** → **Gate** → **Proof** → **Verify**
 - Ed25519 signatures with JWKS rotation
 - Tamper-evident assessment receipts
@@ -42,7 +42,7 @@ Strix is a security assessment platform built on a **default-deny authorization 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Strix Platform                            │
+│                        Ishastra Platform                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌────────────────────────┐  │
@@ -82,8 +82,8 @@ Strix is a security assessment platform built on a **default-deny authorization 
 
 ```bash
 # Quick start with Docker Compose
-git clone https://github.com/strix/strix.git
-cd strix
+git clone https://github.com/ishastra/ishastra.git
+cd ishastra
 cp .env.example .env
 docker compose up -d
 docker compose exec api alembic upgrade head
@@ -92,9 +92,9 @@ curl http://localhost:8000/health
 
 ## Community
 
-- **GitHub**: [github.com/strix/strix](https://github.com/strix/strix)
-- **Discord**: [discord.gg/strix](https://discord.gg/strix)
-- **Slack**: [slack.strix.dev](https://slack.strix.dev)
+- **GitHub**: [github.com/ishastra/ishastra](https://github.com/ishastra/ishastra)
+- **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
+- **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
 - **Twitter**: [@strix_security](https://twitter.com/strix_security)
 
 ## License

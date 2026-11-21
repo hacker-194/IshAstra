@@ -5,8 +5,8 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/strix/strix
-cd strix
+git clone https://github.com/ishastra/ishastra
+cd ishastra
 docker-compose up -d
 ```
 
@@ -14,10 +14,10 @@ docker-compose up -d
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Strix API | http://localhost:8000 | API key from `.env` |
+| Ishastra API | http://localhost:8000 | API key from `.env` |
 | Grafana | http://localhost:3000 | admin / admin |
 | Prometheus | http://localhost:9090 | — |
-| PostgreSQL | localhost:5432 | strix / strix |
+| PostgreSQL | localhost:5432 | ishastra / ishastra |
 | Redis | localhost:6379 | — |
 
 ## Environment Variables
@@ -30,15 +30,15 @@ cp .env.example .env
 Key variables:
 ```env
 # API
-STRIX_API_KEY=dev-key-change-in-production
-STRIX_SECRET_KEY=dev-secret-change-in-production
+ISHASTRA_API_KEY=dev-key-change-in-production
+ISHASTRA_SECRET_KEY=dev-secret-change-in-production
 
 # Database
-DATABASE_URL=postgresql://strix:strix@localhost:5432/strix
+DATABASE_URL=postgresql://ishastra:ishastra@localhost:5432/ishastra
 REDIS_URL=redis://localhost:6379/0
 
 # Scope Gate
-STRIX_SCOPE_DOC_PATH=scope.example.json
+ISHASTRA_SCOPE_DOC_PATH=scope.example.json
 
 # Logging
 LOG_LEVEL=DEBUG
@@ -55,7 +55,7 @@ pytest tests/unit/ -v
 pytest tests/integration/ -v
 
 # With coverage
-pytest tests/ --cov=src/strix --cov-report=html
+pytest tests/ --cov=src/ishastra --cov-report=html
 ```
 
 ### Code Quality
@@ -91,7 +91,7 @@ Changes to Python files auto-reload the API.
 ### VS Code Debug Config
 ```json
 {
-  "name": "Strix API",
+  "name": "Ishastra API",
   "type": "python",
   "request": "attach",
   "connect": {"host": "localhost", "port": 5678},

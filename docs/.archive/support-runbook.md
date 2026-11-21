@@ -1,4 +1,4 @@
-# Strix Platform Support Runbook
+# Ishastra Platform Support Runbook
 
 **Version:** 3.5.0  
 **Last Updated:** 2026-11-16  
@@ -28,7 +28,7 @@
 |---------|-------------------|---------|
 | PagerDuty (SEV-1/2) | 5 minutes | On-call engineer |
 | GitHub Issues | 4 hours | Platform team |
-| Slack #strix-support | 1 hour | On-call engineer |
+| Slack #ishastra-support | 1 hour | On-call engineer |
 | Email security@ | 15 minutes | Security team |
 | Customer Portal | 2 hours | Support engineer |
 
@@ -43,8 +43,8 @@ echo "Channel: $CHANNEL"
 echo "Timestamp: $(date -u --iso-8601=seconds)"
 
 # 2. Quick system health check
-curl -sf https://strix.example.com/api/health | jq .
-curl -sf https://strix.example.com/api/ready | jq .
+curl -sf https://ishastra.example.com/api/health | jq .
+curl -sf https://ishastra.example.com/api/ready | jq .
 
 # 3. Check active alerts
 curl -sf https://alertmanager.example.com/api/v2/alerts | jq '.[] | select(.status.state=="active") | {alertname, severity, startsAt}'
@@ -133,25 +133,25 @@ T+72hr      : All - RCA draft for P0/P1
 
 | Component | Frequency | Retention | Method | Location |
 |-----------|-----------|-----------|--------|----------|
-| SQLite Database | Hourly (WAL) + Daily 02:00 UTC | 30d daily, 1yr monthly | SQLite backup API | S3 `strix-backups/db/` |
-| Scope Config | On change + Daily | 90 days | kubectl export | S3 `strix-backups/config/` |
+| SQLite Database | Hourly (WAL) + Daily 02:00 UTC | 30d daily, 1yr monthly | SQLite backup API | S3 `ishastra-backups/db/` |
+| Scope Config | On change + Daily | 90 days | kubectl export | S3 `ishastra-backups/config/` |
 | K8s Manifests | On commit | Permanent | Git | Git repository |
-| Secrets (encrypted) | On change | 90 days | Vault API / kubectl | Vault / S3 `strix-backups/secrets/` |
-| Redis AOF/RDB | Every 60s (AOF) + Daily | 7 days | Redis BGSAVE | S3 `strix-backups/redis/` |
+| Secrets (encrypted) | On change | 90 days | Vault API / kubectl | Vault / S3 `ishastra-backups/secrets/` |
+| Redis AOF/RDB | Every 60s (AOF) + Daily | 7 days | Redis BGSAVE | S3 `ishastra-backups/redis/` |
 | Prometheus Data | Continuous | 15 days | Thanos remote write | Object storage |
 
 ### 3.2 SQLite Backup & Verification
 
-#### Automated Backup Script (`/opt/strix/scripts/backup-database.sh`)
+#### Automated Backup Script (`/opt/ishastra/scripts/backup-database.sh`)
 
 ```bash
 #!/bin/bash
-# Runs hourly via cron: 0 * * * * /opt/strix/scripts/backup-database.sh
+# Runs hourly via cron: 0 * * * * /opt/ishastra/scripts/backup-database.sh
 
 set -euo pipefail
 
-DB_PATH="${STRIX_DB_PATH:-/var/lib/strix/strix.db}"
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+DB_PATH="${ISHASTRA_DB_PATH:-/var/lib/ishastra/ishastra.db}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
 HOUR_DIR=$(date -u +%H)
@@ -164,7 +164,7 @@ sqlite3 "$DB_PATH" "PRAGMA integrity_check;" | grep -q "ok" || {
     echo "ERROR: Database integrity check failed" >&2; exit 1; }
 
 # Create backup using SQLite backup API (consistent snapshot)
-BACKUP_FILE="/tmp/strix-${TIMESTAMP}.db"
+BACKUP_FILE="/tmp/ishastra-${TIMESTAMP}.db"
 sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'"
 
 # Verify backup
@@ -172,22 +172,22 @@ sqlite3 "$BACKUP_FILE" "PRAGMA integrity_check;" | grep -q "ok" || {
     echo "ERROR: Backup integrity check failed" >&2; rm -f "$BACKUP_FILE"; exit 1; }
 
 # Upload to hourly bucket (WAL-style incremental)
-aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/hourly/${DATE_DIR}/${HOUR_DIR}/strix-${TIMESTAMP}.db" \
+aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/hourly/${DATE_DIR}/${HOUR_DIR}/ishastra-${TIMESTAMP}.db" \
     --storage-class STANDARD_IA \
-    --metadata "source=strix,type=hourly,timestamp=${TIMESTAMP}"
+    --metadata "source=ishastra,type=hourly,timestamp=${TIMESTAMP}"
 
 # Daily full backup at 02:00 UTC
 if [[ $(date -u +%H) == "02" && $(date -u +%M) -lt 10 ]]; then
-    aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/strix-${TIMESTAMP}.db" \
+    aws s3 cp "$BACKUP_FILE" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/ishastra-${TIMESTAMP}.db" \
         --storage-class STANDARD_IA \
-        --metadata "source=strix,type=daily,timestamp=${TIMESTAMP}"
+        --metadata "source=ishastra,type=daily,timestamp=${TIMESTAMP}"
 fi
 
 rm -f "$BACKUP_FILE"
-echo "Database backup completed: strix-${TIMESTAMP}.db"
+echo "Database backup completed: ishastra-${TIMESTAMP}.db"
 ```
 
-#### Automated Verification Script (`/opt/strix/scripts/verify-backups.sh`)
+#### Automated Verification Script (`/opt/ishastra/scripts/verify-backups.sh`)
 
 ```bash
 #!/bin/bash
@@ -195,7 +195,7 @@ echo "Database backup completed: strix-${TIMESTAMP}.db"
 
 set -euo pipefail
 
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 
 echo "=== Backup Verification Started $(date) ==="
 
@@ -217,7 +217,7 @@ UNION ALL SELECT 'audit_log', COUNT(*) FROM audit_log;
 "
 
 # 2. Verify latest config backup
-LATEST_CONFIG=$(aws s3 ls "s3://${BACKUP_BUCKET}/config/" --recursive | grep strix-config | sort | tail -n 1 | awk '{print $4}')
+LATEST_CONFIG=$(aws s3 ls "s3://${BACKUP_BUCKET}/config/" --recursive | grep ishastra-config | sort | tail -n 1 | awk '{print $4}')
 [[ -n "$LATEST_CONFIG" ]] || { echo "WARNING: No config backup found"; }
 aws s3 cp "s3://${BACKUP_BUCKET}/config/${LATEST_CONFIG}" /tmp/verify-config.yaml
 [[ -s /tmp/verify-config.yaml ]] || { echo "ERROR: Config backup empty"; exit 1; }
@@ -235,13 +235,13 @@ rm -f /tmp/verify.db /tmp/verify-config.yaml
 
 ```bash
 #!/bin/bash
-# /opt/strix/scripts/backup-postgresql.sh
+# /opt/ishastra/scripts/backup-postgresql.sh
 # Runs daily at 02:00 UTC
 
 set -euo pipefail
 
-PG_DSN="${STRIX_DATABASE_URL}"
-BACKUP_BUCKET="${STRIX_BACKUP_BUCKET}"
+PG_DSN="${ISHASTRA_DATABASE_URL}"
+BACKUP_BUCKET="${ISHASTRA_BACKUP_BUCKET}"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 DATE_DIR=$(date -u +%Y/%m/%d)
 
@@ -251,18 +251,18 @@ pg_dump "$PG_DSN" \
     --compress=6 \
     --no-owner \
     --no-privileges \
-    --file="/tmp/strix-pg-${TIMESTAMP}.dump"
+    --file="/tmp/ishastra-pg-${TIMESTAMP}.dump"
 
 # Verify dump
-pg_restore --list "/tmp/strix-pg-${TIMESTAMP}.dump" >/dev/null || {
+pg_restore --list "/tmp/ishastra-pg-${TIMESTAMP}.dump" >/dev/null || {
     echo "ERROR: PostgreSQL dump verification failed"; exit 1; }
 
 # Upload
-aws s3 cp "/tmp/strix-pg-${TIMESTAMP}.dump" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/strix-pg-${TIMESTAMP}.dump" \
+aws s3 cp "/tmp/ishastra-pg-${TIMESTAMP}.dump" "s3://${BACKUP_BUCKET}/db/daily/${DATE_DIR}/ishastra-pg-${TIMESTAMP}.dump" \
     --storage-class STANDARD_IA
 
-rm -f "/tmp/strix-pg-${TIMESTAMP}.dump"
-echo "PostgreSQL backup completed: strix-pg-${TIMESTAMP}.dump"
+rm -f "/tmp/ishastra-pg-${TIMESTAMP}.dump"
+echo "PostgreSQL backup completed: ishastra-pg-${TIMESTAMP}.dump"
 ```
 
 ### 3.4 Audit Chain Verification
@@ -270,7 +270,7 @@ echo "PostgreSQL backup completed: strix-pg-${TIMESTAMP}.dump"
 **Critical**: The audit chain MUST be verified after every restore.
 
 ```bash
-# Verify integrity and audit chain on the backup. Set STRIX_AUDIT_HMAC_KEY in
+# Verify integrity and audit chain on the backup. Set ISHASTRA_AUDIT_HMAC_KEY in
 # the protected operator environment; the value is read from the environment,
 # not interpolated into a SQL command.
 python scripts/operational_check.py --db /tmp/backup.db --out /tmp/backup-verified.db
@@ -279,7 +279,7 @@ python scripts/operational_check.py --db /tmp/backup.db --out /tmp/backup-verifi
 **Verification via API:**
 ```bash
 curl -sf -H "Authorization: Bearer $ADMIN_KEY" \
-  https://strix.example.com/api/audit/verify | jq .
+  https://ishastra.example.com/api/audit/verify | jq .
 ```
 
 ### 3.5 Restore Procedures
@@ -292,28 +292,28 @@ curl -sf -H "Authorization: Bearer $ADMIN_KEY" \
 
 set -euo pipefail
 
-BACKUP_FILE="${1:-strix-20240115-020000.db}"
-NAMESPACE="strix"
-PVC_NAME="strix-db-pvc"
-POD_NAME="strix-api-0"
-CONTAINER="strix-api"
-DB_PATH_IN_POD="/var/lib/strix/strix.db"
+BACKUP_FILE="${1:-ishastra-20240115-020000.db}"
+NAMESPACE="ishastra"
+PVC_NAME="ishastra-db-pvc"
+POD_NAME="ishastra-api-0"
+CONTAINER="ishastra-api"
+DB_PATH_IN_POD="/var/lib/ishastra/ishastra.db"
 
 echo "=== Starting Database Restore ==="
 echo "Backup: $BACKUP_FILE"
 
 # 1. Scale down ALL writers
 echo "Scaling down writers..."
-kubectl scale deployment strix-api -n $NAMESPACE --replicas=0
-kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=0
-kubectl scale deployment strix-worker -n $NAMESPACE --replicas=0 2>/dev/null || true
+kubectl scale deployment ishastra-api -n $NAMESPACE --replicas=0
+kubectl scale deployment ishastra-scheduler -n $NAMESPACE --replicas=0
+kubectl scale deployment ishastra-worker -n $NAMESPACE --replicas=0 2>/dev/null || true
 
 # Wait for pods to terminate
-kubectl wait --for=delete pod -l app.kubernetes.io/name=strix,component=api -n $NAMESPACE --timeout=60s
+kubectl wait --for=delete pod -l app.kubernetes.io/name=ishastra,component=api -n $NAMESPACE --timeout=60s
 
 # 2. Download backup
 echo "Downloading backup..."
-aws s3 cp "s3://strix-backups/db/daily/$(date -u +%Y/%m/%d)/${BACKUP_FILE}" /tmp/restore.db
+aws s3 cp "s3://ishastra-backups/db/daily/$(date -u +%Y/%m/%d)/${BACKUP_FILE}" /tmp/restore.db
 
 # 3. Verify once more
 python scripts/operational_check.py --db /tmp/restore.db --out /tmp/restore-verified.db
@@ -328,13 +328,13 @@ kubectl exec -n $NAMESPACE $POD_NAME -c $CONTAINER -- rm -f ${DB_PATH_IN_POD}-wa
 
 # 6. Scale up writers
 echo "Scaling up writers..."
-kubectl scale deployment strix-api -n $NAMESPACE --replicas=3
-kubectl scale deployment strix-scheduler -n $NAMESPACE --replicas=1
-kubectl scale deployment strix-worker -n $NAMESPACE --replicas=2 2>/dev/null || true
+kubectl scale deployment ishastra-api -n $NAMESPACE --replicas=3
+kubectl scale deployment ishastra-scheduler -n $NAMESPACE --replicas=1
+kubectl scale deployment ishastra-worker -n $NAMESPACE --replicas=2 2>/dev/null || true
 
 # 7. Wait for rollout
-kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=300s
-kubectl rollout status deployment/strix-scheduler -n $NAMESPACE --timeout=300s
+kubectl rollout status deployment/ishastra-api -n $NAMESPACE --timeout=300s
+kubectl rollout status deployment/ishastra-scheduler -n $NAMESPACE --timeout=300s
 
 echo "=== Database Restore Complete ==="
 ```
@@ -347,15 +347,15 @@ echo "=== Database Restore Complete ==="
 
 set -euo pipefail
 
-CONFIG_BACKUP="${1:-strix-config-20240115-020000.yaml}"
-RULES_BACKUP="${2:-strix-rules-20240115-020000.yaml}"
-NAMESPACE="strix"
+CONFIG_BACKUP="${1:-ishastra-config-20240115-020000.yaml}"
+RULES_BACKUP="${2:-ishastra-rules-20240115-020000.yaml}"
+NAMESPACE="ishastra"
 
 echo "=== Restoring Configuration ==="
 
 # 1. Download backups
-aws s3 cp "s3://strix-backups/config/$(date -u +%Y/%m/%d)/${CONFIG_BACKUP}" /tmp/restore-config.yaml
-aws s3 cp "s3://strix-backups/config/$(date -u +%Y/%m/%d)/${RULES_BACKUP}" /tmp/restore-rules.yaml 2>/dev/null || true
+aws s3 cp "s3://ishastra-backups/config/$(date -u +%Y/%m/%d)/${CONFIG_BACKUP}" /tmp/restore-config.yaml
+aws s3 cp "s3://ishastra-backups/config/$(date -u +%Y/%m/%d)/${RULES_BACKUP}" /tmp/restore-rules.yaml 2>/dev/null || true
 
 # 2. Validate YAML
 kubectl apply --dry-run=client -f /tmp/restore-config.yaml >/dev/null || { echo "Invalid config YAML"; exit 1; }
@@ -366,9 +366,9 @@ kubectl apply -f /tmp/restore-config.yaml
 [[ -f /tmp/restore-rules.yaml ]] && kubectl apply -f /tmp/restore-rules.yaml
 
 # 4. Restart pods to pick up new config
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n $NAMESPACE
-kubectl rollout status deployment/strix-api -n $NAMESPACE --timeout=180s
-kubectl rollout status deployment/strix-scheduler -n $NAMESPACE --timeout=180s
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n $NAMESPACE
+kubectl rollout status deployment/ishastra-api -n $NAMESPACE --timeout=180s
+kubectl rollout status deployment/ishastra-scheduler -n $NAMESPACE --timeout=180s
 
 echo "=== Configuration Restore Complete ==="
 ```
@@ -381,28 +381,28 @@ echo "=== Configuration Restore Complete ==="
 
 set -euo pipefail
 
-SECRETS_BACKUP="${1:-strix-secrets-20240115-020000.json.age}"
-ENCRYPTION_KEY="${STRIX_BACKUP_ENCRYPTION_KEY}"
+SECRETS_BACKUP="${1:-ishastra-secrets-20240115-020000.json.age}"
+ENCRYPTION_KEY="${ISHASTRA_BACKUP_ENCRYPTION_KEY}"
 VAULT_ADDR="${VAULT_ADDR}"
 
 echo "=== Restoring Secrets to Vault ==="
 
 # 1. Download and decrypt
-aws s3 cp "s3://strix-backups/secrets/$(date -u +%Y/%m/%d)/${SECRETS_BACKUP}" /tmp/secrets.json.age
+aws s3 cp "s3://ishastra-backups/secrets/$(date -u +%Y/%m/%d)/${SECRETS_BACKUP}" /tmp/secrets.json.age
 age -d -i "$ENCRYPTION_KEY" -o /tmp/secrets.json /tmp/secrets.json.age
 
 # 2. Validate JSON structure
 jq -e '.data' /tmp/secrets.json >/dev/null || { echo "Invalid secrets format"; exit 1; }
 
 # 3. Write to Vault (creates new version)
-vault kv put secret/strix @/tmp/secrets.json
+vault kv put secret/ishastra @/tmp/secrets.json
 
 # 4. Trigger ExternalSecret sync (if using ESO)
-kubectl annotate externalsecret strix-secrets -n strix force-sync=$(date +%s) --overwrite
+kubectl annotate externalsecret ishastra-secrets -n ishastra force-sync=$(date +%s) --overwrite
 
 # 5. Restart pods to pick up new secrets
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
-kubectl rollout status deployment/strix-api -n strix --timeout=180s
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n ishastra
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=180s
 
 # 6. Cleanup
 rm -f /tmp/secrets.json /tmp/secrets.json.age
@@ -418,8 +418,8 @@ echo "=== Secrets Restore Complete ==="
 
 set -euo pipefail
 
-API_URL="https://strix.example.com"
-ADMIN_KEY="${STRIX_API_KEY}"
+API_URL="https://ishastra.example.com"
+ADMIN_KEY="${ISHASTRA_API_KEY}"
 
 echo "=== Post-Restore Verification ==="
 
@@ -469,7 +469,7 @@ did not match the supported APIs. Use the maintained
 
 The project automates only scope-signing JWKS rotation. It does not provide
 generic rotation for application, database, Redis, tenant, or audit secrets.
-In particular, changing `STRIX_ENCRYPTION_KEY` without a data re-encryption
+In particular, changing `ISHASTRA_ENCRYPTION_KEY` without a data re-encryption
 migration makes existing encrypted fields unreadable. No fixed 90-day rotation
 period is prescribed by the project; the operator must set a policy that
 accounts for each key's actual lifecycle and recovery behavior.
@@ -482,7 +482,7 @@ accounts for each key's actual lifecycle and recovery behavior.
 
 ```bash
 # Via API (admin key required)
-curl -X POST https://strix.example.com/api/tenants \
+curl -X POST https://ishastra.example.com/api/tenants \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -500,7 +500,7 @@ curl -X POST https://strix.example.com/api/tenants \
 
 ```bash
 # Create engagement policy first
-curl -X POST https://strix.example.com/api/policies \
+curl -X POST https://ishastra.example.com/api/policies \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -518,7 +518,7 @@ curl -X POST https://strix.example.com/api/policies \
   }'
 
 # Then create tenant (policy will be bound automatically in managed mode)
-curl -X POST https://strix.example.com/api/tenants \
+curl -X POST https://ishastra.example.com/api/tenants \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -533,27 +533,27 @@ curl -X POST https://strix.example.com/api/tenants \
 
 ```bash
 # List all tenants
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/tenants | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/tenants | jq .
 
 # Get tenant details
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/tenants/acme-corp | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/tenants/acme-corp | jq .
 
 # Update tenant tier
-curl -X PATCH https://strix.example.com/api/tenants/acme-corp \
+curl -X PATCH https://ishastra.example.com/api/tenants/acme-corp \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"tier": "pro"}'
 
 # Deactivate tenant (revokes key)
-curl -X POST https://strix.example.com/api/tenants/acme-corp/deactivate \
+curl -X POST https://ishastra.example.com/api/tenants/acme-corp/deactivate \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # Reactivate tenant (issues new key)
-curl -X POST https://strix.example.com/api/tenants/acme-corp/activate \
+curl -X POST https://ishastra.example.com/api/tenants/acme-corp/activate \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # Rotate tenant key
-curl -X POST https://strix.example.com/api/keys/rotate/acme-corp \
+curl -X POST https://ishastra.example.com/api/keys/rotate/acme-corp \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
@@ -561,13 +561,13 @@ curl -X POST https://strix.example.com/api/keys/rotate/acme-corp \
 
 ```bash
 # List all policies
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/policies | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/policies | jq .
 
 # Get specific policy
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/policies/pol_abc123 | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/policies/pol_abc123 | jq .
 
 # Create new policy
-curl -X POST https://strix.example.com/api/policies \
+curl -X POST https://ishastra.example.com/api/policies \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -585,7 +585,7 @@ curl -X POST https://strix.example.com/api/policies \
   }'
 
 # Update policy (creates new version)
-curl -X PATCH https://strix.example.com/api/policies/pol_abc123 \
+curl -X PATCH https://ishastra.example.com/api/policies/pol_abc123 \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -595,7 +595,7 @@ curl -X PATCH https://strix.example.com/api/policies/pol_abc123 \
   }'
 
 # Revoke policy (cancels queued/running jobs)
-curl -X POST https://strix.example.com/api/policies/pol_abc123/revoke \
+curl -X POST https://ishastra.example.com/api/policies/pol_abc123/revoke \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
@@ -603,13 +603,13 @@ curl -X POST https://strix.example.com/api/policies/pol_abc123/revoke \
 
 ```bash
 # View current scope
-kubectl exec -n strix strix-api-0 -- cat /etc/strix/scope.json | jq .
+kubectl exec -n ishastra ishastra-api-0 -- cat /etc/ishastra/scope.json | jq .
 
 # Validate scope syntax before applying
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/python -c "
-from strix.scope import Scope
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/python -c "
+from ishastra.scope import Scope
 import json
-with open('/etc/strix/scope.json') as f:
+with open('/etc/ishastra/scope.json') as f:
     scope = Scope(**json.load(f))
 print('Scope valid:', scope)
 print('Include:', scope.include)
@@ -618,49 +618,49 @@ print('Networks:', scope.authorized_networks)
 "
 
 # Update scope ConfigMap
-kubectl edit configmap strix-config -n strix
+kubectl edit configmap ishastra-config -n ishastra
 
 # Or apply new scope file
-kubectl create configmap strix-config-new --from-file=scope.json=/path/to/new/scope.json -n strix --dry-run=client -o yaml | kubectl apply -f -
-kubectl patch configmap strix-config -n strix -p "$(kubectl get configmap strix-config-new -n strix -o json | jq -r '.data')"
+kubectl create configmap ishastra-config-new --from-file=scope.json=/path/to/new/scope.json -n ishastra --dry-run=client -o yaml | kubectl apply -f -
+kubectl patch configmap ishastra-config -n ishastra -p "$(kubectl get configmap ishastra-config-new -n ishastra -o json | jq -r '.data')"
 
 # Restart pods to pick up new scope
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
-kubectl rollout status deployment/strix-api -n strix --timeout=180s
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n ishastra
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=180s
 ```
 
 ### 5.5 Monitoring Target Management
 
 ```bash
 # List monitored targets
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/monitor/targets | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/monitor/targets | jq .
 
 # Add target to monitoring
-curl -X POST https://strix.example.com/api/monitor/targets \
+curl -X POST https://ishastra.example.com/api/monitor/targets \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"target": "https://app.example.com", "profile": "web-deep"}'
 
 # Remove target from monitoring
-curl -X DELETE https://strix.example.com/api/monitor/targets/https%3A%2F%2Fapp.example.com \
+curl -X DELETE https://ishastra.example.com/api/monitor/targets/https%3A%2F%2Fapp.example.com \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # Trigger immediate assessment
-curl -X POST https://strix.example.com/api/monitor/targets/https%3A%2F%2Fapp.example.com/assess \
+curl -X POST https://ishastra.example.com/api/monitor/targets/https%3A%2F%2Fapp.example.com/assess \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # Check monitor status
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/monitor/status | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/monitor/status | jq .
 ```
 
 ### 5.6 Webhook Sink Management
 
 ```bash
 # List webhook sinks
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/monitor/webhooks | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/monitor/webhooks | jq .
 
 # Add webhook sink
-curl -X POST https://strix.example.com/api/monitor/webhooks \
+curl -X POST https://ishastra.example.com/api/monitor/webhooks \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -670,11 +670,11 @@ curl -X POST https://strix.example.com/api/monitor/webhooks \
   }'
 
 # Test webhook delivery
-curl -X POST https://strix.example.com/api/monitor/webhooks/slack-alerts/test \
+curl -X POST https://ishastra.example.com/api/monitor/webhooks/slack-alerts/test \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # Delete webhook sink
-curl -X DELETE https://strix.example.com/api/monitor/webhooks/slack-alerts \
+curl -X DELETE https://ishastra.example.com/api/monitor/webhooks/slack-alerts \
   -H "Authorization: Bearer $ADMIN_KEY"
 ```
 
@@ -690,29 +690,29 @@ curl -X DELETE https://strix.example.com/api/monitor/webhooks/slack-alerts \
 - Logs: `ScopeGate: Target https://evil.com rejected`
 - HTTP 403 from `/api/assess` with "Target not within authorized scope"
 - Audit log entries with `action: "scope_violation"`
-- Alert: `StrixAuthFailureBurst` or repeated violations from same key
+- Alert: `IshastraAuthFailureBurst` or repeated violations from same key
 
 #### Immediate Containment (First 5 Minutes)
 
 ```bash
 # 1. Identify source API key and tenant
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=500 | grep -i "scope violation"
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=500 | grep -i "scope violation"
 
 # 2. Check audit log for violations
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT actor, target, timestamp, user_agent FROM audit_log
 WHERE action = 'scope_violation'
 ORDER BY timestamp DESC LIMIT 20;
 "
 
 # 3. REVOKE COMPROMISED KEY IMMEDIATELY
-curl -X POST https://strix.example.com/api/keys/revoke/<TENANT_ID> \
+curl -X POST https://ishastra.example.com/api/keys/revoke/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"key_prefix": "sk_live_abc123"}'
 
 # Or via database directly
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 UPDATE api_keys SET revoked = 1 WHERE prefix = 'sk_live_abc123';
 "
 
@@ -722,11 +722,11 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: deny-attacker-$(date +%s)
-  namespace: strix
+  namespace: ishastra
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: strix
+      app.kubernetes.io/name: ishastra
   policyTypes:
   - Ingress
   ingress:
@@ -742,7 +742,7 @@ EOF
 
 ```bash
 # 1. Check if any violations resulted in completed scans
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT j.id, j.target, j.state, j.tenant_id, j.created_at FROM jobs j
 JOIN audit_log a ON j.tenant_id = a.actor
 WHERE a.action = 'scope_violation'
@@ -762,10 +762,10 @@ AND j.created_at > a.timestamp;
 **Cause 1: Overly Broad Scope**
 ```bash
 # Audit scope for wildcard issues
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/python -c "
-from strix.scope import Scope
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/python -c "
+from ishastra.scope import Scope
 import json
-with open('/etc/strix/scope.json') as f:
+with open('/etc/ishastra/scope.json') as f:
     scope = Scope(**json.load(f))
 
 for pattern in scope.include:
@@ -781,41 +781,41 @@ for net in scope.authorized_networks:
 **Cause 2: Credential Leak**
 ```bash
 # 1. Rotate all keys for affected tenant
-curl -X POST https://strix.example.com/api/keys/rotate/<TENANT_ID> \
+curl -X POST https://ishastra.example.com/api/keys/rotate/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY"
 
 # 2. Force re-authentication
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 DELETE FROM sessions WHERE tenant_id = 'acme-corp';
 "
 ```
 
 **Cause 3: Scope Validation Bug**
 ```bash
-# Check Strix version for known scope bugs
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/strix --version
+# Check Ishastra version for known scope bugs
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/ishastra --version
 
 # Test edge cases
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/python -m pytest tests/test_scope.py -v
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/python -m pytest tests/test_scope.py -v
 ```
 
 #### Recovery Verification
 
 ```bash
 # 1. Verify scope gate blocks unauthorized
-curl -X POST https://strix.example.com/api/assess \
+curl -X POST https://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -d '{"target": "https://evil.com", "profile": "web"}'
 # Expect 403
 
 # 2. Verify authorized targets still work
-curl -X POST https://strix.example.com/api/assess \
+curl -X POST https://ishastra.example.com/api/assess \
   -H "Authorization: Bearer $TENANT_KEY" \
   -d '{"target": "https://app.example.com", "profile": "web"}'
 # Expect 202
 
 # 3. Monitor for further violations
-# PromQL: sum(rate(strix_scope_gate_decisions_total{decision="blocked"}[5m]))  # expect 0
+# PromQL: sum(rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m]))  # expect 0
 ```
 
 ---
@@ -828,14 +828,14 @@ curl -X POST https://strix.example.com/api/assess \
 - Tenant reports unauthorized access to findings
 - Unusual findings export activity in audit log
 - Webhook deliveries to unknown endpoints
-- Alert: `StrixCriticalFindingsNew` from unexpected tenant
+- Alert: `IshastraCriticalFindingsNew` from unexpected tenant
 
 #### Immediate Containment (First 15 Minutes)
 
 ```bash
 # 1. REVOKE COMPROMISED CREDENTIALS
 # Identify affected tenant from audit log
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT * FROM audit_log
 WHERE timestamp > datetime('now', '-24 hours')
 AND (action = 'findings_export' OR action = 'key_rotation')
@@ -843,23 +843,23 @@ ORDER BY timestamp DESC;
 "
 
 # Revoke tenant's API keys
-curl -X POST https://strix.example.com/api/keys/revoke/<TENANT_ID> \
+curl -X POST https://ishastra.example.com/api/keys/revoke/<TENANT_ID> \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{"key_prefix": "sk_live_compromised"}'
 
 # 2. Stop the service if active exfiltration
-kubectl scale deployment strix-api -n strix --replicas=0
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
 
 # 3. Preserve database for forensics
-kubectl cp strix/strix-api-0:/var/lib/strix/strix.db /forensics/strix.db.$(date +%s)
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --since=72h > /forensics/api-logs.$(date +%s).txt
+kubectl cp ishastra/ishastra-api-0:/var/lib/ishastra/ishastra.db /forensics/ishastra.db.$(date +%s)
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --since=72h > /forensics/api-logs.$(date +%s).txt
 ```
 
 #### Impact Assessment
 
 ```bash
 # 1. Check what findings were accessed
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT f.*, j.target, j.tenant_id FROM findings f
 JOIN jobs j ON f.job_id = j.id
 WHERE j.tenant_id = '<suspect_tenant>'
@@ -867,14 +867,14 @@ AND f.created_at > datetime('now', '-24 hours');
 "
 
 # 2. Check webhook deliveries
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT * FROM webhook_deliveries
 WHERE created_at > datetime('now', '-24 hours')
 AND status = 'delivered';
 "
 
 # 3. Check for bulk API access patterns
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT actor, COUNT(*) as calls, MIN(timestamp), MAX(timestamp)
 FROM audit_log
 WHERE timestamp > datetime('now', '-24 hours')
@@ -892,7 +892,7 @@ ORDER BY calls DESC;
 
 # 2. Invalidate unauthorized findings (if any created via bypass)
 # Mark findings from unauthorized scans as invalid
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 UPDATE findings SET status = 'invalid' WHERE job_id IN (
   SELECT id FROM jobs WHERE tenant_id = '<suspect_tenant>' AND state = 'completed'
   AND created_at > '<compromise_start_time>'
@@ -900,8 +900,8 @@ UPDATE findings SET status = 'invalid' WHERE job_id IN (
 "
 
 # 3. Restore service with new credentials
-kubectl scale deployment strix-api -n strix --replicas=3
-kubectl rollout status deployment/strix-api -n strix --timeout=300s
+kubectl scale deployment ishastra-api -n ishastra --replicas=3
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s
 
 # 4. Notify affected parties
 # See security-incident.md for notification templates
@@ -922,19 +922,19 @@ kubectl rollout status deployment/strix-api -n strix --timeout=300s
 
 ```bash
 # 1. STOP ALL WRITERS IMMEDIATELY
-kubectl scale deployment strix-api -n strix --replicas=0
-kubectl scale deployment strix-scheduler -n strix --replicas=0
-kubectl scale deployment strix-worker -n strix --replicas=0 2>/dev/null || true
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=0
+kubectl scale deployment ishastra-worker -n ishastra --replicas=0 2>/dev/null || true
 
 # 2. Preserve database for forensics
-kubectl cp strix/strix-api-0:/var/lib/strix/strix.db /forensics/strix.db.forensic.$(date +%s)
+kubectl cp ishastra/ishastra-api-0:/var/lib/ishastra/ishastra.db /forensics/ishastra.db.forensic.$(date +%s)
 
 # 3. Check audit chain manually
-sqlite3 /var/lib/strix/strix.db "SELECT * FROM audit_chain ORDER BY seq DESC LIMIT 10;"
+sqlite3 /var/lib/ishastra/ishastra.db "SELECT * FROM audit_chain ORDER BY seq DESC LIMIT 10;"
 
 # 4. Check key presence without printing its value
-kubectl get secret strix-secrets -n strix \
-  -o 'jsonpath={.data.STRIX_AUDIT_HMAC_KEY}' | grep -q . \
+kubectl get secret ishastra-secrets -n ishastra \
+  -o 'jsonpath={.data.ISHASTRA_AUDIT_HMAC_KEY}' | grep -q . \
   && echo "Audit key is present"
 # Compare the secret version in the secret manager's audit log
 ```
@@ -961,7 +961,7 @@ kubectl get secret strix-secrets -n strix \
 ```bash
 # Follow database restore procedure (Section 3.5)
 # Use latest VERIFIED backup
-LATEST_VERIFIED=$(aws s3 ls s3://strix-backups/db/verified/ --recursive | sort | tail -n 1 | awk '{print $4}')
+LATEST_VERIFIED=$(aws s3 ls s3://ishastra-backups/db/verified/ --recursive | sort | tail -n 1 | awk '{print $4}')
 ./restore-database.sh "$LATEST_VERIFIED"
 ```
 
@@ -973,7 +973,7 @@ LATEST_VERIFIED=$(aws s3 ls s3://strix-backups/db/verified/ --recursive | sort |
 ```
 
 #### Post-Recovery
-- Do not replace `STRIX_AUDIT_HMAC_KEY` without an approved chain migration;
+- Do not replace `ISHASTRA_AUDIT_HMAC_KEY` without an approved chain migration;
   see [secret and signing-key rotation](runbooks/secret-rotation.md)
 - Review database access controls
 - Update runbook with lessons learned
@@ -994,28 +994,28 @@ LATEST_VERIFIED=$(aws s3 ls s3://strix-backups/db/verified/ --recursive | sort |
 
 ```bash
 # 1. Check worker status
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/monitor/status | jq .
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/monitor/status | jq .
 
 # 2. Check worker logs
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=200 | grep -i worker
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=200 | grep -i worker
 
 # 3. Identify stuck jobs
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT id, target, state, actor, created_at, started_at FROM jobs
 WHERE state = 'running' AND started_at < datetime('now', '-5 minutes');
 "
 
 # 4. Force cancel stuck jobs
-for job_id in $(kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "
+for job_id in $(kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "
 SELECT id FROM jobs WHERE state = 'running' AND started_at < datetime('now', '-5 minutes');
 "); do
-  curl -X POST https://strix.example.com/api/assess/$job_id/cancel \
+  curl -X POST https://ishastra.example.com/api/assess/$job_id/cancel \
     -H "Authorization: Bearer $ADMIN_KEY"
 done
 
 # 5. Restart API pods (workers run in-process)
-kubectl rollout restart deployment/strix-api -n strix
-kubectl rollout status deployment/strix-api -n strix --timeout=300s
+kubectl rollout restart deployment/ishastra-api -n ishastra
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s
 ```
 
 #### Root Cause Investigation
@@ -1028,7 +1028,7 @@ dmesg | grep -i kill
 df -h
 
 # 3. Check database locks
-sqlite3 /var/lib/strix/strix.db "PRAGMA busy_timeout;"
+sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA busy_timeout;"
 
 # 4. Check Redis connectivity (rate limiting)
 redis-cli -h $REDIS_HOST ping
@@ -1037,14 +1037,14 @@ redis-cli -h $REDIS_HOST ping
 ps aux | grep -E "nmap|nuclei"
 
 # 6. Check worker memory limit
-kubectl exec -n strix strix-api-0 -- cat /proc/self/cgroup | grep memory
+kubectl exec -n ishastra ishastra-api-0 -- cat /proc/self/cgroup | grep memory
 ```
 
 #### Resolution
 
 | Cause | Fix |
 |-------|-----|
-| OOM kill | Increase `STRIX_WORKER_MEMORY_MB` or reduce concurrent workers |
+| OOM kill | Increase `ISHASTRA_WORKER_MEMORY_MB` or reduce concurrent workers |
 | Disk full | Clean up old jobs/findings, increase PVC size |
 | Database locked | Restart API, check for long-running transactions |
 | Redis down | Restart Redis, check persistence config |
@@ -1055,13 +1055,13 @@ kubectl exec -n strix strix-api-0 -- cat /proc/self/cgroup | grep memory
 
 ### 6.5 Playbook: Redis Unavailable
 
-**Severity**: SEV-2 (if `STRIX_REDIS_REQUIRED=1` or workers > 1)
+**Severity**: SEV-2 (if `ISHASTRA_REDIS_REQUIRED=1` or workers > 1)
 
 #### Detection
 - Rate limiting fails open/closed
 - Scheduler fails to start
 - Logs: `Redis required but unreachable`
-- Alert: `StrixRedisDown`
+- Alert: `IshastraRedisDown`
 
 #### Immediate Actions
 
@@ -1070,14 +1070,14 @@ kubectl exec -n strix strix-api-0 -- cat /proc/self/cgroup | grep memory
 redis-cli -h $REDIS_HOST -p $REDIS_PORT ping
 
 # 2. Check Redis logs
-kubectl logs -n strix -l app.kubernetes.io/name=redis --tail=100
+kubectl logs -n ishastra -l app.kubernetes.io/name=redis --tail=100
 
-# 3. If STRIX_REDIS_REQUIRED=false, Strix falls back to in-memory
+# 3. If ISHASTRA_REDIS_REQUIRED=false, Ishastra falls back to in-memory
 # Verify fallback mode:
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=100 | grep "RateLimitMiddleware"
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=100 | grep "RateLimitMiddleware"
 
 # 4. Restart Redis
-kubectl rollout restart statefulset/redis-master -n strix
+kubectl rollout restart statefulset/redis-master -n ishastra
 ```
 
 #### Recovery
@@ -1095,26 +1095,26 @@ kubectl rollout restart statefulset/redis-master -n strix
 - `sqlite3.OperationalError: database is locked`
 - `sqlite3.DatabaseError: database disk image is malformed`
 - All write operations fail
-- Alert: `StrixDatabaseError`
+- Alert: `IshastraDatabaseError`
 
 #### Immediate Actions
 
 ```bash
 # 1. Stop service
-kubectl scale deployment strix-api -n strix --replicas=0
-kubectl scale deployment strix-scheduler -n strix --replicas=0
+kubectl scale deployment ishastra-api -n ishastra --replicas=0
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=0
 
 # 2. Check database integrity
-sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
+sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
 
 # 3. If locked, check for stale locks
-ls -la /var/lib/strix/strix.db*
+ls -la /var/lib/ishastra/ishastra.db*
 # Remove -shm/-wal if no other process using
-rm -f /var/lib/strix/strix.db-wal /var/lib/strix/strix.db-shm
+rm -f /var/lib/ishastra/ishastra.db-wal /var/lib/ishastra/ishastra.db-shm
 
 # 4. Restore from backup if corrupted
-cp /backups/strix.db.latest /var/lib/strix/strix.db
-chmod 600 /var/lib/strix/strix.db
+cp /backups/ishastra.db.latest /var/lib/ishastra/ishastra.db
+chmod 600 /var/lib/ishastra/ishastra.db
 ```
 
 #### Recovery
@@ -1141,23 +1141,23 @@ chmod 600 /var/lib/strix/strix.db
 
 | Alert | Severity | Runbook | Auto-Resolve |
 |-------|----------|---------|--------------|
-| `StrixAuditChainVerificationFailed` | Critical | Section 6.3 | No |
-| `StrixScopeGateBypass` | Critical | Section 6.1 | No |
-| `StrixDatabaseCorruption` | Critical | Section 6.6 | No |
-| `StrixWorkerDeadlock` | Major | Section 6.4 | Yes (after restart) |
-| `StrixRedisDown` | Major | Section 6.5 | Yes |
-| `StrixAuthFailureBurst` | Critical | Section 6.1 | No |
-| `StrixBackupMissing` | Critical | Section 3 | No |
-| `StrixBackupVerificationFailed` | Critical | Section 3 | No |
-| `StrixHighJobLatency` | Warning | runbooks/job-latency.md | Yes |
-| `StrixQueueBacklog` | Warning | runbooks/queue-backlog.md | Yes |
-| `StrixCertificateExpiry` | Warning | runbooks/certificate-expiry.md | No |
+| `IshastraAuditChainVerificationFailed` | Critical | Section 6.3 | No |
+| `IshastraScopeGateBypass` | Critical | Section 6.1 | No |
+| `IshastraDatabaseCorruption` | Critical | Section 6.6 | No |
+| `IshastraWorkerDeadlock` | Major | Section 6.4 | Yes (after restart) |
+| `IshastraRedisDown` | Major | Section 6.5 | Yes |
+| `IshastraAuthFailureBurst` | Critical | Section 6.1 | No |
+| `IshastraBackupMissing` | Critical | Section 3 | No |
+| `IshastraBackupVerificationFailed` | Critical | Section 3 | No |
+| `IshastraHighJobLatency` | Warning | runbooks/job-latency.md | Yes |
+| `IshastraQueueBacklog` | Warning | runbooks/queue-backlog.md | Yes |
+| `IshastraCertificateExpiry` | Warning | runbooks/certificate-expiry.md | No |
 
 ### 7.3 Key Metrics Interpretation
 
-`src/strix/metrics.py` exports the HTTP, scope-gate, rate-limit, job, queue,
+`src/ishastra/metrics.py` exports the HTTP, scope-gate, rate-limit, job, queue,
 adapter, database, auth, webhook, findings, audit and build series. Scope denials
-are `strix_scope_gate_decisions_total{decision="blocked"}`, labelled by `reason`.
+are `ishastra_scope_gate_decisions_total{decision="blocked"}`, labelled by `reason`.
 Every `strix_*` query in this runbook returns data. Not exported: compliance
 scoring (`strix_compliance_*`) and the `strix_assessment_*` Kubernetes gauges.
 
@@ -1179,20 +1179,20 @@ strix_http_requests_in_progress
 
 #### Scope Gate Metrics
 
-`strix_scope_gate_decisions_total{decision,reason,tenant}` is exported by
-`src/strix/metrics.py`. `decision` is `allowed` or `blocked`; `reason` is the
+`ishastra_scope_gate_decisions_total{decision,reason,tenant}` is exported by
+`src/ishastra/metrics.py`. `decision` is `allowed` or `blocked`; `reason` is the
 denial code (`out_of_scope`, `invalid_target`, `resolution_failed`,
 `policy_unavailable`, `revoked`, `expired`) or `allowed`; `tenant` is the
 engagement policy's tenant or `global`.
 
 ```promql
 # Gate decisions by outcome
-rate(strix_scope_gate_decisions_total{decision="allowed"}[5m])
-rate(strix_scope_gate_decisions_total{decision="blocked"}[5m])
+rate(ishastra_scope_gate_decisions_total{decision="allowed"}[5m])
+rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m])
 
 # Which denials dominate, and for which tenant
-sum by (reason) (rate(strix_scope_gate_decisions_total{decision="blocked"}[5m]))
-sum by (tenant) (rate(strix_scope_gate_decisions_total{decision="blocked"}[5m]))
+sum by (reason) (rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m]))
+sum by (tenant) (rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m]))
 ```
 
 #### Rate Limiting Metrics
@@ -1249,30 +1249,30 @@ histogram_quantile(0.95, rate(strix_db_pool_acquire_seconds_bucket[5m])) by (dia
 
 | Dashboard | URL | Key Panels |
 |-----------|-----|------------|
-| Strix Overview | `https://grafana.example.com/d/strix/overview` | Request rate, error rate, latency, active jobs |
-| Security | `https://grafana.example.com/d/strix-security/security-overview` | Scope violations, auth failures, audit chain |
-| Workers | `https://grafana.example.com/d/strix-workers/worker-status` | Queue depth, worker utilization, job duration |
-| Database | `https://grafana.example.com/d/strix-database/db-health` | Connections, query latency, backup status |
-| Rate Limiting | `https://grafana.example.com/d/strix-ratelimit/rate-limiting` | Checks, exceeded, Redis availability |
-| Backup/DR | `https://grafana.example.com/d/strix-dr/dr-readiness` | Backup freshness, verification status, RTO/RPO |
+| Ishastra Overview | `https://grafana.example.com/d/ishastra/overview` | Request rate, error rate, latency, active jobs |
+| Security | `https://grafana.example.com/d/ishastra-security/security-overview` | Scope violations, auth failures, audit chain |
+| Workers | `https://grafana.example.com/d/ishastra-workers/worker-status` | Queue depth, worker utilization, job duration |
+| Database | `https://grafana.example.com/d/ishastra-database/db-health` | Connections, query latency, backup status |
+| Rate Limiting | `https://grafana.example.com/d/ishastra-ratelimit/rate-limiting` | Checks, exceeded, Redis availability |
+| Backup/DR | `https://grafana.example.com/d/ishastra-dr/dr-readiness` | Backup freshness, verification status, RTO/RPO |
 
 ### 7.5 Log Analysis Queries (Loki)
 
 ```logql
 # Scope violations
-{job="strix-api"} |= "scope violation"
+{job="ishastra-api"} |= "scope violation"
 
 # Audit chain failures
-{job="strix-api"} |= "audit chain" |~ "failed|tampered|mismatch"
+{job="ishastra-api"} |= "audit chain" |~ "failed|tampered|mismatch"
 
 # Worker crashes
-{job="strix-api"} |= "worker" |~ "crashed|dead|OOM"
+{job="ishastra-api"} |= "worker" |~ "crashed|dead|OOM"
 
 # Database errors
-{job="strix-api"} |= "database" |~ "error|locked|corrupt"
+{job="ishastra-api"} |= "database" |~ "error|locked|corrupt"
 
 # Authentication failures
-{job="strix-api"} |= "auth" |~ "fail|invalid|revoked"
+{job="ishastra-api"} |= "auth" |~ "fail|invalid|revoked"
 ```
 
 ---
@@ -1313,15 +1313,15 @@ helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
 
-# 3. Deploy Strix via ArgoCD
+# 3. Deploy Ishastra via ArgoCD
 kubectl apply -k deploy/argocd/overlays/dr-region
 
 # 4. Restore data
 # Database (from DR region backup bucket)
-./restore-database.sh "strix-20240115-020000.db"
+./restore-database.sh "ishastra-20240115-020000.db"
 
 # Config
-./restore-config.sh "strix-config-20240115-020000.yaml"
+./restore-config.sh "ishastra-config-20240115-020000.yaml"
 
 # Secrets (from Vault - cross-region replication)
 kubectl apply -f deploy/argocd/secrets/external-secrets/
@@ -1330,12 +1330,12 @@ kubectl apply -f deploy/argocd/secrets/external-secrets/
 aws route53 change-resource-record-sets --hosted-zone-id ZXXXXXXXX --change-batch file://dns-failover.json
 
 # 6. Verify DNS propagation
-dig strix.example.com
+dig ishastra.example.com
 
 # 7. Verify full functionality
-curl -sf https://strix.example.com/api/health
-curl -sf https://strix.example.com/api/ready
-curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/audit/verify | jq .
+curl -sf https://ishastra.example.com/api/health
+curl -sf https://ishastra.example.com/api/ready
+curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://ishastra.example.com/api/audit/verify | jq .
 ```
 
 ### 8.3 Ransomware / Encryption Attack Response
@@ -1345,13 +1345,13 @@ curl -sf -H "Authorization: Bearer $ADMIN_KEY" https://strix.example.com/api/aud
 kubectl cordon <affected-nodes>
 kubectl drain <affected-nodes> --ignore-daemonsets --delete-emptydir-data
 
-# Block all egress from Strix namespace
+# Block all egress from Ishastra namespace
 kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: deny-all-egress
-  namespace: strix
+  namespace: ishastra
 spec:
   podSelector: {}
   policyTypes:
@@ -1374,7 +1374,7 @@ terraform apply -auto-approve
 # 4. Forensic preservation
 aws ec2 create-snapshot --volume-id vol-xxxx --description "Forensic snapshot $(date)"
 
-kubectl logs -n strix -l app.kubernetes.io/name=strix --all-containers --tail=-1 > /forensics/strix-logs-$(date +%s).txt
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra --all-containers --tail=-1 > /forensics/ishastra-logs-$(date +%s).txt
 ```
 
 ### 8.4 DR Testing Checklist (Quarterly)
@@ -1398,22 +1398,22 @@ set -euo pipefail
 echo "=== DR Test Started $(date) ==="
 
 # 1. Deploy to DR namespace
-kubectl create namespace strix-dr-test
-helm install strix-dr ./deploy/helm/strix -n strix-dr-test -f deploy/helm/strix/values-dr.yaml
+kubectl create namespace ishastra-dr-test
+helm install ishastra-dr ./deploy/helm/ishastra -n ishastra-dr-test -f deploy/helm/ishastra/values-dr.yaml
 
 # 2. Restore data
-./restore-database.sh "$(aws s3 ls s3://strix-backups/db/daily/ --recursive | sort | tail -1 | awk '{print $4}')"
+./restore-database.sh "$(aws s3 ls s3://ishastra-backups/db/daily/ --recursive | sort | tail -1 | awk '{print $4}')"
 
 # 3. Run smoke tests
-kubectl exec -n strix-dr-test strix-dr-api-0 -- /usr/local/bin/pytest tests/smoke/ -v
+kubectl exec -n ishastra-dr-test ishastra-dr-api-0 -- /usr/local/bin/pytest tests/smoke/ -v
 
 # 4. Verify monitoring
 curl -sf http://prometheus.monitoring.svc.cluster.local:9090/-/healthy
 curl -sf http://grafana.monitoring.svc.cluster.local:3000/api/health
 
 # 5. Cleanup
-helm uninstall strix-dr -n strix-dr-test
-kubectl delete namespace strix-dr-test
+helm uninstall ishastra-dr -n ishastra-dr-test
+kubectl delete namespace ishastra-dr-test
 
 echo "=== DR Test Complete $(date) ==="
 ```
@@ -1426,75 +1426,75 @@ echo "=== DR Test Complete $(date) ==="
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `STRIX_ENV` | Yes | development | Environment: development/test/staging/production |
-| `STRIX_API_KEY` | Prod only | - | Bootstrap admin key (≥16 chars) |
-| `STRIX_AUDIT_HMAC_KEY` | Prod only | - | HMAC key for audit chain |
-| `STRIX_ENCRYPTION_KEY` | Prod only | - | Base64-encoded 32-byte AES-GCM field-encryption key |
-| `STRIX_WEBHOOK_SECRET` | No | - | Webhook HMAC signing key |
-| `STRIX_SCOPE_MODE` | No | auto | auto/global/managed |
-| `STRIX_SCOPE_FILE` | Global mode | scope.json | Path to scope file |
-| `STRIX_DB` | SQLite | strix.db | SQLite database path |
-| `STRIX_DATABASE_URL` | PostgreSQL | - | PostgreSQL DSN |
-| `STRIX_WORKERS` | No | 1 | Number of worker processes |
-| `STRIX_QUEUE_MAX` | No | 32 | Max queue depth |
-| `STRIX_REDIS_URL` | No | redis://localhost:6379/0 | Redis connection URL |
-| `STRIX_REDIS_REQUIRED` | No | false | Fail if Redis unavailable |
-| `STRIX_RATE_LIMIT_DISABLED` | No | false | Disable rate limiting |
-| `STRIX_RETENTION_DAYS` | No | 0 | Retention policy (0=disabled) |
-| `STRIX_AUDIT_MAX_ENTRIES` | No | 10000 | Max in-memory audit entries |
-| `STRIX_LOG_FORMAT` | No | text | text/json |
-| `STRIX_LOG_LEVEL` | No | INFO | Log level |
-| `STRIX_TRUSTED_PROXIES` | Behind proxy | - | Comma-separated CIDR list |
-| `STRIX_CORS_ORIGINS` | No | - | Comma-separated allowed origins |
-| `STRIX_WORKER_MEMORY_MB` | No | 1024 | Worker memory limit |
-| `STRIX_DISABLE_DOCS` | Prod | true | Disable API docs |
-| `STRIX_DEBUG` | No | false | Debug mode |
+| `ISHASTRA_ENV` | Yes | development | Environment: development/test/staging/production |
+| `ISHASTRA_API_KEY` | Prod only | - | Bootstrap admin key (≥16 chars) |
+| `ISHASTRA_AUDIT_HMAC_KEY` | Prod only | - | HMAC key for audit chain |
+| `ISHASTRA_ENCRYPTION_KEY` | Prod only | - | Base64-encoded 32-byte AES-GCM field-encryption key |
+| `ISHASTRA_WEBHOOK_SECRET` | No | - | Webhook HMAC signing key |
+| `ISHASTRA_SCOPE_MODE` | No | auto | auto/global/managed |
+| `ISHASTRA_SCOPE_FILE` | Global mode | scope.json | Path to scope file |
+| `ISHASTRA_DB` | SQLite | ishastra.db | SQLite database path |
+| `ISHASTRA_DATABASE_URL` | PostgreSQL | - | PostgreSQL DSN |
+| `ISHASTRA_WORKERS` | No | 1 | Number of worker processes |
+| `ISHASTRA_QUEUE_MAX` | No | 32 | Max queue depth |
+| `ISHASTRA_REDIS_URL` | No | redis://localhost:6379/0 | Redis connection URL |
+| `ISHASTRA_REDIS_REQUIRED` | No | false | Fail if Redis unavailable |
+| `ISHASTRA_RATE_LIMIT_DISABLED` | No | false | Disable rate limiting |
+| `ISHASTRA_RETENTION_DAYS` | No | 0 | Retention policy (0=disabled) |
+| `ISHASTRA_AUDIT_MAX_ENTRIES` | No | 10000 | Max in-memory audit entries |
+| `ISHASTRA_LOG_FORMAT` | No | text | text/json |
+| `ISHASTRA_LOG_LEVEL` | No | INFO | Log level |
+| `ISHASTRA_TRUSTED_PROXIES` | Behind proxy | - | Comma-separated CIDR list |
+| `ISHASTRA_CORS_ORIGINS` | No | - | Comma-separated allowed origins |
+| `ISHASTRA_WORKER_MEMORY_MB` | No | 1024 | Worker memory limit |
+| `ISHASTRA_DISABLE_DOCS` | Prod | true | Disable API docs |
+| `ISHASTRA_DEBUG` | No | false | Debug mode |
 
 ### 9.2 Key File Locations
 
 | File | Location | Purpose |
 |------|----------|---------|
-| SQLite Database | `/var/lib/strix/strix.db` | Primary data store |
-| Scope Config | `/etc/strix/scope.json` | Global scope (global mode) |
-| Audit HMAC Key | `strix-secrets` K8s secret | Audit chain signing |
-| API Keys | `strix-secrets` K8s secret | Admin/bootstrap keys |
-| Webhook Secrets | `strix-secrets` K8s secret | Webhook signing |
-| Encryption Key | `strix-secrets` K8s secret | Secrets at rest encryption |
-| Redis Password | `strix-redis-secret` K8s secret | Redis auth |
-| PostgreSQL Password | `strix-postgresql-secret` K8s secret | PostgreSQL auth |
+| SQLite Database | `/var/lib/ishastra/ishastra.db` | Primary data store |
+| Scope Config | `/etc/ishastra/scope.json` | Global scope (global mode) |
+| Audit HMAC Key | `ishastra-secrets` K8s secret | Audit chain signing |
+| API Keys | `ishastra-secrets` K8s secret | Admin/bootstrap keys |
+| Webhook Secrets | `ishastra-secrets` K8s secret | Webhook signing |
+| Encryption Key | `ishastra-secrets` K8s secret | Secrets at rest encryption |
+| Redis Password | `ishastra-redis-secret` K8s secret | Redis auth |
+| PostgreSQL Password | `ishastra-postgresql-secret` K8s secret | PostgreSQL auth |
 
 ### 9.3 Common Commands Quick Reference
 
 ```bash
 # Scale deployments
-kubectl scale deployment strix-api -n strix --replicas=3
-kubectl scale deployment strix-scheduler -n strix --replicas=1
-kubectl scale deployment strix-worker -n strix --replicas=2
+kubectl scale deployment ishastra-api -n ishastra --replicas=3
+kubectl scale deployment ishastra-scheduler -n ishastra --replicas=1
+kubectl scale deployment ishastra-worker -n ishastra --replicas=2
 
 # View logs
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=api --tail=100 -f
-kubectl logs -n strix -l app.kubernetes.io/name=strix,component=scheduler --tail=100 -f
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=api --tail=100 -f
+kubectl logs -n ishastra -l app.kubernetes.io/name=ishastra,component=scheduler --tail=100 -f
 
 # Exec into pod
-kubectl exec -n strix strix-api-0 -it -- /bin/bash
+kubectl exec -n ishastra ishastra-api-0 -it -- /bin/bash
 
 # Database queries
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "SELECT COUNT(*) FROM jobs;"
-kubectl exec -n strix strix-api-0 -- sqlite3 /var/lib/strix/strix.db "PRAGMA integrity_check;"
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "SELECT COUNT(*) FROM jobs;"
+kubectl exec -n ishastra ishastra-api-0 -- sqlite3 /var/lib/ishastra/ishastra.db "PRAGMA integrity_check;"
 
 # Audit chain verification
 curl -sf -H "Authorization: Bearer $ADMIN_KEY" \
-  https://strix.example.com/api/audit/verify | jq .
+  https://ishastra.example.com/api/audit/verify | jq .
 
 # Restart pods
-kubectl rollout restart deployment/strix-api deployment/strix-scheduler -n strix
-kubectl rollout status deployment/strix-api -n strix --timeout=300s
+kubectl rollout restart deployment/ishastra-api deployment/ishastra-scheduler -n ishastra
+kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s
 
 # View ConfigMap
-kubectl get configmap strix-config -n strix -o yaml
+kubectl get configmap ishastra-config -n ishastra -o yaml
 
 # View secrets (names only)
-kubectl get secret strix-secrets -n strix -o jsonpath='{.data}' | jq 'keys[]'
+kubectl get secret ishastra-secrets -n ishastra -o jsonpath='{.data}' | jq 'keys[]'
 ```
 
 ### 9.4 Contact Information

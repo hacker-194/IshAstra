@@ -2,7 +2,7 @@
 
 Status: current policy. Date: 2026-11-16.
 
-Phase 1 of Strix charges nobody. The repository is MIT, every feature is
+Phase 1 of Ishastra charges nobody. The repository is MIT, every feature is
 included, and pilots are free. This document records that decision, what it
 costs, and the conditions that would have to be met before any paid phase is
 considered. It is a policy statement, not a price list and not an offer.

@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: strix-us-east
+namespace: ishastra-us-east
 resources:
   - ../../base
   - namespace.yaml

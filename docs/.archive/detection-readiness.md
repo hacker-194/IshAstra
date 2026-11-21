@@ -1,4 +1,4 @@
-# Strix vulnerability-detection readiness
+# Ishastra vulnerability-detection readiness
 
 This document describes the new detection paths and what they do—and do not—prove.
 A successful test suite is not a substitute for measuring precision and recall against
@@ -18,7 +18,7 @@ an independent vulnerability oracle.
   credentials are required. Only unauthenticated GETs are sent. Success is an
   unverified authorization mismatch indicator because documentation may be stale.
 - `api-deep`: adds the bounded dynamic checks and existing Nuclei exposure subset.
-- `strix-code-scan PATH`: locally snapshots source and package manifests, then invokes
+- `ishastra-code-scan PATH`: locally snapshots source and package manifests, then invokes
   Semgrep with a bundled local ruleset, Bandit, and Trivy when available. It does not
   execute repository code and does not contact a live target. Missing tools, invalid
   output, timeouts, or snapshot omissions produce partial/failed results rather than
@@ -28,15 +28,15 @@ an independent vulnerability oracle.
 
 Install the optional tools in the runner image or host environment through your
 normal, verified software supply chain. The local Semgrep configuration is packaged
-under `src/strix/rules/semgrep.yml`. Update Trivy's vulnerability database separately
+under `src/ishastra/rules/semgrep.yml`. Update Trivy's vulnerability database separately
 as a controlled maintenance operation; if the cache is unavailable, treat SCA as
 incomplete rather than assuming there are no vulnerable dependencies.
 
 Example:
 
 ```bash
-strix-code-scan ./checkout --output report.json
-strix-code-scan ./checkout --sarif --output report.sarif
+ishastra-code-scan ./checkout --output report.json
+ishastra-code-scan ./checkout --sarif --output report.sarif
 ```
 
 The code scan snapshot skips symlinks, common build/vendor directories, files larger

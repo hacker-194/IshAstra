@@ -2,7 +2,7 @@
 
 # Runbook: High Scope Gate Denial Rate
 
-**Alert**: `StrixScopeGateDenialsHigh`
+**Alert**: `IshastraScopeGateDenialsHigh`
 **Severity**: Warning
 **Team**: Platform
 
@@ -18,29 +18,29 @@
 
 ```bash
 # By layer
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep scope_gate_layer
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep scope_gate_layer
 
 # By scope
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep scope_gate_denials | sort -k2 -nr | head -20
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep scope_gate_denials | sort -k2 -nr | head -20
 ```
 
 ### 2. Check Recent Assessment Failures
 
 ```bash
-kubectl logs -n strix-system -l app=strix-worker --tail=500 | grep -i "denied\|scope_gate" | head -20
+kubectl logs -n ishastra-system -l app=ishastra-worker --tail=500 | grep -i "denied\|scope_gate" | head -20
 ```
 
 ### 3. Verify Scope Configuration
 
 ```bash
 # List active scopes
-strix scope list --status active
+ishastra scope list --status active
 
 # Validate scope document
-strix scope validate scope.json
+ishastra scope validate scope.json
 
 # Test specific target
-strix scope test --scope scope_prod_001 --url https://target.example.com
+ishastra scope test --scope scope_prod_001 --url https://target.example.com
 ```
 
 ## Common Causes & Fixes

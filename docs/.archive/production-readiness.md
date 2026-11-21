@@ -1,4 +1,4 @@
-# Strix Production Readiness
+# Ishastra Production Readiness
 
 Last reviewed: 2026-11-18. This document separates validated behavior from
 experimental features and environment-dependent release gates. Local checks do
@@ -50,11 +50,11 @@ named commands on the exact release commit. They are not release approval.
 
 ### New since 2026-11-16
 
-- **`strix init` CLI command**: Generates `scope.json` and GitHub Action workflow from repository analysis (addresses VC PLG gap #1)
+- **`ishastra init` CLI command**: Generates `scope.json` and GitHub Action workflow from repository analysis (addresses VC PLG gap #1)
   - Detects frameworks: FastAPI, Django, Flask, Express, NestJS, Next.js, Spring
   - Extracts routes/endpoints, authentication patterns (JWT, session, API key, OAuth)
   - Infers base domain and generates appropriate scope with common subdomains
-  - Generates `.github/workflows/strix-scan.yml` with SARIF upload to GitHub Code Scanning
+  - Generates `.github/workflows/ishastra-scan.yml` with SARIF upload to GitHub Code Scanning
 - **E2E test fixes**: All 10 critical path tests now target implemented endpoints
   - Fixed `/api/metrics` → `/api/metrics/otel`
   - Fixed `/api/assessments` → `/api/assess` (paginated list)
@@ -73,7 +73,7 @@ named commands on the exact release commit. They are not release approval.
 | Celery + PostgreSQL load soak (transport since removed) | 10/10 completed; 1.40 jobs/s; p50 3121.8 ms, p95 6158.5 ms |
 | HTTP health baseline (`scripts/load_check.py`, 1000 requests, concurrency 20) | 0 errors; 307.6 req/s; p50 47.9 ms, p95 164.9 ms, p99 229.2 ms (2026-11-13) |
 | Redis multi-process rate limiter | Two API processes: 10 allowed, 2 denied, shared limit |
-| Release artifact | `strix-3.5.0-py3-none-any.whl` built successfully (474,056 bytes) |
+| Release artifact | `ishastra-3.5.0-py3-none-any.whl` built successfully (474,056 bytes) |
 
 The assessment benchmark uses the fast built-in `web` profile against a
 loopback lab. It measures scope checks, adapter execution, job persistence and
@@ -83,20 +83,20 @@ single-machine smoke measurement, not a capacity commitment.
 
 ## 3. Operational requirements
 
-- TLS-terminating reverse proxy; Strix speaks plain HTTP.
-- `STRIX_API_KEY` bootstrap admin key (≥16 chars, not a placeholder).
-- `STRIX_ENV=production` plus `STRIX_API_KEY`, `STRIX_AUDIT_HMAC_KEY`, and a
-  valid base64-encoded 32-byte `STRIX_ENCRYPTION_KEY`; production startup rejects
+- TLS-terminating reverse proxy; Ishastra speaks plain HTTP.
+- `ISHASTRA_API_KEY` bootstrap admin key (≥16 chars, not a placeholder).
+- `ISHASTRA_ENV=production` plus `ISHASTRA_API_KEY`, `ISHASTRA_AUDIT_HMAC_KEY`, and a
+  valid base64-encoded 32-byte `ISHASTRA_ENCRYPTION_KEY`; production startup rejects
   missing/invalid keys, debug mode, and disabled rate limits, and forces API docs off.
-- `STRIX_SCOPE_FILE` or managed policies; without authorization every assessment
+- `ISHASTRA_SCOPE_FILE` or managed policies; without authorization every assessment
   is refused.
-- Backups: consistent SQLite backup (`sqlite3 strix.db ".backup out.db"`), tested
+- Backups: consistent SQLite backup (`sqlite3 ishastra.db ".backup out.db"`), tested
   restore, and the same HMAC key (or an explicit chain reset decision).
 - Verify a backup with
-  `python scripts/operational_check.py --db strix.db --out /tmp/restore.db`
-  with `STRIX_AUDIT_HMAC_KEY` loaded from the protected operator environment;
+  `python scripts/operational_check.py --db ishastra.db --out /tmp/restore.db`
+  with `ISHASTRA_AUDIT_HMAC_KEY` loaded from the protected operator environment;
   this now checks the restored chain, not only row counts.
-- Retention: `STRIX_RETENTION_DAYS` is disabled by default; enable deliberately.
+- Retention: `ISHASTRA_RETENTION_DAYS` is disabled by default; enable deliberately.
 - Trusted proxy list when behind a proxy, so rate limits count real addresses.
 - Optional scanners installed and their coverage limitations accepted.
 - Monitoring: `/api/health`, `/api/ready`, `/api/metrics` (admin), OTLP optional.
@@ -111,13 +111,13 @@ single-machine smoke measurement, not a capacity commitment.
 - Remediation owner, deadline and time-boxed risk-acceptance fields per
   finding. The API accepts all fields; the UI edits owner/deadline today.
 - SARIF, JSON, HTML and PDF reports.
-- Strix Proof packs verifiable offline by a third party.
+- Ishastra Proof packs verifiable offline by a third party.
 - Recurring assessments with new-high-finding alerts.
 - Local code/dependency scanning with SARIF for CI.
 - Single-tenant or tenant-separated API access on one node.
 - Cooperative cancellation of queued and running assessments, including across
   process boundaries.
-- Fail-closed production startup (`STRIX_ENV=production`) with API docs disabled.
+- Fail-closed production startup (`ISHASTRA_ENV=production`) with API docs disabled.
 - **External scanner integration**: Nikto (web server vuln scan) and sqlmap (SQL injection detection) available in `web-full` and `api-full` profiles, scope-gated and read-only.
 
 ## 5. What is missing
@@ -135,14 +135,14 @@ configuration. It does not close the gaps below.
 | Cross-job finding record and trend API | ✅ **Implemented** 2026-11-14 | `GET /api/findings` aggregates stable fingerprints with first/last seen, per-job history and tenant remediation. `GET /api/findings/trends` returns bounded day/week/month counts. |
 | Verified-resolution evidence | ✅ **Implemented (explicit)** 2026-11-14 | `POST /api/findings/{fingerprint}/resolve` requires a later completed job on the same asset with no matching fingerprint and an `ok` run for every detector that observed it. |
 | Exception/risk-acceptance workflow | ✅ **Implemented (no notifications)** 2026-11-14 | A write key requests an exception; an administrator approves/rejects it. Requests and decisions are audited and sealed. Expired pending/approved exceptions report `expired` on reads; there is no background notification or sweep worker. |
-| Remote repository onboarding and PR annotations | **Partial** | `strix init` generates GitHub Action workflow with SARIF upload to Code Scanning; PR annotations work via SARIF. Local code scan paths still primary. |
+| Remote repository onboarding and PR annotations | **Partial** | `ishastra init` generates GitHub Action workflow with SARIF upload to Code Scanning; PR annotations work via SARIF. Local code scan paths still primary. |
 | Long-term trend analytics and compliance dashboards | **Partial** | The trends API covers up to 366 days; there is no long-term compliance dashboard. |
 | Operational usage/quota reporting | **Missing** | No per-tenant usage reporting. Phase 1 is free; paid services are gated on validation (`commercialization.md`). All features remain MIT. |
 | Multi-node/HA and soak testing | **Partial** | PostgreSQL: single-host SIGTERM soak, load soak, audit chain integrity all passed. Distributed queue: Kubernetes Jobs manifests render; no cluster run. Multi-node HA/failover not tested. |
 | Representative capacity test | **Not done** | Benchmarks are loopback `web` profiles, not scanner-heavy or wide-network workloads. |
 | Whole-database encryption at rest | **Not provided** | Sensitive webhook URLs and stored assessment-auth configs are AES-GCM encrypted at the application layer. The operator must still use disk/volume, PostgreSQL, and backup encryption and restrict database access. |
 | **E2E test coverage** | ✅ **Implemented** 2026-11-15 | 12 Playwright tests covering auth → assessment → findings → SARIF export, tenant isolation, scope enforcement. |
-| **Repository onboarding (`strix init`)** | ✅ **Implemented** 2026-11-16 | Auto-generates scope.json + GitHub Action from repo analysis; detects 7 frameworks, extracts routes, auth patterns. |
+| **Repository onboarding (`ishastra init`)** | ✅ **Implemented** 2026-11-16 | Auto-generates scope.json + GitHub Action from repo analysis; detects 7 frameworks, extracts routes, auth patterns. |
 | **Helm chart validation** | ✅ **Implemented** 2026-11-15 | All 3 environments (prod/staging/dev) lint clean, kubeconform validated, kind dry-run successful. |
 | **Secret rotation automation** | **Partial** | Scope JWKS rotation is available through the CLI and an opt-in Helm CronJob. External Secrets Operator refreshes backend-managed secrets; the former generic no-op rotation CronJob was removed. |
 
@@ -163,7 +163,7 @@ guarantees.
 
 ## 6. Go/no-go checklist before a pilot
 
-1. `STRIX_ENV=production` starts with all required secrets and API docs disabled;
+1. `ISHASTRA_ENV=production` starts with all required secrets and API docs disabled;
    local gates pass and the first GitHub Actions run is confirmed.
 2. Independent security review is complete, or the residual risk is explicitly
    accepted in writing by the deploying organization.
@@ -241,7 +241,7 @@ release should close the per-project scope and multi-node HA gaps in
 - ServiceMonitor CRDs need Prometheus Operator (manifests ready in deploy/, need target cluster)
 - External penetration test (RoE ready)
 - Compliance audit (Auditor guides ready)
-- Live scanner integration tests (opt-in via STRIX_LIVE_TOOL_TESTS=1)
+- Live scanner integration tests (opt-in via ISHASTRA_LIVE_TOOL_TESTS=1)
 - First green GitHub Actions run (workflows configured)
 - Enterprise gap: per-project scopes, multi-node HA/failover
 - Revenue gap: Pricing tiers, MSSP partner program (scaffolding complete — see 2026-11-17 update)
@@ -252,24 +252,24 @@ release should close the per-project scope and multi-node HA gaps in
 code; the evidence for each claim is the file, endpoint or test named beside it.
 
 **Gap #2 — Enterprise (SSO/OIDC/SAML, Org hierarchy, SCIM 2.0) — ✅ IMPLEMENTED:**
-- **OIDC/SAML Authentication** (`src/strix/core/auth.py`, `src/strix/api/routers/auth.py`):
+- **OIDC/SAML Authentication** (`src/ishastra/core/auth.py`, `src/ishastra/api/routers/auth.py`):
   - OIDC Authorization Code flow with PKCE support
   - JWKS validation, nonce/state verification
   - SAML 2.0 SP-initiated SSO with signed AuthnRequests, assertion validation, SLO
   - Provider support: Keycloak, Auth0, Okta, Microsoft Entra ID, Google Workspace
-  - Role mapping: SAML/OIDC claims → Strix roles (admin, analyst, viewer)
+  - Role mapping: SAML/OIDC claims → Ishastra roles (admin, analyst, viewer)
   - Auto-provisioning of users/tenants on first login
   - 8 endpoints: `/auth/oidc/login`, `/auth/oidc/callback`, `/auth/oidc/logout`, `/auth/saml/login`, `/auth/saml/acs`, `/auth/saml/slo`, `/auth/logout`, `/auth/status`
   - The SSO suites pass: `tests/unit/test_oidc.py`, `tests/unit/test_sso_auth.py`.
 
-- **Organization Hierarchy above Tenants** (`src/strix/core/organizations.py`, `src/strix/api/routers/orgs.py`):
+- **Organization Hierarchy above Tenants** (`src/ishastra/core/organizations.py`, `src/ishastra/api/routers/orgs.py`):
   - Organization model with admin keys, tiers (starter/pro/enterprise)
   - Teams with RBAC (owner, admin, member, viewer)
   - Membership management with invitation flow
   - API endpoints: CRUD orgs, list members, invite, revoke, tenant management
   - Org-level admin keys with rotation
 
-- **SCIM 2.0 Provisioning (RFC 7644)** (`src/strix/core/scim.py`, `src/strix/api/routers/scim.py`):
+- **SCIM 2.0 Provisioning (RFC 7644)** (`src/ishastra/core/scim.py`, `src/ishastra/api/routers/scim.py`):
   - Full User/Group CRUD with PATCH support
   - ServiceProviderConfig, ResourceTypes, Schemas endpoints
   - Attribute mapping: userName→email, displayName→name, emails→email, groups→roles
@@ -303,21 +303,21 @@ code; the evidence for each claim is the file, endpoint or test named beside it.
 - ServiceMonitor CRDs need Prometheus Operator (manifests ready in deploy/, need target cluster)
 - External penetration test (RoE ready in docs/penetration-test-roe.md)
 - Compliance audit (Auditor guides ready in docs/compliance/)
-- Live scanner integration tests (opt-in via STRIX_LIVE_TOOL_TESTS=1)
+- Live scanner integration tests (opt-in via ISHASTRA_LIVE_TOOL_TESTS=1)
 - First green GitHub Actions run (workflows configured in .github/workflows/)
 
 ### 2026-11-17 Update: Revenue Gap (Gap #4) — Scaffolding Complete
 
 **Gap #4 — Pricing Tiers & MSSP Partner Program — ✅ SCAFFOLDING IMPLEMENTED:**
 
-- **Pricing Tier Models** (`src/strix/core/pricing.py`):
+- **Pricing Tier Models** (`src/ishastra/core/pricing.py`):
   - `PricingTier` enum: FREE, STARTER, PRO, ENTERPRISE
   - Tier limits: assessments/month, concurrent assessments, users, retention days, API rate limits, projects, webhooks, schedules, finding records
   - Feature flags per tier (28 features across assessments, auth/SSO, org hierarchy, reporting, integrations, advanced features, MSSP)
   - Tier info with pricing (monthly/annual USD)
   - Helper functions: `get_tier_limits()`, `get_tier_features()`, `can_access_feature()`, `check_limit()`, `is_upgrade()`, `is_downgrade()`, `compare_tiers()`
 
-- **MSSP Partner Program** (`src/strix/core/mssp.py`):
+- **MSSP Partner Program** (`src/ishastra/core/mssp.py`):
   - `MSSPTier` enum: REGISTERED, AUTHORIZED, PREMIER
   - Partner limits: max customers, total assessments/month, concurrent assessments, reselling, white-label, branding, support, portal access, revenue share %
   - Customer management with tenant linking, status (active/trial/suspended/churned), tier assignment
@@ -325,7 +325,7 @@ code; the evidence for each claim is the file, endpoint or test named beside it.
   - Customer invitations with token-based acceptance flow
   - Database migrations (versions 30-33) with PostgreSQL equivalents
 
-- **API Endpoints** (`src/strix/api/routers/pricing.py`, `src/strix/api/routers/mssp.py`):
+- **API Endpoints** (`src/ishastra/api/routers/pricing.py`, `src/ishastra/api/routers/mssp.py`):
   - `GET /api/pricing/tiers` — List all tiers with limits/features/pricing
   - `GET /api/pricing/tiers/{tier}` — Get specific tier details
   - `GET /api/pricing/current` — Current tenant's tier info
@@ -342,7 +342,7 @@ code; the evidence for each claim is the file, endpoint or test named beside it.
   - `POST/GET /api/mssp/partners/{id}/usage` — Usage recording & retrieval
   - `POST /api/mssp/partners/{id}/usage/summary` — Aggregated usage for billing
 
-- **Pydantic Schemas** (`src/strix/api/schemas.py`):
+- **Pydantic Schemas** (`src/ishastra/api/schemas.py`):
   - Complete request/response models for pricing tiers and MSSP entities
   - Validation for tier upgrades/downgrades with limit checking
 
@@ -391,13 +391,13 @@ instance, not inferred from source.
 - **Scope Gate authorization**: all 260 core scope tests pass (authorized_networks enforcement, DNS resolution, port restrictions, host matching, IPv6, default-deny).
 - **TLA+ formal verification**: `docs/tla/JudgeAddresses.tla` model-checked with TLC (21.4M states, 6 invariants verified including DefaultDenyInvariant).
 - **Penetration test**: independent pentest report at `docs/penetration-test-report.md` (RoE template at `docs/penetration-test-roe.md`).
-- **Break-glass dual approval**: implemented in `src/strix/core/scope_breakglass.py` with 21 tests, CLI command `strix scope-breakglass`, metrics instrumentation.
+- **Break-glass dual approval**: implemented in `src/ishastra/core/scope_breakglass.py` with 21 tests, CLI command `ishastra scope-breakglass`, metrics instrumentation.
 - **Local E2E runner**: `scripts/run-e2e-local.py` executes full docker-compose stack health checks + E2E suite.
 - **Secret generation**: `scripts/generate-secrets.py` produces Ed25519 signing keys, AES-256 encryption keys, HMAC keys, API keys, DB/Redis passwords; outputs Helm values, K8s manifests, `.env.secrets`.
-- **Production secret management examples**: `deploy/helm/strix/sealedsecrets-example.yaml` and `deploy/helm/strix/externalsecrets-example.yaml` (no plaintext secrets committed).
+- **Production secret management examples**: `deploy/helm/ishastra/sealedsecrets-example.yaml` and `deploy/helm/ishastra/externalsecrets-example.yaml` (no plaintext secrets committed).
 - **Readiness check**: `scripts/readiness_check.py` passes 23/23 checks (health, auth, scope enforcement, audit chain, proof packs, backup/restore).
 
-Still open: `src/strix/core/store.py` remains the authoritative migration
+Still open: `src/ishastra/core/store.py` remains the authoritative migration
 source; the separate migration artifacts are not authoritative. Multi-node HA,
 regional failover, and a representative soak on deployment hardware remain
 untested.
@@ -414,14 +414,14 @@ Configure these values separately in the GitHub `staging` and `production`
 environments:
 
 - Secrets: `STAGING_KUBECONFIG` or `PRODUCTION_KUBECONFIG`,
-  `STRIX_SCOPE_JSON` (the approved scope document), and the registry pull
+  `ISHASTRA_SCOPE_JSON` (the approved scope document), and the registry pull
   credential if the GHCR package is private.
-- Variables: `STRIX_INGRESS_HOST` and `STRIX_API_HOST`, both real DNS names
+- Variables: `ISHASTRA_INGRESS_HOST` and `ISHASTRA_API_HOST`, both real DNS names
   routed to the deployment.
 - Cluster prerequisites in the target namespace: `ghcr-secret`,
-  `strix-secrets` with `STRIX_API_KEY`, `STRIX_AUDIT_HMAC_KEY`, and
-  `STRIX_ENCRYPTION_KEY`; `strix-redis-secret` with `redis-password`; and
-  `strix-postgresql-secret` with both `postgresql-password` and `database-url`.
+  `ishastra-secrets` with `ISHASTRA_API_KEY`, `ISHASTRA_AUDIT_HMAC_KEY`, and
+  `ISHASTRA_ENCRYPTION_KEY`; `ishastra-redis-secret` with `redis-password`; and
+  `ishastra-postgresql-secret` with both `postgresql-password` and `database-url`.
 - Production additionally needs a working
   `external.metrics.k8s.io` API for the custom-metric HPAs, TLS/ingress,
   PostgreSQL/Redis storage, backup policy, and a tested restore procedure.

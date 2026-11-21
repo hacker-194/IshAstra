@@ -1,8 +1,8 @@
-# Strix Webhook Integration Guide
+# Ishastra Webhook Integration Guide
 
 ## Overview
 
-Strix supports **outbound webhooks** for real-time alerting on assessment results. Webhooks are configured by administrators and deliver JSON payloads to your HTTP endpoints.
+Ishastra supports **outbound webhooks** for real-time alerting on assessment results. Webhooks are configured by administrators and deliver JSON payloads to your HTTP endpoints.
 
 ---
 
@@ -11,7 +11,7 @@ Strix supports **outbound webhooks** for real-time alerting on assessment result
 ### 1. Configure Webhook (Admin Only)
 
 ```bash
-curl -X POST https://strix.example.com/api/alerts/webhook \
+curl -X POST https://ishastra.example.com/api/alerts/webhook \
   -H "Authorization: Bearer sk_admin_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -23,7 +23,7 @@ curl -X POST https://strix.example.com/api/alerts/webhook \
 ### 2. Configure Monitor Targets (Admin Only)
 
 ```bash
-curl -X POST https://strix.example.com/api/monitor/configure \
+curl -X POST https://ishastra.example.com/api/monitor/configure \
   -H "Authorization: Bearer sk_admin_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -43,10 +43,10 @@ Your endpoint receives POST requests with assessment results.
 
 Two different things are called a webhook here, and only one exists in this build:
 
-1. **Monitor alerts (implemented).** `WebhookAlertSink` in `src/strix/monitor.py`
+1. **Monitor alerts (implemented).** `WebhookAlertSink` in `src/ishastra/monitor.py`
    POSTs `json.dumps(redact(alert))` to a pinned destination, signed with
-   `STRIX_WEBHOOK_SECRET`, with bounded retries. The alert body carries `rule_name`, `severity`, `target`, `message`, `job`, `findings`, `category`, `title`, `location`.
-2. **Assessment-completed events (not emitted).** Strix does not POST a
+   `ISHASTRA_WEBHOOK_SECRET`, with bounded retries. The alert body carries `rule_name`, `severity`, `target`, `message`, `job`, `findings`, `category`, `title`, `location`.
+2. **Assessment-completed events (not emitted).** Ishastra does not POST a
    job-completion event today. The JSON below is an *example schema for a sender
    you write yourself*; the receiver samples in this guide read fields with
    `.get()` so they also work when the body is the monitor alert above.
@@ -55,10 +55,10 @@ Two different things are called a webhook here, and only one exists in this buil
 
 ### Signature Verification
 
-Each webhook includes a `X-Strix-Signature` header for verification:
+Each webhook includes a `X-Ishastra-Signature` header for verification:
 
 ```
-X-Strix-Signature: sha256=abc123def456...
+X-Ishastra-Signature: sha256=abc123def456...
 ```
 
 **Verification (Python):**
@@ -83,7 +83,7 @@ from flask import request
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    signature = request.headers.get("X-Strix-Signature")
+    signature = request.headers.get("X-Ishastra-Signature")
     if not verify_webhook(request.get_data(), signature, WEBHOOK_SECRET):
         return "Invalid signature", 401
     
@@ -92,11 +92,11 @@ def webhook():
 ```
 
 **Secret Configuration:**
-The webhook secret is set via `STRIX_WEBHOOK_SECRET` environment variable (32+ random bytes, base64 encoded). All webhooks share the same secret.
+The webhook secret is set via `ISHASTRA_WEBHOOK_SECRET` environment variable (32+ random bytes, base64 encoded). All webhooks share the same secret.
 
 ### IP Allowlist (Recommended)
 
-Strix webhooks originate from your Strix deployment IPs. Configure your firewall/load balancer to only accept webhook traffic from these IPs.
+Ishastra webhooks originate from your Ishastra deployment IPs. Configure your firewall/load balancer to only accept webhook traffic from these IPs.
 
 ### HTTPS Required
 
@@ -138,7 +138,7 @@ After max retries, the alert is logged but not retried further.
   "blocks": [
     {
       "type": "header",
-      "text": {"type": "plain_text", "text": "🔴 Strix Alert: Critical Findings"}
+      "text": {"type": "plain_text", "text": "🔴 Ishastra Alert: Critical Findings"}
     },
     {
       "type": "section",
@@ -159,7 +159,7 @@ After max retries, the alert is logged but not retried further.
         {
           "type": "button",
           "text": {"type": "plain_text", "text": "View Report"},
-          "url": "https://strix.example.com/api/assess/job_abc123/report.html",
+          "url": "https://ishastra.example.com/api/assess/job_abc123/report.html",
           "style": "primary"
         }
       ]
@@ -177,10 +177,10 @@ After max retries, the alert is logged but not retried further.
   "@type": "MessageCard",
   "@context": "http://schema.org/extensions",
   "themeColor": "FF0000",
-  "summary": "Strix Security Alert",
+  "summary": "Ishastra Security Alert",
   "sections": [
     {
-      "activityTitle": "🔴 Strix Assessment Completed",
+      "activityTitle": "🔴 Ishastra Assessment Completed",
       "activitySubtitle": "Critical findings detected",
       "facts": [
         {"name": "Target", "value": "https://example.com"},
@@ -199,7 +199,7 @@ After max retries, the alert is logged but not retried further.
     {
       "@type": "OpenUri",
       "name": "View Report",
-      "targets": [{"os": "default", "uri": "https://strix.example.com/api/assess/job_abc123/report.html"}]
+      "targets": [{"os": "default", "uri": "https://ishastra.example.com/api/assess/job_abc123/report.html"}]
     }
   ]
 }
@@ -213,10 +213,10 @@ After max retries, the alert is logged but not retried further.
 {
   "routing_key": "YOUR_INTEGRATION_KEY",
   "event_action": "trigger",
-  "dedup_key": "strix-job_abc123",
+  "dedup_key": "ishastra-job_abc123",
   "payload": {
-    "summary": "Strix: Critical findings on https://example.com",
-    "source": "strix",
+    "summary": "Ishastra: Critical findings on https://example.com",
+    "source": "ishastra",
     "severity": "critical",
     "component": "example.com",
     "group": "security",
@@ -229,7 +229,7 @@ After max retries, the alert is logged but not retried further.
         {"category": "SQL Injection", "severity": "critical", "location": "https://example.com/search?q=test"},
         {"category": "XSS", "severity": "high", "location": "https://example.com/search?q=<script>"}
       ],
-      "report_url": "https://strix.example.com/api/assess/job_abc123/report.html"
+      "report_url": "https://ishastra.example.com/api/assess/job_abc123/report.html"
     }
   }
 }
@@ -245,7 +245,7 @@ import hashlib
 import os
 
 app = Flask(__name__)
-WEBHOOK_SECRET = os.environ["STRIX_WEBHOOK_SECRET"]
+WEBHOOK_SECRET = os.environ["ISHASTRA_WEBHOOK_SECRET"]
 
 def verify_signature(payload, signature):
     expected = hmac.new(
@@ -256,9 +256,9 @@ def verify_signature(payload, signature):
     provided = signature.replace("sha256=", "")
     return hmac.compare_digest(expected, provided)
 
-@app.route("/strix-webhook", methods=["POST"])
+@app.route("/ishastra-webhook", methods=["POST"])
 def strix_webhook():
-    signature = request.headers.get("X-Strix-Signature")
+    signature = request.headers.get("X-Ishastra-Signature")
     if not signature or not verify_signature(request.get_data(), signature):
         return jsonify({"error": "Invalid signature"}), 401
     
@@ -297,7 +297,7 @@ import hashlib
 import os
 import boto3
 
-WEBHOOK_SECRET = os.environ["STRIX_WEBHOOK_SECRET"]
+WEBHOOK_SECRET = os.environ["ISHASTRA_WEBHOOK_SECRET"]
 SNS_TOPIC_ARN = os.environ["ALERT_SNS_TOPIC"]
 
 sns = boto3.client("sns")
@@ -312,7 +312,7 @@ def verify_signature(payload, signature):
     return hmac.compare_digest(expected, provided)
 
 def lambda_handler(event, context):
-    signature = event.get("headers", {}).get("X-Strix-Signature")
+    signature = event.get("headers", {}).get("X-Ishastra-Signature")
     body = event.get("body", "")
     
     if not signature or not verify_signature(body.encode(), signature):
@@ -324,7 +324,7 @@ def lambda_handler(event, context):
     sns.publish(
         TopicArn=SNS_TOPIC_ARN,
         Message=json.dumps(data),
-        Subject=f"Strix Alert: {data['event']}"
+        Subject=f"Ishastra Alert: {data['event']}"
     )
     
     return {"statusCode": 200, "body": "OK"}
@@ -345,9 +345,9 @@ ngrok http 8080
 # → https://abc123.ngrok.io
 
 # Register webhook
-curl -X POST https://strix.example.com/api/alerts/webhook \
+curl -X POST https://ishastra.example.com/api/alerts/webhook \
   -H "Authorization: Bearer sk_admin_..." \
-  -d '{"name": "local-test", "url": "https://abc123.ngrok.io/strix-webhook"}'
+  -d '{"name": "local-test", "url": "https://abc123.ngrok.io/ishastra-webhook"}'
 ```
 
 ### 2. Test with curl
@@ -355,19 +355,19 @@ curl -X POST https://strix.example.com/api/alerts/webhook \
 ```bash
 # Simulate webhook payload
 PAYLOAD='{"event": "assessment_completed", "target": "https://example.com", "verdict": "fail", "severity_counts": {"critical": 1}}'
-SIGNATURE=$(printf '%s' "$PAYLOAD" | STRIX_WEBHOOK_SECRET="$STRIX_WEBHOOK_SECRET" python3 -c 'import hashlib, hmac, os, sys; print(hmac.new(os.environ["STRIX_WEBHOOK_SECRET"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())')
-curl -X POST https://abc123.ngrok.io/strix-webhook \
+SIGNATURE=$(printf '%s' "$PAYLOAD" | ISHASTRA_WEBHOOK_SECRET="$ISHASTRA_WEBHOOK_SECRET" python3 -c 'import hashlib, hmac, os, sys; print(hmac.new(os.environ["ISHASTRA_WEBHOOK_SECRET"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())')
+curl -X POST https://abc123.ngrok.io/ishastra-webhook \
   -H "Content-Type: application/json" \
-  -H "X-Strix-Signature: sha256=$SIGNATURE" \
+  -H "X-Ishastra-Signature: sha256=$SIGNATURE" \
   -d "$PAYLOAD"
 ```
 
-### 3. Verify in Strix
+### 3. Verify in Ishastra
 
 Check monitor status:
 ```bash
 curl -H "Authorization: Bearer sk_admin_..." \
-  https://strix.example.com/api/monitor/status
+  https://ishastra.example.com/api/monitor/status
 ```
 
 ---
@@ -379,14 +379,14 @@ curl -H "Authorization: Bearer sk_admin_..." \
 1. **Check monitor is running:**
    ```bash
    curl -H "Authorization: Bearer sk_admin_..." \
-     https://strix.example.com/api/monitor/status
+     https://ishastra.example.com/api/monitor/status
    # Should show "running": true
    ```
 
 2. **Check targets are configured:**
    ```bash
    curl -H "Authorization: Bearer sk_admin_..." \
-     https://strix.example.com/api/monitor/status
+     https://ishastra.example.com/api/monitor/status
    # Check "targets" array
    ```
 
@@ -394,12 +394,12 @@ curl -H "Authorization: Bearer sk_admin_..." \
    - No list endpoint; check audit log for `webhook_added` event
 
 4. **Check network connectivity:**
-   - Strix must reach your webhook URL
-   - Verify firewall/security groups allow Strix IPs
+   - Ishastra must reach your webhook URL
+   - Verify firewall/security groups allow Ishastra IPs
 
 ### Signature Verification Failing
 
-1. **Ensure `STRIX_WEBHOOK_SECRET` is set** on both Strix and receiver
+1. **Ensure `ISHASTRA_WEBHOOK_SECRET` is set** on both Ishastra and receiver
 2. **Use raw request body** for HMAC (not parsed JSON)
 3. **Check encoding:** payload must be bytes, secret must be string
 
@@ -420,7 +420,7 @@ Use `job_id` or `dedup_key` (job_id) to avoid duplicate processing:
 ```python
 def handle_completed(data):
     job_id = data["job_id"]
-    if redis.setnx(f"strix:processed:{job_id}", "1"):
+    if redis.setnx(f"ishastra:processed:{job_id}", "1"):
         # First time seeing this job
         process_findings(data)
     else:
@@ -514,7 +514,7 @@ When webhook delivery fails after all retry attempts, the failed webhook payload
 ### DLQ Retention Policy
 
 - **Default retention:** 30 days
-- **Configurable via:** `STRIX_DLQ_RETENTION_DAYS` environment variable (1–365 days)
+- **Configurable via:** `ISHASTRA_DLQ_RETENTION_DAYS` environment variable (1–365 days)
 - **Max entries:** 10,000 (oldest evicted when full)
 - **Purged automatically** after retention period expires
 
@@ -574,8 +574,8 @@ Authorization: Bearer <admin-key>
 import requests
 import os
 
-ADMIN_KEY = os.environ["STRIX_API_KEY"]
-BASE_URL = "https://strix.example.com"
+ADMIN_KEY = os.environ["ISHASTRA_API_KEY"]
+BASE_URL = "https://ishastra.example.com"
 
 def list_dlq_entries(status="pending", limit=50):
     resp = requests.get(
@@ -596,11 +596,11 @@ for entry in entries["entries"]:
 ```bash
 # List pending DLQ entries
 curl -H "Authorization: Bearer sk_admin_..." \
-  "https://strix.example.com/api/webhooks/dead-letter?status=pending&limit=20"
+  "https://ishastra.example.com/api/webhooks/dead-letter?status=pending&limit=20"
 
 # List all DLQ entries for a specific webhook
 curl -H "Authorization: Bearer sk_admin_..." \
-  "https://strix.example.com/api/webhooks/dead-letter?webhook_id=wh_slack-alerts"
+  "https://ishastra.example.com/api/webhooks/dead-letter?webhook_id=wh_slack-alerts"
 ```
 
 ---
@@ -656,8 +656,8 @@ Authorization: Bearer <admin-key>
 import requests
 import os
 
-ADMIN_KEY = os.environ["STRIX_API_KEY"]
-BASE_URL = "https://strix.example.com"
+ADMIN_KEY = os.environ["ISHASTRA_API_KEY"]
+BASE_URL = "https://ishastra.example.com"
 
 def replay_dlq_entry(dlq_id):
     resp = requests.post(
@@ -686,14 +686,14 @@ for entry in entries["entries"]:
 ```bash
 # Replay a single DLQ entry
 curl -X POST -H "Authorization: Bearer sk_admin_..." \
-  https://strix.example.com/api/webhooks/dead-letter/dlq_abc123def456/retry
+  https://ishastra.example.com/api/webhooks/dead-letter/dlq_abc123def456/retry
 
 # Bulk replay all pending entries (bash)
 curl -H "Authorization: Bearer sk_admin_..." \
-  "https://strix.example.com/api/webhooks/dead-letter?status=pending" \
+  "https://ishastra.example.com/api/webhooks/dead-letter?status=pending" \
   | jq -r '.entries[].id' \
   | xargs -I {} curl -X POST -H "Authorization: Bearer sk_admin_..." \
-      https://strix.example.com/api/webhooks/dead-letter/{}/retry
+      https://ishastra.example.com/api/webhooks/dead-letter/{}/retry
 ```
 
 ---

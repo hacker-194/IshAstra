@@ -205,10 +205,10 @@ limitations under the License.
 
 ---
 
-## Strix Copyright
+## Ishastra Copyright
 
 ```
-Copyright 2026 Strix Security, Inc.
+Copyright 2026 Ishastra Security, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -227,7 +227,7 @@ limitations under the License.
 
 ## Third-Party Licenses
 
-Strix includes components from the following projects. Licenses are included in their respective source directories and reproduced below.
+Ishastra includes components from the following projects. Licenses are included in their respective source directories and reproduced below.
 
 ### Runtime Dependencies
 
@@ -278,9 +278,9 @@ Strix includes components from the following projects. Licenses are included in 
 
 ## NOTICE
 
-This product includes software developed by the Strix Project (https://strix.dev).
+This product includes software developed by the Ishastra Project (https://ishastra.dev).
 
-The Strix name and logo are trademarks of Strix Security, Inc.
+The Ishastra name and logo are trademarks of Ishastra Security, Inc.
 
 Portions of this software were developed using AI assistance (Claude Code).
 
@@ -288,7 +288,7 @@ Portions of this software were developed using AI assistance (Claude Code).
 
 ## Contributor License Agreement
 
-By contributing to Strix, you agree that your contributions will be licensed under the Apache License 2.0. See [CONTRIBUTING.md](contributing/development.md) for details.
+By contributing to Ishastra, you agree that your contributions will be licensed under the Apache License 2.0. See [CONTRIBUTING.md](contributing/development.md) for details.
 
 ---
 
@@ -302,7 +302,7 @@ All source files should include this header:
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Strix Security, Inc.
+# Copyright 2026 Ishastra Security, Inc.
 ```
 
 ---
@@ -310,5 +310,5 @@ All source files should include this header:
 ## Related
 
 - [Contributing Guide](contributing/development.md)
-- [Code of Conduct](https://github.com/strix/strix/blob/main/CODE_OF_CONDUCT.md)
-- [Security Policy](https://github.com/strix/strix/blob/main/SECURITY.md)
+- [Code of Conduct](https://github.com/ishastra/ishastra/blob/main/CODE_OF_CONDUCT.md)
+- [Security Policy](https://github.com/ishastra/ishastra/blob/main/SECURITY.md)

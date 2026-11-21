@@ -1,0 +1,811 @@
+{{- if .Values.operator.enabled }}
+---
+
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: assessmentjobs.ishastra.io
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  group: ishastra.io
+  names:
+    kind: AssessmentJob
+    listKind: AssessmentJobList
+    plural: assessmentjobs
+    singular: assessmentjob
+    shortNames:
+      - aj
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                scope:
+                  type: string
+                scopeRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                policyRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                tenantRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                schedule:
+                  type: string
+                mode:
+                  type: string
+                  enum: ["k8s-jobs", "redis-streams"]
+                redisStreams:
+                  type: object
+                  properties:
+                    stream:
+                      type: string
+                    consumerGroup:
+                      type: string
+                priority:
+                  type: integer
+                ttlSecondsAfterFinished:
+                  type: integer
+              required:
+                - scope
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                jobRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                startedAt:
+                  type: string
+                  format: date-time
+                completedAt:
+                  type: string
+                  format: date-time
+                resultsRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tenants.ishastra.io
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  group: ishastra.io
+  names:
+    kind: Tenant
+    listKind: TenantList
+    plural: tenants
+    singular: tenant
+  scope: Cluster
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                description:
+                  type: string
+                contactEmail:
+                  type: string
+                quotas:
+                  type: object
+                  properties:
+                    maxConcurrentAssessments:
+                      type: integer
+                    maxAssessmentsPerDay:
+                      type: integer
+                    resourceQuota:
+                      type: object
+              required:
+                - displayName
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: policies.ishastra.io
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  group: ishastra.io
+  names:
+    kind: Policy
+    listKind: PolicyList
+    plural: policies
+    singular: policy
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                scannerConfig:
+                  type: object
+                assessmentConfig:
+                  type: object
+                scopeDefaults:
+                  type: object
+                notifications:
+                  type: object
+              required:
+                - scannerConfig
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: scanresults.ishastra.io
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+    {{- include "ishastra.annotations" . | nindent 4 }}
+spec:
+  group: ishastra.io
+  names:
+    kind: ScanResult
+    listKind: ScanResultList
+    plural: scanresults
+    singular: scanresult
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                assessmentJobRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                scanner:
+                  type: string
+                target:
+                  type: string
+                findings:
+                  type: array
+                  items:
+                    type: object
+                rawOutput:
+                  type: string
+                startedAt:
+                  type: string
+                  format: date-time
+                completedAt:
+                  type: string
+                  format: date-time
+              required:
+                - assessmentJobRef
+                - scanner
+                - target
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+---
+
+{{- include "ishastra.operator.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.operator.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: operator
+      annotations:
+        {{- if .Values.operator.podAnnotations }}
+        {{- toYaml .Values.operator.podAnnotations | nindent 8 }}
+        {{- end }}
+        {{- if .Values.global.podSecurityStandard }}
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.operator.metrics.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+      {{- if .Values.operator.priorityClassName }}
+      priorityClassName: {{ .Values.operator.priorityClassName }}
+      {{- end }}
+      {{- if .Values.operator.runtimeClassName }}
+      runtimeClassName: {{ .Values.operator.runtimeClassName }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      {{- include "ishastra.topologySpreadConstraints" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.operator.affinity }}
+      {{- include "ishastra.operator.affinity" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.operator.tolerations }}
+      {{- include "ishastra.operator.tolerations" . | nindent 6 }}
+      {{- end }}
+      securityContext:
+        {{- if .Values.operator.podSecurityContext }}
+        {{- toYaml .Values.operator.podSecurityContext | nindent 8 }}
+        {{- else }}
+        {{- include "ishastra.podSecurityContext" . | nindent 8 }}
+        {{- end }}
+      {{- include "ishastra.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: manager
+          image: "{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy | default .Values.global.image.pullPolicy }}
+          {{- include "ishastra.operator.command" . | nindent 10 }}
+          env:
+            {{- range $key, $value := .Values.operator.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "ishastra-operator"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.operator.metrics.port }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.operator.health.port }}
+              protocol: TCP
+            {{- if .Values.operator.webhook.enabled }}
+            - name: webhook
+              containerPort: {{ .Values.operator.webhook.port }}
+              protocol: TCP
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- if .Values.operator.resources }}
+          resources:
+            {{- toYaml .Values.operator.resources | nindent 12 }}
+          {{- else }}
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          {{- end }}
+          securityContext:
+            {{- if .Values.operator.securityContext }}
+            {{- toYaml .Values.operator.securityContext | nindent 12 }}
+            {{- else }}
+            {{- include "ishastra.containerSecurityContext" . | nindent 12 }}
+            {{- end }}
+            seccompProfile:
+              type: {{ .Values.operator.seccompProfileType | default "RuntimeDefault" }}
+              {{- if eq .Values.operator.seccompProfileType "Localhost" }}
+              localhostProfile: {{ .Values.operator.seccompProfile | default "ishastra-seccomp-default" }}
+              {{- end }}
+          volumeMounts:
+            {{- if .Values.operator.webhook.enabled }}
+            - name: webhook-certs
+              mountPath: {{ .Values.operator.webhook.certDir }}
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        {{- if .Values.operator.webhook.enabled }}
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "ishastra.fullname" . }}-webhook-certs
+            optional: false
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 50Mi
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: {{ .Values.operator.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+    - name: health
+      port: {{ .Values.operator.health.port }}
+      targetPort: health
+      protocol: TCP
+  selector:
+    {{- include "ishastra.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+rules:
+
+  - apiGroups: ["ishastra.io"]
+    resources: ["assessmentjobs", "assessmentjobs/status", "assessmentjobs/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["ishastra.io"]
+    resources: ["tenants", "tenants/status", "tenants/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["ishastra.io"]
+    resources: ["policies", "policies/status", "policies/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["ishastra.io"]
+    resources: ["scanresults", "scanresults/status", "scanresults/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/metrics", "pods", "pods/metrics"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "ishastra.fullname" . }}-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets", "pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "ishastra.fullname" . }}-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- if .Values.operator.webhook.enabled }}
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "ishastra.fullname" . }}-mutating-webhook
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+webhooks:
+  - name: massessmentjob.ishastra.io
+    clientConfig:
+      service:
+        name: {{ include "ishastra.fullname" . }}-operator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-ishastra-io-v1alpha1-assessmentjob
+        port: {{ .Values.operator.webhook.port }}
+      caBundle: {{ .Values.operator.webhook.caBundle | default "" }}
+    rules:
+      - apiGroups: ["ishastra.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["assessmentjobs"]
+        scope: "Namespaced"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease"]
+---
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "ishastra.fullname" . }}-validating-webhook
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+webhooks:
+  - name: vassessmentjob.ishastra.io
+    clientConfig:
+      service:
+        name: {{ include "ishastra.fullname" . }}-operator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-ishastra-io-v1alpha1-assessmentjob
+        port: {{ .Values.operator.webhook.port }}
+      caBundle: {{ .Values.operator.webhook.caBundle | default "" }}
+    rules:
+      - apiGroups: ["ishastra.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["assessmentjobs"]
+        scope: "Namespaced"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease"]
+  - name: vtenant.ishastra.io
+    clientConfig:
+      service:
+        name: {{ include "ishastra.fullname" . }}-operator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-ishastra-io-v1alpha1-tenant
+        port: {{ .Values.operator.webhook.port }}
+      caBundle: {{ .Values.operator.webhook.caBundle | default "" }}
+    rules:
+      - apiGroups: ["ishastra.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["tenants"]
+        scope: "Cluster"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+  - name: vpolicy.ishastra.io
+    clientConfig:
+      service:
+        name: {{ include "ishastra.fullname" . }}-operator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-ishastra-io-v1alpha1-policy
+        port: {{ .Values.operator.webhook.port }}
+      caBundle: {{ .Values.operator.webhook.caBundle | default "" }}
+    rules:
+      - apiGroups: ["ishastra.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["policies"]
+        scope: "Namespaced"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease"]
+  - name: vscanresult.ishastra.io
+    clientConfig:
+      service:
+        name: {{ include "ishastra.fullname" . }}-operator-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-ishastra-io-v1alpha1-scanresult
+        port: {{ .Values.operator.webhook.port }}
+      caBundle: {{ .Values.operator.webhook.caBundle | default "" }}
+    rules:
+      - apiGroups: ["ishastra.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["scanresults"]
+        scope: "Namespaced"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 10
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease"]
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 443
+      targetPort: webhook
+      protocol: TCP
+  selector:
+    {{- include "ishastra.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+{{- end }}
+---
+
+{{- if .Values.operator.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ishastra.fullname" . }}-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: ishastra
+  {{- if .Values.additionalAnnotations }}
+  annotations:
+    {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: operator
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.operator.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.operator.serviceMonitor.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

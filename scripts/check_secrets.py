@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""Fail if a credential-shaped string is committed to the repository.
+"""Fail if a credential-shaped string would be committed to the repository.
+
+Scans exactly what a commit would include: files tracked by git plus untracked
+files that are not gitignored. Ignored scratch/secrets directories (``.env``,
+``prod-secrets/``, ``.hypothesis/``) are deliberately skipped, so a local run
+agrees with CI instead of failing on files that can never be pushed.
 
 This is a narrow, high-signal check for the credential formats this project can
 accidentally emit (its own API keys, cloud keys, tokens, private keys). It is not
@@ -13,10 +17,10 @@ Exit: 0 clean, 1 findings, 2 unusable invocation.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
-# Directory names that never contain committed source.
 SKIP_DIRS = {
     ".git",
     ".venv",
@@ -29,8 +33,8 @@ SKIP_DIRS = {
     ".ruff_cache",
     ".pytest_cache",
     "graphify-out",
-    "target",  # Rust build output (src/hunt)
-    "tests",  # test fixtures intentionally contain credential-like patterns
+    "target",
+    "tests",
 }
 SKIP_SUFFIXES = {
     ".pyc",
@@ -51,12 +55,8 @@ SKIP_SUFFIXES = {
 MAX_BYTES = 2 * 1024 * 1024
 
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    # Keys are `strix_` + `secrets.token_urlsafe(32)` (43 url-safe base64 chars).
-    # Require that length and at least one upper-case letter or digit so metric
-    # and counter names (`strix_http_request_duration_seconds`) are not reported
-    # as credentials — they are all lower-case words joined by underscores.
     (
-        "strix api key",
+        "ishastra api key",
         re.compile(r"\bstrix_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"),
     ),
     (
@@ -74,9 +74,7 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
 )
 
-# A deliberate test fixture uses a credential shape to prove redaction works.
-# Such a line opts out explicitly, so an accidental secret cannot hide behind a
-# whole-file exemption.
+
 ALLOW_MARKER = "pragma: allowlist secret"
 
 
@@ -84,11 +82,33 @@ def _mask(value: str) -> str:
     return f"{value[:4]}…{value[-2:]}" if len(value) > 8 else "…"
 
 
+def _pushable_files(root: Path) -> list[Path] | None:
+    """Tracked + untracked-not-ignored files, or None outside a git work tree."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "-co", "--exclude-standard"],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    names = [name for name in result.stdout.decode("utf-8", "ignore").split("\0") if name]
+    return [root / name for name in names]
+
+
 def _iter_files(root: Path):
-    for path in sorted(root.rglob("*")):
+    candidates = _pushable_files(root)
+    if candidates is None:
+        candidates = sorted(root.rglob("*"))
+    for path in candidates:
         if not path.is_file():
             continue
-        relative = path.relative_to(root)
+        try:
+            relative = path.relative_to(root)
+        except ValueError:
+            continue
         if any(part in SKIP_DIRS for part in relative.parts):
             continue
         if path.suffix.lower() in SKIP_SUFFIXES:
@@ -111,8 +131,6 @@ def scan(root: Path) -> list[tuple[str, int, str, str]]:
         lines = text.splitlines()
         for kind, pattern in PATTERNS:
             for match in pattern.finditer(text):
-                # A real PEM header in documentation is an example, not a key;
-                # require key material after the header for private keys.
                 if kind == "private key" and len(text) - match.end() < 64:
                     continue
                 line = text.count("\n", 0, match.start()) + 1

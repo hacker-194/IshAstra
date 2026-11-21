@@ -2,7 +2,7 @@
 
 # Runbook: Assessment Queue Backlog
 
-**Alert**: `StrixQueueDepthHigh`
+**Alert**: `IshastraQueueDepthHigh`
 **Severity**: Warning
 **Team**: Platform
 
@@ -18,41 +18,41 @@
 
 ```bash
 # Queue depth
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep strix_queue_depth
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep strix_queue_depth
 
 # Pending assessments
-strix assessment list --status pending --limit 20
+ishastra assessment list --status pending --limit 20
 
 # Worker count
-kubectl get pods -n strix-system -l app=strix-worker
+kubectl get pods -n ishastra-system -l app=ishastra-worker
 ```
 
 ### 2. Check Worker Health
 
 ```bash
 # Worker logs
-kubectl logs -n strix-system -l app=strix-worker --tail=200
+kubectl logs -n ishastra-system -l app=ishastra-worker --tail=200
 
 # Worker resource usage
-kubectl top pods -n strix-system -l app=strix-worker
+kubectl top pods -n ishastra-system -l app=ishastra-worker
 
 # Active tasks per worker
-kubectl exec -n strix-system deploy/strix-api -- curl -s localhost:8000/metrics | grep strix_worker_active_tasks
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep strix_worker_active_tasks
 ```
 
 ### 3. Check Scheduler
 
 ```bash
 # Scheduler status
-kubectl get pods -n strix-system -l app=strix-scheduler
-kubectl logs -n strix-system -l app=strix-scheduler --tail=100
+kubectl get pods -n ishastra-system -l app=ishastra-scheduler
+kubectl logs -n ishastra-system -l app=ishastra-scheduler --tail=100
 ```
 
 ## Common Causes & Fixes
 
 | Cause | Diagnosis | Fix |
 |-------|-----------|-----|
-| Insufficient workers | Queue depth high, few workers | Scale worker deployment: `kubectl scale deployment strix-worker --replicas=N` |
+| Insufficient workers | Queue depth high, few workers | Scale worker deployment: `kubectl scale deployment ishastra-worker --replicas=N` |
 | Workers OOM killed | `container_oom_kills_total` increasing | Increase memory limit in Helm values |
 | Long-running assessments | High `strix_assessment_duration_seconds` | Check adapter timeouts, reduce scope |
 | Scheduler not triggering | No new assessments from cron | Check scheduler logs and worker lease ownership |
@@ -62,14 +62,14 @@ kubectl logs -n strix-system -l app=strix-scheduler --tail=100
 
 ```bash
 # Manual scale
-kubectl scale deployment strix-worker -n strix-system --replicas=10
+kubectl scale deployment ishastra-worker -n ishastra-system --replicas=10
 
 # Or via Helm
-helm upgrade strix ./kubernetes/helm/strix -n strix-system --set worker.replicas=10
+helm upgrade ishastra ./kubernetes/helm/ishastra -n ishastra-system --set worker.replicas=10
 
 # Enable HPA (if not enabled)
 # Do not autoscale: one process owns the database lease. Add CPU/RAM or raise
-# STRIX_WORKERS instead (see docs/quickstart/production.md).
+# ISHASTRA_WORKERS instead (see docs/quickstart/production.md).
 ```
 
 ## Escalation

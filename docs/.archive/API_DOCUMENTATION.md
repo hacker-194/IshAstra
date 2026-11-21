@@ -1,4 +1,4 @@
-# Strix API Documentation
+# Ishastra API Documentation
 
 **Version:** 3.5.0  
 **Base URL:** `http://localhost:8000/api` (default)  
@@ -89,7 +89,7 @@ These endpoints are publicly accessible (no authentication required).
 
 The docs are enabled by default. To disable in production, set environment variable:
 ```bash
-STRIX_DISABLE_DOCS=1
+ISHASTRA_DISABLE_DOCS=1
 ```
 
 ---
@@ -106,7 +106,7 @@ GET /api/health
 ```json
 {
   "status": "healthy",
-  "service": "strix",
+  "service": "ishastra",
   "version": "3.5.0",
   "uptime_seconds": 12345.6
 }
@@ -280,7 +280,7 @@ Authorization: Bearer <api-key>
 {
   "configured": true,
   "mode": "global",
-  "source": "/etc/strix/scope.json",
+  "source": "/etc/ishastra/scope.json",
   "program": "Internal Security Program",
   "authorized_by": "CISO",
   "authorization_ref": "SEC-2024-001",
@@ -315,7 +315,7 @@ Idempotency-Key: <optional-unique-key>
   "policy_id": "pol_abc123",
   "hybrid_components": {
     "native": true,
-    "strix": true
+    "ishastra": true
   },
   "auth": {
     "type": "token",
@@ -333,7 +333,7 @@ Idempotency-Key: <optional-unique-key>
 | `timeout` | number | No | Job deadline in seconds (5-900, default: 120) |
 | `wait` | boolean | No | Run inline and return finished job (default: false, returns 202) |
 | `policy_id` | string | No | Pin specific engagement policy (managed mode) |
-| `hybrid_components` | object | No | `{native: true, strix: true}` for hybrid mode |
+| `hybrid_components` | object | No | `{native: true, ishastra: true}` for hybrid mode |
 | `auth` | object | No | Per-assessment authentication config |
 
 **Authentication Config Types:**
@@ -531,9 +531,9 @@ Authorization: Bearer <api-key>
     {
       "tool": {
         "driver": {
-          "name": "Strix",
+          "name": "Ishastra",
           "version": "3.5.0",
-          "informationUri": "https://strix.example.com"
+          "informationUri": "https://ishastra.example.com"
         }
       },
       "results": [
@@ -1004,7 +1004,7 @@ Content-Type: application/json
       "location": "https://example.com/search?q=test"
     }
   ],
-  "report_url": "https://strix.example.com/api/assess/job_abc123/report.html"
+  "report_url": "https://ishastra.example.com/api/assess/job_abc123/report.html"
 }
 ```
 
@@ -1604,7 +1604,7 @@ Content-Type: application/json
 {
   "proof": {
     "version": "1.0",
-    "issuer": "strix",
+    "issuer": "ishastra",
     "issued_at": 1705312800,
     "job_id": "job_abc123",
     "target": "https://example.com",
@@ -1898,9 +1898,9 @@ print(f"Findings: {len(job['findings'])}")
 ### cURL Wrapper Script
 ```bash
 #!/bin/bash
-# strix-cli.sh
-API_KEY="${STRIX_API_KEY}"
-BASE_URL="${STRIX_BASE_URL:-http://localhost:8000/api}"
+# ishastra-cli.sh
+API_KEY="${ISHASTRA_API_KEY}"
+BASE_URL="${ISHASTRA_BASE_URL:-http://localhost:8000/api}"
 
 strix_api() {
     curl -s -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" "$@"

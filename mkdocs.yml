@@ -1,17 +1,17 @@
-# MkDocs Configuration for Strix Documentation
-# Process: GitHub Actions / mkdocs reads this to build documentation site
-# Effect: Generates static docs site deployed to GitHub Pages
-# No secrets written in plain text
-# User instruction: "update all"
 
-site_name: Strix Documentation
+
+
+
+
+
+site_name: Ishastra Documentation
 site_description: Authorization-First Security Assessment Platform
-site_url: https://strix.dev
-site_author: Strix Contributors
-repo_url: https://github.com/strix/strix
-repo_name: strix/strix
+site_url: https://ishastra.dev
+site_author: Ishastra Contributors
+repo_url: https://github.com/ishastra/ishastra
+repo_name: ishastra/ishastra
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2024 Strix Contributors — Apache-2.0
+copyright: Copyright &copy; 2024 Ishastra Contributors — Apache-2.0
 
 theme:
   name: material
@@ -48,11 +48,9 @@ theme:
 
 plugins:
   - search
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: date
-      enable_git_follow: false
-      fallback_to_build_date: true
+  # No git-revision-date-localized: it warns on files whose git history is
+  # missing (renames, fresh checkouts) and `mkdocs build --strict` treats that
+  # as fatal, so the docs deploy would fail for reasons unrelated to content.
   - minify:
       minify_html: true
   - glightbox
@@ -146,11 +144,11 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/strix/strix
+      link: https://github.com/ishastra/ishastra
     - icon: fontawesome/brands/discord
-      link: https://discord.gg/strix
+      link: https://discord.gg/ishastra
     - icon: fontawesome/brands/slack
-      link: https://slack.strix.dev
+      link: https://slack.ishastra.dev
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/strix_security
   analytics:

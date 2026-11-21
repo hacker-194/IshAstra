@@ -1,0 +1,549 @@
+{{- if .Values.monitoringExtras.finops.enabled }}
+---
+
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opencost
+  labels:
+    app.kubernetes.io/name: opencost
+    app.kubernetes.io/managed-by: helm
+---
+
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-opencost-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: finops-config
+data:
+  opencost-values.yaml: |
+
+
+
+
+    global:
+
+      prometheus:
+        fqdn: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+
+      costLabels:
+        - "ishastra.io/tenant"
+        - "ishastra.io/project"
+        - "ishastra.io/priority-tier"
+        - "app.kubernetes.io/component"
+
+    opencost:
+      enabled: true
+      exporter:
+        defaultClusterId: {{ .Values.monitoringExtras.finops.clusterId | default "ishastra-primary" }}
+
+        enablePodCost: true
+
+        enableContainerCost: true
+
+        enableNamespaceCost: true
+
+        enableNodeCost: true
+
+        enablePVCost: true
+
+        enableNetworkCost: true
+
+        enableLoadBalancerCost: true
+
+
+      customPricing:
+
+        cpu: {{ .Values.monitoringExtras.finops.pricing.cpuPerHour | default 0.034 }}
+
+        ram: {{ .Values.monitoringExtras.finops.pricing.ramPerGibHour | default 0.0045 }}
+
+        gpu: {{ .Values.monitoringExtras.finops.pricing.gpuPerHour | default 2.50 }}
+
+        spot:
+          cpu: {{ .Values.monitoringExtras.finops.pricing.spotCpuPerHour | default 0.0068 }}
+          ram: {{ .Values.monitoringExtras.finops.pricing.spotRamPerGibHour | default 0.0009 }}
+
+        pv:
+          gp3: 0.08
+          gp2: 0.10
+          io1: 0.125
+          io2: 0.125
+          standard: 0.045
+
+        loadBalancer: 0.025
+
+        network:
+          zone: 0.01
+          region: 0.02
+          internet: 0.09
+
+
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        namespace: monitoring
+        interval: 60s
+        labels:
+          release: prometheus
+
+
+    ui:
+      enabled: true
+      ingress:
+        enabled: true
+        className: nginx
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+        hosts:
+          - host: opencost.ishastra.example.com
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - secretName: opencost-tls
+            hosts:
+              - opencost.ishastra.example.com
+
+
+    allocation:
+      enabled: true
+
+      customGroups:
+        - name: "tenant"
+          keys: ["ishastra.io/tenant"]
+        - name: "project"
+          keys: ["ishastra.io/project"]
+        - name: "priority"
+          keys: ["ishastra.io/priority-tier"]
+        - name: "component"
+          keys: ["app.kubernetes.io/component"]
+        - name: "instance_type"
+          keys: ["node.kubernetes.io/instance-type", "beta.kubernetes.io/instance-type"]
+        - name: "lifecycle"
+          keys: ["node.kubernetes.io/lifecycle", "kubernetes.io/lifecycle"]
+
+
+    costModels:
+      - name: "ishastra-chargeback"
+        type: "allocation"
+        spec:
+
+          cluster:
+            cpu: 0.034
+            ram: 0.0045
+
+          namespaces:
+            ishastra-tenant-*:
+              cpu: 0.034
+              ram: 0.0045
+
+
+    alerting:
+      enabled: true
+      rules:
+        - name: "opencost-budget-exceeded"
+          condition: "sum by (namespace) (namespace_monthly_cost) > namespace_budget"
+          severity: "critical"
+          annotations:
+            summary: "Namespace {{ "{{ $labels.namespace }}" }} exceeded monthly budget"
+
+
+    strixIntegration:
+      enabled: true
+
+      assessmentCostMapping:
+        enabled: true
+
+        metrics:
+          - strix_assessment_cost_usd_total
+          - ishastra:cost:hourly:tenant_project
+          - ishastra:budget:utilization:monthly
+
+---
+
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-kubecost-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: finops-config
+data:
+  kubecost-values.yaml: |
+
+
+
+
+    global:
+      prometheus:
+        fqdn: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+
+      customLabels:
+        - "ishastra.io/tenant"
+        - "ishastra.io/project"
+        - "ishastra.io/priority-tier"
+        - "app.kubernetes.io/component"
+
+    kubecostToken: ""
+    kubecostProductConfigs: ""
+
+
+    customPricing:
+      enabled: true
+      cpu: {{ .Values.monitoringExtras.finops.pricing.cpuPerHour | default 0.034 }}
+      ram: {{ .Values.monitoringExtras.finops.pricing.ramPerGibHour | default 0.0045 }}
+      spotCPU: {{ .Values.monitoringExtras.finops.pricing.spotCpuPerHour | default 0.0068 }}
+      spotRAM: {{ .Values.monitoringExtras.finops.pricing.spotRamPerGibHour | default 0.0009 }}
+
+
+    prometheus:
+      serviceMonitor:
+        enabled: true
+        namespace: monitoring
+        interval: 60s
+        labels:
+          release: prometheus
+
+
+    networkCosts:
+      enabled: true
+      zoneNetworkCost: 0.01
+      regionNetworkCost: 0.02
+      internetNetworkCost: 0.09
+
+
+    pvCost:
+      enabled: true
+      defaultCostPerGBMonth: 0.10
+
+
+    loadBalancerCost:
+      enabled: true
+      costPerHour: 0.025
+
+
+    allocation:
+      enabled: true
+
+      customGroups:
+        - name: "tenant"
+          keys: ["ishastra.io/tenant"]
+        - name: "project"
+          keys: ["ishastra.io/project"]
+        - name: "priority"
+          keys: ["ishastra.io/priority-tier"]
+        - name: "component"
+          keys: ["app.kubernetes.io/component"]
+
+
+    alerts:
+      enabled: true
+      rules:
+        - name: "kubecost-budget-exceeded"
+          expr: "sum by (namespace) (namespace_monthly_cost) > namespace_budget"
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Namespace {{ "{{ $labels.namespace }}" }} exceeded monthly budget"
+
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ishastra.fullname" . }}-finops-rules
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheusrule
+    release: {{ .Values.monitoring.prometheusrule.release | default "prometheus" }}
+spec:
+  groups:
+    - name: ishastra.finops.chargeback
+      interval: 5m
+      rules:
+
+        - record: ishastra:finops:daily_cost:tenant
+          expr: |
+            sum by (strix_io_tenant) (
+              rate(container_cpu_usage_seconds_total{container!="",pod=~"ishastra-.*"}[24h]) * 0.034 +
+              rate(container_memory_usage_bytes{container!="",pod=~"ishastra-.*"}[24h]) / 1024 / 1024 / 1024 * 0.0045
+            )
+
+
+        - record: ishastra:finops:monthly_projected:tenant
+          expr: |
+            ishastra:finops:daily_cost:tenant * 30
+
+
+        - record: ishastra:finops:cost_per_assessment
+          expr: |
+            sum by (strix_io_tenant, strix_io_project) (
+              rate(strix_assessment_cost_usd_total[24h])
+            ) / sum by (strix_io_tenant, strix_io_project) (
+              rate(strix_assessment_count_total[24h])
+            )
+
+
+        - record: ishastra:finops:spot_savings_usd_per_hour
+          expr: |
+            sum by (node_kubernetes_io_lifecycle) (
+              kube_node_status_capacity_cpu_cores * 0.034 +
+              kube_node_status_capacity_memory_bytes / 1024 / 1024 / 1024 * 0.0045
+            )
+            -
+            sum by (node_kubernetes_io_lifecycle) (
+              kube_node_status_capacity_cpu_cores * 0.0068 +
+              kube_node_status_capacity_memory_bytes / 1024 / 1024 / 1024 * 0.0009
+            )
+
+
+        - record: ishastra:finops:budget_utilization
+          expr: |
+            ishastra:finops:monthly_projected:tenant / strix_tenant_budget_monthly_usd
+
+
+        - record: ishastra:finops:idle_worker_cost_usd_per_hour
+          expr: |
+            sum by (strix_io_tenant) (
+              (kube_pod_status_phase{phase="Running", pod=~"ishastra-worker-.*"} - strix_worker_busy)
+              * (container_spec_cpu_quota / container_spec_cpu_period) * 0.034
+            )
+
+    - name: ishastra.finops.alerting
+      interval: 5m
+      rules:
+
+        - alert: IshastraFinOpsDailyBudgetWarning
+          expr: |
+            ishastra:finops:daily_cost:tenant > (strix_tenant_budget_monthly_usd / 30 * 0.8)
+          for: 15m
+          labels:
+            severity: warning
+            team: finops
+            category: budget
+          annotations:
+            summary: "Tenant {{ "{{ $labels.strix_io_tenant }}" }} approaching daily budget threshold"
+            description: "Daily spend is ' }} USD, daily budget is USD."
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-daily-budget"
+
+
+        - alert: IshastraFinOpsMonthlyBudgetExceeded
+          expr: |
+            ishastra:finops:monthly_projected:tenant > strix_tenant_budget_monthly_usd
+          for: 5m
+          labels:
+            severity: critical
+            team: finops
+            category: budget
+          annotations:
+            summary: "Tenant {{ "{{ $labels.strix_io_tenant }}" }} EXCEEDED monthly budget"
+            description: "Projected monthly spend {{ "{{ $value | humanize  }}" }} USD exceeds budget {{ "{{ strix_tenant_budget_monthly_usd }}" }} USD"
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-monthly-budget"
+
+
+        - alert: IshastraFinOpsCostPerAssessmentAnomaly
+          expr: |
+            ishastra:finops:cost_per_assessment >
+            avg_over_time(ishastra:finops:cost_per_assessment[7d]) * 2
+          for: 30m
+          labels:
+            severity: warning
+            team: finops
+            category: anomaly
+          annotations:
+            summary: "Cost per assessment anomaly for {{ "{{ $labels.strix_io_tenant }}" }}/{{ "{{ $labels.strix_io_project }}" }}"
+            description: "Current cost per assessment is {{ "{{ $value | humanize  }}" }} USD, 2x the 7-day average"
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-cost-anomaly"
+
+
+        - alert: IshastraFinOpsLowSpotUtilization
+          expr: |
+            (
+              sum(kube_node_status_capacity_cpu_cores{node_kubernetes_io_lifecycle="spot"})
+              /
+              sum(kube_node_status_capacity_cpu_cores)
+            ) < 0.3
+          for: 1h
+          labels:
+            severity: info
+            team: finops
+            category: optimization
+          annotations:
+            summary: "Low spot instance utilization (< 30%)"
+            description: "Only {{ "{{ $value | humanizePercentage  }}" }} of CPU capacity is on spot instances. Consider migrating more batch workloads to spot."
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-low-spot-utilization"
+
+
+        - alert: IshastraFinOpsIdleWorkerCostAccumulating
+          expr: |
+            ishastra:finops:idle_worker_cost_usd_per_hour > 10
+          for: 2h
+          labels:
+            severity: warning
+            team: finops
+            category: optimization
+          annotations:
+            summary: "Idle worker cost exceeding $10/hour for tenant {{ "{{ $labels.strix_io_tenant }}" }}"
+            description: "Idle workers costing {{ "{{ $value | humanize  }}" }}/hour. Enable scale-to-zero or reduce minReplicas."
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-idle-workers"
+
+
+        - alert: IshastraFinOpsBurstClusterCostSpike
+          expr: |
+            sum by (cluster) (rate(kubecost_cluster_cost_usd_total[1h])) > 500
+          for: 15m
+          labels:
+            severity: warning
+            team: finops
+            category: burst
+          annotations:
+            summary: "Burst cluster {{ "{{ $labels.cluster }}" }} hourly cost spike"
+            description: "Burst cluster cost is {{ "{{ $value | humanize  }}" }}/hour. Verify burst is necessary."
+            runbook_url: "https://wiki.ishastra.io/runbooks/finops-burst-cost"
+
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ishastra.fullname" . }}-finops-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: servicemonitor
+    release: {{ .Values.monitoring.servicemonitor.release | default "prometheus" }}
+spec:
+  selector:
+    matchLabels:
+      app: opencost
+  endpoints:
+    - port: metrics
+      interval: 60s
+      scrapeTimeout: 30s
+      path: /metrics
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ishastra.fullname" . }}-grafana-dashboard-finops
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-dashboard
+    grafana_dashboard: "1"
+data:
+  ishastra-finops.json: |
+    {
+      "dashboard": {
+        "title": "Ishastra FinOps Dashboard",
+        "uid": "ishastra-finops",
+        "tags": ["ishastra", "finops", "cost", "kubecost", "opencost"],
+        "timezone": "browser",
+        "refresh": "1m",
+        "time": { "from": "now-24h", "to": "now" },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Cluster Cost Allocation by Tenant",
+            "type": "piechart",
+            "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "sum by (strix_io_tenant) (rate(kubecost_namespace_cost_usd_total[1h]))", "legendFormat": "{{ "{{strix_io_tenant}}" }}" }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Monthly Projected Spend vs Budget",
+            "type": "bargauge",
+            "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "ishastra:finops:monthly_projected:tenant", "legendFormat": "Projected - {{ "{{strix_io_tenant}}" }}" },
+              { "expr": "strix_tenant_budget_monthly_usd", "legendFormat": "Budget - {{ "{{ tenant }}" }}" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+          },
+          {
+            "id": 3,
+            "title": "Cost per Assessment Trend",
+            "type": "timeseries",
+            "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "ishastra:finops:cost_per_assessment", "legendFormat": "{{ "{{strix_io_tenant}}" }}/{{ "{{strix_io_project}}" }}" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
+          },
+          {
+            "id": 4,
+            "title": "Spot Savings (USD/hour)",
+            "type": "stat",
+            "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "ishastra:finops:spot_savings_usd_per_hour", "legendFormat": "Savings" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "currencyUSD/hr", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 10 } ] } } }
+          },
+          {
+            "id": 5,
+            "title": "Spot Utilization %",
+            "type": "gauge",
+            "gridPos": { "x": 18, "y": 8, "w": 6, "h": 4 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "sum(kube_node_status_capacity_cpu_cores{node_kubernetes_io_lifecycle=\"spot\"}) / sum(kube_node_status_capacity_cpu_cores) * 100", "legendFormat": "Spot %" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 30 }, { "color": "green", "value": 60 } ] } } }
+          },
+          {
+            "id": 6,
+            "title": "Infrastructure Cost Breakdown",
+            "type": "table",
+            "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "kubecost_cluster_cost_usd_total", "format": "table" }
+            ]
+          },
+          {
+            "id": 7,
+            "title": "Budget Utilization by Tenant",
+            "type": "table",
+            "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "ishastra:finops:budget_utilization * 100", "legendFormat": "{{ "{{strix_io_tenant}}" }}", "format": "table" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "percent", "custom": { "align": "auto" } }, "overrides": [ { "matcher": { "type": "byName", "options": "Value" }, "properties": [ { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "orange", "value": 80 }, { "color": "red", "value": 100 } ] } } ] } }
+          },
+          {
+            "id": 8,
+            "title": "Idle Worker Cost",
+            "type": "timeseries",
+            "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+            "datasource": "Prometheus",
+            "targets": [
+              { "expr": "ishastra:finops:idle_worker_cost_usd_per_hour", "legendFormat": "{{ "{{strix_io_tenant}}" }}" }
+            ],
+            "fieldConfig": { "defaults": { "unit": "currencyUSD/hr" } }
+          }
+        ],
+        "schemaVersion": 38,
+        "version": 1
+      }
+    }
+{{- end }}

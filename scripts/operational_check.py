@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Non-destructive backup/restore drill for a Strix SQLite database.
+"""Non-destructive backup/restore drill for a Ishastra SQLite database.
 
 Uses SQLite's online backup API, then reopens the copy read-only, checks
 integrity and compares table row counts. Exits non-zero on any mismatch.
@@ -28,12 +27,12 @@ def _table_counts(conn: sqlite3.Connection) -> dict[str, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", default="strix.db", help="source SQLite database (read-only)")
+    parser.add_argument("--db", default="ishastra.db", help="source SQLite database (read-only)")
     parser.add_argument("--out", default=None, help="backup path (default: temporary file)")
     parser.add_argument(
         "--hmac-key",
-        default=os.environ.get("STRIX_AUDIT_HMAC_KEY", ""),
-        help="audit-chain HMAC key (default: STRIX_AUDIT_HMAC_KEY); omit to skip chain verification",
+        default=os.environ.get("ISHASTRA_AUDIT_HMAC_KEY", ""),
+        help="audit-chain HMAC key (default: ISHASTRA_AUDIT_HMAC_KEY); omit to skip chain verification",
     )
     args = parser.parse_args()
 
@@ -47,7 +46,7 @@ def main() -> int:
         backup_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = None
     else:
-        handle, name = tempfile.mkstemp(suffix=".db", prefix="strix-backup-")
+        handle, name = tempfile.mkstemp(suffix=".db", prefix="ishastra-backup-")
         Path(name).unlink(missing_ok=True)
         backup_path = Path(name)
         temporary = handle
@@ -85,15 +84,12 @@ def main() -> int:
     if integrity != "ok":
         return 1
 
-    # The chain is the evidence-integrity claim: a backup that restores the
-    # rows but not a verifiable chain is not a usable restore. Verification is
-    # explicit about a missing key rather than silently passing.
     if not args.hmac_key:
-        print("audit chain: skipped (no --hmac-key or STRIX_AUDIT_HMAC_KEY)")
+        print("audit chain: skipped (no --hmac-key or ISHASTRA_AUDIT_HMAC_KEY)")
         return 0
 
-    from strix.audit import AuditChain
-    from strix.core import store
+    from ishastra.audit import AuditChain
+    from ishastra.core import store
 
     async def verify_chain() -> tuple[bool, str | None, int]:
         store.configure(backup_path)

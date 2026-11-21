@@ -1,8 +1,8 @@
-# GitHub Dependabot Config
-# Process: GitHub Dependabot reads this to auto-create PRs for dependency updates
-# Effect: Keeps dependencies current with automated PRs
-# No secrets written in plain text
-# User instruction: "update all"
+
+
+
+
+
 
 version: 2
 updates:

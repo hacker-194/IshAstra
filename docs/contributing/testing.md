@@ -2,7 +2,7 @@
 
 # Testing Guide
 
-Comprehensive testing strategy for Strix.
+Comprehensive testing strategy for Ishastra.
 
 ## Test Pyramid
 
@@ -65,8 +65,8 @@ pytest tests/unit/core/test_scope_gate.py::test_layer1_cidr_match -v
 ```python
 # tests/unit/core/test_scope_gate.py
 import pytest
-from strix.core.scope_gate import ScopeGate, ScopeDocument
-from strix.core.exceptions import ScopeGateError
+from ishastra.core.scope_gate import ScopeGate, ScopeDocument
+from ishastra.core.exceptions import ScopeGateError
 
 class TestScopeGateLayer1:
     """Tests for Layer 1: URL/Host/Port validation."""
@@ -123,7 +123,7 @@ async def db_session() -> AsyncSession:
 from unittest.mock import AsyncMock, patch
 
 async def test_adapter_with_mock():
-    with patch("strix.adapters.nuclei.NucleiAdapter.run", new_callable=AsyncMock) as mock_run:
+    with patch("ishastra.adapters.nuclei.NucleiAdapter.run", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = AdapterResult(findings=[...])
         result = await adapter.run("https://example.com", {})
         assert len(result.findings) == 1
@@ -134,7 +134,7 @@ async def test_adapter_with_mock():
 ### Structure
 
 ```rust
-// src/strix-rust/src/scope_gate/tests.rs
+// src/ishastra-rust/src/scope_gate/tests.rs
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,7 +172,7 @@ mod tests {
 ```python
 # tests/integration/test_assessment_flow.py
 import pytest
-from strix.api.main import app
+from ishastra.api.main import app
 from httpx import AsyncClient
 
 @pytest_asyncio.fixture
@@ -208,7 +208,7 @@ class TestAssessmentFlow:
 ```python
 # tests/integration/adapters/test_nuclei.py
 import pytest
-from strix.adapters.nuclei import NucleiAdapter
+from ishastra.adapters.nuclei import NucleiAdapter
 
 class TestNucleiIntegration:
     @pytest.mark.integration
@@ -248,7 +248,7 @@ def redis():
 ```python
 # tests/contract/test_api_schema.py
 import schemathesis
-from strix.api.main import app
+from ishastra.api.main import app
 
 schema = schemathesis.from_pytest_fixture("openapi_schema")
 
@@ -278,7 +278,7 @@ export default defineConfig({
   retries: 2,
   workers: 4,
   use: {
-    baseURL: process.env.STRIX_E2E_URL || 'http://localhost:8000',
+    baseURL: process.env.ISHASTRA_E2E_URL || 'http://localhost:8000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -330,7 +330,7 @@ test.describe('Assessment Flow', () => {
 
 ```python
 # tests/fixtures/scopes.py
-from strix.models.scope import ScopeDocument
+from ishastra.models.scope import ScopeDocument
 
 SCOPE_MINIMAL = ScopeDocument(
     name="Minimal Scope",
@@ -353,8 +353,8 @@ SCOPE_FULL = ScopeDocument(
 ```python
 # tests/factories.py
 import factory
-from strix.models.assessment import Assessment
-from strix.models.finding import Finding
+from ishastra.models.assessment import Assessment
+from ishastra.models.finding import Finding
 
 class AssessmentFactory(factory.Factory):
     class Meta:
@@ -371,7 +371,7 @@ class AssessmentFactory(factory.Factory):
 
 | Component | Minimum | Target |
 |-----------|---------|--------|
-| Core (Scope Gate, Strix Proof) | 90% | 95% |
+| Core (Scope Gate, Ishastra Proof) | 90% | 95% |
 | API | 80% | 90% |
 | Adapters | 70% | 85% |
 | Workers | 75% | 85% |

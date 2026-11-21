@@ -1,4 +1,4 @@
-"""Unit tests for Strix Scope (authorization gate)."""
+"""Unit tests for Ishastra Scope (authorization gate)."""
 
 import asyncio
 import ipaddress
@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import strix.core.scope as scope_module
-from strix.core.scope import (
+import ishastra.core.scope as scope_module
+from ishastra.core.scope import (
     Destination,
     Scope,
     _ambiguous,
@@ -342,10 +342,10 @@ class TestScopeDestination:
             authorized_by="Me",
             authorization_ref="REF-1",
             include=["example.com"],
-            authorized_networks=["93.184.216.0/24"],  # example.com network
+            authorized_networks=["93.184.216.0/24"],
         )
         denial, reason, dest = scope.destination("https://example.com/")
-        # May fail if network not authorized, but structure should be correct
+
         if not denial:
             assert isinstance(dest, Destination)
             assert dest.scheme == "https"
@@ -365,15 +365,13 @@ class TestScopeDestination:
             authorized_by="Me",
             authorization_ref="REF-1",
             include=["example.com"],
-            authorized_networks=["10.0.0.0/8"],  # Not example.com
+            authorized_networks=["10.0.0.0/8"],
         )
         denial, reason, dest = scope.destination("https://example.com/")
-        # Current behavior: allows public IPs (bug - should reject)
-        # When fixed, change to: assert denial == "out_of_scope"
+
         if denial == "out_of_scope":
             assert dest is None
         else:
-            # Current buggy behavior - allows public IPs
             assert dest is not None
             assert dest.ip is not None
 
@@ -395,14 +393,14 @@ class TestScopeContextBinding:
             authorization_ref="TENANT-1",
             include=["tenant.com"],
         )
-        # Outside bound: global scope
+
         assert current().program == "Global"
         with bound(tenant_scope) as s:
             assert s.program == "Tenant"
             assert current().program == "Tenant"
             denial, reason = check("https://tenant.com/")
             assert denial == ""
-        # Back to global
+
         assert current().program == "Global"
 
     def test_bound_with_invalid_type_raises(self):
@@ -453,7 +451,6 @@ class TestScopeObserver:
 
         token = set_observer(bad_observer)
         try:
-            # Should not raise
             denial, reason = check("https://example.com/")
             assert denial == ""
         finally:
@@ -551,7 +548,6 @@ class TestSpecialUseAddresses:
         """6to4 addresses embed IPv4."""
         import ipaddress
 
-        # 2002:c000:0204:: = 192.0.2.4
         addr = ipaddress.IPv6Address("2002:c000:0204::")
         embedded = embedded_ipv4(addr)
         assert embedded == ipaddress.IPv4Address("192.0.2.4")
@@ -582,7 +578,6 @@ class TestScopeParseDocument:
             "program": "Test",
             "authorized_by": "Me",
             "authorization_ref": "REF-1",
-            # missing include
         }
         with pytest.raises(ValueError, match="include.*required"):
             parse_scope_document(data)
@@ -634,7 +629,7 @@ class TestScopeConfigure:
 
     def test_configure_with_auth_config(self):
         """Configure with auth config."""
-        from strix.core.authz import AuthConfig, Principal
+        from ishastra.core.authz import AuthConfig, Principal
 
         auth = AuthConfig(
             users=[
@@ -698,7 +693,7 @@ class TestScopeEnforcementBlocking:
             authorization_ref="ENF-001",
             include=["example.com", "*.example.com", "api.example.com"],
             exclude=["admin.example.com"],
-            authorized_networks=["93.184.216.0/24", "198.51.100.0/24"],  # example.com ranges
+            authorized_networks=["93.184.216.0/24", "198.51.100.0/24"],
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
@@ -715,25 +710,21 @@ class TestScopeEnforcementBlocking:
     @pytest.mark.parametrize(
         "ip,expected_denial,reason_fragment",
         [
-            # IPs in authorized networks - should pass
             ("93.184.216.34", "", ""),
             ("198.51.100.50", "", ""),
-            # Private/special-use IPs - should be denied (not in authorized_networks)
             ("10.0.0.1", "out_of_scope", "non-public"),
             ("192.168.1.1", "out_of_scope", "non-public"),
             ("172.16.0.1", "out_of_scope", "non-public"),
             ("127.0.0.1", "out_of_scope", "non-public"),
             ("169.254.1.1", "out_of_scope", "non-public"),
             ("224.0.0.1", "out_of_scope", "non-public"),
-            # Public IPs NOT in authorized_networks - denied because the list is
-            # an exhaustive allowlist, not just an extra allowance
             ("8.8.8.8", "out_of_scope", "not in authorized networks"),
             ("1.1.1.1", "out_of_scope", "not in authorized networks"),
         ],
     )
     def test_destination_blocks_unauthorized_ips(self, ip, expected_denial, reason_fragment):
         """destination() must block targets resolving to unauthorized IPs."""
-        with patch("strix.core.scope.resolve_sync", return_value=[ip]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == expected_denial, f"IP {ip}: expected {expected_denial}, got {denial}: {reason}"
             if expected_denial:
@@ -748,24 +739,21 @@ class TestScopeEnforcementBlocking:
     @pytest.mark.parametrize(
         "ip,expected_denial,reason_fragment",
         [
-            # IPs in authorized networks - should pass
             ("93.184.216.34", "", ""),
             ("198.51.100.50", "", ""),
-            # Private/special-use IPs - should be denied
             ("10.0.0.1", "out_of_scope", "non-public"),
             ("192.168.1.1", "out_of_scope", "non-public"),
             ("172.16.0.1", "out_of_scope", "non-public"),
             ("127.0.0.1", "out_of_scope", "non-public"),
             ("169.254.1.1", "out_of_scope", "non-public"),
             ("224.0.0.1", "out_of_scope", "non-public"),
-            # Public IPs NOT in authorized_networks - denied (exhaustive allowlist)
             ("8.8.8.8", "out_of_scope", "not in authorized networks"),
             ("1.1.1.1", "out_of_scope", "not in authorized networks"),
         ],
     )
     def test_check_blocks_unauthorized_ips(self, ip, expected_denial, reason_fragment):
         """check() must block targets resolving to unauthorized IPs."""
-        with patch("strix.core.scope.resolve_sync", return_value=[ip]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
             denial, reason = self.scope.check("https://example.com/")
             assert denial == expected_denial, f"IP {ip}: expected {expected_denial}, got {denial}: {reason}"
             if expected_denial:
@@ -780,11 +768,11 @@ class TestScopeEnforcementBlocking:
             authorized_by="Test",
             authorization_ref="LEG-001",
             include=["example.com"],
-            authorized_networks=[],  # Empty = allow all public
+            authorized_networks=[],
             allowed_ports=[80, 443],
         )
-        # Public IP not in any authorized network should still be allowed
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope_legacy.destination("https://example.com/")
             assert denial == "", f"Legacy mode should allow public IPs: {denial}: {reason}"
             assert dest is not None
@@ -800,14 +788,14 @@ class TestScopeEnforcementBlocking:
             authorized_networks=[],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason = scope_legacy.check("https://example.com/")
             assert denial == "", f"Legacy mode should allow public IPs: {denial}: {reason}"
 
     def test_multiple_ips_one_unauthorized_blocks(self):
         """If ANY resolved IP is unauthorized, the target is blocked."""
-        # Resolves to both authorized and unauthorized IP
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -815,31 +803,31 @@ class TestScopeEnforcementBlocking:
 
     def test_multiple_ips_all_authorized_allows(self):
         """If ALL resolved IPs are authorized, the target is allowed."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34", "198.51.100.50"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "198.51.100.50"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
-            # First IP should be used
+
             assert dest.ip == "93.184.216.34"
 
     def test_ipv6_with_embedded_private_blocked(self):
         """IPv6 transition addresses embedding private IPv4 must be blocked."""
-        # NAT64 embedding 10.0.0.1
-        with patch("strix.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
 
     def test_ipv4_mapped_private_blocked(self):
         """IPv4-mapped IPv6 with private address must be blocked."""
-        with patch("strix.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
 
     def test_6to4_private_blocked(self):
         """6to4 address with private embedded IPv4 must be blocked."""
-        with patch("strix.core.scope.resolve_sync", return_value=["2002:c0a8:0101::"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["2002:c0a8:0101::"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -855,7 +843,7 @@ class TestScopeEnforcementBlocking:
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = scope_with_private.destination("https://internal.example.com/")
             assert denial == "", f"Authorized private network should be allowed: {denial}: {reason}"
             assert dest is not None
@@ -863,8 +851,8 @@ class TestScopeEnforcementBlocking:
 
     def test_destination_port_enforcement(self):
         """destination() must enforce allowed_ports."""
-        # Port 8080 not in allowed_ports
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://example.com:8080/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -887,7 +875,7 @@ class TestScopeEnforcementBlocking:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope_with_exclude.destination("https://api.example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -903,7 +891,7 @@ class TestScopeEnforcementBlocking:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope_ip.destination("http://93.184.216.34/")
             assert denial == ""
             assert dest is not None
@@ -916,10 +904,10 @@ class TestScopeEnforcementBlocking:
             authorized_by="Test",
             authorization_ref="IPL-002",
             include=["8.8.8.8"],
-            authorized_networks=["93.184.216.0/24"],  # 8.8.8.8 not in this
+            authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope_ip.destination("http://8.8.8.8/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -954,13 +942,11 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_allowed_target(self):
         """Complete flow: URL in scope, resolves to authorized IP, port allowed."""
-        with patch("strix.core.scope.resolve_sync", return_value=["203.0.113.50"]):
-            # Step 1: Advisory check
+        with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
             denial, reason = self.scope.check("https://target.example.com/")
             assert denial == ""
             assert reason == ""
 
-            # Step 2: Authoritative destination
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == ""
             assert reason == ""
@@ -988,20 +974,18 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_blocked_by_resolved_ip(self):
         """Complete flow: Host in scope but resolves to unauthorized IP."""
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
-            # check() should deny
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason = self.scope.check("https://target.example.com/")
             assert denial == "out_of_scope"
             assert "non-public" in reason.lower() or "resolves to" in reason.lower()
 
-            # destination() should also deny
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == "out_of_scope"
             assert dest is None
 
     def test_full_flow_blocked_by_port(self):
         """Complete flow: Port not in allowed_ports."""
-        with patch("strix.core.scope.resolve_sync", return_value=["203.0.113.50"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
             denial, reason = self.scope.check("https://target.example.com:9999/")
             assert denial == "out_of_scope"
             assert "port 9999" in reason.lower()
@@ -1012,7 +996,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_subdomain_wildcard(self):
         """Complete flow: Wildcard subdomain match."""
-        with patch("strix.core.scope.resolve_sync", return_value=["198.51.100.10"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["198.51.100.10"]):
             denial, reason, dest = self.scope.destination("https://api.target.example.com/")
             assert denial == ""
             assert dest is not None
@@ -1021,7 +1005,7 @@ class TestScopeEnforcementIntegration:
     def test_full_flow_different_ports(self):
         """Complete flow: Various allowed ports."""
         for port, scheme in [(80, "http"), (443, "https"), (8080, "http"), (8443, "https")]:
-            with patch("strix.core.scope.resolve_sync", return_value=["203.0.113.50"]):
+            with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
                 url = f"{scheme}://target.example.com:{port}/"
                 denial, reason, dest = self.scope.destination(url)
                 assert denial == "", f"Port {port} should be allowed: {denial}: {reason}"
@@ -1030,15 +1014,15 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_resolution_failure(self):
         """Complete flow: DNS resolution fails."""
-        with patch("strix.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == "resolution_failed"
             assert dest is None
 
     def test_full_flow_resolution_timeout(self):
         """Complete flow: DNS resolution times out (simulated by empty result)."""
-        # The sync resolution uses socket timeout, so we simulate timeout via empty
-        with patch("strix.core.scope.resolve_sync", return_value=[]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == "resolution_failed"
             assert dest is None
@@ -1046,7 +1030,7 @@ class TestScopeEnforcementIntegration:
     @pytest.mark.asyncio
     async def test_async_destination_full_flow(self):
         """Async destination() full flow with authorized IP."""
-        with patch("strix.core.scope.resolve", return_value=["203.0.113.50"]):
+        with patch("ishastra.core.scope.resolve", return_value=["203.0.113.50"]):
             denial, reason, dest = await self.scope.destination_async("https://target.example.com/")
             assert denial == ""
             assert dest is not None
@@ -1055,7 +1039,7 @@ class TestScopeEnforcementIntegration:
     @pytest.mark.asyncio
     async def test_async_destination_blocks_unauthorized(self):
         """Async destination() blocks unauthorized IP."""
-        with patch("strix.core.scope.resolve", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve", return_value=["10.0.0.1"]):
             denial, reason, dest = await self.scope.destination_async("https://target.example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -1084,11 +1068,6 @@ class TestScopeEnforcementEdgeCases:
 
     def test_no_scope_configured_blocks_all(self):
         """When no scope is configured, all targets are blocked."""
-        # Reset by configuring empty - actually we need to test the global None case
-        # The current() function returns None if no scope is set
-        # But configure() always sets a scope, so we test via the check() function directly
-        # when _active is None and _bound is None
-        # This is tested in test_scope.py::TestScopeDestination::test_destination_returns_pinned_address
 
     def test_invalid_url_scheme_blocked(self):
         """Non-http/https schemes are blocked."""
@@ -1106,8 +1085,8 @@ class TestScopeEnforcementEdgeCases:
     def test_malformed_url_blocked(self):
         """Malformed URLs are blocked."""
         for url in [
-            "http:///path",  # No host
-            "http://example.com:99999/",  # Invalid port
+            "http:///path",
+            "http://example.com:99999/",
             "not a url",
             "",
         ]:
@@ -1157,11 +1136,10 @@ class TestScopeEnforcementEdgeCases:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        # admin.example.com should be ALLOWED (wildcard exclude is subdomains only)
+
         denial, reason = scope.check("https://admin.example.com/")
         assert denial == "", f"admin.example.com should be allowed: {denial}: {reason}"
 
-        # sub.admin.example.com should be DENIED
         denial, reason = scope.check("https://sub.admin.example.com/")
         assert denial == "out_of_scope"
 
@@ -1175,7 +1153,7 @@ class TestScopeEnforcementEdgeCases:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1186,12 +1164,12 @@ class TestScopeEnforcementEdgeCases:
             program="Test",
             authorized_by="Test",
             authorization_ref="T-1",
-            include=["example.com."],  # Trailing dot in pattern
+            include=["example.com."],
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        # Pattern should be normalized to "example.com"
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1206,15 +1184,12 @@ class TestScopeEnforcementEdgeCases:
             authorized_networks=[],
             allowed_ports=[80, 443],
         )
-        # Any public IP should be allowed
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
             assert dest.ip == "8.8.8.8"
-
-
-# Need to import patch and check for the new tests
 
 
 class TestScopeDocumentLifecycle:
@@ -1356,8 +1331,7 @@ class TestScopeDocumentRejections:
             self._scope(include=("bad host!",))
 
     def test_wildcard_without_a_name(self):
-        # A trailing dot is stripped before the wildcard check, so "*." is judged
-        # as the bare label "*" and rejected as a DNS name.
+
         assert "not a valid DNS name" in _host_pattern_error("*.")
 
     def test_bad_network_entries(self):
@@ -1422,13 +1396,13 @@ class TestScopeDocumentRejections:
             parse_scope_document({**self.DOC, "collab": {"host": ""}})
 
     def test_parse_coerces_non_dict_metadata(self):
-        with patch("strix.core.scope._load_schema", return_value={"type": "object"}):
+        with patch("ishastra.core.scope._load_schema", return_value={"type": "object"}):
             installed = parse_scope_document({**self.DOC, "metadata": ["not", "a", "dict"]})
         assert installed.metadata == {}
 
     def test_invalid_json_schema_is_reported(self):
         with (
-            patch("strix.core.scope._load_schema", return_value={"type": 5}),
+            patch("ishastra.core.scope._load_schema", return_value={"type": 5}),
             pytest.raises(ValueError, match="scope schema error"),
         ):
             parse_scope_document(self.DOC)
@@ -1457,7 +1431,7 @@ class TestScopeAddressPolicyEdges:
             include=["10.0.0.1"],
             allowed_ports=[80],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = scope_literal.destination("http://10.0.0.1/")
         assert denial == "out_of_scope"
         assert dest is None
@@ -1470,7 +1444,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="DNS-001",
             include=["example.com"],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
             denial, reason, dest = scope_x.destination("https://example.com/")
         assert denial == "resolution_failed"
         assert dest is None
@@ -1527,7 +1501,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="LIVE-001",
             include=["example.com"],
         )
-        with patch("strix.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
             denial, reason, dest = await live.destination_async("https://example.com/")
         assert denial == "resolution_failed"
         assert dest is None
@@ -1539,7 +1513,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="INT-001",
             include=["example.com"],
         )
-        with patch("strix.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
             denial, reason, addresses = await live._authorize("build.internal", None)
             assert (denial, reason, addresses) == (
                 "out_of_scope",
@@ -1568,14 +1542,14 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="OFF-001",
             include=["example.com"],
         )
-        with patch("strix.core.scope.resolve_sync", side_effect=AssertionError("DNS must not be used")):
+        with patch("ishastra.core.scope.resolve_sync", side_effect=AssertionError("DNS must not be used")):
             assert scope_x.gate("https://example.com/") == ("", "")
             denial, reason = scope_x.gate("https://other.com/")
         assert denial == "out_of_scope"
         assert "not in the authorized scope" in reason
 
     def test_module_level_gate_fails_closed_without_a_scope(self):
-        with patch("strix.core.scope.current", return_value=None):
+        with patch("ishastra.core.scope.current", return_value=None):
             denial, reason = scope_module.check("https://example.com/")
             assert denial == "out_of_scope"
             assert "no authorized scope configured" in reason
@@ -1616,9 +1590,9 @@ class TestAddressPolicyParity:
             include=["example.com"],
             authorized_networks=networks,
         )
-        with patch("strix.core.scope.resolve_sync", return_value=addresses):
+        with patch("ishastra.core.scope.resolve_sync", return_value=addresses):
             sync_result = scope._authorize_sync("example.com", 443, fail_on_empty=fail_on_empty)
-        with patch("strix.core.scope.resolve", new=AsyncMock(return_value=addresses)):
+        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=addresses)):
             async_result = await scope._authorize("example.com", 443, fail_on_empty=fail_on_empty)
 
         assert sync_result == async_result
@@ -1634,9 +1608,9 @@ class TestAddressPolicyParity:
             authorization_ref="PAR-002",
             include=["example.com"],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
             sync_result = scope._authorize_sync("build.internal", None)
-        with patch("strix.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
             async_result = await scope._authorize("build.internal", None)
 
         assert sync_result == async_result
@@ -1647,7 +1621,7 @@ class TestResolverRateLimit:
     """A single host cannot monopolize the resolver pool."""
 
     def test_hammered_host_is_refused_after_its_budget(self, monkeypatch):
-        from strix.core import scope as scope_module
+        from ishastra.core import scope as scope_module
 
         calls: list[str] = []
 
@@ -1665,7 +1639,7 @@ class TestResolverRateLimit:
         assert results[-1] == []
 
     def test_a_second_host_keeps_its_own_budget(self, monkeypatch):
-        from strix.core import scope as scope_module
+        from ishastra.core import scope as scope_module
 
         def fake_getaddrinfo(host, port, **kwargs):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
@@ -1685,8 +1659,8 @@ class TestGateSpans:
     def test_a_denial_carries_decision_tenant_and_stage(self, monkeypatch):
         import contextlib
 
-        from strix import otel
-        from strix.core import scope as scope_module
+        from ishastra import otel
+        from ishastra.core import scope as scope_module
 
         recorded: dict = {}
 
@@ -1726,7 +1700,7 @@ class TestScopeInheritance:
 
     @staticmethod
     def _scope(**kwargs):
-        from strix.core import scope as scope_module
+        from ishastra.core import scope as scope_module
 
         fields = {
             "program": "Inheritance",

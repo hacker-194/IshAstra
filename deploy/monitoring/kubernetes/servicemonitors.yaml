@@ -1,9 +1,9 @@
-# Kubernetes ServiceMonitors for Prometheus Operator
-# Apply with: kubectl apply -f servicemonitors.yaml
-# Requires Prometheus Operator CRDs installed
+
+
+
 
 ---
-# Namespace for monitoring stack
+
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -11,25 +11,25 @@ metadata:
   labels:
     name: monitoring
     app.kubernetes.io/name: monitoring
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 
 ---
-# ServiceMonitor for Strix API
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-api
+  name: ishastra-api
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-api
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-api
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: api
   endpoints:
     - port: http
@@ -41,7 +41,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-api.strix.svc.cluster.local
+        serverName: ishastra-api.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -52,25 +52,25 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# ServiceMonitor for Strix Scheduler
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-scheduler
+  name: ishastra-scheduler
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-scheduler
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-scheduler
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: scheduler
   endpoints:
     - port: http
@@ -82,7 +82,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-scheduler.strix.svc.cluster.local
+        serverName: ishastra-scheduler.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -93,25 +93,25 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# ServiceMonitor for Strix Worker
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: strix-worker
+  name: ishastra-worker
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-worker
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-worker
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: worker
   endpoints:
     - port: http
@@ -123,7 +123,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-worker.strix.svc.cluster.local
+        serverName: ishastra-worker.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -134,10 +134,10 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# ServiceMonitor for Redis (requires redis_exporter sidecar or Redis 7.2+ with metrics)
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -147,7 +147,7 @@ metadata:
     release: prometheus
     app: redis
     app.kubernetes.io/name: redis
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
@@ -166,10 +166,10 @@ spec:
           targetLabel: namespace
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# ServiceMonitor for Nginx (if using nginx-prometheus-exporter sidecar)
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -179,7 +179,7 @@ metadata:
     release: prometheus
     app: nginx
     app.kubernetes.io/name: nginx
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
@@ -199,10 +199,10 @@ spec:
           targetLabel: namespace
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# ServiceMonitor for Node Exporter (if deployed as DaemonSet in monitoring namespace)
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -212,7 +212,7 @@ metadata:
     release: prometheus
     app: node-exporter
     app.kubernetes.io/name: node-exporter
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
@@ -236,7 +236,7 @@ spec:
       - monitoring
 
 ---
-# ServiceMonitor for Kube-State-Metrics (if deployed)
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -246,7 +246,7 @@ metadata:
     release: prometheus
     app: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
@@ -263,7 +263,7 @@ spec:
       - monitoring
 
 ---
-# ServiceMonitor for cAdvisor (if deployed as DaemonSet)
+
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -273,7 +273,7 @@ metadata:
     release: prometheus
     app: cadvisor
     app.kubernetes.io/name: cadvisor
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: service-monitor
 spec:
   selector:
@@ -293,22 +293,22 @@ spec:
       - monitoring
 
 ---
-# PodMonitor for Strix API (alternative to ServiceMonitor if not using Service)
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: strix-api-pod
+  name: ishastra-api-pod
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-api
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-api
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: pod-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: api
   podMetricsEndpoints:
     - port: http
@@ -320,7 +320,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-api.strix.svc.cluster.local
+        serverName: ishastra-api.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -331,25 +331,25 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# PodMonitor for Strix Scheduler
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: strix-scheduler-pod
+  name: ishastra-scheduler-pod
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-scheduler
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-scheduler
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: pod-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: scheduler
   podMetricsEndpoints:
     - port: http
@@ -361,7 +361,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-scheduler.strix.svc.cluster.local
+        serverName: ishastra-scheduler.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -372,25 +372,25 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# PodMonitor for Strix Worker
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: strix-worker-pod
+  name: ishastra-worker-pod
   namespace: monitoring
   labels:
     release: prometheus
-    app: strix
-    app.kubernetes.io/name: strix-worker
-    app.kubernetes.io/part-of: strix-observability
+    app: ishastra
+    app.kubernetes.io/name: ishastra-worker
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: pod-monitor
 spec:
   selector:
     matchLabels:
-      app: strix
+      app: ishastra
       component: worker
   podMetricsEndpoints:
     - port: http
@@ -402,7 +402,7 @@ spec:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         certFile: /etc/prometheus/certs/prometheus-client.crt
         keyFile: /etc/prometheus/certs/prometheus-client.key
-        serverName: strix-worker.strix.svc.cluster.local
+        serverName: ishastra-worker.ishastra.svc.cluster.local
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_name]
@@ -413,10 +413,10 @@ spec:
           targetLabel: component
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# PodMonitor for Nginx (if metrics exposed on pod directly)
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -426,7 +426,7 @@ metadata:
     release: prometheus
     app: nginx
     app.kubernetes.io/name: nginx
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: pod-monitor
 spec:
   selector:
@@ -446,10 +446,10 @@ spec:
           targetLabel: namespace
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra
 
 ---
-# PodMonitor for Redis Exporter (if deployed as sidecar)
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -459,7 +459,7 @@ metadata:
     release: prometheus
     app: redis
     app.kubernetes.io/name: redis-exporter
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: pod-monitor
 spec:
   selector:
@@ -479,4 +479,4 @@ spec:
           targetLabel: namespace
   namespaceSelector:
     matchNames:
-      - strix
+      - ishastra

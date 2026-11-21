@@ -6,21 +6,21 @@ Argo CD manages three independent regional applications from `deploy/argocd/appl
 
 | Region | Argo CD application / cluster name | Namespace | Kustomize overlay |
 |---|---|---|---|
-| `us-east` | `strix-us-east` | `strix-us-east` | `deploy/kustomize/overlays/us-east` |
-| `eu-west` | `strix-eu-west` | `strix-eu-west` | `deploy/kustomize/overlays/eu-west` |
-| `ap-south` | `strix-ap-south` | `strix-ap-south` | `deploy/kustomize/overlays/ap-south` |
+| `us-east` | `ishastra-us-east` | `ishastra-us-east` | `deploy/kustomize/overlays/us-east` |
+| `eu-west` | `ishastra-eu-west` | `ishastra-eu-west` | `deploy/kustomize/overlays/eu-west` |
+| `ap-south` | `ishastra-ap-south` | `ishastra-ap-south` | `deploy/kustomize/overlays/ap-south` |
 
-Each overlay deploys one `strix-api` replica, the `strix-api` ClusterIP service, a
-20 GiB `strix-data-pvc`, and a region-scoped ingress NetworkPolicy. Ingress to
+Each overlay deploys one `ishastra-api` replica, the `ishastra-api` ClusterIP service, a
+20 GiB `ishastra-data-pvc`, and a region-scoped ingress NetworkPolicy. Ingress to
 port 8000 is allowed only from pods labeled `app.kubernetes.io/name=ingress-nginx`
 in the `ingress-nginx` namespace. The policy does not restrict egress.
 
-The database PVC, scope ConfigMap (`strix-config`, key `scope.json`), and
-application Secret (`strix-secrets`) are local to each region. They are not
+The database PVC, scope ConfigMap (`ishastra-config`, key `scope.json`), and
+application Secret (`ishastra-secrets`) are local to each region. They are not
 replicated by these manifests. Maintain verified backups and restore the
 selected backup in the target region before routing traffic. Verify that the
 configured image repository is accessible in all three clusters. The base image
-uses the chart's `ghcr.io/your-org/strix:3.5.0` placeholder; set it to the
+uses the chart's `ghcr.io/your-org/ishastra:3.5.0` placeholder; set it to the
 organization's published image before syncing.
 
 ## Prerequisites
@@ -31,7 +31,7 @@ organization's published image before syncing.
   `kubectl --context` arguments below are adjusted to the local context names).
 - Each cluster has a functioning ingress-nginx controller in the
   `ingress-nginx` namespace with the label used by the NetworkPolicy.
-- A `strix-config` ConfigMap containing `scope.json` and a `strix-secrets`
+- A `ishastra-config` ConfigMap containing `scope.json` and a `ishastra-secrets`
   Secret exist in each regional namespace before the API rollout. Populate
   secrets through the approved secrets manager; do not copy credentials in
   this runbook.
@@ -49,18 +49,18 @@ application and its dependencies are ready before changing traffic:
 
 ```bash
 TARGET=eu-west # use us-east, eu-west, or ap-south
-NAMESPACE="strix-${TARGET}"
-APP="strix-${TARGET}"
+NAMESPACE="ishastra-${TARGET}"
+APP="ishastra-${TARGET}"
 
 argocd app get "$APP"
 kubectl --context "$TARGET" get namespace "$NAMESPACE"
-kubectl --context "$TARGET" get pvc -n "$NAMESPACE" strix-data-pvc
-kubectl --context "$TARGET" get configmap/strix-config secret/strix-secrets \
+kubectl --context "$TARGET" get pvc -n "$NAMESPACE" ishastra-data-pvc
+kubectl --context "$TARGET" get configmap/ishastra-config secret/ishastra-secrets \
   -n "$NAMESPACE"
 kubectl --context "$TARGET" get networkpolicy -n "$NAMESPACE"
-kubectl --context "$TARGET" rollout status deployment/strix-api \
+kubectl --context "$TARGET" rollout status deployment/ishastra-api \
   -n "$NAMESPACE" --timeout=300s
-kubectl --context "$TARGET" get endpoints strix-api -n "$NAMESPACE"
+kubectl --context "$TARGET" get endpoints ishastra-api -n "$NAMESPACE"
 ```
 
 Confirm the PVC is `Bound`, the API has ready endpoints, and the region's
@@ -78,7 +78,7 @@ out of sync, reconcile only that region and wait for its deployment:
 ```bash
 argocd app sync "$APP"
 argocd app wait "$APP" --sync --health --timeout 300
-kubectl --context "$TARGET" rollout status deployment/strix-api \
+kubectl --context "$TARGET" rollout status deployment/ishastra-api \
   -n "$NAMESPACE" --timeout=300s
 ```
 
@@ -94,7 +94,7 @@ Then verify the public and in-cluster endpoints:
 ```bash
 curl -fsS "https://<target-region-host>/api/health"
 curl -fsS "https://<target-region-host>/api/ready"
-dig strix.example.com
+dig ishastra.example.com
 ```
 
 Check API error rate, latency, audit-chain status, and database health in the
@@ -106,7 +106,7 @@ region, cutover time, and observed data loss/RPO.
 1. Restore and validate the recovered region, including its PVC, ConfigMap,
    Secret, ingress, and NetworkPolicy. Do not send traffic to it while its
    data is stale.
-2. Reconcile its Argo CD application and wait for `strix-api` rollout and
+2. Reconcile its Argo CD application and wait for `ishastra-api` rollout and
    readiness using the commands above.
 3. Ensure only the intended region is writable, then move DNS/load-balancer
    traffic back using the approved change process.

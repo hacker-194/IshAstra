@@ -1,0 +1,103 @@
+{{- if .Values.scheduler.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ishastra.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scheduler
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    {{- if .Values.scheduler.annotations }}
+    {{- toYaml .Values.scheduler.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.scheduler.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ishastra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scheduler
+  strategy:
+    {{- include "ishastra.scheduler.updateStrategy" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scheduler
+      annotations:
+        {{- if .Values.scheduler.podAnnotations }}
+        {{- toYaml .Values.scheduler.podAnnotations | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.scheduler.service.port }}"
+        prometheus.io/path: "/api/metrics"
+        {{- if .Values.global.podSecurityStandard }}
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- end }}
+    spec:
+      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+      {{- include "ishastra.priorityClassName" . | nindent 6 }}
+      {{- if .Values.topologySpreadConstraints }}
+      {{- include "ishastra.topologySpreadConstraints" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.scheduler.affinity }}
+      {{- include "ishastra.scheduler.affinity" . | nindent 6 }}
+      {{- end }}
+      {{- if .Values.scheduler.tolerations }}
+      {{- include "ishastra.scheduler.tolerations" . | nindent 6 }}
+      {{- end }}
+      securityContext:
+        {{- if .Values.scheduler.podSecurityContext }}
+        {{- toYaml .Values.scheduler.podSecurityContext | nindent 8 }}
+        {{- else }}
+        {{- include "ishastra.podSecurityContext" . | nindent 8 }}
+        {{- end }}
+      {{- include "ishastra.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: scheduler
+          image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+
+
+          command:
+            - python
+            - -m
+            - ishastra
+            - serve
+            - --host
+            - 0.0.0.0
+            - --port
+            - "{{ .Values.scheduler.service.targetPort }}"
+          env:
+            {{- include "ishastra.scheduler.env" . | nindent 12 }}
+
+            - name: ISHASTRA_MONITOR_ENABLED
+              value: "true"
+          envFrom:
+            {{- include "ishastra.scheduler.envFromSecrets" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.scheduler.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.scheduler.livenessProbe }}
+          livenessProbe:
+            {{- include "ishastra.scheduler.livenessProbe" . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.scheduler.readinessProbe }}
+          readinessProbe:
+            {{- include "ishastra.scheduler.readinessProbe" . | nindent 12 }}
+          {{- end }}
+          {{- include "ishastra.scheduler.resources" . | nindent 10 }}
+          {{- include "ishastra.scheduler.volumeMounts" . | nindent 10 }}
+          securityContext:
+            {{- if .Values.scheduler.securityContext }}
+            {{- toYaml .Values.scheduler.securityContext | nindent 12 }}
+            {{- else }}
+            {{- include "ishastra.containerSecurityContext" . | nindent 12 }}
+            {{- end }}
+      {{- include "ishastra.scheduler.volumes" . | nindent 6 }}
+      {{- if .Values.scheduler.extraVolumes }}
+      {{- toYaml .Values.scheduler.extraVolumes | nindent 6 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,79 @@
+{{- /*
+PodSecurityPolicy was removed in Kubernetes 1.25+.
+Use Pod Security Admission Controller instead (namespace labels).
+This template is kept for backwards compatibility with Kubernetes < 1.25
+but is disabled by default since the chart enforces restricted Pod Security
+Standards via podSecurityContext and securityContext on deployments.
+*/}}
+{{- if and .Values.podSecurityPolicy.enabled (has "policy/v1beta1/PodSecurityPolicy" .Capabilities.APIVersions) }}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ include "ishastra.fullname" . }}-psp
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: psp
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+    {{- if .Values.podSecurityPolicy.annotations }}
+    {{- toYaml .Values.podSecurityPolicy.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  privileged: false
+  allowPrivilegeEscalation: {{ .Values.podSecurityPolicy.restricted.allowPrivilegeEscalation }}
+  requiredDropCapabilities:
+    {{- toYaml .Values.podSecurityPolicy.restricted.requiredDropCapabilities | nindent 4 }}
+  volumes:
+    - configMap
+    - emptyDir
+    - projected
+    - secret
+    - downwardAPI
+    - persistentVolumeClaim
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    {{- toYaml .Values.podSecurityPolicy.restricted.runAsUser | nindent 4 }}
+  runAsGroup:
+    {{- toYaml .Values.podSecurityPolicy.restricted.runAsGroup | nindent 4 }}
+  fsGroup:
+    {{- toYaml .Values.podSecurityPolicy.restricted.fsGroup | nindent 4 }}
+  readOnlyRootFilesystem: {{ .Values.podSecurityPolicy.restricted.readOnlyRootFilesystem }}
+  seccompProfile:
+    {{- toYaml .Values.podSecurityPolicy.restricted.seccompProfile | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ishastra.fullname" . }}-psp-role
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: psp
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+rules:
+  - apiGroups: ["policy"]
+    resources: ["podsecuritypolicies"]
+    verbs: ["use"]
+    resourceNames:
+      - {{ include "ishastra.fullname" . }}-psp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ishastra.fullname" . }}-psp-binding
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: psp
+  annotations:
+    {{- include "ishastra.annotations" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ishastra.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "ishastra.fullname" . }}-psp-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

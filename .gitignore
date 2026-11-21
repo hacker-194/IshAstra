@@ -14,6 +14,7 @@ env/
 !.env.*.example
 config/scope.json
 scope.json
+.ishastra-demo/
 secrets/
 certs/
 
@@ -46,6 +47,15 @@ __pycache__/
 Thumbs.db
 
 # Local agent and knowledge-graph state
+# Development state (not for GitHub)
+.claude/
+.claude-flow/
+.freebuff/
+security-audit-reports/
+security-reports/
+load-test/
+migrations/
+
 .claude/
 .claude-flow/
 .freebuff/
@@ -63,6 +73,8 @@ security-audit-reports/
 # Local deployment secrets and generated security artefacts (never commit)
 prod-secrets/
 security-reports/
+evidence/
+backups/
 site/
 kubeseal
-detection-benchmark-results.json
+/detection-benchmark-results.json

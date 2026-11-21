@@ -7,8 +7,8 @@ authenticated request raised ``KeyError: 'free'`` and returned 500.
 
 from __future__ import annotations
 
-from strix.api.security import TIER_ORDER, _RateLimiter
-from strix.core.rate_limit import ASSESS_RATE_LIMITS, TIER_RATE_LIMITS
+from ishastra.api.security import TIER_ORDER, _RateLimiter
+from ishastra.core.rate_limit import ASSESS_RATE_LIMITS, TIER_RATE_LIMITS
 
 
 def test_every_api_tier_has_both_limits() -> None:

@@ -1,4 +1,4 @@
-"""Unit tests for Strix core modules.
+"""Unit tests for Ishastra core modules.
 
 Tests cover: scope, jobs, findings, authz, crypto modules.
 All tests are self-contained with no external dependencies.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from strix.core.authz import (
+from ishastra.core.authz import (
     AuthConfig,
     DifferentialResult,
     Principal,
@@ -19,7 +19,7 @@ from strix.core.authz import (
     candidate_endpoints,
     classify,
 )
-from strix.core.findings import (
+from ishastra.core.findings import (
     CONFIDENCES,
     SEVERITIES,
     VERIFICATIONS,
@@ -28,19 +28,15 @@ from strix.core.findings import (
     to_sarif,
     validate_transition,
 )
-from strix.core.jobs import (
+from ishastra.core.jobs import (
     AdapterRun,
     Job,
     JobState,
     RunState,
     prepare,
 )
-from strix.core.scope import Scope, load
-from strix.crypto import EncryptionError, decrypt, encrypt, generate_key
-
-# ---------------------------------------------------------------------------
-# Scope Unit Tests
-# ---------------------------------------------------------------------------
+from ishastra.core.scope import Scope, load
+from ishastra.crypto import EncryptionError, decrypt, encrypt, generate_key
 
 
 class TestScopeUnit:
@@ -225,11 +221,6 @@ class TestScopeUnit:
         assert denial == ""
 
 
-# ---------------------------------------------------------------------------
-# Crypto Unit Tests
-# ---------------------------------------------------------------------------
-
-
 class TestCryptoUnit:
     """Unit tests for AES-GCM encryption/decryption."""
 
@@ -256,7 +247,7 @@ class TestCryptoUnit:
         """Test empty string encryption (28-byte edge case fix)."""
         key = generate_key()
         encrypted = encrypt("", key)
-        assert encrypted == ""  # Empty plaintext returns empty string
+        assert encrypted == ""
         decrypted = decrypt(encrypted, key)
         assert decrypted == ""
 
@@ -293,8 +284,7 @@ class TestCryptoUnit:
         import base64
 
         decoded = base64.b64decode(encrypted)
-        # Flip the last byte rather than overwriting it: writing a constant can
-        # leave the ciphertext unchanged when that byte already holds the value.
+
         corrupted = decoded[:-1] + bytes([decoded[-1] ^ 0xFF])
         corrupted_b64 = base64.b64encode(corrupted).decode()
         with pytest.raises(EncryptionError, match="invalid key or corrupted data"):
@@ -329,11 +319,6 @@ class TestCryptoUnit:
             decrypt(short_ciphertext, key)
 
 
-# ---------------------------------------------------------------------------
-# Findings Unit Tests
-# ---------------------------------------------------------------------------
-
-
 class TestFindingsUnit:
     """Unit tests for findings model, dedupe, SARIF, and state transitions."""
 
@@ -345,7 +330,7 @@ class TestFindingsUnit:
             title="Missing Content-Security-Policy header",
             severity="low",
             confidence="medium",
-            detector="strix-http",
+            detector="ishastra-http",
             detector_version="1.0.0",
             evidence="HTTP 200 response carries no Content-Security-Policy header",
             location="https://example.com/",
@@ -552,7 +537,7 @@ class TestFindingsUnit:
         assert sarif["$schema"] == "https://json.schemastore.org/sarif-2.1.0.json"
         assert sarif["version"] == "2.1.0"
         assert len(sarif["runs"]) == 1
-        assert sarif["runs"][0]["tool"]["driver"]["name"] == "strix"
+        assert sarif["runs"][0]["tool"]["driver"]["name"] == "ishastra"
         assert len(sarif["runs"][0]["results"]) == 1
         result = sarif["runs"][0]["results"][0]
         assert result["ruleId"] == "missing_csp"
@@ -574,11 +559,6 @@ class TestFindingsUnit:
             validate_transition("closed", "new")
         with pytest.raises(ValueError, match="Invalid transition"):
             validate_transition("triaged", "new")
-
-
-# ---------------------------------------------------------------------------
-# Authz Unit Tests
-# ---------------------------------------------------------------------------
 
 
 class TestAuthzUnit:
@@ -683,7 +663,7 @@ class TestAuthzUnit:
         digest1 = body_digest(body)
         digest2 = body_digest(body)
         assert digest1 == digest2
-        assert len(digest1) == 16  # 16 hex chars = 8 bytes = 64 bits
+        assert len(digest1) == 16
 
     def test_body_digest_different_bodies(self):
         """Test body_digest differs for different bodies."""
@@ -733,11 +713,6 @@ class TestAuthzUnit:
         categories = classify(diff)
         assert "authorization_missing" in categories
         assert "object_access_unscoped" in categories
-
-
-# ---------------------------------------------------------------------------
-# Jobs Unit Tests
-# ---------------------------------------------------------------------------
 
 
 class TestJobsUnit:
@@ -794,7 +769,7 @@ class TestJobsUnit:
 
     def test_job_verdict_completed_with_findings(self):
         """Test verdict for completed job with findings."""
-        from strix.core.findings import Finding
+        from ishastra.core.findings import Finding
 
         job = Job(
             target="https://example.com/",
@@ -872,7 +847,7 @@ class TestJobsUnit:
 
     def test_job_is_clean_false_findings(self):
         """Test is_clean returns False when findings exist."""
-        from strix.core.findings import Finding
+        from ishastra.core.findings import Finding
 
         job = Job(
             target="https://example.com/",
@@ -911,7 +886,7 @@ class TestJobsUnit:
 
     def test_prepare_creates_job_with_policy(self, scope_file):
         """Test prepare creates job with scope-bound policy."""
-        from strix.core import scope
+        from ishastra.core import scope
 
         scope.load(scope_file)
         job = prepare(
@@ -931,7 +906,7 @@ class TestJobsUnit:
 
     def test_prepare_fails_without_scope(self):
         """Test prepare fails when no scope is configured."""
-        from strix.core import scope
+        from ishastra.core import scope
 
         scope._active = None
         with pytest.raises(ValueError, match="no authorized scope configured"):
@@ -941,11 +916,6 @@ class TestJobsUnit:
                 actor="analyst",
                 policy={},
             )
-
-
-# ---------------------------------------------------------------------------
-# Constants Tests
-# ---------------------------------------------------------------------------
 
 
 class TestConstants:

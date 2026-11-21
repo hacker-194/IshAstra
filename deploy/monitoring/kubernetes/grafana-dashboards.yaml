@@ -1,10 +1,10 @@
-# Grafana Dashboards ConfigMaps
-# All 10 dashboards from deploy/monitoring/grafana/dashboards/
-# Compatible with Prometheus Operator v0.75+
-# Apply with: kubectl apply -f grafana-dashboards.yaml
+
+
+
+
 
 ---
-# Namespace for monitoring stack
+
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -12,24 +12,24 @@ metadata:
   labels:
     name: monitoring
     app.kubernetes.io/name: monitoring
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
 
 ---
-# Dashboard: Strix Overview
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-overview
+  name: grafana-dashboard-ishastra-overview
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-overview.json: |
+  ishastra-overview.json: |
     {
       "annotations": {
         "list": [
@@ -62,7 +62,7 @@ data:
           "targetBlank": true,
           "title": "Job Latency",
           "type": "dashboards",
-          "uid": "strix-job-latency",
+          "uid": "ishastra-job-latency",
           "url": ""
         },
         {
@@ -75,7 +75,7 @@ data:
           "targetBlank": true,
           "title": "Adapter Success Rates",
           "type": "dashboards",
-          "uid": "strix-adapter-success-rates",
+          "uid": "ishastra-adapter-success-rates",
           "url": ""
         },
         {
@@ -88,7 +88,7 @@ data:
           "targetBlank": true,
           "title": "Queue Depth",
           "type": "dashboards",
-          "uid": "strix-queue-depth",
+          "uid": "ishastra-queue-depth",
           "url": ""
         },
         {
@@ -101,7 +101,7 @@ data:
           "targetBlank": true,
           "title": "Tenant Throughput",
           "type": "dashboards",
-          "uid": "strix-tenant-throughput",
+          "uid": "ishastra-tenant-throughput",
           "url": ""
         },
         {
@@ -114,7 +114,7 @@ data:
           "targetBlank": true,
           "title": "Error Rates",
           "type": "dashboards",
-          "uid": "strix-error-rates",
+          "uid": "ishastra-error-rates",
           "url": ""
         }
       ],
@@ -136,8 +136,8 @@ data:
           "id": 1,
           "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
           "pluginVersion": "11.2.0",
-          "targets": [{"expr": "up{job=\"strix\"}", "refId": "A"}],
-          "title": "Strix API Up",
+          "targets": [{"expr": "up{job=\"ishastra\"}", "refId": "A"}],
+          "title": "Ishastra API Up",
           "type": "stat"
         },
         {
@@ -370,7 +370,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "overview", "observability"],
+      "tags": ["ishastra", "overview", "observability"],
       "templating": {
         "list": [
           {
@@ -395,28 +395,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Observability Overview",
-      "uid": "strix-overview",
+      "title": "Ishastra - Observability Overview",
+      "uid": "ishastra-overview",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Queue Depth
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-queue-depth
+  name: grafana-dashboard-ishastra-queue-depth
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-queue-depth.json: |
+  ishastra-queue-depth.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -558,7 +558,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "queue", "backlog"],
+      "tags": ["ishastra", "queue", "backlog"],
       "templating": {
         "list": [
           {
@@ -583,28 +583,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Queue Depth",
-      "uid": "strix-queue-depth",
+      "title": "Ishastra - Queue Depth",
+      "uid": "ishastra-queue-depth",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Job Latency
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-job-latency
+  name: grafana-dashboard-ishastra-job-latency
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-job-latency.json: |
+  ishastra-job-latency.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -705,7 +705,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "latency", "jobs"],
+      "tags": ["ishastra", "latency", "jobs"],
       "templating": {
         "list": [
           {
@@ -730,28 +730,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Job Latency",
-      "uid": "strix-job-latency",
+      "title": "Ishastra - Job Latency",
+      "uid": "ishastra-job-latency",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Adapter Success Rates
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-adapter-success-rates
+  name: grafana-dashboard-ishastra-adapter-success-rates
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-adapter-success-rates.json: |
+  ishastra-adapter-success-rates.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -869,7 +869,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "adapters", "success-rate"],
+      "tags": ["ishastra", "adapters", "success-rate"],
       "templating": {
         "list": [
           {
@@ -894,28 +894,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Adapter Success Rates",
-      "uid": "strix-adapter-success-rates",
+      "title": "Ishastra - Adapter Success Rates",
+      "uid": "ishastra-adapter-success-rates",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Error Rates
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-error-rates
+  name: grafana-dashboard-ishastra-error-rates
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-error-rates.json: |
+  ishastra-error-rates.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -1054,7 +1054,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "errors", "http", "auth", "ratelimit"],
+      "tags": ["ishastra", "errors", "http", "auth", "ratelimit"],
       "templating": {
         "list": [
           {
@@ -1079,28 +1079,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Error Rates",
-      "uid": "strix-error-rates",
+      "title": "Ishastra - Error Rates",
+      "uid": "ishastra-error-rates",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Findings Pipeline
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-findings-pipeline
+  name: grafana-dashboard-ishastra-findings-pipeline
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-findings-pipeline.json: |
+  ishastra-findings-pipeline.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -1221,7 +1221,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "findings", "pipeline"],
+      "tags": ["ishastra", "findings", "pipeline"],
       "templating": {
         "list": [
           {
@@ -1246,28 +1246,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Findings Pipeline",
-      "uid": "strix-findings-pipeline",
+      "title": "Ishastra - Findings Pipeline",
+      "uid": "ishastra-findings-pipeline",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Security Events
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-security-events
+  name: grafana-dashboard-ishastra-security-events
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-security-events.json: |
+  ishastra-security-events.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -1406,7 +1406,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "security", "auth", "audit"],
+      "tags": ["ishastra", "security", "auth", "audit"],
       "templating": {
         "list": [
           {
@@ -1431,28 +1431,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Security Events",
-      "uid": "strix-security-events",
+      "title": "Ishastra - Security Events",
+      "uid": "ishastra-security-events",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix System Health
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-system-health
+  name: grafana-dashboard-ishastra-system-health
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-system-health.json: |
+  ishastra-system-health.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -1476,8 +1476,8 @@ data:
           "id": 1,
           "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto"},
           "pluginVersion": "11.2.0",
-          "targets": [{"expr": "up{job=\"strix\"}", "refId": "A"}],
-          "title": "Strix API",
+          "targets": [{"expr": "up{job=\"ishastra\"}", "refId": "A"}],
+          "title": "Ishastra API",
           "type": "stat"
         },
         {
@@ -1629,9 +1629,9 @@ data:
           "id": 9,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"strix\"}[5m])) by (pod) / sum(kube_pod_container_resource_limits_cpu_cores{namespace=\"strix\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
+            {"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"ishastra\"}[5m])) by (pod) / sum(kube_pod_container_resource_limits_cpu_cores{namespace=\"ishastra\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
           ],
-          "title": "CPU Usage by Pod (Strix namespace)",
+          "title": "CPU Usage by Pod (Ishastra namespace)",
           "type": "timeseries"
         },
         {
@@ -1650,9 +1650,9 @@ data:
           "id": 10,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(container_memory_working_set_bytes{namespace=\"strix\"}) by (pod) / sum(kube_pod_container_resource_limits_memory_bytes{namespace=\"strix\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
+            {"expr": "sum(container_memory_working_set_bytes{namespace=\"ishastra\"}) by (pod) / sum(kube_pod_container_resource_limits_memory_bytes{namespace=\"ishastra\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
           ],
-          "title": "Memory Usage by Pod (Strix namespace)",
+          "title": "Memory Usage by Pod (Ishastra namespace)",
           "type": "timeseries"
         },
         {
@@ -1701,33 +1701,33 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "system", "health", "infrastructure"],
+      "tags": ["ishastra", "system", "health", "infrastructure"],
       "templating": {"list": []},
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - System Health",
-      "uid": "strix-system-health",
+      "title": "Ishastra - System Health",
+      "uid": "ishastra-system-health",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Tenant Isolation
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-tenant-isolation
+  name: grafana-dashboard-ishastra-tenant-isolation
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-tenant-isolation.json: |
+  ishastra-tenant-isolation.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -1866,7 +1866,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "tenant", "isolation", "multi-tenancy"],
+      "tags": ["ishastra", "tenant", "isolation", "multi-tenancy"],
       "templating": {
         "list": [
           {
@@ -1891,28 +1891,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Tenant Isolation",
-      "uid": "strix-tenant-isolation",
+      "title": "Ishastra - Tenant Isolation",
+      "uid": "ishastra-tenant-isolation",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Tenant Throughput
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-tenant-throughput
+  name: grafana-dashboard-ishastra-tenant-throughput
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
-    dashboard_folder: "Strix"
+    dashboard_folder: "Ishastra"
 data:
-  strix-tenant-throughput.json: |
+  ishastra-tenant-throughput.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -2093,7 +2093,7 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "tenant", "throughput", "multi-tenancy"],
+      "tags": ["ishastra", "tenant", "throughput", "multi-tenancy"],
       "templating": {
         "list": [
           {
@@ -2118,28 +2118,28 @@ data:
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Tenant Throughput",
-      "uid": "strix-tenant-throughput",
+      "title": "Ishastra - Tenant Throughput",
+      "uid": "ishastra-tenant-throughput",
       "version": 1,
       "weekStart": ""
     }
 
 ---
-# Dashboard: Strix Kubernetes Infrastructure
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-strix-kubernetes
+  name: grafana-dashboard-ishastra-kubernetes
   namespace: monitoring
   labels:
     app: grafana
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: strix-observability
+    app.kubernetes.io/part-of: ishastra-observability
     app.kubernetes.io/component: grafana-dashboard
     grafana_dashboard: "1"
     dashboard_folder: "Kubernetes"
 data:
-  strix-kubernetes.json: |
+  ishastra-kubernetes.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "prometheus", "uid": "prometheus"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
       "editable": true,
@@ -2164,9 +2164,9 @@ data:
           "id": 1,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"strix\"}[5m])) by (pod) / sum(kube_pod_container_resource_limits_cpu_cores{namespace=\"strix\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
+            {"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"ishastra\"}[5m])) by (pod) / sum(kube_pod_container_resource_limits_cpu_cores{namespace=\"ishastra\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
           ],
-          "title": "CPU Usage by Pod (Strix namespace)",
+          "title": "CPU Usage by Pod (Ishastra namespace)",
           "type": "timeseries"
         },
         {
@@ -2185,9 +2185,9 @@ data:
           "id": 2,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(container_memory_working_set_bytes{namespace=\"strix\"}) by (pod) / sum(kube_pod_container_resource_limits_memory_bytes{namespace=\"strix\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
+            {"expr": "sum(container_memory_working_set_bytes{namespace=\"ishastra\"}) by (pod) / sum(kube_pod_container_resource_limits_memory_bytes{namespace=\"ishastra\"}) by (pod)", "legendFormat": "{{pod}}", "refId": "A"}
           ],
-          "title": "Memory Usage by Pod (Strix namespace)",
+          "title": "Memory Usage by Pod (Ishastra namespace)",
           "type": "timeseries"
         },
         {
@@ -2257,13 +2257,13 @@ data:
       "refresh": "30s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["strix", "kubernetes", "infrastructure"],
+      "tags": ["ishastra", "kubernetes", "infrastructure"],
       "templating": {"list": []},
       "time": {"from": "now-1h", "to": "now"},
       "timepicker": {},
       "timezone": "",
-      "title": "Strix - Kubernetes Infrastructure",
-      "uid": "strix-kubernetes",
+      "title": "Ishastra - Kubernetes Infrastructure",
+      "uid": "ishastra-kubernetes",
       "version": 1,
       "weekStart": ""
     }

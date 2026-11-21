@@ -1,4 +1,4 @@
-"""Tests for strix.core.oidc module - OIDC Authentication."""
+"""Tests for ishastra.core.oidc module - OIDC Authentication."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from strix.config import Settings
-from strix.core.oidc import (
+from ishastra.config import Settings
+from ishastra.core.oidc import (
     OIDCAuthenticator,
     OIDCConfig,
     OIDCProviderConfig,
@@ -24,7 +24,7 @@ from strix.core.oidc import (
     generate_state,
     validate_id_token,
 )
-from strix.core.store import close_database, configure, get_database, load_api_keys_sync, save_api_key_sync
+from ishastra.core.store import close_database, configure, get_database, load_api_keys_sync, save_api_key_sync
 
 
 @pytest_asyncio.fixture
@@ -167,11 +167,10 @@ class TestPKCEAndStateGeneration:
     def test_generate_pkce_pair(self):
         """Test PKCE code_verifier and code_challenge generation."""
         verifier, challenge = generate_pkce_pair()
-        assert len(verifier) == 43  # token_urlsafe(32) = 43 chars
+        assert len(verifier) == 43
         assert len(challenge) > 0
-        assert "=" not in challenge  # URL-safe base64 without padding
+        assert "=" not in challenge
 
-        # Verify challenge is SHA256 of verifier
         digest = hashlib.sha256(verifier.encode()).digest()
         expected = base64.urlsafe_b64encode(digest).decode().rstrip("=")
         assert challenge == expected
@@ -179,12 +178,12 @@ class TestPKCEAndStateGeneration:
     def test_generate_state(self):
         """Test state generation."""
         state = generate_state()
-        assert len(state) == 43  # token_urlsafe(32) = 43 chars
+        assert len(state) == 43
 
     def test_generate_nonce(self):
         """Test nonce generation."""
         nonce = generate_nonce()
-        assert len(nonce) == 43  # token_urlsafe(32) = 43 chars
+        assert len(nonce) == 43
 
 
 class TestFetchOIDCConfig:
@@ -342,7 +341,6 @@ class TestValidateIDToken:
                 patch("jwt.get_unverified_header", return_value={"kid": "test-key-1"}),
                 patch("jwt.algorithms.RSAAlgorithm.from_jwk") as mock_from_jwk,
             ):
-                # Create a mock that passes isinstance check for RSAPublicKey
                 mock_key = MagicMock(spec=RSAPublicKey)
                 mock_from_jwk.return_value = mock_key
 
@@ -378,7 +376,6 @@ class TestValidateIDToken:
             jwks_uri="https://auth.example.com/jwks",
         )
 
-        # Mock the JWKS fetch to avoid network call
         mock_jwks_response = MagicMock()
         mock_jwks_response.raise_for_status = MagicMock()
         mock_jwks_response.json.return_value = {"keys": []}
@@ -525,7 +522,6 @@ class TestOIDCAuthenticator:
         assert "state=" in auth_url
         assert "nonce=" in auth_url
 
-        # Verify internal state was set
         assert authenticator._code_verifier is not None
         assert authenticator._state is not None
         assert authenticator._nonce is not None
@@ -556,9 +552,9 @@ class TestOIDCAuthenticator:
         }
 
         with (
-            patch("strix.core.oidc.exchange_code_for_tokens", return_value=mock_tokens),
+            patch("ishastra.core.oidc.exchange_code_for_tokens", return_value=mock_tokens),
             patch(
-                "strix.core.oidc.validate_id_token",
+                "ishastra.core.oidc.validate_id_token",
                 return_value={
                     "sub": "user-123",
                     "email": "user@example.com",
@@ -583,7 +579,7 @@ class TestOIDCAuthenticator:
         """Test exchange_code fails when no PKCE verifier."""
         authenticator._state = "test-state"
         authenticator._code_verifier = None
-        # Mock _ensure_provider to avoid network call
+
         mock_provider = OIDCProviderConfig(
             issuer="https://auth.example.com",
             authorization_endpoint="https://auth.example.com/authorize",
@@ -606,7 +602,7 @@ class TestOIDCAuthenticator:
         authenticator._provider = mock_provider
         authenticator._tokens = {"access_token": "access-token-123"}
 
-        with patch("strix.core.oidc.fetch_userinfo", return_value={"email": "user@example.com"}):
+        with patch("ishastra.core.oidc.fetch_userinfo", return_value={"email": "user@example.com"}):
             userinfo = authenticator.get_userinfo()
             assert userinfo["email"] == "user@example.com"
 
@@ -618,7 +614,7 @@ class TestOIDCAuthenticator:
     def test_get_userinfo_no_access_token(self, authenticator):
         """Test get_userinfo fails when no access token."""
         authenticator._tokens = {"id_token": "id-token-123"}
-        # Mock _ensure_provider to avoid network call
+
         mock_provider = OIDCProviderConfig(
             issuer="https://auth.example.com",
             authorization_endpoint="https://auth.example.com/authorize",
@@ -664,8 +660,8 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_success(self, authenticator, temp_db):
         """Test successful authentication flow."""
-        # Configure store for auto-provision
-        from strix.core import store
+
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
@@ -690,12 +686,11 @@ class TestOIDCAuthenticator:
             "name": "Test User",
             "org": "Test Org",
         }
-        # Set up PKCE state required by exchange_code
+
         authenticator._state = "test-state"
         authenticator._code_verifier = "test-code-verifier"
         authenticator._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {
                 "access_token": "access-token-123",
@@ -722,7 +717,7 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_missing_claims(self, authenticator, temp_db):
         """Test authenticate fails when required claims missing."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
@@ -735,13 +730,12 @@ class TestOIDCAuthenticator:
         )
         authenticator._provider = mock_provider
         authenticator._tokens = {"access_token": "access-token-123"}
-        authenticator._claims = {"sub": "user-123"}  # Missing email
-        # Set up PKCE state required by exchange_code
+        authenticator._claims = {"sub": "user-123"}
+
         authenticator._state = "test-state"
         authenticator._code_verifier = "test-code-verifier"
         authenticator._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {"access_token": "access-token-123"}
 
@@ -759,12 +753,11 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_auto_provision_disabled(self, authenticator, temp_db):
         """Test authenticate fails when user not provisioned and auto_provision=False."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
 
-        # Create new authenticator with auto_provision=False (config is frozen)
         auth = OIDCAuthenticator(
             issuer="https://auth.example.com",
             client_id="test-client-id",
@@ -783,12 +776,11 @@ class TestOIDCAuthenticator:
         auth._provider = mock_provider
         auth._tokens = {"access_token": "access-token-123"}
         auth._claims = {"sub": "user-123", "email": "user@example.com"}
-        # Set up PKCE state required by exchange_code
+
         auth._state = "test-state"
         auth._code_verifier = "test-code-verifier"
         auth._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {"access_token": "access-token-123"}
 
@@ -888,12 +880,11 @@ class TestOIDCIntegrationWithStore:
     @pytest.mark.asyncio
     async def test_validate_api_key_with_oidc(self, temp_db, mock_settings):
         """Test validate_api_key integration with OIDC."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
 
-        # Create an OIDC-provisioned tenant
         raw_key = "strix_" + "a" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         now = time.time()
@@ -909,7 +900,6 @@ class TestOIDCIntegrationWithStore:
             scope="write",
         )
 
-        # The OIDC authenticator would use this key
         keys = load_api_keys_sync()
         assert len(keys) == 1
         assert keys[0]["tenant_id"] == "oidc_user-123"

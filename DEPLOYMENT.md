@@ -1,4 +1,4 @@
-# Deploying Strix for real-world use
+# Deploying Ishastra for real-world use
 
 The short version of this file is in `README.md` under *Deploying*; this page is
 the operator runbook: a concrete systemd setup, the first-run checklist, and the
@@ -7,7 +7,7 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
 ## 1. Prerequisites
 
 - CPython 3.12+ on Linux; one host (or container) per SQLite database — the
-  worker takes an exclusive lease on `<STRIX_DB>.worker-lock`, so a second
+  worker takes an exclusive lease on `<ISHASTRA_DB>.worker-lock`, so a second
   process pointed at the same database refuses to start rather than
   double-running jobs. SQLite (WAL) is the supported pilot backend. PostgreSQL
   is an advanced backend: tested single-host with audit chain integrity,
@@ -24,10 +24,10 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
 ```bash
 cp .env.production.example .env.production   # edit: keys, retention, scope mode
 # Generate each secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-docker compose --env-file .env.production run --rm strix strix scope-wizard --output /etc/strix/scope.json
+docker compose --env-file .env.production run --rm ishastra ishastra scope-wizard --output /etc/ishastra/scope.json
 # OR manually: cp config/scope.example.json config/scope.json  # edit: what you may test
 docker compose --env-file .env.production up -d --build
-docker compose ps                              # strix/nginx/redis must be healthy
+docker compose ps                              # ishastra/nginx/redis must be healthy
 curl -s http://127.0.0.1:8000/api/ready        # loopback bootstrap port
 ```
 
@@ -39,7 +39,7 @@ Optional Prometheus/Grafana:
 
 ```bash
 mkdir -p secrets
-printf '%s' "$STRIX_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
+printf '%s' "$ISHASTRA_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
 docker compose --env-file .env.production \
   -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 ```
@@ -47,52 +47,52 @@ docker compose --env-file .env.production \
 ## 3. Install and configure without containers
 
 ```bash
-python3 -m venv /opt/strix/venv
-/opt/strix/venv/bin/pip install -c constraints.txt .
-mkdir -p /etc/strix /var/lib/strix && chown strix /var/lib/strix
-cp scope.example.json /etc/strix/scope.json   # edit: what you may test
+python3 -m venv /opt/ishastra/venv
+/opt/ishastra/venv/bin/pip install -c constraints.txt .
+mkdir -p /etc/ishastra /var/lib/ishastra && chown ishastra /var/lib/ishastra
+cp scope.example.json /etc/ishastra/scope.json   # edit: what you may test
 ```
 
-`/etc/strix/strix.env` (mode 0600, owned by the service user):
+`/etc/ishastra/ishastra.env` (mode 0600, owned by the service user):
 
 ```ini
-STRIX_ENV=production
-STRIX_API_KEY=<random, python -c 'import secrets; print(secrets.token_urlsafe(32))'>
-STRIX_AUDIT_HMAC_KEY=<a different random value>
-STRIX_WEBHOOK_SECRET=<another random value, if webhooks are used>
-STRIX_SCOPE_FILE=/etc/strix/scope.json
-STRIX_DB=/var/lib/strix/strix.db
-STRIX_SCOPE_MODE=auto
-STRIX_RETENTION_DAYS=90
-STRIX_LOG_FORMAT=json
-STRIX_LOG_LEVEL=INFO
+ISHASTRA_ENV=production
+ISHASTRA_API_KEY=<random, python -c 'import secrets; print(secrets.token_urlsafe(32))'>
+ISHASTRA_AUDIT_HMAC_KEY=<a different random value>
+ISHASTRA_WEBHOOK_SECRET=<another random value, if webhooks are used>
+ISHASTRA_SCOPE_FILE=/etc/ishastra/scope.json
+ISHASTRA_DB=/var/lib/ishastra/ishastra.db
+ISHASTRA_SCOPE_MODE=auto
+ISHASTRA_RETENTION_DAYS=90
+ISHASTRA_LOG_FORMAT=json
+ISHASTRA_LOG_LEVEL=INFO
 ```
 
-`STRIX_ENV=production` is a fail-closed startup gate: the service refuses to
-start without a valid `STRIX_API_KEY` and `STRIX_AUDIT_HMAC_KEY`, and it forces
-`/docs`, `/redoc` and `/openapi.json` off regardless of `STRIX_DISABLE_DOCS`.
+`ISHASTRA_ENV=production` is a fail-closed startup gate: the service refuses to
+start without a valid `ISHASTRA_API_KEY` and `ISHASTRA_AUDIT_HMAC_KEY`, and it forces
+`/docs`, `/redoc` and `/openapi.json` off regardless of `ISHASTRA_DISABLE_DOCS`.
 Placeholder or short secrets are refused at startup; a missing
-`STRIX_AUDIT_HMAC_KEY` starts with a loud warning (the audit chain is then only
+`ISHASTRA_AUDIT_HMAC_KEY` starts with a loud warning (the audit chain is then only
 tamper-evident against naive edits, not unforgeable).
 
 ## 4. Run under systemd
 
 ```ini
-# /etc/systemd/system/strix.service
+# /etc/systemd/system/ishastra.service
 [Unit]
-Description=Strix authorized assessment platform
+Description=Ishastra authorized assessment platform
 After=network-online.target
 
 [Service]
-User=strix
-EnvironmentFile=/etc/strix/strix.env
-ExecStart=/opt/strix/venv/bin/strix --host 127.0.0.1 --port 8000
+User=ishastra
+EnvironmentFile=/etc/ishastra/ishastra.env
+ExecStart=/opt/ishastra/venv/bin/ishastra --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5
 # Hardening: the process needs its own state dir and nothing else.
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/strix
+ReadWritePaths=/var/lib/ishastra
 PrivateTmp=yes
 
 [Install]
@@ -103,11 +103,11 @@ WantedBy=multi-user.target
 
 ```bash
 # Interactive wizard (recommended)
-/opt/strix/venv/bin/strix scope-wizard --output /etc/strix/scope.json
+/opt/ishastra/venv/bin/ishastra scope-wizard --output /etc/ishastra/scope.json
 
 # OR manually copy and edit the template
-cp scope.example.json /etc/strix/scope.json
-# Edit /etc/strix/scope.json with your authorized hosts, networks, and ports
+cp scope.example.json /etc/ishastra/scope.json
+# Edit /etc/ishastra/scope.json with your authorized hosts, networks, and ports
 ```
 
 `SIGTERM` is graceful and bounded: in-flight HTTP requests get up to 30 s,
@@ -118,22 +118,22 @@ prompt. Interrupted jobs are never left looking live or re-run silently.
 ## 5. Reverse proxy
 
 Terminate TLS at nginx/Caddy/traefik and proxy to `127.0.0.1:8000`. List the
-proxy's source address in `STRIX_TRUSTED_PROXIES` so rate limiting counts real
+proxy's source address in `ISHASTRA_TRUSTED_PROXIES` so rate limiting counts real
 client IPs — that variable is the only place forwarded headers are trusted, and
 uvicorn itself never rewrites client addresses. The bundled UI is same-origin
-and needs no CORS; set `STRIX_CORS_ORIGINS` only for a separate dashboard
+and needs no CORS; set `ISHASTRA_CORS_ORIGINS` only for a separate dashboard
 origin.
 
 ## 6. First-run checklist
 
-1. `systemctl start strix`, then `curl -s localhost:8000/api/health` and
+1. `systemctl start ishastra`, then `curl -s localhost:8000/api/health` and
    `curl -s localhost:8000/api/ready` (both unauthenticated by design).
 2. Open `http://<host>:8000/` through the proxy and confirm the UI loads.
 3. Create your scope document (if not done already):
    ```bash
    # Interactive wizard (recommended)
-   /opt/strix/venv/bin/strix scope-wizard --output /etc/strix/scope.json
-   # OR edit /etc/strix/scope.json manually
+   /opt/ishastra/venv/bin/ishastra scope-wizard --output /etc/ishastra/scope.json
+   # OR edit /etc/ishastra/scope.json manually
    ```
 4. Decide the authorization mode: leave `auto`/single-organization with one
    `scope.json`, or switch to `managed` and create per-tenant engagement
@@ -143,7 +143,7 @@ origin.
    policies take effect through the policy API without a restart.
 5. Run the e2e smoke against the built-in lab to prove the deployment end to end:
    ```bash
-   python -m strix.lab --report lab-eval.json
+   python -m ishastra.lab --report lab-eval.json
    ```
    (starts its own lab on 127.0.0.1; no external traffic).
 6. Note the audit chain tip (`GET /api/audit/verify` or `/api/ready`) — record it
@@ -151,26 +151,26 @@ origin.
 
 ## 7. Recurring maintenance
 
-- **Backups:** `sqlite3 /var/lib/strix/strix.db ".backup '/backups/strix-$(date +%F).db'"`
+- **Backups:** `sqlite3 /var/lib/ishastra/ishastra.db ".backup '/backups/ishastra-$(date +%F).db'"`
   gives a consistent snapshot (WAL mode). The database holds key hashes,
   findings, policies and the audit chain — restrict the backup's permissions
   like the live file (0600). In the container:
-  `docker compose exec strix sqlite3 /var/lib/strix/strix.db ".backup '/var/lib/strix/strix-backup.db'"`,
-  then `docker cp strix-strix-1:/var/lib/strix/strix-backup.db ./backups/`.
+  `docker compose exec ishastra sqlite3 /var/lib/ishastra/ishastra.db ".backup '/var/lib/ishastra/ishastra-backup.db'"`,
+  then `docker cp ishastra-ishastra-1:/var/lib/ishastra/ishastra-backup.db ./backups/`.
   Test restores quarterly on a separate host.
-- **Retention:** with `STRIX_RETENTION_DAYS=N`, finished jobs/findings and plain
+- **Retention:** with `ISHASTRA_RETENTION_DAYS=N`, finished jobs/findings and plain
   audit entries older than N days are pruned at startup and every 6 hours, and
   the file is vacuumed. The sealed audit chain is never pruned; it only grows
   with security events (key rotations, denials, policy changes) and is small.
   Setting the variable to `0` (default) keeps everything forever.
 - **Key rotation:** rotate any key via the tenants API
-  (`POST /api/keys/rotate/{tenant_id}`); restart with the new `STRIX_API_KEY` env
+  (`POST /api/keys/rotate/{tenant_id}`); restart with the new `ISHASTRA_API_KEY` env
   only if you need to re-adopt it as the bootstrap. Rotating
-  `STRIX_AUDIT_HMAC_KEY` changes how future chain entries are keyed — old
+  `ISHASTRA_AUDIT_HMAC_KEY` changes how future chain entries are keyed — old
   entries remain verifiable only while the old key is known, so treat key
   rotation as a documented event and verify the chain before and after.
 - **Upgrades:** pin to a tagged release; `pip install -c constraints.txt .` in
-  the venv, `systemctl restart strix`. Schema migrations are versioned and run
+  the venv, `systemctl restart ishastra`. Schema migrations are versioned and run
   forward automatically at startup; back up the database first (see above).
   Jobs left queued/running by the old process are failed by the new one at
   startup, never resumed as if nothing happened.
@@ -179,24 +179,24 @@ origin.
 
 If a release introduces regressions:
 
-1. **Immediate rollback (same version, config change):** `systemctl restart strix`
+1. **Immediate rollback (same version, config change):** `systemctl restart ishastra`
    - Reads the same database; no migration reversal needed.
    - In-flight jobs are failed and marked `interrupted` — safe to retry.
 
 2. **Code rollback (previous tagged release):**
    ```bash
    # In the venv, reinstall the previous tag
-   /opt/strix/venv/bin/pip install -c constraints.txt strix==0.1.0
-   systemctl restart strix
+   /opt/ishastra/venv/bin/pip install -c constraints.txt ishastra==0.1.0
+   systemctl restart ishastra
    ```
    - Schema migrations are **forward-only**. The database at the new version
      is compatible with the old code because we never drop columns/tables
      in a minor/patch release.
    - If a migration did run (rare in patches), restore the pre-upgrade backup:
      ```bash
-     systemctl stop strix
-     sqlite3 /var/lib/strix/strix.db ".restore '/backups/strix-YYYY-MM-DD.db'"
-     systemctl start strix
+     systemctl stop ishastra
+     sqlite3 /var/lib/ishastra/ishastra.db ".restore '/backups/ishastra-YYYY-MM-DD.db'"
+     systemctl start ishastra
      ```
 
 3. **Audit chain continuity:** The chain is append-only. Rolling back code does
@@ -204,30 +204,45 @@ If a release introduces regressions:
 
 ## 9. RTO / RPO and Warm Standby Promotion
 
-Strix is single-host by design. High availability is achieved by promoting a
-warm standby, not by clustering. The standby promotion workflow is automated:
+Ishastra is single-host by design. High availability is achieved by promoting a
+warm standby, not by clustering.
+
+Take a backup with `ishastra backup`. The artifact is verified immediately, with
+the same checks a restore relies on, so a broken backup fails here rather than
+at 3am during a failover:
+
+```bash
+ishastra backup --out /backups                      # ISHASTRA_DATABASE_URL / ISHASTRA_DB
+ishastra backup --db "$ISHASTRA_DATABASE_URL" --out /backups
+ishastra backup --verify /backups/ishastra-20260101T000000Z.dump
+```
+
+SQLite targets produce a consistent snapshot (`ishastra-*.db`); a PostgreSQL DSN
+produces a `pg_dump` custom archive (`ishastra-*.dump`). The database password is
+passed to `pg_dump`/`pg_restore` through `PGPASSWORD`, never on the command
+line. Restoring is the standby promotion workflow, which is automated:
 
 ```bash
 # On the standby host (with backups synced from primary):
-strix standby-promote \
+ishastra standby-promote \
   --backup-dir /backups \
-  --db-path /var/lib/strix/strix.db \
-  --scope-file /etc/strix/scope.json
+  --db-path /var/lib/ishastra/ishastra.db \
+  --scope-file /etc/ishastra/scope.json
 ```
 
 The command performs four sequential steps and reports timings for RTO measurement:
 
-1. **Verify latest backup** — checks file exists, is valid SQLite, has required tables, and audit chain has entries.
+1. **Verify latest backup** — checks file exists, is a valid SQLite snapshot or `pg_dump` archive, has the required tables, and (SQLite) audit chain has entries.
 2. **Restore database** — uses SQLite's backup API for an atomic, consistent snapshot; sets 0600 permissions.
 3. **Acquire worker lease** — takes the exclusive `<db>.worker-lock`; fails fast if another process holds it (split-brain prevention).
-4. **Run readiness checks** — verifies audit chain (HMAC-SHA256 when `STRIX_AUDIT_HMAC_KEY` is set), scope/policy loaded, schema version, and at least one active admin API key.
+4. **Run readiness checks** — verifies audit chain (HMAC-SHA256 when `ISHASTRA_AUDIT_HMAC_KEY` is set), scope/policy loaded, schema version, and at least one active admin API key.
 
-Typical RTO on a modern SSD host with a 2 GB database: **< 5 seconds** (verify ~50 ms, restore ~3 s, lease ~5 ms, readiness ~1 s). RPO equals your backup interval — the default cron in `deploy/cron/strix-backup` runs hourly, giving an RPO of ≤ 1 hour. Reduce the interval for tighter RPO; the backup is a consistent snapshot and does not block the running worker.
+Typical RTO on a modern SSD host with a 2 GB database: **< 5 seconds** (verify ~50 ms, restore ~3 s, lease ~5 ms, readiness ~1 s). RPO equals your backup interval — `deploy/cron/ishastra-backup` runs hourly (install it as `/etc/cron.hourly/ishastra-backup`; on Kubernetes set `backup.enabled: true` in the Helm chart), giving an RPO of ≤ 1 hour. Reduce the interval for tighter RPO; the backup is a consistent snapshot and does not block the running worker.
 
 **Failover procedure (manual, ~30 s operator time):**
 1. Detect primary failure (health check `/api/ready` fails).
 2. Ensure backups are current on standby host (rsync/S3/NFS from primary).
-3. Run `strix standby-promote` on standby.
+3. Run `ishastra standby-promote` on standby.
 4. Update DNS / load balancer to point to standby.
 5. Verify `/api/ready` and audit chain continuity on the promoted host.
 
@@ -235,27 +250,35 @@ The promoted database is immediately operational — interrupted jobs are marked
 
 ## 10. Scaling model and limits
 
-Strix is deliberately single-writer per database:
+Ishastra is deliberately single-writer per database:
 
-1. **One process per `STRIX_DB`.** `AssessmentWorker.start()` takes an exclusive
+1. **One process per `ISHASTRA_DB`.** `AssessmentWorker.start()` takes an exclusive
    lease; a second process pointed at the same database exits with
    `WorkerLeaseError` instead of silently double-running jobs. The compose stack
-   therefore runs exactly one `strix` service. Do not add replicas.
-2. **Scale vertically.** Increase CPU/RAM and `STRIX_WORKERS` (adapter threads)
+   therefore runs exactly one `ishastra` service. Do not add replicas.
+2. **Scale vertically.** Increase CPU/RAM and `ISHASTRA_WORKERS` (adapter threads)
    on the one host. SQLite WAL handles the API and worker contention on a single
-   node; it is not a multi-node database.
+   node; it is not a multi-node database. With PostgreSQL, each process opens up
+   to `ISHASTRA_PG_POOL_MAX` connections (default 5, clamped to 50): keep
+   `ISHASTRA_PG_POOL_MAX × replicas` under the server's `max_connections`, or route
+   clients through PgBouncer.
 3. **No automated HA/failover.** Keep tested backups off-host (in Nepal, in a
    second availability zone/provider) and restore onto a new host. The audit
    chain is append-only and verifies after restore; jobs left running are marked
    failed at startup, never resumed silently.
 4. **Redis** backs rate limiting and is required by the compose stack so limits
-   survive a process restart/database reset. The default job queue is in-process;
-   `STRIX_QUEUE_MODE=k8s-jobs` runs one Kubernetes Job per assessment and is
-   experimental, not an HA queue.
+   survive a process restart/database reset. The default job queue is in-process.
+   `ISHASTRA_QUEUE_MODE=redis-streams` puts one entry per job in a durable Redis
+   Stream: queued work survives a restart (a killed process's queued rows are
+   replayed on start, never silently dropped), and several worker processes can
+   consume the same stream through a consumer group. The database is still the
+   single writer and `claim_job` still guarantees one execution per job, so this
+   scales workers, not database writers. `ISHASTRA_QUEUE_MODE=k8s-jobs` runs one
+   Kubernetes Job per assessment; it is experimental and not an HA queue.
 5. **Health checks:** `/api/health` and `/api/ready` are unauthenticated;
    `/api/monitor/status` and `/api/metrics` require the admin key. Probe
    `/api/ready` from the load balancer/proxy.
-6. **Log aggregation:** Set `STRIX_LOG_FORMAT=json` and ship logs to
+6. **Log aggregation:** Set `ISHASTRA_LOG_FORMAT=json` and ship logs to
    Loki/Elastic/Graylog. All requests share the same `request_id` middleware
    for trace correlation.
 7. **PostgreSQL** is an advanced backend (tested single-host, no HA). The worker
@@ -277,11 +300,11 @@ There is no separate migration step to forget: the store applies its schema
 chain on every connection.
 
 - SQLite and PostgreSQL each carry an ordered statement list in
-  `src/strix/core/store.py` (`MIGRATIONS`, `MIGRATIONS_PG`), keyed by a
+  `src/ishastra/core/store.py` (`MIGRATIONS`, `MIGRATIONS_PG`), keyed by a
   `schema_version` row in `settings`. Starting the service upgrades an existing
   database to the current schema.
 - On PostgreSQL the MSSP tables are created from `MIGRATIONS_MSSP_PG`, and the
-  RLS step (`src/strix/core/pg_rls.py`, tracked as `rls_applied`) creates the
+  RLS step (`src/ishastra/core/pg_rls.py`, tracked as `rls_applied`) creates the
   tenant helper functions, the policies and their indexes.
 - `migrations/028_rls_enable.py` remains as the historical entry point and
   applies whatever is still pending.
@@ -299,11 +322,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO strix_app;
 
 ## 13. Email invitations for organizations
 
-Invitations are signed with `STRIX_AUDIT_HMAC_KEY` and expire after 7 days; no
+Invitations are signed with `ISHASTRA_AUDIT_HMAC_KEY` and expire after 7 days; no
 invitation state is stored.
 
-1. Configure `STRIX_SMTP_HOST`, `STRIX_SMTP_FROM` and optionally credentials and
-   `STRIX_PUBLIC_BASE_URL` (used for the acceptance link).
+1. Configure `ISHASTRA_SMTP_HOST`, `ISHASTRA_SMTP_FROM` and optionally credentials and
+   `ISHASTRA_PUBLIC_BASE_URL` (used for the acceptance link).
 2. `POST /api/v2/orgs/{org_id}/invite?email=...&role=...` sends the message.
    Without SMTP the API answers 503 rather than claiming success.
 3. The invited tenant accepts with
@@ -312,11 +335,11 @@ invitation state is stored.
 
 ## 14. Troubleshooting
 
-- **`another Strix worker process already owns …worker-lock`** — a second
-  process was pointed at the same `STRIX_DB`, or a stale lock survived an
-  unclean kill. Verify no `strix` process runs (`pgrep -af strix`), then remove
+- **`another Ishastra worker process already owns …worker-lock`** — a second
+  process was pointed at the same `ISHASTRA_DB`, or a stale lock survived an
+  unclean kill. Verify no `ishastra` process runs (`pgrep -af ishastra`), then remove
   the lock file before starting.
-- **`STRIX_API_KEY rejected; refusing startup`** — the env key failed
+- **`ISHASTRA_API_KEY rejected; refusing startup`** — the env key failed
   validation while an older key is persisted; fix the env value. The process
   refuses to quietly keep the old key so a failed rotation cannot look
   successful.

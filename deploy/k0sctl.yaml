@@ -1,75 +1,74 @@
-# k0sctl.yaml — Bootstrap HA k0s cluster on Oracle Cloud Always Free
-#
-# Prerequisites:
-#   1. Create 2x VM.Standard.A1.Flex (4 OCPU, 24GB RAM) on Oracle Cloud Always Free
-#      - Ubuntu 22.04, SSH key, open ports: 6443, 80, 443, 22
-#      - Name: strix-cp1, strix-cp2 (or any names)
-#   2. Install k0sctl: curl -sSLf https://get.k0s.sh | sudo sh -s -- -d /usr/local/bin k0sctl
-#   3. Update IPs and keyPath below
-#   4. Run: k0sctl apply --config deploy/k0sctl.yaml
-#   5. Get kubeconfig: k0sctl kubeconfig --config deploy/k0sctl.yaml > kubeconfig-strix
-#
-# This creates a 2-node HA control plane + workers (all-in-one) with:
-# - Calico CNI
-# - Local-path storage (for SQLite/dev; use CSI for production PostgreSQL)
-# - k0s built-in service mesh (optional)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 apiVersion: k0sctl.k0sproject.io/v1beta1
 metadata:
-  name: strix-cluster
+  name: ishastra-cluster
 spec:
   hosts:
   - role: controller+worker
     ssh:
-      address: <STRIX_CP1_PUBLIC_IP>
+      address: <ISHASTRA_CP1_PUBLIC_IP>
       user: ubuntu
       keyPath: ~/.ssh/oracle_key
       port: 22
-    # Optional: install k0s as systemd service
+
     installFlags:
       - --enable-worker
       - --enable-controller
   - role: controller+worker
     ssh:
-      address: <STRIX_CP2_PUBLIC_IP>
+      address: <ISHASTRA_CP2_PUBLIC_IP>
       user: ubuntu
       keyPath: ~/.ssh/oracle_key
       port: 22
     installFlags:
       - --enable-worker
       - --enable-controller
-  # Optional: add more worker-only nodes for scaling
-  # - role: worker
-  #   ssh:
-  #     address: <WORKER_IP>
-  #     user: ubuntu
-  #     keyPath: ~/.ssh/oracle_key
+
+
+
+
+
+
   k0s:
     version: 1.29.4+k0s.0
     config:
       api:
         address: 0.0.0.0
         port: 6443
-        # External load balancer address (Cloudflare Tunnel or LB IP)
-        # externalAddress: <CLOUDFLARE_TUNNEL_IP_OR_LB>
+
+
       network:
         calico:
-          # Override pod CIDR if needed (default 10.244.0.0/16)
-          # podCIDR: 10.244.0.0/16
-          # serviceCIDR: 10.96.0.0/12
+
+
+
         kubeProxy:
           mode: ipvs
       storage:
         type: local-path
-        # For production with managed PostgreSQL, use CSI driver instead
-      # Telemetry disabled for privacy
+
+
       telemetry:
         enabled: false
-      # Feature gates
+
       featureGates:
-        # Enable for better resource management
+
         InPlacePodVerticalScaling: true
-      # Audit logging (optional)
-      # audit:
-      #   enabled: true
-      #   logPath: /var/log/k0s/audit.log
+
+
+

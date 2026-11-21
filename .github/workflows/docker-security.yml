@@ -1,5 +1,8 @@
 name: Docker Security & SBOM
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, master, release/*]
@@ -7,7 +10,7 @@ on:
   pull_request:
     branches: [main, master]
   schedule:
-    # Weekly scan for new vulnerabilities
+
     - cron: '0 3 * * 1'
   workflow_dispatch:
     inputs:
@@ -20,6 +23,10 @@ on:
           - 'CRITICAL'
           - 'HIGH,CRITICAL'
           - 'MEDIUM,HIGH,CRITICAL'
+
+concurrency:
+  group: docker-security-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -41,14 +48,14 @@ jobs:
       image-tag: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -56,7 +63,7 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -69,7 +76,7 @@ jobs:
 
       - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
         with:
           context: .
           file: ./Dockerfile
@@ -89,6 +96,7 @@ jobs:
   vulnerability-scan:
     name: Trivy Vulnerability Scan
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,17 +104,17 @@ jobs:
       packages: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Download image from registry
         if: github.event_name != 'pull_request'
         run: |
-          docker pull ${{ needs.build.outputs.image-tag }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
-          image-ref: ${{ needs.build.outputs.image-tag }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: ${{ github.event.inputs.severity || 'HIGH,CRITICAL' }}
@@ -115,14 +123,14 @@ jobs:
           vuln-type: 'os,library'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy'
 
       - name: Run Trivy config scanner (Dockerfile, docker-compose)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           scan-type: 'config'
           scan-ref: '.'
@@ -132,7 +140,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy config results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
         if: always()
         with:
           sarif_file: 'trivy-config.sarif'
@@ -141,6 +149,7 @@ jobs:
   sbom-generation:
     name: Generate SBOM
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -149,47 +158,44 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Download image from registry
         if: github.event_name != 'pull_request'
         run: |
-          docker pull ${{ needs.build.outputs.image-tag }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest }}
 
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v1
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
         with:
-          image: ${{ needs.build.outputs.image-tag }}
-          format: 'spdx-json,cyclonedx-json'
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image-digest }}
+          format: 'spdx-json'
           output-file: 'sbom.spdx.json'
 
       - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: sbom
-          path: |
-            sbom.spdx.json
-            sbom.cyclonedx.json
+          path: sbom.spdx.json
           retention-days: 90
 
       - name: Attest SBOM to image
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b  # v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ needs.build.outputs.image-digest }}
-          predicate-path: sbom.spdx.json
-          predicate-type: https://spdx.dev/Document
+          sbom-path: sbom.spdx.json
 
   dockerfile-lint:
     name: Dockerfile Lint (Hadolint)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Run Hadolint
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
         with:
           dockerfile: Dockerfile
           verbose: true
@@ -200,19 +206,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - name: Validate docker-compose.yml
-        run: |
-          docker compose config --quiet
+      - name: Validate root compose file
+        run: docker compose config --quiet
 
-      - name: Validate docker-compose.prod.yml
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+      - name: Validate single-host compose file
+        run: docker compose -f deploy/single-host/compose.yaml config --quiet
 
   security-gate:
     name: Security Gate
-    needs: [vulnerability-scan, sbom-generation, dockerfile-lint, compose-validation]
+    needs: [build, vulnerability-scan, sbom-generation, dockerfile-lint, compose-validation]
     runs-on: ubuntu-latest
     if: always()
     steps:

@@ -1,11 +1,11 @@
-"""Tests for strix.retention module."""
+"""Tests for ishastra.retention module."""
 
 from __future__ import annotations
 
 import time
 from unittest.mock import patch
 
-from strix.retention import RetentionWorker, prune
+from ishastra.retention import RetentionWorker, prune
 
 
 class TestPruneFunction:
@@ -21,10 +21,10 @@ class TestPruneFunction:
 
     def test_prune_with_now_parameter(self):
         """Test prune with explicit now parameter."""
-        # Use a fixed time to avoid flakiness
+
         fixed_now = 1700000000.0
         result = prune(1, now=fixed_now)
-        # We can't easily assert counts without a DB, but verify it runs
+
         assert "jobs" in result
         assert "audit_entries" in result
 
@@ -62,8 +62,8 @@ class TestRetentionWorker:
         assert worker._thread is first_thread
         worker.shutdown(timeout=1.0)
 
-    @patch("strix.retention.store")
-    @patch("strix.retention._prune_async")
+    @patch("ishastra.retention.store")
+    @patch("ishastra.retention._prune_async")
     def test_retention_worker_loop(self, mock_prune_async, mock_store):
         """Test worker loop calls prune."""
         mock_prune_async.return_value = (5, 3)
@@ -73,10 +73,8 @@ class TestRetentionWorker:
         worker = RetentionWorker(days=1)
         worker.start()
 
-        # Wait for one sweep cycle
         time.sleep(0.2)
 
         worker.shutdown(timeout=1.0)
 
-        # Verify prune was called
         assert mock_prune_async.called

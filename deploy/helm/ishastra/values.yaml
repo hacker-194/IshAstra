@@ -1,0 +1,1520 @@
+
+
+
+
+
+
+
+
+global:
+
+  image:
+    repository: ghcr.io/your-org/ishastra
+    tag: "3.5.0"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+
+  labels:
+    app.kubernetes.io/name: ishastra
+    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: security-assessment
+
+  podSecurityStandard: restricted
+
+
+
+
+queue:
+
+
+
+
+
+
+  mode: inprocess
+
+  stream: ishastra:assessments
+  group: ishastra-workers
+
+
+  visibilitySeconds: 7200
+
+
+
+
+backup:
+
+
+  enabled: false
+  schedule: "0 * * * *"
+  directory: /var/lib/ishastra/backups
+  retentionDays: 14
+  timeoutSeconds: 900
+
+  claimName: ""
+
+
+
+
+api:
+  enabled: true
+  replicaCount: 1
+
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+    supplementalGroups: []
+    sysctls: []
+
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+    successThreshold: 1
+  readinessProbe:
+    httpGet:
+      path: /api/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+    successThreshold: 1
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8000"
+      prometheus.io/path: "/api/metrics"
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+      external-dns.alpha.kubernetes.io/hostname: "ishastra.example.com"
+    hosts:
+      - host: ishastra.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: ishastra-tls
+        hosts:
+          - ishastra.example.com
+
+  env:
+    ISHASTRA_SCOPE_FILE: "/etc/ishastra/scope.json"
+    ISHASTRA_DB: "/var/lib/ishastra/ishastra.db"
+    ISHASTRA_REDIS_URL: "redis://redis-master:6379/0"
+    ISHASTRA_WORKERS: "1"
+    ISHASTRA_SCOPE_MODE: "auto"
+    ISHASTRA_LOG_FORMAT: "json"
+    ISHASTRA_LOG_LEVEL: "INFO"
+    ISHASTRA_MAX_BODY_BYTES: "1048576"
+    ISHASTRA_MAX_NESTING_DEPTH: "10"
+    ISHASTRA_AUDIT_MAX_ENTRIES: "10000"
+    ISHASTRA_WORKER_MEMORY_MB: "1024"
+    ISHASTRA_TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+
+    OTEL_EXPORTER_OTLP_ENDPOINT: ""
+    OTEL_SERVICE_NAME: "ishastra"
+    OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=production"
+
+  envFromSecrets:
+    - name: ishastra-secrets
+
+  volumes:
+    - name: ishastra-data
+      persistentVolumeClaim:
+        claimName: ishastra-data-pvc
+    - name: ishastra-config
+      configMap:
+        name: ishastra-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: ishastra-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: ishastra-data
+      mountPath: /var/lib/ishastra
+      subPath: ""
+    - name: ishastra-config
+      mountPath: /etc/ishastra
+      readOnly: true
+    - name: ishastra-tmp
+      mountPath: /tmp
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - ishastra
+            topologyKey: kubernetes.io/hostname
+  tolerations: []
+
+  priorityClass: ""
+
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+  hpa:
+
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 10
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 15
+          - type: Pods
+            value: 4
+            periodSeconds: 15
+        selectPolicy: Max
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: ishastra_scope_gate_decision_latency_seconds_p95
+          target:
+            type: Value
+            value: "0.5"
+
+
+
+
+scheduler:
+  enabled: true
+  replicaCount: 1
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api/ready
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+    name: http
+  env:
+    ISHASTRA_SCOPE_FILE: "/etc/ishastra/scope.json"
+    ISHASTRA_DB: "/var/lib/ishastra/ishastra.db"
+    ISHASTRA_REDIS_URL: "redis://redis-master:6379/0"
+    ISHASTRA_WORKERS: "1"
+    ISHASTRA_SCOPE_MODE: "auto"
+    ISHASTRA_LOG_FORMAT: "json"
+    ISHASTRA_LOG_LEVEL: "INFO"
+    ISHASTRA_MAX_BODY_BYTES: "1048576"
+    ISHASTRA_MAX_NESTING_DEPTH: "10"
+    ISHASTRA_AUDIT_MAX_ENTRIES: "10000"
+    ISHASTRA_WORKER_MEMORY_MB: "1024"
+    ISHASTRA_TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+
+    ISHASTRA_SCHEDULER_ENABLED: "true"
+    ISHASTRA_SCHEDULER_JOB_TIMEOUT: "300"
+  envFromSecrets:
+    - name: ishastra-secrets
+  volumes:
+    - name: ishastra-data
+      persistentVolumeClaim:
+        claimName: ishastra-data-pvc
+    - name: ishastra-config
+      configMap:
+        name: ishastra-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: ishastra-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: ishastra-data
+      mountPath: /var/lib/ishastra
+    - name: ishastra-config
+      mountPath: /etc/ishastra
+      readOnly: true
+    - name: ishastra-tmp
+      mountPath: /tmp
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - ishastra
+            topologyKey: kubernetes.io/hostname
+  tolerations: []
+
+  priorityClass: ""
+  pdb:
+    enabled: true
+    minAvailable: 1
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+
+
+
+worker:
+  enabled: false
+
+  replicaCount: 1
+
+  concurrency: 4
+
+  queueMax: 32
+
+  redisStreams:
+    enabled: true
+
+    healthPort: 8080
+
+    extraArgs: []
+  service:
+    port: 8000
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "1000m"
+      memory: "1Gi"
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  livenessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import redis; r=redis.from_url('redis://redis-master:6379/1'); r.ping()"
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    exec:
+      command:
+        - /usr/local/bin/python
+        - -c
+        - "import redis; r=redis.from_url('redis://redis-master:6379/1'); r.ping()"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    ISHASTRA_DB: "/var/lib/ishastra/ishastra.db"
+    ISHASTRA_REDIS_URL: "redis://redis-master:6379/0"
+    ISHASTRA_SCOPE_FILE: "/etc/ishastra/scope.json"
+    ISHASTRA_LOG_FORMAT: "json"
+    ISHASTRA_LOG_LEVEL: "INFO"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+  envFromSecrets:
+    - name: ishastra-secrets
+  volumes:
+    - name: ishastra-data
+      persistentVolumeClaim:
+        claimName: ishastra-data-pvc
+    - name: ishastra-config
+      configMap:
+        name: ishastra-config
+        items:
+          - key: scope.json
+            path: scope.json
+    - name: ishastra-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: ishastra-data
+      mountPath: /var/lib/ishastra
+    - name: ishastra-config
+      mountPath: /etc/ishastra
+      readOnly: true
+    - name: ishastra-tmp
+      mountPath: /tmp
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - ishastra
+            topologyKey: kubernetes.io/hostname
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 15
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 4
+            periodSeconds: 30
+        selectPolicy: Max
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+      - type: External
+        external:
+          metric:
+            name: ishastra_assessment_queue_pending
+          target:
+            type: AverageValue
+            averageValue: "10"
+
+
+
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: ishastra-redis-secret
+    existingSecretPasswordKey: redis-password
+  master:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: ""
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 6
+  metrics:
+    enabled: true
+
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+
+
+
+postgresql:
+  enabled: false
+  auth:
+    enabled: true
+    existingSecret: ishastra-postgresql-secret
+    existingSecretPasswordKey: postgresql-password
+    database: ishastra
+    username: ishastra
+  primary:
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    podSecurityContext:
+      runAsUser: 1001
+      fsGroup: 1001
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1001
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 6
+  metrics:
+    enabled: true
+
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+      namespace: monitoring
+  networkPolicy:
+    enabled: true
+
+
+
+
+monitoring:
+  prometheus:
+    enabled: false
+
+
+    prometheus:
+      prometheusSpec:
+        retention: 15d
+        retentionSize: 10Gi
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        serviceMonitorSelector:
+          matchLabels:
+            release: ishastra
+        podMonitorSelector:
+          matchLabels:
+            release: ishastra
+
+        additionalServiceMonitors: []
+
+        ruleSelector:
+          matchLabels:
+            release: ishastra
+  grafana:
+    enabled: false
+    grafana:
+      enabled: true
+      admin:
+        existingSecret: ishastra-grafana-secret
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        size: 5Gi
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://ishastra-prometheus-server.monitoring.svc.cluster.local
+              access: proxy
+              isDefault: true
+              uid: prometheus
+      dashboardProviders:
+        dashboardproviders.yaml:
+          apiVersion: 1
+          providers:
+            - name: 'Ishastra'
+              orgId: 1
+              folder: 'Ishastra'
+              type: file
+              disableDeletion: false
+              updateIntervalSeconds: 10
+              allowUiUpdates: true
+              options:
+                path: /var/lib/grafana/dashboards/ishastra
+      dashboards:
+
+
+        ishastra:
+          ishastra-overview:
+            json: |
+              {
+                "dashboard": {
+                  "title": "Ishastra Overview",
+                  "uid": "ishastra-overview",
+                  "tags": ["ishastra"],
+                  "timezone": "browser",
+                  "panels": [],
+                  "schemaVersion": 38,
+                  "version": 1
+                }
+              }
+
+  servicemonitor:
+    enabled: true
+
+    interval: 30s
+
+    scrapeTimeout: 10s
+
+    scheme: https
+  prometheusrule:
+    enabled: true
+
+    interval: 30s
+  grafanaDashboard:
+    enabled: true
+
+    folder: "Ishastra"
+
+
+
+
+configMap:
+  enabled: true
+
+  scopeJson: |
+    {
+      "program": "REPLACE_WITH_PROGRAM_NAME",
+      "authorized_by": "REPLACE_WITH_AUTHORIZER",
+      "authorization_ref": "REPLACE_WITH_AUTH_REF",
+      "include": ["*.example.com"],
+      "exclude": ["test.example.com", "dev.example.com"],
+      "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+      "allowed_ports": [80, 443, 8443, 9443],
+      "allow_broad_networks": false,
+      "auth": {
+        "users": []
+      }
+    }
+
+  additionalConfigs: {}
+
+
+
+
+scopeSigning:
+  enabled: false
+  existingClaim: ""
+  jwksFile: "scope-jwks.json"
+  publicDirectory: "public"
+  privateDirectory: "private"
+  rotation:
+    enabled: false
+    schedule: "0 3 1 * *"
+    image: ""
+
+
+
+
+secrets:
+  enabled: true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  createSecrets: false
+  ishastraSecrets:
+
+    ISHASTRA_API_KEY: ""
+
+    ISHASTRA_AUDIT_HMAC_KEY: ""
+
+    ISHASTRA_WEBHOOK_SECRET: ""
+
+    ISHASTRA_ENCRYPTION_KEY: ""
+
+    ISHASTRA_DATABASE_URL: ""
+  redisSecret:
+
+    redis-password: ""
+  postgresqlSecret:
+
+    postgresql-password: ""
+  grafanaSecret:
+
+    admin-user: "admin"
+    admin-password: ""
+
+  annotations:
+    secrets-store.csi.k8s.io/secret-name: "ishastra-secrets"
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "ishastra"
+    vault.hashicorp.com/secret-path: "secret/data/ishastra"
+
+
+
+
+pvc:
+
+  ishastraData:
+    enabled: true
+    name: ishastra-data-pvc
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: ""
+    volumeMode: Filesystem
+
+  redis:
+    enabled: true
+
+
+
+
+serviceAccount:
+  enabled: true
+  name: ishastra
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+    vault.hashicorp.com/role: "ishastra"
+  automountServiceAccountToken: true
+
+rbac:
+  enabled: true
+
+  createClusterRole: true
+  clusterRoleRules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/metrics", "pods", "pods/metrics"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["nodes", "pods"]
+      verbs: ["get", "list", "watch"]
+
+  roleRules:
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets", "pods", "services", "endpoints"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses", "networkpolicies"]
+      verbs: ["get", "list", "watch"]
+
+networkPolicy:
+  enabled: true
+
+  apiIngress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ishastra
+      ports:
+        - protocol: TCP
+          port: 8000
+
+  apiEgress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+
+
+
+podSecurityPolicy:
+  enabled: true
+
+  restricted:
+
+    runAsNonRoot: true
+
+    allowPrivilegeEscalation: false
+
+    requiredDropCapabilities:
+      - ALL
+
+    readOnlyRootFilesystem: true
+
+    runAsUser:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    runAsGroup:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    fsGroup:
+      rule: MustRunAs
+      ranges:
+        - min: 10001
+          max: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+
+
+
+environments:
+  dev:
+    api:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+      hpa:
+        enabled: false
+    scheduler:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+        requests:
+          cpu: "100m"
+          memory: "256Mi"
+    redis:
+      master:
+        persistence:
+          size: 1Gi
+        resources:
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+    pvc:
+      ishastraData:
+        resources:
+          requests:
+            storage: 5Gi
+    ingress:
+      enabled: false
+    monitoring:
+      prometheus:
+        enabled: false
+      grafana:
+        enabled: false
+    worker:
+      enabled: false
+    postgresql:
+      enabled: false
+
+  staging:
+    api:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "2000m"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      hpa:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 1
+    scheduler:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+    redis:
+      master:
+        persistence:
+          size: 2Gi
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+    pvc:
+      ishastraData:
+        resources:
+          requests:
+            storage: 10Gi
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-staging"
+      tls:
+        - secretName: ishastra-tls-staging
+          hosts:
+            - ishastra-staging.example.com
+    monitoring:
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+    worker:
+      enabled: true
+      replicaCount: 1
+    postgresql:
+      enabled: false
+
+  production:
+    api:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "4000m"
+          memory: "4Gi"
+        requests:
+          cpu: "2000m"
+          memory: "2Gi"
+      hpa:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 1
+    scheduler:
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: "2000m"
+          memory: "2Gi"
+        requests:
+          cpu: "1000m"
+          memory: "1Gi"
+    redis:
+      architecture: replication
+      master:
+        persistence:
+          size: 5Gi
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+      replica:
+        replicaCount: 2
+        persistence:
+          size: 5Gi
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+    pvc:
+      ishastraData:
+        resources:
+          requests:
+            storage: 50Gi
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+        nginx.ingress.kubernetes.io/rate-limit: "1000"
+      tls:
+        - secretName: ishastra-tls-prod
+          hosts:
+            - ishastra.example.com
+            - api.ishastra.example.com
+    monitoring:
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+    worker:
+      enabled: true
+      replicaCount: 4
+      hpa:
+        enabled: true
+        minReplicas: 4
+        maxReplicas: 50
+    postgresql:
+      enabled: true
+      primary:
+        persistence:
+          size: 100Gi
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+
+
+
+
+imagePullSecrets: []
+
+
+
+
+additionalLabels: {}
+additionalAnnotations: {}
+
+
+
+
+priorityClassName: ""
+
+
+
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: ishastra
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: ishastra
+
+
+
+
+test:
+  enabled: true
+  image:
+    repository: curlimages/curl
+    tag: "8.10.1"
+    pullPolicy: IfNotPresent
+
+
+
+
+
+workerCostOptimization:
+  keda:
+    enabled: false
+    pollingInterval: 15
+    cooldownPeriod: 300
+    minReplicas: 0
+    maxReplicas: 50
+    restoreToOriginalReplicaCount: false
+    fallback:
+      failureThreshold: 3
+      replicas: 2
+    horizontalPodAutoscalerConfig: {}
+    redis:
+      address: ""
+      stream: "ishastra:assessments"
+      consumerGroup: "ishastra-workers"
+      pendingEntriesCount: "10"
+      enableTLS: "false"
+      secretName: ""
+      secretKey: "redis-password"
+    prometheus:
+      enabled: true
+      serverAddress: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+      metricName: "ishastra_assessment_queue_pending"
+      threshold: "5"
+      query: "ishastra_assessment_queue_pending"
+      authModes: "none"
+      authRef: ""
+    cpu:
+      threshold: "70"
+      metricType: "Utilization"
+    memory:
+      threshold: "80"
+      metricType: "Utilization"
+
+
+  gracefulPreemption:
+    enabled: false
+    preStopEnabled: true
+    terminationGracePeriodSeconds: 330
+    gracePeriod: 300
+    minAvailable: "50%"
+    checkpointing:
+      enabled: true
+      interval: "30s"
+      directory: "/var/lib/ishastra/checkpoints"
+
+
+  priorityClass: "ishastra-batch"
+
+
+costOptimization:
+
+  priorityClasses:
+    enabled: false
+    system:
+      name: "ishastra-system"
+      value: 2000000
+      preemptionPolicy: "PreemptLowerPriority"
+    critical:
+      name: "ishastra-critical"
+      value: 1000000
+      preemptionPolicy: "PreemptLowerPriority"
+    standard:
+      name: "ishastra-standard"
+      value: 500000
+      preemptionPolicy: "PreemptLowerPriority"
+    batch:
+      name: "ishastra-batch"
+      value: 100000
+      preemptionPolicy: "PreemptLowerPriority"
+
+
+  resourceQuota:
+    enabled: false
+    name: "ishastra-tenant-quota"
+    tenantId: ""
+    projectId: ""
+    budgetMonthlyUSD: "1000"
+    limits:
+      requestsCpu: "32"
+      requestsMemory: "64Gi"
+      limitsCpu: "64"
+      limitsMemory: "128Gi"
+      pods: "100"
+      services: "20"
+      servicesLoadBalancers: "5"
+      servicesNodePorts: "0"
+      persistentVolumeClaims: "20"
+      requestsStorage: "500Gi"
+      configMaps: "50"
+      secrets: "50"
+      requestsEphemeralStorage: "100Gi"
+      limitsEphemeralStorage: "200Gi"
+    defaultLimits:
+      cpu: "1000m"
+      memory: "1Gi"
+    defaultRequests:
+      cpu: "250m"
+      memory: "512Mi"
+    maxLimits:
+      cpu: "8000m"
+      memory: "16Gi"
+      podCpu: "16000m"
+      podMemory: "32Gi"
+      pvcStorage: "100Gi"
+    minLimits:
+      cpu: "50m"
+      memory: "128Mi"
+      pvcStorage: "1Gi"
+    maxLimitRequestRatio:
+      cpu: "10"
+      memory: "10"
+
+
+  spot:
+    enabled: false
+    aws:
+      clusterName: "ishastra-cluster"
+      region: "us-east-1"
+      critical:
+        instanceType: "m6i.xlarge"
+        desiredCapacity: 3
+        minSize: 2
+        maxSize: 10
+        volumeSize: 50
+      batch:
+        instanceType: "m6i.2xlarge"
+        desiredCapacity: 0
+        minSize: 0
+        maxSize: 50
+        volumeSize: 100
+
+
+monitoringExtras:
+  finops:
+    enabled: false
+    clusterId: "ishastra-primary"
+    pricing:
+      cpuPerHour: 0.034
+      ramPerGibHour: 0.0045
+      gpuPerHour: 2.50
+      spotCpuPerHour: 0.0068
+      spotRamPerGibHour: 0.0009
+  cost:
+    enabled: false
+    exporter:
+      image:
+        repository: "ghcr.io/your-org/ishastra-cost-exporter"
+        tag: "v1.0.0"
+      clusterName: "primary"
+    alertInterval: "1m"
+    recordingInterval: "1m"
+    budgetAlertFor: "5m"
+    budgetExceededFor: "1m"
+    spikeFor: "10m"
+    spotTerminationFor: "2m"
+    queueDepthFor: "5m"
+    idleWorkerFor: "30m"
+
+
+
+k8sJobs:
+  enabled: false
+  allowScopeNetworks: false
+  authorizedNetworks: []
+  allowedPorts: []
+  scopeConfigMapName: ishastra-scope
+  scopeConfigMapKey: scope.json
+  dbSecretName: ishastra-secrets
+  dbSecretKey: database-url
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  activeDeadlineSeconds: 7200
+
+seccompProfiles:
+  enabled: false
+  configMapName: ishastra-seccomp-profiles
+
+
+
+
+operator:
+  enabled: false
+  replicas: 1
+
+  image:
+    repository: ghcr.io/your-org/ishastra-operator
+    tag: "v1.0.0"
+    pullPolicy: IfNotPresent
+
+  metrics:
+    port: 8080
+  health:
+    port: 8081
+
+  webhook:
+    enabled: false
+    port: 9443
+    certDir: /tmp/k8s-webhook-server/serving-certs
+    caBundle: ""
+
+  enableK8sJobsMode: true
+  enableRedisStreamsMode: false
+  redis:
+    address: "redis-master:6379"
+
+  logLevel: "info"
+  logFormat: "json"
+
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  seccompProfileType: "RuntimeDefault"
+  seccompProfile: "ishastra-seccomp-default"
+
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+
+  affinity: {}
+  tolerations: []
+
+  priorityClassName: ""
+
+  runtimeClassName: ""
+
+  env:
+    ISHASTRA_OPERATOR_LOG_FORMAT: "json"
+    ISHASTRA_OPERATOR_LOG_LEVEL: "INFO"
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+  envFromSecrets:
+    - name: ishastra-secrets
+
+  volumes:
+    - name: ishastra-tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 100Mi
+  volumeMounts:
+    - name: ishastra-tmp
+      mountPath: /tmp
+
+  serviceMonitor:
+    enabled: false
+    interval: "30s"
+    scrapeTimeout: "10s"
+
+  pdb:
+    enabled: true
+    minAvailable: 1

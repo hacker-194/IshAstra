@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'Strix Dashboards'
+  - name: 'Ishastra Dashboards'
     orgId: 1
-    folder: 'Strix'
+    folder: 'Ishastra'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

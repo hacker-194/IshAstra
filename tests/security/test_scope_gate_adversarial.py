@@ -1,6 +1,6 @@
-"""Adversarial test pack for Strix Scope Gate.
+"""Adversarial test pack for Ishastra Scope Gate.
 
-Behaviour under test: The Scope authorization gate in `src/strix/core/scope.py`
+Behaviour under test: The Scope authorization gate in `src/ishastra/core/scope.py`
 which enforces program scope via check() (advisory) and destination() (authoritative)
 methods, with IPv6 transition address handling, parser differential detection,
 DNS rebinding prevention via pinned destinations, and per-tenant bound scopes.
@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
-from strix.core.scope import (
+from ishastra.core.scope import (
     Scope,
     bound,
     check,
@@ -35,10 +35,6 @@ from strix.core.scope import (
     set_pinned_destination,
 )
 
-# ---------------------------------------------------------------------------
-# Fixtures: minimal valid scope for each test class
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(scope="function")
 def base_scope():
@@ -49,7 +45,7 @@ def base_scope():
         authorization_ref="ADV-001",
         include=["example.com", "*.example.com"],
         exclude=["admin.example.com"],
-        authorized_networks=["93.184.216.0/24"],  # example.com's /24
+        authorized_networks=["93.184.216.0/24"],
         allowed_ports=[80, 443],
         allow_broad_networks=False,
     )
@@ -59,18 +55,13 @@ def base_scope():
 def reset_global_scope():
     """Ensure global scope is clean before/after each test."""
     yield
-    # Force reset by configuring a known-safe scope
+
     configure(
         program="Cleanup",
         authorized_by="Test",
         authorization_ref="CLEANUP",
         include=["cleanup.local"],
     )
-
-
-# ---------------------------------------------------------------------------
-# 1. Parser Differentials
-# ---------------------------------------------------------------------------
 
 
 class TestParserDifferentials:
@@ -83,13 +74,10 @@ class TestParserDifferentials:
     @pytest.mark.parametrize(
         "url,reason_fragment",
         [
-            # Backslash as path separator in Python, host separator in browsers
             ("http://evil.com\\@ok.com/", "backslash"),
             ("http://evil.com\\\\@ok.com/", "backslash"),
             ("https://evil.com\\@ok.com/", "backslash"),
-            # Multiple backslashes
             ("http://evil.com\\\\\\@ok.com/", "backslash"),
-            # Backslash in path - still rejected to be safe
             ("http://ok.com/path\\to@evil.com/", "backslash"),
         ],
     )
@@ -105,7 +93,6 @@ class TestParserDifferentials:
             ("http://user:pass@ok.com/", "credentials"),
             ("https://user@ok.com/", "credentials"),
             ("http://:pass@ok.com/", "credentials"),
-            # userinfo in netloc without scheme parsed as path
             ("http://ok.com@evil.com/", "credentials"),
         ],
     )
@@ -121,9 +108,7 @@ class TestParserDifferentials:
             ("http://ok%2Ecom/", "percent-encoded"),
             ("http://ex%61mple.com/", "percent-encoded"),
             ("http://example%2Ecom/", "percent-encoded"),
-            # Double encoding
             ("http://ex%2561mple.com/", "percent-encoded"),
-            # Host percent-encoded in netloc
             ("http://ok%2Ecom:8080/", "percent-encoded"),
         ],
     )
@@ -175,11 +160,6 @@ class TestParserDifferentials:
             assert denial == "invalid_target", f"Expected denial for {url!r}, got {denial!r}"
 
 
-# ---------------------------------------------------------------------------
-# 2. IPv6 / IPv4-Mapped Edge Cases
-# ---------------------------------------------------------------------------
-
-
 class TestIPv6IPv4MappedEdgeCases:
     """IPv6 transition addresses that embed private IPv4 destinations.
 
@@ -195,12 +175,11 @@ class TestIPv6IPv4MappedEdgeCases:
             authorized_by="Test",
             authorization_ref="IPV6-001",
             include=["example.com"],
-            authorized_networks=["93.184.216.0/24"],  # example.com only
+            authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
 
-    # --- IPv4-mapped IPv6 (::ffff:a.b.c.d) ---
     @pytest.mark.parametrize(
         "ipv6_str,embedded_ipv4_str",
         [
@@ -217,7 +196,6 @@ class TestIPv6IPv4MappedEdgeCases:
         addr = ipaddress.IPv6Address(ipv6_str)
         assert is_special_use(addr), f"{ipv6_str} should be special-use via embedded {embedded_ipv4_str}"
 
-    # --- NAT64 (64:ff9b::/96) ---
     @pytest.mark.parametrize(
         "ipv6_str,embedded_ipv4_str",
         [
@@ -237,17 +215,16 @@ class TestIPv6IPv4MappedEdgeCases:
     def test_nat64_local_use_prefix_not_global(self):
         """RFC 8215 local-use prefix 64:ff9b:1::/48 is not global in Python."""
         addr = ipaddress.IPv6Address("64:ff9b:1::1")
-        # This prefix is marked non-global by Python's is_global
+
         assert not addr.is_global
 
-    # --- 6to4 (2002::/16) ---
     @pytest.mark.parametrize(
         "ipv6_str,embedded_ipv4_str",
         [
-            ("2002:c000:0204::", "192.0.2.4"),  # TEST-NET
-            ("2002:c0a8:0101::", "192.168.1.1"),  # Private
-            ("2002:ac10:0001::", "172.16.0.1"),  # Private
-            ("2002:7f00:0001::", "127.0.0.1"),  # Loopback
+            ("2002:c000:0204::", "192.0.2.4"),
+            ("2002:c0a8:0101::", "192.168.1.1"),
+            ("2002:ac10:0001::", "172.16.0.1"),
+            ("2002:7f00:0001::", "127.0.0.1"),
         ],
     )
     def test_6to4_private_denied(self, ipv6_str, embedded_ipv4_str):
@@ -257,7 +234,6 @@ class TestIPv6IPv4MappedEdgeCases:
         assert embedded == ipaddress.IPv4Address(embedded_ipv4_str)
         assert is_special_use(addr), f"6to4 {ipv6_str} -> {embedded_ipv4_str} should be special-use"
 
-    # --- Teredo (2001::/32) ---
     @pytest.mark.parametrize(
         "ipv6_str",
         [
@@ -268,9 +244,7 @@ class TestIPv6IPv4MappedEdgeCases:
         """Teredo address embeds IPv4 (inverted + bit-flipped)."""
         addr = ipaddress.IPv6Address(ipv6_str)
         embedded = embedded_ipv4(addr)
-        # Teredo encoding: server IPv4 in bits 32-63, client port in 64-79 (obfuscated),
-        # client IPv4 in 80-95 (inverted), flags in 96-127
-        # The embedded_ipv4 function extracts bits 96-127, inverts, bit-flips
+
         assert embedded is not None
 
     def test_public_ipv6_not_special(self):
@@ -280,8 +254,8 @@ class TestIPv6IPv4MappedEdgeCases:
 
     def test_destination_rejects_embedded_private(self):
         """destination() must reject host resolving to IPv6 with private embedded IPv4."""
-        # Mock resolution to return a NAT64 address embedding 10.0.0.1
-        with patch("strix.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope", f"Expected denial, got {denial!r}: {reason}"
             assert dest is None
@@ -289,7 +263,7 @@ class TestIPv6IPv4MappedEdgeCases:
 
     def test_check_rejects_embedded_private(self):
         """check() must reject host resolving to IPv6 with private embedded IPv4."""
-        with patch("strix.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
             denial, reason = self.scope.check("https://example.com/")
             assert denial == "out_of_scope", f"Expected denial, got {denial!r}: {reason}"
             assert "non-public" in reason.lower() or "resolves to" in reason.lower()
@@ -305,16 +279,11 @@ class TestIPv6IPv4MappedEdgeCases:
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = scope_with_public_v6.destination("https://example.com/")
             assert denial == "", f"Expected allow, got denial: {denial}: {reason}"
             assert dest is not None
             assert dest.ip == "64:ff9b::a00:1"
-
-
-# ---------------------------------------------------------------------------
-# 3. Redirect Canaries
-# ---------------------------------------------------------------------------
 
 
 class TestRedirectCanaries:
@@ -336,14 +305,11 @@ class TestRedirectCanaries:
     @pytest.mark.parametrize(
         "canary_host",
         [
-            # Strix's internal canary suffixes - these are auto-denied
             "canary.localhost",
             "canary.local",
             "canary.internal",
             "canary.home.arpa",
-            # IP literal for metadata service - resolves to link-local, denied by address policy
             "169.254.169.254",
-            # metadata.google.internal resolves to internal IP, denied by address policy
             "metadata.google.internal",
         ],
     )
@@ -357,7 +323,7 @@ class TestRedirectCanaries:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        # The gate must still deny because these are internal suffixes or resolve to internal IPs
+
         denial, reason = scope_with_canary.check(f"http://{canary_host}/")
         assert denial in (
             "out_of_scope",
@@ -385,8 +351,7 @@ class TestRedirectCanaries:
                 authorized_networks=["93.184.216.0/24"],
                 allowed_ports=[80, 443],
             )
-            # Host matches include, but DNS resolution will fail in test env
-            # (no network), so result is resolution_failed or empty
+
             denial, reason = scope_with_canary.check(f"http://{host}/")
             assert denial in ("", "resolution_failed", "out_of_scope")
 
@@ -398,13 +363,13 @@ class TestRedirectCanaries:
                 program="Test",
                 authorized_by="Test",
                 authorization_ref="T-1",
-                include=[host],  # Explicitly allowed!
+                include=[host],
                 authorized_networks=["10.0.0.0/8"],
                 allowed_ports=[80],
             )
             denial, reason = scope.check(f"http://{host}/")
             assert denial == "out_of_scope", f"Internal suffix {suffix} must be denied"
-            # Reason mentions the internal hostname or resolves to non-public
+
             assert (
                 "internal" in reason.lower()
                 or "non-public" in reason.lower()
@@ -413,9 +378,8 @@ class TestRedirectCanaries:
 
     def test_redirect_to_internal_via_external_host(self):
         """External host in scope that redirects to internal must be caught at destination()."""
-        # This tests that destination() validates the RESOLVED address, not just the host
-        # If example.com resolves to an internal IP, destination() must deny
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -423,15 +387,10 @@ class TestRedirectCanaries:
 
     def test_redirect_to_loopback_via_external_host(self):
         """External host resolving to loopback must be denied."""
-        with patch("strix.core.scope.resolve_sync", return_value=["127.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["127.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
-
-
-# ---------------------------------------------------------------------------
-# 4. DNS Rebinding: check() vs destination() Gap
-# ---------------------------------------------------------------------------
 
 
 class TestDNSRebindingSimulation:
@@ -449,7 +408,7 @@ class TestDNSRebindingSimulation:
             authorized_by="Test",
             authorization_ref="REBIND-001",
             include=["attacker.com"],
-            authorized_networks=["93.184.216.0/24"],  # example.com only
+            authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
@@ -463,13 +422,12 @@ class TestDNSRebindingSimulation:
         3. destination() resolves attacker.com -> 10.0.0.1 (private)
         4. destination() must deny because the NEW resolution is not authorized
         """
-        # First resolution: public IP (allowed)
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason = self.scope.check("https://attacker.com/")
             assert denial == "", f"Initial check should allow: {denial}: {reason}"
 
-        # Second resolution (rebind): private IP
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
             assert denial == "out_of_scope", f"Rebound destination must deny: {denial}: {reason}"
             assert dest is None
@@ -481,36 +439,32 @@ class TestDNSRebindingSimulation:
         destination() is called, destination() will allow. This is by design:
         each call independently validates the current resolution.
         """
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason = self.scope.check("https://attacker.com/")
             assert denial == "out_of_scope"
 
-        # DNS "fixes" itself - fresh resolution is public
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
-            # destination() allows because current resolution is authorized
+
             assert denial == "", f"Fresh resolution should allow: {denial}: {reason}"
             assert dest is not None
 
     def test_pinned_destination_prevents_rebind(self):
         """The pinned destination mechanism prevents rebind between check and connect."""
-        # Simulate: check() runs, pins destination to public IP
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
             assert denial == ""
             token = set_pinned_destination(dest)
 
         try:
-            # Attacker changes DNS to private IP
-            with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
-                # Code that uses pinned destination should get the ORIGINAL IP
+            with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
                 pinned = get_pinned_destination()
                 assert pinned is not None
                 assert pinned.ip == "93.184.216.34", f"Pinned IP should not change: {pinned.ip}"
 
-                # destination() without pin would now return private IP
                 denial, reason, dest2 = self.scope.destination("https://attacker.com/")
-                assert denial == "out_of_scope"  # Fresh resolution fails
+                assert denial == "out_of_scope"
                 assert dest2 is None
         finally:
             reset_pinned_destination(token)
@@ -520,20 +474,20 @@ class TestDNSRebindingSimulation:
         import asyncio
 
         async def task_a():
-            with patch("strix.core.scope.resolve", return_value=["93.184.216.34"]):
+            with patch("ishastra.core.scope.resolve", return_value=["93.184.216.34"]):
                 denial, reason, dest = await self.scope.destination_async("https://attacker.com/")
                 assert denial == ""
                 token = set_pinned_destination(dest)
-                await asyncio.sleep(0.01)  # Yield to task B
+                await asyncio.sleep(0.01)
                 pinned = get_pinned_destination()
                 assert pinned.ip == "93.184.216.34", f"Task A pinned IP leaked: {pinned.ip}"
                 reset_pinned_destination(token)
 
         async def task_b():
-            await asyncio.sleep(0.005)  # Start after task A pins
-            with patch("strix.core.scope.resolve", return_value=["10.0.0.1"]):
+            await asyncio.sleep(0.005)
+            with patch("ishastra.core.scope.resolve", return_value=["10.0.0.1"]):
                 denial, reason, dest = await self.scope.destination_async("https://attacker.com/")
-                assert denial == "out_of_scope"  # Task B sees fresh resolution
+                assert denial == "out_of_scope"
                 pinned = get_pinned_destination()
                 assert pinned is None or pinned.ip != "10.0.0.1", "Task B should not see Task A's pin"
 
@@ -541,11 +495,6 @@ class TestDNSRebindingSimulation:
             await asyncio.gather(task_a(), task_b())
 
         asyncio.run(main())
-
-
-# ---------------------------------------------------------------------------
-# 5. Additional Adversarial Vectors
-# ---------------------------------------------------------------------------
 
 
 class TestAdditionalAdversarialVectors:
@@ -563,44 +512,42 @@ class TestAdditionalAdversarialVectors:
 
     def test_ipv6_literal_in_url_with_zone_id(self):
         """IPv6 literal with zone ID (e.g., %eth0) must be handled correctly."""
-        # Zone IDs are valid in IPv6 literals but not in hostnames
-        # The gate must not crash on them; urlparse rejects as invalid port
+
         url = "http://[::1%25eth0]/"
         denial, reason = self.scope.check(url)
-        # urlparse raises ValueError for zone ID in port position -> invalid_target
+
         assert denial == "invalid_target"
 
     def test_ipv6_literal_private_in_scope_fails_validation(self):
         """IPv6 literal with brackets in include list is rejected at config time."""
-        # The host pattern validation rejects '[::ffff:10.0.0.1]' as invalid DNS name
-        # IPv6 literals in URLs are written without brackets in the host field
+
         with pytest.raises(ValueError, match="not a valid DNS name"):
             configure(
                 program="Test",
                 authorized_by="Test",
                 authorization_ref="T-1",
-                include=["[::ffff:10.0.0.1]"],  # Invalid - brackets not allowed in include
+                include=["[::ffff:10.0.0.1]"],
                 authorized_networks=["93.184.216.0/24"],
                 allowed_ports=[80],
             )
 
     def test_idn_homograph_attack_rejected_at_config(self):
         """Internationalized domain names must be punycode; raw Unicode rejected at config."""
-        # Unicode lookalike: еxample.com (cyrillic е)
-        unicode_host = "еxample.com"  # Cyrillic small letter ie
+
+        unicode_host = "еxample.com"
         with pytest.raises(ValueError, match="not a valid DNS name"):
             configure(
                 program="Test",
                 authorized_by="Test",
                 authorization_ref="T-1",
-                include=[unicode_host],  # Raw Unicode - INVALID
+                include=[unicode_host],
                 authorized_networks=["93.184.216.0/24"],
                 allowed_ports=[80],
             )
 
     def test_punycode_allowed(self):
         """Valid punycode must be accepted."""
-        # xn--example-9ua.com = еxample.com (cyrillic е)
+
         scope = configure(
             program="Test",
             authorized_by="Test",
@@ -610,7 +557,7 @@ class TestAdditionalAdversarialVectors:
             allowed_ports=[80],
         )
         denial, reason = scope.check("http://xn--example-9ua.com/")
-        # Host matches, but DNS resolution will fail in test env
+
         assert denial in ("", "resolution_failed")
 
     def test_port_zero_rejected(self):
@@ -621,7 +568,7 @@ class TestAdditionalAdversarialVectors:
 
     def test_port_out_of_range_rejected(self):
         """Port > 65535 must be rejected by urlparse (ValueError -> invalid_target)."""
-        # urlparse raises ValueError for invalid port
+
         denial, reason = self.scope.check("http://example.com:99999/")
         assert denial == "invalid_target"
 
@@ -636,8 +583,8 @@ class TestAdditionalAdversarialVectors:
             program="Test",
             authorized_by="Test",
             authorization_ref="T-1",
-            include=["192.0.2.1"],  # TEST-NET, explicitly allowed
-            authorized_networks=["10.0.0.0/8"],  # But only 10/8 authorized
+            include=["192.0.2.1"],
+            authorized_networks=["10.0.0.0/8"],
             allowed_ports=[80],
         )
         denial, reason = scope.check("http://192.0.2.1/")
@@ -646,8 +593,8 @@ class TestAdditionalAdversarialVectors:
 
     def test_multiple_ips_one_unauthorized(self):
         """If host resolves to multiple IPs and ANY is unauthorized, must deny."""
-        # Resolves to both allowed and private
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -662,13 +609,12 @@ class TestAdditionalAdversarialVectors:
             include=["example.com", "*.example.com"],
             exclude=["*.admin.example.com"],
             authorized_networks=["93.184.216.0/24"],
-            allowed_ports=[80, 443],  # Both ports for http and https
+            allowed_ports=[80, 443],
         )
-        # admin.example.com should be ALLOWED (wildcard exclude is subdomains only)
+
         denial, reason = scope.check("https://admin.example.com/")
         assert denial == "", f"admin.example.com should be allowed: {denial}: {reason}"
 
-        # sub.admin.example.com should be DENIED
         denial, reason = scope.check("https://sub.admin.example.com/")
         assert denial == "out_of_scope"
 
@@ -697,15 +643,10 @@ class TestAdditionalAdversarialVectors:
             "authorized_by": "Test",
             "authorization_ref": "T-1",
             "include": ["example.com"],
-            "allowed_ports": "not a list",  # Must be list
+            "allowed_ports": "not a list",
         }
         with pytest.raises(ValueError, match="allowed_ports.*not an integer"):
             parse_scope_document(data)
-
-
-# ---------------------------------------------------------------------------
-# 6. Integration: Bound Scope (Multi-Tenant) Isolation
-# ---------------------------------------------------------------------------
 
 
 class TestBoundScopeIsolation:
@@ -740,12 +681,10 @@ class TestBoundScopeIsolation:
             tenant_id="tenant-b",
         )
 
-        # Global scope allows global.com
         assert current().program == "Global"
         denial, reason = check("https://global.com/")
         assert denial == ""
 
-        # Tenant A bound: only tenant-a.com allowed
         with bound(tenant_a_scope):
             assert current().program == "Tenant A"
             denial, reason = check("https://tenant-a.com/")
@@ -755,10 +694,8 @@ class TestBoundScopeIsolation:
             denial, reason = check("https://global.com/")
             assert denial == "out_of_scope"
 
-        # Back to global
         assert current().program == "Global"
 
-        # Tenant B bound: only tenant-b.com allowed
         with bound(tenant_b_scope):
             assert current().program == "Tenant B"
             denial, reason = check("https://tenant-b.com/")
@@ -810,11 +747,6 @@ class TestBoundScopeIsolation:
             assert current().tenant_id == "t1"
 
 
-# ---------------------------------------------------------------------------
-# 7. Stress: Rapid Rebinding Simulation
-# ---------------------------------------------------------------------------
-
-
 class TestRapidRebinding:
     """Rapid successive calls simulating high-frequency rebinding attempts."""
 
@@ -833,17 +765,14 @@ class TestRapidRebinding:
         results = []
         for i in range(20):
             if i % 2 == 0:
-                # Even: allowed
-                with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+                with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
                     denial, reason, dest = self.scope.destination("https://target.com/")
                     results.append(("allow", denial))
             else:
-                # Odd: denied (private)
-                with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+                with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
                     denial, reason, dest = self.scope.destination("https://target.com/")
                     results.append(("deny", denial))
 
-        # Every call must be independently judged
         for expected, (_label, denial) in zip(["allow", "deny"] * 10, results, strict=False):
             if expected == "allow":
                 assert denial == "", f"Expected allow, got {denial}"

@@ -1,4 +1,4 @@
-"""Integration tests for STRIX_RETENTION_DAYS pruning behavior.
+"""Integration tests for ISHASTRA_RETENTION_DAYS pruning behavior.
 
 Verifies that:
 - Raw findings (findings table) are pruned when jobs are pruned
@@ -16,9 +16,9 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-from strix.audit import GENESIS_HASH, AuditChain
-from strix.core import store
-from strix.retention import prune
+from ishastra.audit import GENESIS_HASH, AuditChain
+from ishastra.core import store
+from ishastra.retention import prune
 
 
 @pytest.fixture
@@ -39,17 +39,15 @@ class TestRetentionPruning:
 
     async def _setup_data(self, temp_db, days_old=10):
         """Set up jobs, findings, finding_records, audit_log, and audit_chain."""
-        # Initialize database
+
         await store.get_database()
 
         tenant = "test-tenant"
         now = time.time()
-        old_time = now - (days_old * 86400) + 1000  # Slightly older than cutoff
+        old_time = now - (days_old * 86400) + 1000
 
-        # Create an old finished job with findings
         db = await store.get_database()
         async with db.transaction() as conn:
-            # Insert old job (finished, terminal state)
             await store._execute(
                 conn,
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state,
@@ -76,7 +74,6 @@ class TestRetentionPruning:
                 0,
             )
 
-            # Insert findings for the old job (these should be pruned via CASCADE)
             await store._execute(
                 conn,
                 """INSERT INTO findings (job_id, tenant, fingerprint, asset, category, title,
@@ -94,7 +91,7 @@ class TestRetentionPruning:
                 "confirmed",
                 "observed",
                 "new",
-                "strix-test",
+                "ishastra-test",
                 "1.0",
                 "https://example.com/old?param=1",
                 "Old evidence",
@@ -104,7 +101,6 @@ class TestRetentionPruning:
                 "[]",
             )
 
-            # Insert finding_records for the OLD finding (these should SURVIVE)
             await store._execute(
                 conn,
                 """INSERT INTO finding_records
@@ -135,7 +131,6 @@ class TestRetentionPruning:
                 old_time,
             )
 
-            # Create a NEW job that should NOT be pruned
             await store._execute(
                 conn,
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state,
@@ -162,7 +157,6 @@ class TestRetentionPruning:
                 0,
             )
 
-            # Insert findings for the NEW job
             await store._execute(
                 conn,
                 """INSERT INTO findings (job_id, tenant, fingerprint, asset, category, title,
@@ -180,7 +174,7 @@ class TestRetentionPruning:
                 "confirmed",
                 "observed",
                 "new",
-                "strix-test",
+                "ishastra-test",
                 "1.0",
                 "https://example.com/new?id=1",
                 "New evidence",
@@ -190,7 +184,6 @@ class TestRetentionPruning:
                 "[]",
             )
 
-            # Insert finding_records for the NEW finding
             await store._execute(
                 conn,
                 """INSERT INTO finding_records
@@ -221,7 +214,6 @@ class TestRetentionPruning:
                 now,
             )
 
-            # Insert OLD audit_log entries (should be pruned)
             await store._execute(
                 conn,
                 "INSERT INTO audit_log (tenant, event, ts, data) VALUES (?, ?, ?, ?)",
@@ -231,7 +223,6 @@ class TestRetentionPruning:
                 '{"event": "old_event", "tenant": "test-tenant"}',
             )
 
-            # Insert NEW audit_log entries (should survive)
             await store._execute(
                 conn,
                 "INSERT INTO audit_log (tenant, event, ts, data) VALUES (?, ?, ?, ?)",
@@ -241,8 +232,6 @@ class TestRetentionPruning:
                 '{"event": "new_event", "tenant": "test-tenant"}',
             )
 
-            # Insert audit_chain entries (should NEVER be pruned)
-            # First entry (genesis)
             body1 = {
                 "event": "chain_old",
                 "sequence": 1,
@@ -262,7 +251,6 @@ class TestRetentionPruning:
                 json.dumps(body1, sort_keys=True),
             )
 
-            # Second entry
             body2 = {"event": "chain_new", "sequence": 2, "previous_hash": digest1, "timestamp": now}
             digest2 = hashlib.sha256(json.dumps(body2, sort_keys=True).encode()).hexdigest()
             await store._execute(
@@ -300,7 +288,6 @@ class TestRetentionPruning:
         """Raw findings are pruned with jobs, but finding_records persist."""
         await self._setup_data(temp_db, days_old=10)
 
-        # Verify initial state
         old_jobs = await self._count_rows("jobs", "id = ?", ["old-job-1"])
         new_jobs = await self._count_rows("jobs", "id = ?", ["new-job-1"])
         old_findings = await self._count_rows("findings", "fingerprint = ?", ["fp-old-1"])
@@ -313,35 +300,29 @@ class TestRetentionPruning:
         assert new_findings == 1, "New finding should exist before prune"
         assert len(finding_records_before) == 2, "Both finding_records should exist before prune"
 
-        # Run pruning for 5 days (old data is 10 days old, new is 0 days old)
         cutoff_days = 5
         result = prune(cutoff_days)
 
-        # Verify pruning happened
         assert result["jobs"] >= 1, f"Expected at least 1 job pruned, got {result['jobs']}"
         pruned_entries = result["audit_entries"]
         assert pruned_entries >= 1, f"Expected at least 1 audit entry pruned, got {pruned_entries}"
 
-        # Verify OLD job and its findings are gone
         old_jobs_after = await self._count_rows("jobs", "id = ?", ["old-job-1"])
         old_findings_after = await self._count_rows("findings", "fingerprint = ?", ["fp-old-1"])
 
         assert old_jobs_after == 0, "Old job should be pruned"
         assert old_findings_after == 0, "Old finding should be pruned (CASCADE)"
 
-        # Verify NEW job and its findings remain
         new_jobs_after = await self._count_rows("jobs", "id = ?", ["new-job-1"])
         new_findings_after = await self._count_rows("findings", "fingerprint = ?", ["fp-new-1"])
 
         assert new_jobs_after == 1, "New job should survive"
         assert new_findings_after == 1, "New finding should survive"
 
-        # CRITICAL: finding_records for BOTH old and new findings must survive
         finding_records_after = await self._get_finding_records("test-tenant")
         record_count = len(finding_records_after)
         assert record_count == 2, f"finding_records should NOT be pruned: got {record_count}"
 
-        # Verify the old finding_record still has its data
         old_record = next(r for r in finding_records_after if r["fingerprint"] == "fp-old-1")
         assert old_record["owner"] == "old-owner"
         assert old_record["resolution_state"] == "open"
@@ -354,14 +335,11 @@ class TestRetentionPruning:
         """audit_chain (sealed hash chain) is NEVER pruned by retention."""
         await self._setup_data(temp_db, days_old=10)
 
-        # Verify initial chain has 2 entries
         chain_count_before = await self._get_audit_chain_count()
         assert chain_count_before == 2, "Chain should have 2 entries before prune"
 
-        # Run pruning
         prune(5)
 
-        # Chain should still have 2 entries
         chain_count_after = await self._get_audit_chain_count()
         assert chain_count_after == 2, f"audit_chain must NEVER be pruned: got {chain_count_after}"
 
@@ -370,25 +348,20 @@ class TestRetentionPruning:
         """audit_log (plain entries) are pruned, but audit_chain is not."""
         await self._setup_data(temp_db, days_old=10)
 
-        # Count audit_log entries before
         old_audit_log = await self._count_rows("audit_log", "ts < ?", [time.time() - 5 * 86400])
         new_audit_log = await self._count_rows("audit_log", "ts >= ?", [time.time() - 5 * 86400])
 
         assert old_audit_log >= 1, "Should have old audit_log entries"
         assert new_audit_log >= 1, "Should have new audit_log entries"
 
-        # Run pruning
         prune(5)
 
-        # Old audit_log should be gone
         old_audit_log_after = await self._count_rows("audit_log", "ts < ?", [time.time() - 5 * 86400])
         assert old_audit_log_after == 0, "Old audit_log should be pruned"
 
-        # New audit_log should remain
         new_audit_log_after = await self._count_rows("audit_log", "ts >= ?", [time.time() - 5 * 86400])
         assert new_audit_log_after >= 1, "New audit_log should survive"
 
-        # But audit_chain should be untouched
         chain_count = await self._get_audit_chain_count()
         assert chain_count == 2, "audit_chain must survive"
 
@@ -397,19 +370,15 @@ class TestRetentionPruning:
         """audit_chain should still verify correctly after retention pruning."""
         await self._setup_data(temp_db, days_old=10)
 
-        # Verify chain is valid before prune
         chain = AuditChain(persistent=True, hmac_key="")
         ok, reason = await chain.verify_async()
         assert ok is True, f"Chain should be valid before prune: {reason}"
 
-        # Run pruning
         prune(5)
 
-        # Chain should still verify
         ok, reason = await chain.verify_async()
         assert ok is True, f"Chain should still verify after prune: {reason}"
 
-        # Verify chain entries are intact
         chain_count = await self._get_audit_chain_count()
         assert chain_count == 2, "Chain entries should not be deleted"
 
@@ -420,11 +389,10 @@ class TestRetentionPruning:
 
         tenant = "test-tenant"
         now = time.time()
-        old_time = now - 86400 * 10  # 10 days ago
+        old_time = now - 86400 * 10
 
         db = await store.get_database()
         async with db.transaction() as conn:
-            # Old job
             await store._execute(
                 conn,
                 """INSERT INTO jobs (id, tenant, target, profile, actor, policy, state,
@@ -451,7 +419,6 @@ class TestRetentionPruning:
                 0,
             )
 
-            # Finding with exception approved
             await store._execute(
                 conn,
                 """INSERT INTO findings (job_id, tenant, fingerprint, asset, category, title,
@@ -469,7 +436,7 @@ class TestRetentionPruning:
                 "confirmed",
                 "observed",
                 "new",
-                "strix-test",
+                "ishastra-test",
                 "1.0",
                 "https://example.com/old",
                 "Old RCE evidence",
@@ -479,7 +446,6 @@ class TestRetentionPruning:
                 "[]",
             )
 
-            # finding_record with approved exception - this is critical remediation data
             await store._execute(
                 conn,
                 """INSERT INTO finding_records
@@ -494,7 +460,7 @@ class TestRetentionPruning:
                 "fp-exc-1",
                 "sec-team",
                 old_time + 86400 * 30,
-                old_time + 86400 * 90,  # Exception valid for 90 days
+                old_time + 86400 * 90,
                 "Business critical system, cannot patch immediately",
                 "ciso@company.com",
                 "approved",
@@ -510,10 +476,8 @@ class TestRetentionPruning:
                 old_time,
             )
 
-        # Run pruning
         prune(5)
 
-        # finding_record must survive with ALL its exception data intact
         records = await self._get_finding_records(tenant)
         assert len(records) == 1, "finding_record with exception must survive"
 
@@ -525,7 +489,7 @@ class TestRetentionPruning:
         assert record["exception_reason"] == "Business critical system, cannot patch immediately"
         assert record["exception_note"] == "Approved by CISO for 90 days"
         assert record["exception_until"] is not None
-        assert record["exception_until"] > old_time  # Exception still valid
+        assert record["exception_until"] > old_time
 
     @pytest.mark.asyncio
     async def test_resolved_finding_records_survive(self, temp_db):
@@ -581,7 +545,7 @@ class TestRetentionPruning:
                 "confirmed",
                 "observed",
                 "new",
-                "strix-test",
+                "ishastra-test",
                 "1.0",
                 "https://example.com/old",
                 "Old XSS evidence",
@@ -591,7 +555,6 @@ class TestRetentionPruning:
                 "[]",
             )
 
-            # finding_record marked as resolved with evidence
             import json
 
             resolution_evidence = json.dumps(
@@ -632,10 +595,8 @@ class TestRetentionPruning:
                 old_time,
             )
 
-        # Run pruning
         prune(5)
 
-        # Resolved finding_record must survive with ALL resolution data
         records = await self._get_finding_records(tenant)
         assert len(records) == 1, "Resolved finding_record must survive"
 
@@ -644,7 +605,6 @@ class TestRetentionPruning:
         assert record["resolved_at"] == old_time
         assert record["resolved_job_id"] == "old-job-res"
 
-        # Verify resolution_evidence is intact
         evidence = json.loads(record["resolution_evidence"])
         assert evidence["verified_by"] == "pen-tester-1"
         assert evidence["verification_method"] == "manual"

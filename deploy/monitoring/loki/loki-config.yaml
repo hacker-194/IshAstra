@@ -1,5 +1,5 @@
-# Loki Configuration for Strix Log Aggregation
-# Deploy with: docker compose -f docker-compose.monitoring.yml -f docker-compose.loki.yml up -d
+
+
 
 auth_enabled: false
 
@@ -38,7 +38,7 @@ limits_config:
   per_stream_rate_limit_burst: 20MB
   max_entries_limit_per_query: 5000
   max_global_series_per_user: 10000
-  retention_period: 336h  # 14 days
+  retention_period: 336h
 
 compactor:
   working_directory: /loki/compactor
@@ -74,5 +74,5 @@ ruler:
       store: inmemory
   enable_api: true
 
-# Logging
+
 log_level: info

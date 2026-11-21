@@ -1,51 +1,51 @@
 # Configuration Reference
 
-Complete reference for all Strix configuration options.
+Complete reference for all Ishastra configuration options.
 
 ---
 
 ## Environment Variables
 
 Runtime settings are read once at startup by `Settings.from_env()`. The bind
-address and port are CLI flags (`strix --host 127.0.0.1 --port 8000`), not
+address and port are CLI flags (`ishastra --host 127.0.0.1 --port 8000`), not
 environment variables.
 
 ### Core Settings
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `STRIX_ENV` | `development` | No | `production` requires bootstrap, audit, and encryption keys; rejects debug mode and disabled rate limits; and forces API docs off. |
-| `STRIX_API_KEY` | — | **Yes** | Admin API key for bootstrap. Generated keys shown once. Required in production. |
-| `STRIX_SCOPE_FILE` | `scope.json` | No | Path to scope authorization document. |
-| `STRIX_SCOPE_MODE` | `auto` | No | Scope mode: `global`, `managed`, `auto`. |
-| `STRIX_SCOPE_JWKS` | — | No | JWKS file with Ed25519 public keys. When set, a scope document loads only if signed by one of those keys. See [scope signing](#signed-scope-documents). |
-| `STRIX_SCOPE_MAX_AGE_SECONDS` | `86400` | No | How old a signed scope document may be. An older document is refused even though its signature verifies. |
-| `STRIX_DB` | `strix.db` | No | SQLite database file path. |
-| `STRIX_DATABASE_URL` | — | No | PostgreSQL DSN; overrides `STRIX_DB`. Advanced: tested single-host (SIGTERM, load soak, audit chain, Kubernetes Jobs integration). |
-| `STRIX_WORKERS` | `1` | No | Concurrent assessment jobs in the in-process worker. |
-| `STRIX_QUEUE_MAX` | `32` | No | Maximum queued jobs. |
-| `STRIX_QUEUE_MODE` | `inprocess` | No | `k8s-jobs` enables the experimental distributed queue (tested single-host: 10 jobs). |
+| `ISHASTRA_ENV` | `development` | No | `production` requires bootstrap, audit, and encryption keys; rejects debug mode and disabled rate limits; and forces API docs off. |
+| `ISHASTRA_API_KEY` | — | **Yes** | Admin API key for bootstrap. Generated keys shown once. Required in production. |
+| `ISHASTRA_SCOPE_FILE` | `scope.json` | No | Path to scope authorization document. |
+| `ISHASTRA_SCOPE_MODE` | `auto` | No | Scope mode: `global`, `managed`, `auto`. |
+| `ISHASTRA_SCOPE_JWKS` | — | No | JWKS file with Ed25519 public keys. When set, a scope document loads only if signed by one of those keys. See [scope signing](#signed-scope-documents). |
+| `ISHASTRA_SCOPE_MAX_AGE_SECONDS` | `86400` | No | How old a signed scope document may be. An older document is refused even though its signature verifies. |
+| `ISHASTRA_DB` | `ishastra.db` | No | SQLite database file path. |
+| `ISHASTRA_DATABASE_URL` | — | No | PostgreSQL DSN; overrides `ISHASTRA_DB`. Advanced: tested single-host (SIGTERM, load soak, audit chain, Kubernetes Jobs integration). |
+| `ISHASTRA_WORKERS` | `1` | No | Concurrent assessment jobs in the in-process worker. |
+| `ISHASTRA_QUEUE_MAX` | `32` | No | Maximum queued jobs. |
+| `ISHASTRA_QUEUE_MODE` | `inprocess` | No | `k8s-jobs` enables the experimental distributed queue (tested single-host: 10 jobs). |
 
 ### Security & Authorization
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `STRIX_AUDIT_HMAC_KEY` | — | **Required in production** | HMAC-SHA256 key for audit chain integrity. Use at least 32 random bytes, store it in a secret manager, and back it up separately. Without this, the audit chain is forgeable by anyone with DB write access. |
-| `STRIX_WEBHOOK_SECRET` | — | **Recommended** | Secret for webhook HMAC signatures. 32+ random bytes, base64. All webhooks share this secret. |
-| `STRIX_ENCRYPTION_KEY` | — | **Required in production** | Base64 32-byte AES-GCM key. Webhook URLs and stored per-assessment authentication configs are encrypted before database writes; API keys are stored as hashes. Keep this key in a secret manager and back it up separately. Changing it without re-encrypting stored data makes that data unreadable. |
-| `STRIX_TRUSTED_PROXIES` | — | No | Comma-separated trusted proxy IPs/CIDRs for `X-Forwarded-*` headers. |
-| `STRIX_CORS_ORIGINS` | — | No | Comma-separated allowed CORS origins. Wildcard `*` not recommended. |
-| `STRIX_DISABLE_DOCS` | `false` | No | `1`/`true` disables `/docs`, `/redoc` and `/openapi.json`. Forced on by `STRIX_ENV=production`. |
-| `STRIX_MAX_BODY_BYTES` | `1048576` | No | Hard request-body cap (413 above it). |
-| `STRIX_MAX_NESTING_DEPTH` | `10` | No | Maximum JSON container depth. |
-| `STRIX_RATE_LIMIT_DISABLED` | — | No | `1` disables rate limiting; local development only. |
-| `STRIX_REDIS_REQUIRED` | `false` | No | If `true`, fail startup if Redis is unavailable. |
+| `ISHASTRA_AUDIT_HMAC_KEY` | — | **Required in production** | HMAC-SHA256 key for audit chain integrity. Use at least 32 random bytes, store it in a secret manager, and back it up separately. Without this, the audit chain is forgeable by anyone with DB write access. |
+| `ISHASTRA_WEBHOOK_SECRET` | — | **Recommended** | Secret for webhook HMAC signatures. 32+ random bytes, base64. All webhooks share this secret. |
+| `ISHASTRA_ENCRYPTION_KEY` | — | **Required in production** | Base64 32-byte AES-GCM key. Webhook URLs and stored per-assessment authentication configs are encrypted before database writes; API keys are stored as hashes. Keep this key in a secret manager and back it up separately. Changing it without re-encrypting stored data makes that data unreadable. |
+| `ISHASTRA_TRUSTED_PROXIES` | — | No | Comma-separated trusted proxy IPs/CIDRs for `X-Forwarded-*` headers. |
+| `ISHASTRA_CORS_ORIGINS` | — | No | Comma-separated allowed CORS origins. Wildcard `*` not recommended. |
+| `ISHASTRA_DISABLE_DOCS` | `false` | No | `1`/`true` disables `/docs`, `/redoc` and `/openapi.json`. Forced on by `ISHASTRA_ENV=production`. |
+| `ISHASTRA_MAX_BODY_BYTES` | `1048576` | No | Hard request-body cap (413 above it). |
+| `ISHASTRA_MAX_NESTING_DEPTH` | `10` | No | Maximum JSON container depth. |
+| `ISHASTRA_RATE_LIMIT_DISABLED` | — | No | `1` disables rate limiting; local development only. |
+| `ISHASTRA_REDIS_REQUIRED` | `false` | No | If `true`, fail startup if Redis is unavailable. |
 
 ### Redis
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `STRIX_REDIS_URL` | `redis://localhost:6379/0` | No | Redis connection URL for shared rate limiting/cache. |
+| `ISHASTRA_REDIS_URL` | `redis://localhost:6379/0` | No | Redis connection URL for shared rate limiting/cache. |
 
 Tier limits are defined in `core/rate_limit.py`; there are no per-tier rate
 environment variables.
@@ -54,16 +54,16 @@ environment variables.
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `STRIX_RETENTION_DAYS` | `0` | No | `0` keeps everything. A positive value prunes finished jobs/findings and plain audit entries; the sealed chain is never pruned. |
+| `ISHASTRA_RETENTION_DAYS` | `0` | No | `0` keeps everything. A positive value prunes finished jobs/findings and plain audit entries; the sealed chain is never pruned. |
 
 ### Observability
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | — | No | Enable OpenTelemetry tracing (e.g., `http://localhost:4318/v1/traces`). |
-| `STRIX_LOG_LEVEL` | `INFO` | No | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
-| `STRIX_LOG_FORMAT` | `text` | No | Log format: `json` or `text`. |
-| `STRIX_WORKER_MEMORY_MB` | `1024` | No | Worker memory limit in MB; `0` disables it. |
+| `ISHASTRA_LOG_LEVEL` | `INFO` | No | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+| `ISHASTRA_LOG_FORMAT` | `text` | No | Log format: `json` or `text`. |
+| `ISHASTRA_WORKER_MEMORY_MB` | `1024` | No | Worker memory limit in MB; `0` disables it. |
 
 Optional binaries (`nmap`, `nuclei`) are discovered on `PATH`; the adapters
 report missing tools as unavailable coverage rather than clean results.
@@ -146,7 +146,7 @@ report missing tools as unavailable coverage rather than clean results.
 
 ## Engagement Policy Schema (Managed Mode)
 
-Used in `STRIX_SCOPE_MODE=managed` for multi-tenant authorization.
+Used in `ISHASTRA_SCOPE_MODE=managed` for multi-tenant authorization.
 
 ### Fields
 
@@ -204,7 +204,7 @@ can also have multiple member keys with `admin`, `analyst` or `viewer` roles via
 
 ### SQLite (Default)
 
-- **Path**: `STRIX_DB` (default: `strix.db`)
+- **Path**: `ISHASTRA_DB` (default: `ishastra.db`)
 - **Permissions**: Owner-only (0600)
 - **Mode**: Single-host, single-writer, async via `aiosqlite`
 - **Tables**: jobs, findings, assets, finding_events, finding_remediation, api_keys, audit_log, audit_chain, policies, monitor_targets, settings, assessment_schedules, and schema metadata
@@ -213,7 +213,7 @@ can also have multiple member keys with `admin`, `analyst` or `viewer` roles via
 
 ```bash
 pip install -e ".[postgres]"
-export STRIX_DATABASE_URL="postgresql://user:pass@host/db"
+export ISHASTRA_DATABASE_URL="postgresql://user:pass@host/db"
 ```
 
 > **Advanced: tested single-host, no HA.** Validated: schema migrations v1-v20,
@@ -227,13 +227,13 @@ export STRIX_DATABASE_URL="postgresql://user:pass@host/db"
 
 ## Reverse Proxy Configuration
 
-Strix speaks HTTP. Terminate TLS at the proxy:
+Ishastra speaks HTTP. Terminate TLS at the proxy:
 
 ```nginx
 # Nginx example
 server {
     listen 443 ssl http2;
-    server_name strix.example.com;
+    server_name ishastra.example.com;
 
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
@@ -248,9 +248,9 @@ server {
 }
 ```
 
-**Required Strix config:**
+**Required Ishastra config:**
 ```bash
-export STRIX_TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12"
+export ISHASTRA_TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12"
 ```
 
 ---
@@ -258,18 +258,18 @@ export STRIX_TRUSTED_PROXIES="10.0.0.0/8,172.16.0.0/12"
 ## Systemd Service (Production)
 
 ```ini
-# /etc/systemd/system/strix.service
+# /etc/systemd/system/ishastra.service
 [Unit]
-Description=Strix Security Assessment Platform
+Description=Ishastra Security Assessment Platform
 After=network.target
 
 [Service]
 Type=simple
-User=strix
-Group=strix
-WorkingDirectory=/opt/strix
-EnvironmentFile=/opt/strix/.env.production
-ExecStart=/opt/strix/.venv/bin/strix serve --host 0.0.0.0 --port 8000
+User=ishastra
+Group=ishastra
+WorkingDirectory=/opt/ishastra
+EnvironmentFile=/opt/ishastra/.env.production
+ExecStart=/opt/ishastra/.venv/bin/ishastra serve --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -279,7 +279,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/strix
+ReadWritePaths=/opt/ishastra
 
 [Install]
 WantedBy=multi-user.target
@@ -292,24 +292,24 @@ WantedBy=multi-user.target
 ```yaml
 # docker-compose.prod.yml
 services:
-  strix:
+  ishastra:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - STRIX_API_KEY=${STRIX_API_KEY}
-      - STRIX_SCOPE_FILE=/etc/strix/scope.json
-      - STRIX_SCOPE_MODE=managed
-      - STRIX_DB=/data/strix.db
-      - STRIX_AUDIT_HMAC_KEY=${STRIX_AUDIT_HMAC_KEY}
-      - STRIX_WEBHOOK_SECRET=${STRIX_WEBHOOK_SECRET}
-      - STRIX_REDIS_URL=redis://redis:6379/0
-      - STRIX_REDIS_REQUIRED=true
-      - STRIX_TRUSTED_PROXIES=172.16.0.0/12
-      - STRIX_DISABLE_DOCS=true
+      - ISHASTRA_API_KEY=${ISHASTRA_API_KEY}
+      - ISHASTRA_SCOPE_FILE=/etc/ishastra/scope.json
+      - ISHASTRA_SCOPE_MODE=managed
+      - ISHASTRA_DB=/data/ishastra.db
+      - ISHASTRA_AUDIT_HMAC_KEY=${ISHASTRA_AUDIT_HMAC_KEY}
+      - ISHASTRA_WEBHOOK_SECRET=${ISHASTRA_WEBHOOK_SECRET}
+      - ISHASTRA_REDIS_URL=redis://redis:6379/0
+      - ISHASTRA_REDIS_REQUIRED=true
+      - ISHASTRA_TRUSTED_PROXIES=172.16.0.0/12
+      - ISHASTRA_DISABLE_DOCS=true
     volumes:
-      - ./scope.json:/etc/strix/scope.json:ro
-      - strix-data:/data
+      - ./scope.json:/etc/ishastra/scope.json:ro
+      - ishastra-data:/data
     depends_on:
       - redis
     restart: unless-stopped
@@ -321,7 +321,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  strix-data:
+  ishastra-data:
   redis-data:
 ```
 
@@ -330,10 +330,10 @@ volumes:
 ## Generating Secure Keys
 
 ```bash
-# API key (for STRIX_API_KEY)
+# API key (for ISHASTRA_API_KEY)
 python -c 'import secrets; print(secrets.token_urlsafe(32))'
 
-# HMAC key (for STRIX_AUDIT_HMAC_KEY, STRIX_WEBHOOK_SECRET)
+# HMAC key (for ISHASTRA_AUDIT_HMAC_KEY, ISHASTRA_WEBHOOK_SECRET)
 python -c 'import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())'
 ```
 
@@ -341,14 +341,14 @@ python -c 'import secrets, base64; print(base64.b64encode(secrets.token_bytes(32
 
 ## Configuration Validation
 
-Strix validates configuration at startup:
+Ishastra validates configuration at startup:
 
-1. **Production mode** — `STRIX_ENV=production` fails closed without `STRIX_API_KEY`, `STRIX_AUDIT_HMAC_KEY`, and a valid base64-encoded 32-byte `STRIX_ENCRYPTION_KEY`; it also rejects debug mode and disabled rate limits, and forces API docs off.
+1. **Production mode** — `ISHASTRA_ENV=production` fails closed without `ISHASTRA_API_KEY`, `ISHASTRA_AUDIT_HMAC_KEY`, and a valid base64-encoded 32-byte `ISHASTRA_ENCRYPTION_KEY`; it also rejects debug mode and disabled rate limits, and forces API docs off.
 2. **Scope document** — loaded via `scope.load()`. Invalid = fatal (serves but refuses all scans).
 3. **Audit HMAC key** — required in production; warns if missing in development.
 4. **Webhook secret** — warns if missing (signatures unverifiable).
-5. **Redis** — fails if `STRIX_REDIS_REQUIRED=1` and unreachable.
-6. **Admin key adoption** — fails if `STRIX_API_KEY` invalid format.
+5. **Redis** — fails if `ISHASTRA_REDIS_REQUIRED=1` and unreachable.
+6. **Admin key adoption** — fails if `ISHASTRA_API_KEY` invalid format.
 
 ---
 
@@ -356,43 +356,43 @@ Strix validates configuration at startup:
 
 ```bash
 # Core
-STRIX_API_KEY=sk_admin_abc123...
-STRIX_SCOPE_FILE=/etc/strix/scope.json
-STRIX_SCOPE_MODE=managed
-STRIX_DB=/data/strix.db
-STRIX_WORKERS=1  # concurrent assessment jobs
+ISHASTRA_API_KEY=sk_admin_abc123...
+ISHASTRA_SCOPE_FILE=/etc/ishastra/scope.json
+ISHASTRA_SCOPE_MODE=managed
+ISHASTRA_DB=/data/ishastra.db
+ISHASTRA_WORKERS=1  # concurrent assessment jobs
 
 # Security
-STRIX_AUDIT_HMAC_KEY=base64_encoded_32_bytes
-STRIX_WEBHOOK_SECRET=base64_encoded_32_bytes
-STRIX_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
-STRIX_CORS_ORIGINS=https://strix.example.com
-STRIX_DISABLE_DOCS=true
+ISHASTRA_AUDIT_HMAC_KEY=base64_encoded_32_bytes
+ISHASTRA_WEBHOOK_SECRET=base64_encoded_32_bytes
+ISHASTRA_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
+ISHASTRA_CORS_ORIGINS=https://ishastra.example.com
+ISHASTRA_DISABLE_DOCS=true
 
 # Redis
-STRIX_REDIS_URL=redis://redis:6379/0
-STRIX_REDIS_REQUIRED=true
+ISHASTRA_REDIS_URL=redis://redis:6379/0
+ISHASTRA_REDIS_REQUIRED=true
 
 # Retention (0 keeps everything)
-STRIX_RETENTION_DAYS=90
+ISHASTRA_RETENTION_DAYS=90
 
 # Observability
 OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318/v1/traces
-STRIX_LOG_LEVEL=INFO
-STRIX_LOG_FORMAT=json
+ISHASTRA_LOG_LEVEL=INFO
+ISHASTRA_LOG_FORMAT=json
 ```
 ## Signed scope documents
 
-`STRIX_SCOPE_JWKS` names a JWKS file (RFC 8037 Ed25519 keys). When it is set, a
+`ISHASTRA_SCOPE_JWKS` names a JWKS file (RFC 8037 Ed25519 keys). When it is set, a
 scope document loads only if it carries a valid signature from one of those
 keys. An unsigned or tampered document is refused and the API serves with no
 active scope -- every target denied -- rather than falling back to an unsigned
 file.
 
 ```bash
-strix scope-keygen --kid 2026-11          # writes scope-signing-key.pem (0600) + scope-jwks.json
-strix scope-sign --scope scope.json --key scope-signing-key.pem --kid 2026-11
-STRIX_SCOPE_JWKS=/etc/strix/scope-jwks.json strix serve
+ishastra scope-keygen --kid 2026-11          # writes scope-signing-key.pem (0600) + scope-jwks.json
+ishastra scope-sign --scope scope.json --key scope-signing-key.pem --kid 2026-11
+ISHASTRA_SCOPE_JWKS=/etc/ishastra/scope-jwks.json ishastra serve
 ```
 
 Rotation: run `scope-key-rotate --kid 2026-12 --key scope-signing-key-2026-12.pem
@@ -411,7 +411,7 @@ schedule for your cluster before enabling it.
 ## Database field encryption
 
 Sensitive webhook URLs and persisted per-assessment authentication configs use
-AES-256-GCM field encryption with `STRIX_ENCRYPTION_KEY`. A missing key prevents
+AES-256-GCM field encryption with `ISHASTRA_ENCRYPTION_KEY`. A missing key prevents
 persisting or loading webhook sinks rather than silently writing plaintext.
 Legacy plaintext webhook URLs are encrypted on load when a key is configured;
 whole-database files and PostgreSQL pages are not encrypted by this application,
@@ -427,16 +427,16 @@ revoke_scope(path, revoked_by="sec-lead", reason="engagement ended",
 
 Signatures prove authorship, not recency: a document saved before a revocation
 would verify forever. Every signature therefore carries a signed `issued_at`, and
-`STRIX_SCOPE_MAX_AGE_SECONDS` (default 24h) bounds its age -- an older copy is
+`ISHASTRA_SCOPE_MAX_AGE_SECONDS` (default 24h) bounds its age -- an older copy is
 refused as stale. Re-sign to refresh, which `revoke_scope` and
 `extend_scope_expiry` already do when given the key.
 
-Minting a scope should bound its lifetime. `strix scope-sign` stamps
+Minting a scope should bound its lifetime. `ishastra scope-sign` stamps
 `expires_at` from `--expires-in` (default `24h`, `--no-expiry` to opt out), and
 never replaces an `expires_at` the document already sets -- signing cannot
 extend a window it did not create.
 
-`STRIX_SCOPE_INTEL_FILE` points at a JSON file read at startup to install
+`ISHASTRA_SCOPE_INTEL_FILE` points at a JSON file read at startup to install
 the ASN and GeoIP lookups, e.g.
 `{"asn": {"93.184.216.0/24": 15133}, "country": {"93.184.216.0/24": "US"}}`.
 Longest prefix wins; a malformed file stops the app from loading the scope, and
@@ -444,11 +444,11 @@ an address with no matching prefix is refused.
 
 Optional network policy lives in the same document: `allowed_asns` and
 `allowed_countries` (ISO 3166-1 alpha-2). The gate consults lookup functions the
-application installs with `strix.core.scope.register_intel(asn=..., country=...)`
+application installs with `ishastra.core.scope.register_intel(asn=..., country=...)`
 and denies with `policy_unavailable` when a policy is set without a usable
 source, so a broken or stale BGP/GeoIP table cannot widen access.
 
-Just-in-time authorization is opt-in through `STRIX_SCOPE_JIT_URL`. After the
+Just-in-time authorization is opt-in through `ISHASTRA_SCOPE_JIT_URL`. After the
 local scope allows a target, `ScopeGate.validate_outbound_async` posts the
 decision input there and treats anything other than HTTP 200 with
 `{"result": {"allow": true}}` as a denial.

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from strix.config import Settings
-from strix.core.auth import (
+from ishastra.config import Settings
+from ishastra.core.auth import (
     MultiStepAuthenticator,
     OIDCAuthenticator,
     OIDCConfig,
@@ -28,7 +28,7 @@ from strix.core.auth import (
     generate_state,
     validate_id_token,
 )
-from strix.core.store import close_database, configure, get_database
+from ishastra.core.store import close_database, configure, get_database
 
 
 @pytest_asyncio.fixture
@@ -60,10 +60,10 @@ def mock_settings():
     settings.oidc_scopes = "openid email profile"
     settings.oidc_auto_provision = True
     settings.audit_hmac_key = "test-hmac-key"
-    # SAML settings
-    settings.saml_entity_id = "https://strix.example.com/saml/metadata"
-    settings.saml_acs_url = "https://strix.example.com/saml/acs"
-    settings.saml_sls_url = "https://strix.example.com/saml/sls"
+
+    settings.saml_entity_id = "https://ishastra.example.com/saml/metadata"
+    settings.saml_acs_url = "https://ishastra.example.com/saml/acs"
+    settings.saml_sls_url = "https://ishastra.example.com/saml/sls"
     settings.saml_x509cert = "MIID...cert..."
     settings.saml_private_key = "MIIE...key..."
     settings.saml_idp_entity_id = "https://idp.example.com"
@@ -96,9 +96,9 @@ def mock_oidc_config():
 def mock_saml_config():
     """Create a valid SAMLConfig."""
     return SAMLConfig(
-        entity_id="https://strix.example.com/saml/metadata",
-        acs_url="https://strix.example.com/saml/acs",
-        sls_url="https://strix.example.com/saml/sls",
+        entity_id="https://ishastra.example.com/saml/metadata",
+        acs_url="https://ishastra.example.com/saml/acs",
+        sls_url="https://ishastra.example.com/saml/sls",
         x509cert="MIID...cert...",
         private_key="MIIE...key...",
         idp_entity_id="https://idp.example.com",
@@ -194,8 +194,8 @@ class TestSAMLConfig:
     def test_from_settings_configured(self, mock_settings):
         """Test from_settings with all settings configured."""
         config = SAMLConfig.from_settings(mock_settings)
-        assert config.entity_id == "https://strix.example.com/saml/metadata"
-        assert config.acs_url == "https://strix.example.com/saml/acs"
+        assert config.entity_id == "https://ishastra.example.com/saml/metadata"
+        assert config.acs_url == "https://ishastra.example.com/saml/acs"
         assert config.x509cert == "MIID...cert..."
         assert config.private_key == "MIIE...key..."
         assert config.idp_entity_id == "https://idp.example.com"
@@ -229,11 +229,10 @@ class TestPKCEAndStateGeneration:
     def test_generate_pkce_pair(self):
         """Test PKCE code_verifier and code_challenge generation."""
         verifier, challenge = generate_pkce_pair()
-        assert len(verifier) == 43  # token_urlsafe(32) = 43 chars
+        assert len(verifier) == 43
         assert len(challenge) > 0
-        assert "=" not in challenge  # URL-safe base64 without padding
+        assert "=" not in challenge
 
-        # Verify challenge is SHA256 of verifier
         digest = hashlib.sha256(verifier.encode()).digest()
         expected = base64.urlsafe_b64encode(digest).decode().rstrip("=")
         assert challenge == expected
@@ -241,12 +240,12 @@ class TestPKCEAndStateGeneration:
     def test_generate_state(self):
         """Test state generation."""
         state = generate_state()
-        assert len(state) == 43  # token_urlsafe(32) = 43 chars
+        assert len(state) == 43
 
     def test_generate_nonce(self):
         """Test nonce generation."""
         nonce = generate_nonce()
-        assert len(nonce) == 43  # token_urlsafe(32) = 43 chars
+        assert len(nonce) == 43
 
 
 class TestFetchOIDCConfig:
@@ -404,7 +403,6 @@ class TestValidateIDToken:
                 patch("jwt.get_unverified_header", return_value={"kid": "test-key-1"}),
                 patch("jwt.algorithms.RSAAlgorithm.from_jwk") as mock_from_jwk,
             ):
-                # Create a mock that passes isinstance check for RSAPublicKey
                 mock_key = MagicMock(spec=RSAPublicKey)
                 mock_from_jwk.return_value = mock_key
 
@@ -586,7 +584,6 @@ class TestOIDCAuthenticator:
         assert "state=" in auth_url
         assert "nonce=" in auth_url
 
-        # Verify internal state was set
         assert authenticator._code_verifier is not None
         assert authenticator._state is not None
         assert authenticator._nonce is not None
@@ -617,9 +614,9 @@ class TestOIDCAuthenticator:
         }
 
         with (
-            patch("strix.core.auth.exchange_code_for_tokens", return_value=mock_tokens),
+            patch("ishastra.core.auth.exchange_code_for_tokens", return_value=mock_tokens),
             patch(
-                "strix.core.auth.validate_id_token",
+                "ishastra.core.auth.validate_id_token",
                 return_value={
                     "sub": "user-123",
                     "email": "user@example.com",
@@ -666,7 +663,7 @@ class TestOIDCAuthenticator:
         authenticator._provider = mock_provider
         authenticator._tokens = {"access_token": "access-token-123"}
 
-        with patch("strix.core.auth.fetch_userinfo", return_value={"email": "user@example.com"}):
+        with patch("ishastra.core.auth.fetch_userinfo", return_value={"email": "user@example.com"}):
             userinfo = authenticator.get_userinfo()
             assert userinfo["email"] == "user@example.com"
 
@@ -723,7 +720,7 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_success(self, authenticator, temp_db):
         """Test successful authentication flow."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
@@ -748,12 +745,11 @@ class TestOIDCAuthenticator:
             "name": "Test User",
             "org": "Test Org",
         }
-        # Set up PKCE state required by exchange_code
+
         authenticator._state = "test-state"
         authenticator._code_verifier = "test-code-verifier"
         authenticator._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {
                 "access_token": "access-token-123",
@@ -780,7 +776,7 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_missing_claims(self, authenticator, temp_db):
         """Test authenticate fails when required claims missing."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
@@ -793,13 +789,12 @@ class TestOIDCAuthenticator:
         )
         authenticator._provider = mock_provider
         authenticator._tokens = {"access_token": "access-token-123"}
-        authenticator._claims = {"sub": "user-123"}  # Missing email
-        # Set up PKCE state required by exchange_code
+        authenticator._claims = {"sub": "user-123"}
+
         authenticator._state = "test-state"
         authenticator._code_verifier = "test-code-verifier"
         authenticator._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {"access_token": "access-token-123"}
 
@@ -817,12 +812,11 @@ class TestOIDCAuthenticator:
     @pytest.mark.asyncio
     async def test_authenticate_auto_provision_disabled(self, authenticator, temp_db):
         """Test authenticate fails when user not provisioned and auto_provision=False."""
-        from strix.core import store
+        from ishastra.core import store
 
         store.configure(temp_db)
         await store.get_database()
 
-        # Create new authenticator with auto_provision=False (config is frozen)
         auth = OIDCAuthenticator(
             issuer="https://auth.example.com",
             client_id="test-client-id",
@@ -841,12 +835,11 @@ class TestOIDCAuthenticator:
         auth._provider = mock_provider
         auth._tokens = {"access_token": "access-token-123"}
         auth._claims = {"sub": "user-123", "email": "user@example.com"}
-        # Set up PKCE state required by exchange_code
+
         auth._state = "test-state"
         auth._code_verifier = "test-code-verifier"
         auth._nonce = "test-nonce"
 
-        # Mock exchange_code to avoid network call
         def mock_exchange_code(code, state):
             return {"access_token": "access-token-123"}
 
@@ -958,14 +951,14 @@ class TestSAMLAuthenticator:
     def test_init_with_settings(self, mock_settings):
         """Test initialization with settings."""
         auth = SAMLAuthenticator(settings=mock_settings)
-        assert auth.config.entity_id == "https://strix.example.com/saml/metadata"
-        assert auth.config.acs_url == "https://strix.example.com/saml/acs"
+        assert auth.config.entity_id == "https://ishastra.example.com/saml/metadata"
+        assert auth.config.acs_url == "https://ishastra.example.com/saml/acs"
 
     def test_build_saml_settings(self, authenticator):
         """Test building SAML settings dictionary."""
         settings = authenticator._build_saml_settings()
-        assert settings["sp"]["entityId"] == "https://strix.example.com/saml/metadata"
-        assert settings["sp"]["assertionConsumerService"]["url"] == "https://strix.example.com/saml/acs"
+        assert settings["sp"]["entityId"] == "https://ishastra.example.com/saml/metadata"
+        assert settings["sp"]["assertionConsumerService"]["url"] == "https://ishastra.example.com/saml/acs"
         assert settings["idp"]["entityId"] == "https://idp.example.com"
         assert settings["idp"]["singleSignOnService"]["url"] == "https://idp.example.com/sso"
         assert settings["security"]["authnRequestsSigned"] is True
@@ -980,8 +973,8 @@ class TestSAMLAuthenticator:
         """Test get_config returns serializable config."""
         config = authenticator.get_config()
         assert config["type"] == "saml"
-        assert config["entity_id"] == "https://strix.example.com/saml/metadata"
-        assert config["acs_url"] == "https://strix.example.com/saml/acs"
+        assert config["entity_id"] == "https://ishastra.example.com/saml/metadata"
+        assert config["acs_url"] == "https://ishastra.example.com/saml/acs"
         assert config["x509cert"] == "MIID...cert..."
         assert config["private_key"] == "MIIE...key..."
         assert config["idp_entity_id"] == "https://idp.example.com"
@@ -995,8 +988,8 @@ class TestSAMLAuthenticator:
     def test_from_config(self):
         """Test creating authenticator from config dict."""
         config = {
-            "entity_id": "https://strix.example.com/saml/metadata",
-            "acs_url": "https://strix.example.com/saml/acs",
+            "entity_id": "https://ishastra.example.com/saml/metadata",
+            "acs_url": "https://ishastra.example.com/saml/acs",
             "x509cert": "MIID...cert...",
             "private_key": "MIIE...key...",
             "idp_entity_id": "https://idp.example.com",
@@ -1009,7 +1002,7 @@ class TestSAMLAuthenticator:
             "principal_id": "custom-saml",
         }
         auth = SAMLAuthenticator.from_config(config)
-        assert auth.config.entity_id == "https://strix.example.com/saml/metadata"
+        assert auth.config.entity_id == "https://ishastra.example.com/saml/metadata"
         assert auth.principal_id == "custom-saml"
 
     @pytest.mark.asyncio
@@ -1042,7 +1035,7 @@ class TestCreateAuthenticatorFromDict:
         config = {"type": "token", "bearer": "test-token", "principal_id": "test"}
         auth = create_authenticator_from_dict(config)
         assert isinstance(auth, OIDCAuthenticator) is False
-        from strix.core.auth import TokenAuthenticator
+        from ishastra.core.auth import TokenAuthenticator
 
         assert isinstance(auth, TokenAuthenticator)
 
@@ -1063,8 +1056,8 @@ class TestCreateAuthenticatorFromDict:
         """Test creating SAML authenticator."""
         config = {
             "type": "saml",
-            "entity_id": "https://strix.example.com/saml/metadata",
-            "acs_url": "https://strix.example.com/saml/acs",
+            "entity_id": "https://ishastra.example.com/saml/metadata",
+            "acs_url": "https://ishastra.example.com/saml/acs",
             "x509cert": "MIID...cert...",
             "private_key": "MIIE...key...",
             "idp_entity_id": "https://idp.example.com",
@@ -1073,7 +1066,7 @@ class TestCreateAuthenticatorFromDict:
         }
         auth = create_authenticator_from_dict(config)
         assert isinstance(auth, SAMLAuthenticator)
-        assert auth.config.entity_id == "https://strix.example.com/saml/metadata"
+        assert auth.config.entity_id == "https://ishastra.example.com/saml/metadata"
 
     def test_create_unknown_type(self):
         """Test creating unknown authenticator type fails."""
@@ -1087,7 +1080,7 @@ class TestMultiStepWithSSO:
 
     def test_multi_step_with_oidc(self, mock_oidc_config):
         """Test multi-step with OIDC step."""
-        from strix.core.auth import TokenAuthenticator
+        from ishastra.core.auth import TokenAuthenticator
 
         token_auth = TokenAuthenticator(bearer="token123", principal_id="step1")
         oidc_auth = OIDCAuthenticator(
@@ -1106,7 +1099,7 @@ class TestMultiStepWithSSO:
 
     def test_multi_step_with_saml(self, mock_saml_config):
         """Test multi-step with SAML step."""
-        from strix.core.auth import TokenAuthenticator
+        from ishastra.core.auth import TokenAuthenticator
 
         token_auth = TokenAuthenticator(bearer="token123", principal_id="step1")
         saml_auth = SAMLAuthenticator(
@@ -1143,8 +1136,8 @@ class TestMultiStepWithSSO:
                 },
                 {
                     "type": "saml",
-                    "entity_id": "https://strix.example.com/saml/metadata",
-                    "acs_url": "https://strix.example.com/saml/acs",
+                    "entity_id": "https://ishastra.example.com/saml/metadata",
+                    "acs_url": "https://ishastra.example.com/saml/acs",
                     "x509cert": "MIID...cert...",
                     "private_key": "MIIE...key...",
                     "idp_entity_id": "https://idp.example.com",

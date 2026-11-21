@@ -1,8 +1,8 @@
-"""Tests for strix.locale module."""
+"""Tests for ishastra.locale module."""
 
 from __future__ import annotations
 
-from strix.locale import (
+from ishastra.locale import (
     LOCALES,
     TemplateContext,
     format_currency,
@@ -36,7 +36,7 @@ class TestLocaleConfig:
         assert config.currency_code == "NPR"
         assert config.currency_symbol == "रू"
         assert config.date_format_short == "%Y-%m-%d"
-        assert config.number_grouping == [3, 2]  # Indian numbering
+        assert config.number_grouping == [3, 2]
         assert config.direction == "ltr"
         assert "Noto Sans Devanagari" in config.devanagari_font_family
 
@@ -44,7 +44,6 @@ class TestLocaleConfig:
         """Test resolving valid locale codes."""
         assert resolve_locale("en_US") == "en_US"
         assert resolve_locale("ne_NP") == "ne_NP"
-        # resolve_locale is case-sensitive (exact match in LOCALES dict)
 
     def test_resolve_locale_invalid_defaults_to_en(self):
         """Test invalid locale defaults to en_US."""
@@ -72,7 +71,7 @@ class TestNPRCurrencyFormatting:
 
     def test_format_currency_npr_basic(self):
         """Test basic NPR formatting."""
-        # Default uses Arabic numerals, use_nepali_digits=True for Devanagari
+
         assert "रू" in format_currency(0, "ne_NP")
         assert "रू" in format_currency(1, "ne_NP")
         assert "रू" in format_currency(100, "ne_NP")
@@ -107,7 +106,7 @@ class TestNPRCurrencyFormatting:
     def test_format_currency_with_nepali_digits(self):
         """Test NPR formatting with Devanagari digits."""
         result = format_currency(100000, "ne_NP", use_nepali_digits=True)
-        # Should contain Devanagari digits
+
         assert any(c in "०१२३४५६७८९" for c in result)
 
 
@@ -130,13 +129,12 @@ class TestBikramSambatDateFormatting:
 
         dt = datetime(2024, 1, 1)
         bs_date = format_date(dt, "ne_NP", use_nepali_digits=True)
-        # Should contain Devanagari digits
+
         assert any(c in "०१२३४५६७८९" for c in bs_date)
 
     def test_format_date_bs_invalid_input(self):
         """Test invalid date input."""
-        # Should handle gracefully - function expects datetime, not string
-        # Just test that it works with valid datetime objects
+
         from datetime import date
 
         result = format_date(date(2024, 1, 1), "ne_NP")
@@ -155,7 +153,7 @@ class TestDevanagariDigits:
 
     def test_to_devanagari_digits_mixed(self):
         """Test mixed numbers with digits."""
-        # ne_NP uses Indian numbering system with grouping (1000 -> 1,000)
+
         assert format_number(100, "ne_NP", use_nepali_digits=True) == "१००"
         assert format_number(2024, "ne_NP", use_nepali_digits=True) == "२,०२४"
 
@@ -164,6 +162,6 @@ class TestDevanagariDigits:
 
     def test_to_devanagari_digits_special_chars(self):
         """Test with special characters."""
-        # ne_NP uses Indian grouping and decimals
+
         assert format_number(1000.5, "ne_NP", use_nepali_digits=True, decimals=1) == "१,०००.५"
         assert format_number(-100, "ne_NP", use_nepali_digits=True) == "-१००"

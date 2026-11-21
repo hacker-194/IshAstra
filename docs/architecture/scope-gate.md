@@ -2,7 +2,7 @@
 
 # Scope Gate Architecture
 
-Deep dive into the authorization engine that makes Strix unique.
+Deep dive into the authorization engine that makes Ishastra unique.
 
 ## Overview
 
@@ -21,7 +21,7 @@ The Scope Gate is a **default-deny authorization layer** that validates every ou
 │  │        │                │                     │               │ │
 │  │        ▼                ▼                     ▼               │ │
 │  │  ┌─────────────────────────────────────────────────────────┐  │ │
-│  │  │              Observer (Strix Proof)                      │  │ │
+│  │  │              Observer (Ishastra Proof)                      │  │ │
 │  │  │  Receipts: grant → gate → proof → verify                │  │ │
 │  │  └─────────────────────────────────────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────────┘ │
@@ -36,7 +36,7 @@ The Scope Gate is a **default-deny authorization layer** that validates every ou
 
 ## Layer 1: URL/Host Gate
 
-**File**: `src/strix/core/scope.py` — `_authorize_sync()` lines 504-543
+**File**: `src/ishastra/core/scope.py` — `_authorize_sync()` lines 504-543
 
 ### Checks Performed
 
@@ -97,7 +97,7 @@ def _authorize_sync(url: str, scope: ScopeDocument) -> AuthResult:
 
 ## Layer 2: DNS/IP Policy
 
-**File**: `src/strix/core/scope.py` — `_authorize()` lines 558-600
+**File**: `src/ishastra/core/scope.py` — `_authorize()` lines 558-600
 
 ### Checks Performed
 
@@ -166,7 +166,7 @@ Attacker controls example.com DNS:
   T=60: example.com → 169.254.169.254 (AWS metadata - DENIED by special-use)
   T=120: example.com → 127.0.0.1 (loopback - DENIED)
 
-Strix resolves ONCE at Layer 2, pins ALL IPs, validates ALL.
+Ishastra resolves ONCE at Layer 2, pins ALL IPs, validates ALL.
 If any IP fails → entire host DENIED.
 ```
 
@@ -180,7 +180,7 @@ If any IP fails → entire host DENIED.
 
 ## Layer 3: Pinned Destination
 
-**File**: `src/strix/core/scope.py` — `ScopeGate.validate_outbound()` lines 1128-1172
+**File**: `src/ishastra/core/scope.py` — `ScopeGate.validate_outbound()` lines 1128-1172
 
 ### Purpose
 
@@ -253,7 +253,7 @@ async def fetch(url: str, scope: ScopeDocument) -> Response:
 
 ## ContextVar Isolation (Multi-Tenancy)
 
-**File**: `src/strix/core/scope.py` — `ScopeContext` class lines 200-280
+**File**: `src/ishastra/core/scope.py` — `ScopeContext` class lines 200-280
 
 ### Problem
 
@@ -296,9 +296,9 @@ async def run_assessment(assessment: Assessment):
 
 ---
 
-## Observer Pattern (Strix Proof)
+## Observer Pattern (Ishastra Proof)
 
-**File**: `src/strix/core/scope.py` — `GateObserver` protocol lines 100-150
+**File**: `src/ishastra/core/scope.py` — `GateObserver` protocol lines 100-150
 
 ### Purpose
 
@@ -332,10 +332,10 @@ class CheckContext:
     metadata: dict         # Custom fields
 ```
 
-### Built-in Observer: StrixProofObserver
+### Built-in Observer: IshastraProofObserver
 
 ```python
-class StrixProofObserver:
+class IshastraProofObserver:
     def __init__(self, signer: Ed25519Signer, storage: ProofStorage):
         self.signer = signer
         self.storage = storage
@@ -546,10 +546,10 @@ pytest tests/benchmarks/test_scope_gate_bench.py --benchmark-only
 
 ```python
 import logging
-logging.getLogger("strix.core.scope").setLevel(logging.DEBUG)
+logging.getLogger("ishastra.core.scope").setLevel(logging.DEBUG)
 
 # Or via env
-STRIX_LOG_LEVEL=DEBUG
+ISHASTRA_LOG_LEVEL=DEBUG
 ```
 
 Shows: Layer decisions, DNS resolution, IP matching, pinned destination selection.

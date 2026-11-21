@@ -9,8 +9,8 @@ Complete API reference for building custom adapters.
 ### BaseAdapter
 
 ```python
-from strix.core.adapters import BaseAdapter, AdapterConfig, Finding
-from strix.core.scope import Severity, Destination, ScopeDocument
+from ishastra.core.adapters import BaseAdapter, AdapterConfig, Finding
+from ishastra.core.scope import Severity, Destination, ScopeDocument
 from typing import AsyncIterator
 
 class BaseAdapter(ABC):
@@ -220,10 +220,10 @@ class CheckContext:
     metadata: dict                # Custom fields
 ```
 
-### StrixProofObserver
+### IshastraProofObserver
 
 ```python
-class StrixProofObserver:
+class IshastraProofObserver:
     def __init__(
         self,
         signer: Ed25519PrivateKey,
@@ -250,7 +250,7 @@ class StrixProofObserver:
 ### Adapter Registry
 
 ```python
-from strix.core.adapters import adapter_registry
+from ishastra.core.adapters import adapter_registry
 
 # Register custom adapter
 adapter_registry.register(MyAdapter)
@@ -272,7 +272,7 @@ exists = adapter_registry.has("my_adapter")
 ### run_adapter_safely
 
 ```python
-from strix.core.adapters import run_adapter_safely
+from ishastra.core.adapters import run_adapter_safely
 
 findings = await run_adapter_safely(
     adapter_class=MyAdapter,
@@ -285,7 +285,7 @@ findings = await run_adapter_safely(
 ### parse_target_url
 
 ```python
-from strix.core.adapters import parse_target_url
+from ishastra.core.adapters import parse_target_url
 
 parsed = parse_target_url("https://api.example.com:8443/path?query=1")
 # Returns ParsedURL(scheme="https", host="api.example.com", port=8443, path="/path", query="query=1")
@@ -294,7 +294,7 @@ parsed = parse_target_url("https://api.example.com:8443/path?query=1")
 ### build_finding_id
 
 ```python
-from strix.core.adapters import build_finding_id
+from ishastra.core.adapters import build_finding_id
 
 fid = build_finding_id("my_adapter", "weak_cipher", "aes128-cbc")
 # Returns "MY_ADAPTER-WEAK_CIPHER-AES128_CBC"
@@ -345,7 +345,7 @@ references = [
     "https://cwe.mitre.org/data/definitions/XXX.html",  # CWE
     "https://owasp.org/www-community/...",               # OWASP
     "https://nvd.nist.gov/vuln/detail/CVE-XXXX-XXXX",   # CVE
-    "https://strix.dev/findings/ADAPTER-TYPE-VULN",     # Strix finding docs
+    "https://ishastra.dev/findings/ADAPTER-TYPE-VULN",     # Ishastra finding docs
 ]
 ```
 
@@ -407,7 +407,7 @@ scope_options = self.scope.adapter_options.get("my_adapter", {})
 ### Standard Exceptions
 
 ```python
-from strix.core.adapters import (
+from ishastra.core.adapters import (
     AdapterError,
     AuthorizationError,
     ResolutionError,
@@ -510,7 +510,7 @@ async def _fetch_all_pages(self, base_url: str):
 
 ```python
 from unittest.mock import AsyncMock
-from strix.core.scope import Destination
+from ishastra.core.scope import Destination
 
 def create_mock_gate(dest_ip="10.0.0.50"):
     gate = AsyncMock()
@@ -534,8 +534,8 @@ def create_test_config(
     options={},
     scope_id="test-scope"
 ):
-    from strix.core.scope import ScopeDocument, ScopeMetadata
-    from strix.core.adapters import AdapterConfig
+    from ishastra.core.scope import ScopeDocument, ScopeMetadata
+    from ishastra.core.adapters import AdapterConfig
     
     scope = ScopeDocument(
         version=2,
@@ -555,7 +555,7 @@ def create_test_config(
 
 ## Version Compatibility
 
-| Strix Version | SDK Version | Notes |
+| Ishastra Version | SDK Version | Notes |
 |---------------|-------------|-------|
 | 3.5.x | 1.0.x | Current |
 | 3.4.x | 0.9.x | Legacy |
@@ -564,8 +564,8 @@ def create_test_config(
 Check compatibility:
 
 ```python
-import strix
-print(strix.__version__)  # "3.5.0"
+import ishastra
+print(ishastra.__version__)  # "3.5.0"
 ```
 
 ---

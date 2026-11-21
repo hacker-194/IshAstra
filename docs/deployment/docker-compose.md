@@ -12,8 +12,8 @@ horizontal scale.
 
 | Service | Purpose | Port (loopback) |
 |---------|---------|-----------------|
-| `scope-gate` | The Strix API/worker process (FastAPI + in-process queue) | `127.0.0.1:8000` |
-| `postgres` | Database (`STRIX_DATABASE_URL`) | `127.0.0.1:5432` |
+| `scope-gate` | The Ishastra API/worker process (FastAPI + in-process queue) | `127.0.0.1:8000` |
+| `postgres` | Database (`ISHASTRA_DATABASE_URL`) | `127.0.0.1:5432` |
 | `redis` | Shared rate-limit counters | `127.0.0.1:6379` |
 | `nginx` | Reverse proxy on 80/443 | public |
 | `prometheus` | Metrics scrape | `127.0.0.1:9090` |
@@ -21,9 +21,9 @@ horizontal scale.
 | `jaeger` | OTLP tracing UI | `127.0.0.1:16686` |
 | `keycloak` | Optional local IdP (`--profile sso`) | `127.0.0.1:8180` |
 
-There is deliberately **one** Strix process: the worker takes an exclusive
+There is deliberately **one** Ishastra process: the worker takes an exclusive
 lease on the database, so a second process would refuse to start. Scale with
-`STRIX_WORKERS`, not replicas.
+`ISHASTRA_WORKERS`, not replicas.
 
 ## Run it
 
@@ -34,7 +34,7 @@ cp .env.production.example .env.production
 
 # One-time scope setup
 docker compose --env-file .env.production run --rm scope-gate \
-  strix scope-wizard --output /etc/strix/scopes/scope.json
+  ishastra scope-wizard --output /etc/ishastra/scopes/scope.json
 
 docker compose --env-file .env.production up -d --build
 docker compose ps
@@ -43,7 +43,7 @@ curl -fsS http://127.0.0.1:8000/api/ready
 
 Health endpoints are `/api/health` (liveness) and `/api/ready` (database,
 audit chain, scope document, admin key). Both are unauthenticated; everything
-else needs `Authorization: Bearer $STRIX_API_KEY`.
+else needs `Authorization: Bearer $ISHASTRA_API_KEY`.
 
 ## Configuration
 
@@ -53,12 +53,12 @@ Compose reads these from the environment / `.env.production`:
 |----------|---------|
 | `POSTGRES_PASSWORD` | Database password (default is dev-only) |
 | `GRAFANA_PASSWORD` | Grafana admin password (default `admin`, loopback only) |
-| `STRIX_API_KEY` | Admin API key |
-| `STRIX_AUDIT_HMAC_KEY` | Audit-chain sealing key |
-| `STRIX_ENCRYPTION_KEY` | AES-GCM key for secrets at rest |
-| `STRIX_SCOPE_DIR` / `STRIX_SCOPE_JWKS` | Signed scope documents and public keys |
+| `ISHASTRA_API_KEY` | Admin API key |
+| `ISHASTRA_AUDIT_HMAC_KEY` | Audit-chain sealing key |
+| `ISHASTRA_ENCRYPTION_KEY` | AES-GCM key for secrets at rest |
+| `ISHASTRA_SCOPE_DIR` / `ISHASTRA_SCOPE_JWKS` | Signed scope documents and public keys |
 
-For anything reachable beyond localhost, set `STRIX_ENV=production`, terminate
+For anything reachable beyond localhost, set `ISHASTRA_ENV=production`, terminate
 TLS at `nginx` (see `deploy/nginx/conf.d/tls.conf.example`), and keep the
 database and Redis bound to loopback — the compose file already does.
 
@@ -66,7 +66,7 @@ database and Redis bound to loopback — the compose file already does.
 
 ```bash
 docker compose logs -f scope-gate     # JSON logs
-docker compose exec postgres pg_dump -U strix strix | gzip > backup-$(date +%F).sql.gz
+docker compose exec postgres pg_dump -U ishastra ishastra | gzip > backup-$(date +%F).sql.gz
 docker compose restart scope-gate     # SIGTERM is graceful and bounded
 ```
 
@@ -83,4 +83,4 @@ afterwards.
 
 For the production checklist and topology table, read
 [Production deployment](../quickstart/production.md). For the operator runbook, read
-[`DEPLOYMENT.md`](../../DEPLOYMENT.md).
+[`DEPLOYMENT.md`](https://github.com/ishastra/ishastra/blob/master/DEPLOYMENT.md).

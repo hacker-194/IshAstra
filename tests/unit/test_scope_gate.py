@@ -1,10 +1,10 @@
-"""Unit tests for Strix ScopeGate (default-deny authorization gate)."""
+"""Unit tests for Ishastra ScopeGate (default-deny authorization gate)."""
 
 from unittest.mock import patch
 
 import pytest
 
-from strix.core.scope import (
+from ishastra.core.scope import (
     Scope,
     ScopeGate,
     ValidationResult,
@@ -87,7 +87,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_allowed_target(self):
         """Valid target returns allowed=True with details."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert isinstance(result, ValidationResult)
@@ -171,7 +171,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_allowed_wildcard_subdomain(self):
         """Wildcard subdomain match returns allowed=True."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://api.example.com/", self.scope)
 
         assert result.allowed is True
@@ -180,7 +180,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_denied_wildcard_not_apex(self):
         """Wildcard *.example.com does not match apex example.com."""
-        # Create scope with ONLY wildcard, not apex
+
         scope = configure(
             program="Wildcard Test",
             authorized_by="Test",
@@ -195,7 +195,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_denied_unauthorized_network(self):
         """Host resolving to unauthorized network returns allowed=False."""
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -205,7 +205,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_allowed_authorized_network(self):
         """Host resolving to authorized network returns allowed=True."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is True
@@ -214,7 +214,7 @@ class TestScopeGateValidateOutbound:
     def test_validate_outbound_denied_special_use_address(self):
         """Host resolving to special-use address returns allowed=False."""
         for ip in ["127.0.0.1", "192.168.1.1", "10.0.0.1", "169.254.1.1", "224.0.0.1"]:
-            with patch("strix.core.scope.resolve_sync", return_value=[ip]):
+            with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
                 result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
             assert result.allowed is False, f"IP {ip} should be denied"
@@ -231,7 +231,7 @@ class TestScopeGateValidateOutbound:
             authorized_networks=[],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             result = ScopeGate.validate_outbound("https://example.com/", legacy_scope)
 
         assert result.allowed is True
@@ -239,7 +239,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_denied_resolution_failed(self):
         """DNS resolution failure returns allowed=False with resolution_failed."""
-        with patch("strix.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -249,8 +249,8 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_denied_ipv6_embedded_private(self):
         """IPv6 with embedded private IPv4 returns allowed=False."""
-        # NAT64 embedding 10.0.0.1
-        with patch("strix.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+
+        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -280,7 +280,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_includes_resolved_ips_on_denial(self):
         """Denied result includes resolved IPs for debugging."""
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1", "192.168.1.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1", "192.168.1.1"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -296,7 +296,7 @@ class TestScopeGateValidateOutbound:
             authorized_networks=["192.0.2.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["192.0.2.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["192.0.2.1"]):
             result = ScopeGate.validate_outbound("http://192.0.2.1/", scope_with_ip)
 
         assert result.allowed is True
@@ -309,10 +309,10 @@ class TestScopeGateValidateOutbound:
             authorized_by="Test",
             authorization_ref="IP-002",
             include=["8.8.8.8"],
-            authorized_networks=["10.0.0.0/8"],  # 8.8.8.8 not in this
+            authorized_networks=["10.0.0.0/8"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             result = ScopeGate.validate_outbound("http://8.8.8.8/", scope_with_ip)
 
         assert result.allowed is False
@@ -320,7 +320,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_multiple_ips_one_unauthorized(self):
         """If ANY resolved IP is unauthorized, target is denied."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -353,14 +353,14 @@ class TestScopeGateValidateOutbound:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
 
         assert result.allowed is True
 
     def test_validate_outbound_trailing_dot(self):
         """Trailing dots in hostnames are handled correctly."""
-        # Both include and URL have trailing dot
+
         scope = configure(
             program="Test",
             authorized_by="Test",
@@ -369,14 +369,14 @@ class TestScopeGateValidateOutbound:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com./", scope)
 
         assert result.allowed is True
 
     def test_validate_outbound_http_default_port_80(self):
         """HTTP defaults to port 80."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("http://example.com/", self.scope)
 
         assert result.allowed is True
@@ -384,7 +384,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_https_default_port_443(self):
         """HTTPS defaults to port 443."""
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is True
@@ -392,7 +392,7 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_explicit_port(self):
         """Explicit port in URL is used."""
-        # Scope allows 8443
+
         scope = configure(
             program="Port Test",
             authorized_by="Test",
@@ -401,7 +401,7 @@ class TestScopeGateValidateOutbound:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443, 8443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com:8443/", scope)
 
         assert result.allowed is True
@@ -414,8 +414,6 @@ class TestScopeGateDefaultDeny:
     def test_no_scope_configured_denies_all(self):
         """When no scope is configured, all targets are denied."""
 
-        # First configure a scope, then we can't easily unset it
-        # But we can test the logic directly
         scope = Scope(
             program="Test",
             authorized_by="Test",
@@ -425,12 +423,10 @@ class TestScopeGateDefaultDeny:
             allowed_ports=[80, 443],
         )
 
-        # Valid target allowed
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
             assert result.allowed is True
 
-        # Invalid target denied
         result = ScopeGate.validate_outbound("https://other.com/", scope)
         assert result.allowed is False
 
@@ -486,7 +482,7 @@ class TestScopeGatePortRestrictions:
     def test_allowed_ports(self):
         """Allowed ports return allowed=True."""
         for port, scheme in [(80, "http"), (443, "https"), (8080, "http"), (8443, "https")]:
-            with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+            with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
                 result = ScopeGate.validate_outbound(f"{scheme}://example.com:{port}/", self.scope)
             assert result.allowed is True, f"Port {port} should be allowed"
             assert result.port == port
@@ -508,7 +504,7 @@ class TestScopeGatePortRestrictions:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
             for port in [80, 443, 8080, 9999, 65535]:
                 result = ScopeGate.validate_outbound(f"https://example.com:{port}/", legacy_scope)
                 assert result.allowed is True, f"Port {port} should be allowed with empty allowed_ports"
@@ -527,7 +523,7 @@ class TestScopeGateAuthorizedNetworks:
             authorized_networks=["10.0.0.0/8"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
         assert result.allowed is True
         assert result.resolved_ips == ("10.0.0.1",)
@@ -542,7 +538,7 @@ class TestScopeGateAuthorizedNetworks:
             authorized_networks=["10.0.0.0/8"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
         assert result.allowed is False
         assert result.denial_code == "out_of_scope"
@@ -558,7 +554,7 @@ class TestScopeGateAuthorizedNetworks:
             allowed_ports=[80, 443],
         )
         for ip in ["10.0.0.1", "192.168.1.1"]:
-            with patch("strix.core.scope.resolve_sync", return_value=[ip]):
+            with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
                 result = ScopeGate.validate_outbound("https://example.com/", scope)
             assert result.allowed is True, f"IP {ip} should be allowed"
 
@@ -572,7 +568,7 @@ class TestScopeGateAuthorizedNetworks:
             authorized_networks=["2001:db8::/32"],
             allowed_ports=[80, 443],
         )
-        with patch("strix.core.scope.resolve_sync", return_value=["2001:db8::1"]):
+        with patch("ishastra.core.scope.resolve_sync", return_value=["2001:db8::1"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
         assert result.allowed is True
         assert result.resolved_ips == ("2001:db8::1",)
@@ -604,7 +600,7 @@ class TestScopeGateEdgeCases:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        # Various invalid inputs should not raise
+
         for url in ["", "not a url", "http://", "ftp://example.com/"]:
             result = ScopeGate.validate_outbound(url, scope)
             assert isinstance(result, ValidationResult)

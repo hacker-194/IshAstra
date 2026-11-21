@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-"""Detection benchmark for Strix: deterministic, reproducible evaluation against
+"""Detection benchmark for Ishastra: deterministic, reproducible evaluation against
 the loopback lab target.
 
-This script runs the oracle-based detection evaluation (python -m strix.lab)
+This script runs the oracle-based detection evaluation (python -m ishastra.lab)
 and outputs structured JSON results that can be compared across runs.
 
 It measures detection rates for common vulnerability classes:
@@ -27,10 +26,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-# Ensure src is in path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from strix.lab.evaluate import EvaluationRun, run_evaluation
+from ishastra.lab.evaluate import EvaluationRun, run_evaluation
 
 VULNERABILITY_CLASSES = [
     "xss",
@@ -48,7 +46,6 @@ def build_class_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict[st
     cases = oracle.get("cases", [])
     class_map: dict[str, dict[str, Any]] = {}
 
-    # Initialize all vulnerability classes
     for vuln_class in VULNERABILITY_CLASSES:
         class_map[vuln_class] = {
             "positives_expected": 0,
@@ -62,14 +59,12 @@ def build_class_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict[st
             "cases": [],
         }
 
-    # Process each case
     for case in cases:
         category = case.get("category", "")
         categories = category if isinstance(category, list) else [category]
 
         for cat in categories:
             if cat not in class_map:
-                # Track unknown categories (including "*" which represents all categories)
                 class_map[cat] = {
                     "positives_expected": 0,
                     "positives_measured": 0,
@@ -85,7 +80,7 @@ def build_class_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict[st
             expect = case.get("expect", False)
             case_id = case["id"]
             assigned = run.assigned.get(case_id, [])
-            # unmeasured_cases contains case IDs, not categories
+
             unmeasured_case_ids = run.metrics.get("unmeasured_cases", [])
             is_measured = case_id not in unmeasured_case_ids
 
@@ -111,7 +106,6 @@ def build_class_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict[st
                 if assigned and is_measured:
                     class_map[cat]["false_positives"] += 1
 
-    # Calculate per-class metrics
     for _cat, data in class_map.items():
         tp = data["true_positives"]
         fp = data["false_positives"]
@@ -149,14 +143,12 @@ def build_detector_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict
             detector_map[detector]["categories"].add(finding.category)
             detector_map[detector]["verification_levels"].add(finding.verification)
 
-            # Check if this finding matches an expected positive case
             case = next((c for c in oracle.get("cases", []) if c["id"] == case_id), None)
             if case and case.get("expect") is True:
                 detector_map[detector]["true_positives"] += 1
             elif case and case.get("expect") is False:
                 detector_map[detector]["false_positives"] += 1
 
-    # Convert sets to lists for JSON serialization
     for _detector, data in detector_map.items():
         data["categories"] = sorted(data["categories"])
         data["verification_levels"] = sorted(data["verification_levels"])
@@ -167,7 +159,7 @@ def build_detector_breakdown(run: EvaluationRun, oracle: dict[str, Any]) -> dict
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="python scripts/detection_benchmark.py",
-        description="Run deterministic detection benchmark against the Strix loopback lab.",
+        description="Run deterministic detection benchmark against the Ishastra loopback lab.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -247,10 +239,9 @@ Examples:
     args = parser.parse_args()
 
     if args.version:
-        print("Strix Detection Benchmark v1.1.0 (oracle 1.1.0)")
+        print("Ishastra Detection Benchmark v1.1.0 (oracle 1.1.0)")
         return 0
 
-    # Determine tool inclusion flags
     include_nuclei = args.include_nuclei and not args.no_nuclei
     include_nmap = args.include_nmap and not args.no_nmap
 
@@ -277,16 +268,13 @@ Examples:
         print(f"ERROR: Evaluation failed: {exc}", file=sys.stderr)
         return 2
 
-    # Load oracle for additional analysis
-    from strix.lab.evaluate import load_oracle
+    from ishastra.lab.evaluate import load_oracle
 
     oracle = load_oracle()
 
-    # Build detailed breakdowns
     class_breakdown = build_class_breakdown(run, oracle)
     detector_breakdown = build_detector_breakdown(run, oracle)
 
-    # Build final result structure
     result = {
         "benchmark_version": "1.1.0",
         "oracle_version": run.oracle_version,
@@ -310,7 +298,6 @@ Examples:
         "notes": run.notes,
     }
 
-    # Add threshold assessment
     metrics = run.metrics
     threshold_passed = True
     threshold_failures = []
@@ -338,12 +325,10 @@ Examples:
         "allow_unmeasured": args.allow_unmeasured,
     }
 
-    # Write output
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"\nResults written to: {args.output}")
 
-    # Print human-readable summary
     print("\n" + "=" * 60)
     print("DETECTION BENCHMARK SUMMARY")
     print("=" * 60)

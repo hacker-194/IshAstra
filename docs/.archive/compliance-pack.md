@@ -1,6 +1,6 @@
 # Compliance Pack Guide
 
-Strix generates **compliance evidence packs** mapped to regulatory frameworks. This guide covers the supported frameworks, evidence structure, and how to use them for audits.
+Ishastra generates **compliance evidence packs** mapped to regulatory frameworks. This guide covers the supported frameworks, evidence structure, and how to use them for audits.
 
 ---
 
@@ -77,19 +77,19 @@ Each compliance pack is a JSON document containing:
 ### Via CLI
 ```bash
 # Generate NRB evidence pack
-strix evidence --target https://ibank.examplebank.com --framework NRB --output nrb-evidence.json
+ishastra evidence --target https://ibank.examplebank.com --framework NRB --output nrb-evidence.json
 
 # Generate NTA evidence pack
-strix evidence --target https://api.telecom.com --framework NTA --output nta-evidence.json
+ishastra evidence --target https://api.telecom.com --framework NTA --output nta-evidence.json
 
 # Generate NCSP evidence pack
-strix evidence --target https://critical.gov.np --framework NCSP --output ncsp-evidence.json
+ishastra evidence --target https://critical.gov.np --framework NCSP --output ncsp-evidence.json
 ```
 
 ### Via API
 ```bash
 curl -X POST http://localhost:8000/api/evidence \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "target": "https://ibank.examplebank.com",
@@ -102,7 +102,7 @@ curl -X POST http://localhost:8000/api/evidence \
 ```bash
 # Generate pack from completed job
 curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
-  -H "Authorization: Bearer $STRIX_API_KEY" \
+  -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   -o nrb-evidence.json
 ```
 
@@ -112,7 +112,7 @@ curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
 
 ### Directive 7/074 - Information Security Policy
 
-| Control ID | Control Title | Strix Finding Categories |
+| Control ID | Control Title | Ishastra Finding Categories |
 |------------|---------------|-------------------------|
 | NRB-7.1 | Information Security Policy | Policy documentation findings |
 | NRB-7.2 | Network Security | `missing_hsts`, `missing_csp`, `weak_tls_config` |
@@ -123,7 +123,7 @@ curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
 
 ### Directive 8/075 - Cyber Resilience Framework
 
-| Control ID | Control Title | Strix Finding Categories |
+| Control ID | Control Title | Ishastra Finding Categories |
 |------------|---------------|-------------------------|
 | NRB-8.1 | Identify | Asset exposure (`git_exposure`, `open_tcp_port`) |
 | NRB-8.1.4 | Transport encryption | `missing_hsts`, `weak_tls_config` |
@@ -134,7 +134,7 @@ curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
 
 ### Directive 11/076 - Digital Banking Security
 
-| Control ID | Control Title | Strix Finding Categories |
+| Control ID | Control Title | Ishastra Finding Categories |
 |------------|---------------|-------------------------|
 | NRB-11.2 | API Security | `auth_bypass`, `idor`, `rate_limit_bypass`, `broken_object_auth` |
 | NRB-11.3 | Mobile App Security | `insecure_storage`, `weak_certificate_pinning` |
@@ -146,7 +146,7 @@ curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
 
 ### Cybersecurity Byelaw 2078
 
-| Control ID | Control Title | Strix Finding Categories |
+| Control ID | Control Title | Ishastra Finding Categories |
 |------------|---------------|-------------------------|
 | NTA-4.1 | Network perimeter security | `open_tcp_port`, `service_exposure`, `banner_disclosure` |
 | NTA-4.2 | Secure configuration | `missing_hsts`, `weak_cipher_suite`, `default_credentials` |
@@ -162,7 +162,7 @@ curl -X GET http://localhost:8000/api/assess/job_abc123/evidence?framework=NRB \
 
 ### National Cyber Security Policy 2080
 
-| Control ID | Control Title | Strix Finding Categories |
+| Control ID | Control Title | Ishastra Finding Categories |
 |------------|---------------|-------------------------|
 | NCSP-3.1 | Critical infrastructure protection | `scada_exposure`, `ics_protocol_exposure` |
 | NCSP-3.2 | Network security monitoring | `missing_hsts`, `weak_tls`, `open_management_port` |
@@ -208,7 +208,7 @@ Each finding includes `compliance_refs` array mapping to framework controls:
 
 ### Adding Custom Mappings
 
-Extend `src/strix/core/evidence.py`:
+Extend `src/ishastra/core/evidence.py`:
 
 ```python
 COMPLIANCE_MAPPINGS = {
@@ -249,7 +249,7 @@ Every evidence pack includes integrity verification:
 
 Verify offline:
 ```bash
-# Using Strix Proof verification
+# Using Ishastra Proof verification
 curl -X POST http://localhost:8000/api/proof/verify \
   -H "Content-Type: application/json" \
   -d '{"proof": <evidence_pack_proof>}'
@@ -308,19 +308,19 @@ curl -X POST http://localhost:8000/api/proof/verify \
 
 ### Export for RSA Archer
 ```bash
-strix evidence --target https://example.com --framework NRB \
+ishastra evidence --target https://example.com --framework NRB \
   --format archer --output archer-import.json
 ```
 
 ### Export for ServiceNow GRC
 ```bash
-strix evidence --target https://example.com --framework NTA \
+ishastra evidence --target https://example.com --framework NTA \
   --format servicenow --output sn-import.json
 ```
 
 ### Custom Format
 ```python
-from strix.core.evidence import generate_evidence_pack
+from ishastra.core.evidence import generate_evidence_pack
 
 pack = generate_evidence_pack(
     target="https://example.com",
@@ -355,14 +355,14 @@ curl -X POST http://localhost:8000/api/alerts/webhook \
   -H "Authorization: Bearer $ADMIN_KEY" \
   -d '{
     "name": "grc-evidence-push",
-    "url": "https://grc.example.com/api/strix/evidence"
+    "url": "https://grc.example.com/api/ishastra/evidence"
   }'
 ```
 
 ### Retention Policy
-Evidence packs follow `STRIX_RETENTION_DAYS` (default 90 days). For compliance, configure longer retention:
+Evidence packs follow `ISHASTRA_RETENTION_DAYS` (default 90 days). For compliance, configure longer retention:
 ```bash
-export STRIX_RETENTION_DAYS=2555  # 7 years for regulatory compliance
+export ISHASTRA_RETENTION_DAYS=2555  # 7 years for regulatory compliance
 ```
 
 ---

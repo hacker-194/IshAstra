@@ -1,8 +1,8 @@
-# Strix K8s Jobs-Based Queue Architecture
+# Ishastra K8s Jobs-Based Queue Architecture
 
 ## Overview
 
-Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment execution. Each assessment runs in an isolated pod with the `strix-assessment` image, writing results directly to PostgreSQL.
+Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment execution. Each assessment runs in an isolated pod with the `ishastra-assessment` image, writing results directly to PostgreSQL.
 
 ---
 
@@ -14,7 +14,7 @@ Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment executio
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────────────────────┐
-│   Client     │────▶│  Strix API   │────▶│  PostgreSQL (jobs, findings)     │
+│   Client     │────▶│  Ishastra API   │────▶│  PostgreSQL (jobs, findings)     │
 │  (REST)      │     │  (FastAPI)   │     │  + Advisory Lock (lease)         │
 └──────────────┘     └──────┬───────┘     └──────────────────────────────────┘
                             │
@@ -36,10 +36,10 @@ Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment executio
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         KUBERNETES CLUSTER                                    │
 │  ┌─────────────────────────────────────────────────────────────────────────┐ │
-│  │                    NAMESPACE: strix-assessments                          │ │
+│  │                    NAMESPACE: ishastra-assessments                          │ │
 │  │                                                                         │ │
 │  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │ │
-│  │  │  Job: strix-    │  │  Job: strix-    │  │  Job: strix-            │  │ │
+│  │  │  Job: ishastra-    │  │  Job: ishastra-    │  │  Job: ishastra-            │  │ │
 │  │  │  assess-abc123  │  │  assess-def456  │  │  assess-ghi789          │  │ │
 │  │  │                 │  │                 │  │                         │  │ │
 │  │  │  runtimeClass:  │  │  runtimeClass:  │  │  runtimeClass:          │  │ │
@@ -47,7 +47,7 @@ Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment executio
 │  │  │                 │  │                 │  │                         │  │ │
 │  │  │  ┌───────────┐  │  │  ┌───────────┐  │  │  ┌───────────┐          │  │ │
 │  │  │  │ Container │  │  │  │ Container │  │  │  │ Container │          │  │ │
-│  │  │  │ strix-    │  │  │  │ strix-    │  │  │  │ strix-    │          │  │ │
+│  │  │  │ ishastra-    │  │  │  │ ishastra-    │  │  │  │ ishastra-    │          │  │ │
 │  │  │  │ assessment│  │  │  │ assessment│  │  │  │ assessment│          │  │ │
 │  │  │  │           │  │  │  │           │  │  │  │           │          │  │ │
 │  │  │  │ Env:      │  │  │  │ Env:      │  │  │  │ Env:      │          │  │ │
@@ -101,20 +101,20 @@ Replace in-process/k8s-jobs workers with Kubernetes Jobs for assessment executio
 
 ## 2. K8s Job Manifest Template
 
-**File:** `deploy/helm/strix/templates/job-assessment.yaml`
+**File:** `deploy/helm/ishastra/templates/job-assessment.yaml`
 
 ```yaml
 {{- if .Values.k8sJobs.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ printf "strix-assess-%s" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "ishastra-assess-%s" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "strix.labels" . | nindent 4 }}
+    {{- include "ishastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: assessment-job
-    strix.job-id: {{ .Values.k8sJobs.jobId }}
-    strix.tenant: {{ .Values.k8sJobs.tenantId }}
+    ishastra.job-id: {{ .Values.k8sJobs.jobId }}
+    ishastra.tenant: {{ .Values.k8sJobs.tenantId }}
   annotations:
     {{- if .Values.k8sJobs.annotations }}
     {{- toYaml .Values.k8sJobs.annotations | nindent 4 }}
@@ -134,10 +134,10 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "strix.selectorLabels" . | nindent 8 }}
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: assessment-job
-        strix.job-id: {{ .Values.k8sJobs.jobId }}
-        strix.tenant: {{ .Values.k8sJobs.tenantId }}
+        ishastra.job-id: {{ .Values.k8sJobs.jobId }}
+        ishastra.tenant: {{ .Values.k8sJobs.tenantId }}
       annotations:
         {{- if .Values.k8sJobs.podAnnotations }}
         {{- toYaml .Values.k8sJobs.podAnnotations | nindent 8 }}
@@ -146,8 +146,8 @@ spec:
         seccomp.security.alpha.kubernetes.io/pod: runtime/default
         {{- end }}
     spec:
-      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "strix.fullname" .) }}{{- else }} default{{- end }}
-      {{- include "strix.priorityClassName" . | nindent 6 }}
+      serviceAccountName: {{- if .Values.serviceAccount.enabled }} {{ .Values.serviceAccount.name | default (include "ishastra.fullname" .) }}{{- else }} default{{- end }}
+      {{- include "ishastra.priorityClassName" . | nindent 6 }}
       {{- if .Values.k8sJobs.runtimeClassName }}
       runtimeClassName: {{ .Values.k8sJobs.runtimeClassName }}
       {{- end }}
@@ -155,22 +155,22 @@ spec:
       priorityClassName: {{ .Values.k8sJobs.priorityClassName }}
       {{- end }}
       {{- if .Values.topologySpreadConstraints }}
-      {{- include "strix.topologySpreadConstraints" . | nindent 6 }}
+      {{- include "ishastra.topologySpreadConstraints" . | nindent 6 }}
       {{- end }}
       {{- if .Values.k8sJobs.affinity }}
-      {{- include "strix.k8sJobs.affinity" . | nindent 6 }}
+      {{- include "ishastra.k8sJobs.affinity" . | nindent 6 }}
       {{- end }}
       {{- if .Values.k8sJobs.tolerations }}
-      {{- include "strix.k8sJobs.tolerations" . | nindent 6 }}
+      {{- include "ishastra.k8sJobs.tolerations" . | nindent 6 }}
       {{- end }}
       restartPolicy: Never
       securityContext:
         {{- if .Values.k8sJobs.podSecurityContext }}
         {{- toYaml .Values.k8sJobs.podSecurityContext | nindent 8 }}
         {{- else }}
-        {{- include "strix.podSecurityContext" . | nindent 8 }}
+        {{- include "ishastra.podSecurityContext" . | nindent 8 }}
         {{- end }}
-      {{- include "strix.imagePullSecrets" . }}
+      {{- include "ishastra.imagePullSecrets" . }}
       containers:
         - name: assessment
           image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}"
@@ -178,41 +178,41 @@ spec:
           command:
             - /usr/local/bin/python
             - -m
-            - strix.core.k8s_job_runner
+            - ishastra.core.k8s_job_runner
           env:
             # Job identification
-            - name: STRIX_JOB_ID
+            - name: ISHASTRA_JOB_ID
               value: {{ .Values.k8sJobs.jobId | quote }}
-            - name: STRIX_TENANT_ID
+            - name: ISHASTRA_TENANT_ID
               value: {{ .Values.k8sJobs.tenantId | quote }}
             # Database (from secret)
-            - name: STRIX_DATABASE_URL
+            - name: ISHASTRA_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.k8sJobs.dbSecretName | default "strix-secrets" }}
+                  name: {{ .Values.k8sJobs.dbSecretName | default "ishastra-secrets" }}
                   key: database-url
                   optional: false
             # Scope configuration (from ConfigMap)
-            - name: STRIX_SCOPE_JSON
+            - name: ISHASTRA_SCOPE_JSON
               valueFrom:
                 configMapKeyRef:
-                  name: {{ .Values.k8sJobs.scopeConfigMapName | default "strix-scope" }}
+                  name: {{ .Values.k8sJobs.scopeConfigMapName | default "ishastra-scope" }}
                   key: scope.json
                   optional: false
             # Assessment configuration
-            - name: STRIX_TARGET
+            - name: ISHASTRA_TARGET
               value: {{ .Values.k8sJobs.target | quote }}
-            - name: STRIX_PROFILE
+            - name: ISHASTRA_PROFILE
               value: {{ .Values.k8sJobs.profile | default "web" | quote }}
-            - name: STRIX_TIMEOUT_SECONDS
+            - name: ISHASTRA_TIMEOUT_SECONDS
               value: {{ .Values.k8sJobs.timeoutSeconds | default 3600 | quote }}
-            - name: STRIX_LOG_FORMAT
+            - name: ISHASTRA_LOG_FORMAT
               value: "json"
-            - name: STRIX_LOG_LEVEL
+            - name: ISHASTRA_LOG_LEVEL
               value: {{ .Values.k8sJobs.logLevel | default "INFO" | quote }}
             # Authentication (optional, from secret)
             {{- if .Values.k8sJobs.authSecretName }}
-            - name: STRIX_AUTH_CONFIG
+            - name: ISHASTRA_AUTH_CONFIG
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.k8sJobs.authSecretName }}
@@ -244,7 +244,7 @@ spec:
             {{- if .Values.k8sJobs.securityContext }}
             {{- toYaml .Values.k8sJobs.securityContext | nindent 12 }}
             {{- else }}
-            {{- include "strix.containerSecurityContext" . | nindent 12 }}
+            {{- include "ishastra.containerSecurityContext" . | nindent 12 }}
             {{- end }}
       {{- if .Values.k8sJobs.volumes }}
       volumes:
@@ -257,23 +257,23 @@ spec:
 
 ## 3. NetworkPolicy for Assessment Jobs
 
-**File:** `deploy/helm/strix/templates/networkpolicy-assessment-job.yaml`
+**File:** `deploy/helm/ishastra/templates/networkpolicy-assessment-job.yaml`
 
 ```yaml
 {{- if and .Values.k8sJobs.enabled .Values.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ printf "strix-assess-%s-netpol" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "ishastra-assess-%s-netpol" .Values.k8sJobs.jobNameSuffix | trunc 63 | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "strix.labels" . | nindent 4 }}
+    {{- include "ishastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: assessment-job
-    strix.job-id: {{ .Values.k8sJobs.jobId }}
+    ishastra.job-id: {{ .Values.k8sJobs.jobId }}
 spec:
   podSelector:
     matchLabels:
-      strix.job-id: {{ .Values.k8sJobs.jobId }}
+      ishastra.job-id: {{ .Values.k8sJobs.jobId }}
   policyTypes:
     - Egress
   egress:
@@ -318,13 +318,13 @@ spec:
 
 ## 4. Python Client: K8s Job Runner
 
-**File:** `src/strix/core/k8s_job_runner.py`
+**File:** `src/ishastra/core/k8s_job_runner.py`
 
 ```python
 """Kubernetes Job entry point for assessment execution.
 
 Runs inside the assessment Job pod. Executes the assessment and writes
-results directly to PostgreSQL. Designed for K8s Jobs mode (STRIX_QUEUE_MODE=k8s-jobs).
+results directly to PostgreSQL. Designed for K8s Jobs mode (ISHASTRA_QUEUE_MODE=k8s-jobs).
 """
 
 from __future__ import annotations
@@ -337,10 +337,10 @@ import sys
 import time
 from typing import Any
 
-from strix.config import Settings
-from strix.core import jobs, store
-from strix.core.jobs import Job, JobState
-from strix.core.scope import Scope
+from ishastra.config import Settings
+from ishastra.core import jobs, store
+from ishastra.core.jobs import Job, JobState
+from ishastra.core.scope import Scope
 
 log = logging.getLogger(__name__)
 
@@ -349,13 +349,13 @@ class K8sJobRunner:
     """Runs a single assessment job in a Kubernetes Job pod."""
 
     def __init__(self) -> None:
-        self.job_id = os.environ.get("STRIX_JOB_ID")
-        self.tenant_id = os.environ.get("STRIX_TENANT_ID")
-        self.target = os.environ.get("STRIX_TARGET")
-        self.profile = os.environ.get("STRIX_PROFILE", "web")
-        self.timeout_seconds = float(os.environ.get("STRIX_TIMEOUT_SECONDS", "3600"))
-        self.scope_json = os.environ.get("STRIX_SCOPE_JSON")
-        self.auth_config_json = os.environ.get("STRIX_AUTH_CONFIG")
+        self.job_id = os.environ.get("ISHASTRA_JOB_ID")
+        self.tenant_id = os.environ.get("ISHASTRA_TENANT_ID")
+        self.target = os.environ.get("ISHASTRA_TARGET")
+        self.profile = os.environ.get("ISHASTRA_PROFILE", "web")
+        self.timeout_seconds = float(os.environ.get("ISHASTRA_TIMEOUT_SECONDS", "3600"))
+        self.scope_json = os.environ.get("ISHASTRA_SCOPE_JSON")
+        self.auth_config_json = os.environ.get("ISHASTRA_AUTH_CONFIG")
 
         if not all([self.job_id, self.tenant_id, self.target, self.scope_json]):
             raise RuntimeError("Missing required environment variables")
@@ -386,7 +386,7 @@ class K8sJobRunner:
             try:
                 policy["encrypted_auth_config"] = json.loads(self.auth_config_json)
             except json.JSONDecodeError:
-                log.warning("Failed to parse STRIX_AUTH_CONFIG")
+                log.warning("Failed to parse ISHASTRA_AUTH_CONFIG")
         return policy
 
     async def run(self) -> int:
@@ -395,9 +395,9 @@ class K8sJobRunner:
                  self.job_id, self.tenant_id, self.target)
 
         # Configure store from DATABASE_URL
-        db_url = os.environ.get("STRIX_DATABASE_URL")
+        db_url = os.environ.get("ISHASTRA_DATABASE_URL")
         if not db_url:
-            log.error("STRIX_DATABASE_URL not set")
+            log.error("ISHASTRA_DATABASE_URL not set")
             return 1
         store.configure(db_url)
 
@@ -484,13 +484,13 @@ if __name__ == "__main__":
 
 ## 5. Python Client: Job Submission & Monitoring
 
-**File:** `src/strix/core/k8s_queue.py`
+**File:** `src/ishastra/core/k8s_queue.py`
 
 ```python
-"""Kubernetes Jobs queue implementation for Strix assessments.
+"""Kubernetes Jobs queue implementation for Ishastra assessments.
 
 Replaces in-process/Kubernetes Jobs queue with K8s Job API.
-Used when STRIX_QUEUE_MODE=k8s-jobs.
+Used when ISHASTRA_QUEUE_MODE=k8s-jobs.
 """
 
 from __future__ import annotations
@@ -506,9 +506,9 @@ from typing import Any
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-from strix.core import store
-from strix.core.jobs import Job, JobState
-from strix.core.queue import AssessmentWorker, AssessmentQueueFull, WorkerLeaseError
+from ishastra.core import store
+from ishastra.core.jobs import Job, JobState
+from ishastra.core.queue import AssessmentWorker, AssessmentQueueFull, WorkerLeaseError
 
 log = logging.getLogger(__name__)
 
@@ -520,17 +520,17 @@ QUEUE_MODE_K8S_JOBS = "k8s-jobs"
 class K8sJobConfig:
     """Configuration for K8s Job creation."""
     namespace: str = "default"
-    image: str = "ghcr.io/your-org/strix:3.5.0"
-    service_account: str = "strix"
+    image: str = "ghcr.io/your-org/ishastra:3.5.0"
+    service_account: str = "ishastra"
     runtime_class: str | None = "gvisor"  # gvisor, kata, or None
-    priority_class: str | None = "strix-low-priority"  # for spot instances
+    priority_class: str | None = "ishastra-low-priority"  # for spot instances
     ttl_seconds_after_finished: int = 3600
     backoff_limit: int = 2
     active_deadline_seconds: int = 3600
     resources: dict[str, Any] | None = None
-    db_secret_name: str = "strix-secrets"
+    db_secret_name: str = "ishastra-secrets"
     db_secret_key: str = "database-url"
-    scope_configmap_name: str = "strix-scope"
+    scope_configmap_name: str = "ishastra-scope"
     scope_configmap_key: str = "scope.json"
     auth_secret_name: str | None = None
     auth_secret_key: str = "auth-config"
@@ -599,7 +599,7 @@ class K8sAssessmentQueue:
             self._on_finish[job.id] = on_finish
 
         # Create K8s Job
-        k8s_job_name = f"strix-assess-{job.id}"
+        k8s_job_name = f"ishastra-assess-{job.id}"
         try:
             await self._create_k8s_job(job, k8s_job_name)
             with self._lock:
@@ -638,12 +638,12 @@ class K8sAssessmentQueue:
                 labels={
                     **self.config.labels,
                     "app.kubernetes.io/component": "assessment-job",
-                    "strix.job-id": job.id,
-                    "strix.tenant": job.actor,
+                    "ishastra.job-id": job.id,
+                    "ishastra.tenant": job.actor,
                 } if self.config.labels else {
                     "app.kubernetes.io/component": "assessment-job",
-                    "strix.job-id": job.id,
-                    "strix.tenant": job.actor,
+                    "ishastra.job-id": job.id,
+                    "ishastra.tenant": job.actor,
                 },
                 annotations=self.config.annotations or {},
             ),
@@ -661,21 +661,21 @@ class K8sAssessmentQueue:
                         command=[
                             "/usr/local/bin/python",
                             "-m",
-                            "strix.core.k8s_job_runner",
+                            "ishastra.core.k8s_job_runner",
                         ],
                         env=[
-                            client.V1EnvVar(name="STRIX_JOB_ID", value=job.id),
-                            client.V1EnvVar(name="STRIX_TENANT_ID", value=job.actor),
-                            client.V1EnvVar(name="STRIX_TARGET", value=job.target),
-                            client.V1EnvVar(name="STRIX_PROFILE", value=job.profile),
-                            client.V1EnvVar(name="STRIX_TIMEOUT_SECONDS", value=str(job.policy.get("timeout", 3600))),
-                            client.V1EnvVar(name="STRIX_SCOPE_JSON", value=json.dumps(scope_data)),
-                            client.V1EnvVar(name="STRIX_LOG_FORMAT", value="json"),
-                            client.V1EnvVar(name="STRIX_LOG_LEVEL", value="INFO"),
+                            client.V1EnvVar(name="ISHASTRA_JOB_ID", value=job.id),
+                            client.V1EnvVar(name="ISHASTRA_TENANT_ID", value=job.actor),
+                            client.V1EnvVar(name="ISHASTRA_TARGET", value=job.target),
+                            client.V1EnvVar(name="ISHASTRA_PROFILE", value=job.profile),
+                            client.V1EnvVar(name="ISHASTRA_TIMEOUT_SECONDS", value=str(job.policy.get("timeout", 3600))),
+                            client.V1EnvVar(name="ISHASTRA_SCOPE_JSON", value=json.dumps(scope_data)),
+                            client.V1EnvVar(name="ISHASTRA_LOG_FORMAT", value="json"),
+                            client.V1EnvVar(name="ISHASTRA_LOG_LEVEL", value="INFO"),
                             client.V1EnvVar(name="PYTHONUNBUFFERED", value="1"),
                             client.V1EnvVar(name="PYTHONDONTWRITEBYTECODE", value="1"),
                             client.V1EnvVar(
-                                name="STRIX_DATABASE_URL",
+                                name="ISHASTRA_DATABASE_URL",
                                 value_from=client.V1EnvVarSource(
                                     secret_key_ref=client.V1SecretKeySelector(
                                         name=self.config.db_secret_name,
@@ -697,7 +697,7 @@ class K8sAssessmentQueue:
         if job.policy.get("encrypted_auth_config"):
             pod_template.spec.containers[0].env.append(
                 client.V1EnvVar(
-                    name="STRIX_AUTH_CONFIG",
+                    name="ISHASTRA_AUTH_CONFIG",
                     value=json.dumps(job.policy["encrypted_auth_config"]),
                 )
             )
@@ -719,8 +719,8 @@ class K8sAssessmentQueue:
                 namespace=self.config.namespace,
                 labels={
                     "app.kubernetes.io/component": "assessment-job",
-                    "strix.job-id": job.id,
-                    "strix.tenant": job.actor,
+                    "ishastra.job-id": job.id,
+                    "ishastra.tenant": job.actor,
                 },
             ),
             spec=job_spec,
@@ -759,7 +759,7 @@ class K8sAssessmentQueue:
         # EmptyDir for tmp
         return [
             client.V1Volume(
-                name="strix-tmp",
+                name="ishastra-tmp",
                 empty_dir=client.V1EmptyDirVolumeSource(medium="Memory", size_limit="100Mi"),
             )
         ]
@@ -847,12 +847,12 @@ class K8sAssessmentQueue:
                 namespace=self.config.namespace,
                 labels={
                     "app.kubernetes.io/component": "assessment-job",
-                    "strix.job-id": job.id,
+                    "ishastra.job-id": job.id,
                 },
             ),
             spec=client.V1NetworkPolicySpec(
                 pod_selector=client.V1LabelSelector(
-                    match_labels={"strix.job-id": job.id}
+                    match_labels={"ishastra.job-id": job.id}
                 ),
                 policy_types=["Egress"],
                 egress=egress_rules,
@@ -1007,31 +1007,31 @@ def get_k8s_assessment_queue(
     queue_max: int | None = None,
 ) -> K8sAssessmentQueue:
     """Factory for K8s Jobs queue."""
-    from strix.config import Settings
+    from ishastra.config import Settings
 
     settings = Settings.from_env()
 
     config = K8sJobConfig(
-        namespace=os.environ.get("STRIX_K8S_NAMESPACE", "strix"),
-        image=os.environ.get("STRIX_K8S_IMAGE", settings.k8s_image),
-        service_account=os.environ.get("STRIX_K8S_SERVICE_ACCOUNT", "strix"),
-        runtime_class=os.environ.get("STRIX_K8S_RUNTIME_CLASS", "gvisor"),
-        priority_class=os.environ.get("STRIX_K8S_PRIORITY_CLASS"),
-        ttl_seconds_after_finished=int(os.environ.get("STRIX_K8S_TTL", "3600")),
-        backoff_limit=int(os.environ.get("STRIX_K8S_BACKOFF_LIMIT", "2")),
-        active_deadline_seconds=int(os.environ.get("STRIX_K8S_ACTIVE_DEADLINE", "3600")),
+        namespace=os.environ.get("ISHASTRA_K8S_NAMESPACE", "ishastra"),
+        image=os.environ.get("ISHASTRA_K8S_IMAGE", settings.k8s_image),
+        service_account=os.environ.get("ISHASTRA_K8S_SERVICE_ACCOUNT", "ishastra"),
+        runtime_class=os.environ.get("ISHASTRA_K8S_RUNTIME_CLASS", "gvisor"),
+        priority_class=os.environ.get("ISHASTRA_K8S_PRIORITY_CLASS"),
+        ttl_seconds_after_finished=int(os.environ.get("ISHASTRA_K8S_TTL", "3600")),
+        backoff_limit=int(os.environ.get("ISHASTRA_K8S_BACKOFF_LIMIT", "2")),
+        active_deadline_seconds=int(os.environ.get("ISHASTRA_K8S_ACTIVE_DEADLINE", "3600")),
         resources={
             "limits": {
-                "cpu": os.environ.get("STRIX_K8S_CPU_LIMIT", "2000m"),
-                "memory": os.environ.get("STRIX_K8S_MEMORY_LIMIT", "2Gi"),
+                "cpu": os.environ.get("ISHASTRA_K8S_CPU_LIMIT", "2000m"),
+                "memory": os.environ.get("ISHASTRA_K8S_MEMORY_LIMIT", "2Gi"),
             },
             "requests": {
-                "cpu": os.environ.get("STRIX_K8S_CPU_REQUEST", "1000m"),
-                "memory": os.environ.get("STRIX_K8S_MEMORY_REQUEST", "1Gi"),
+                "cpu": os.environ.get("ISHASTRA_K8S_CPU_REQUEST", "1000m"),
+                "memory": os.environ.get("ISHASTRA_K8S_MEMORY_REQUEST", "1Gi"),
             },
-        } if os.environ.get("STRIX_K8S_CPU_LIMIT") else None,
-        db_secret_name=os.environ.get("STRIX_K8S_DB_SECRET", "strix-secrets"),
-        scope_configmap_name=os.environ.get("STRIX_K8S_SCOPE_CM", "strix-scope"),
+        } if os.environ.get("ISHASTRA_K8S_CPU_LIMIT") else None,
+        db_secret_name=os.environ.get("ISHASTRA_K8S_DB_SECRET", "ishastra-secrets"),
+        scope_configmap_name=os.environ.get("ISHASTRA_K8S_SCOPE_CM", "ishastra-scope"),
     )
 
     return K8sAssessmentQueue(
@@ -1042,7 +1042,7 @@ def get_k8s_assessment_queue(
 
 
 # Update get_assessment_queue to support k8s-jobs mode
-# In src/strix/core/queue.py, add:
+# In src/ishastra/core/queue.py, add:
 #
 # QUEUE_MODE_K8S_JOBS = "k8s-jobs"
 #

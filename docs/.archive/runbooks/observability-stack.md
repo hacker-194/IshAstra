@@ -4,12 +4,12 @@
 
 | Alert | Severity | Component | Duration |
 |-------|----------|-----------|----------|
-| `StrixPrometheusDown` | critical | Prometheus | 1m |
-| `StrixAlertmanagerDown` | critical | Alertmanager | 1m |
-| `StrixGrafanaDown` | warning | Grafana | 1m |
-| `StrixLokiDown` | warning | Loki | 1m |
-| `StrixTempoDown` | warning | Tempo | 1m |
-| `StrixOTelCollectorDown` | warning | OTel Collector | 1m |
+| `IshastraPrometheusDown` | critical | Prometheus | 1m |
+| `IshastraAlertmanagerDown` | critical | Alertmanager | 1m |
+| `IshastraGrafanaDown` | warning | Grafana | 1m |
+| `IshastraLokiDown` | warning | Loki | 1m |
+| `IshastraTempoDown` | warning | Tempo | 1m |
+| `IshastraOTelCollectorDown` | warning | OTel Collector | 1m |
 
 ---
 
@@ -17,7 +17,7 @@
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Strix     │────▶│ OTel Collector │────▶│  Tempo      │
+│   Ishastra     │────▶│ OTel Collector │────▶│  Tempo      │
 │   (API)     │     │  (Agent)      │     │  (Traces)   │
 └─────────────┘     └─────────────┘     └─────────────┘
        │                    │                    │
@@ -119,7 +119,7 @@ kubectl get configmap loki-config -n monitoring -o yaml
 kubectl exec -n monitoring loki-0 -- wget -qO- http://localhost:3100/ready | jq .
 
 # Query logs
-kubectl exec -n monitoring loki-0 -- wget -qO- 'http://localhost:3100/loki/api/v1/query?query={job=~"strix.*"}' | jq .
+kubectl exec -n monitoring loki-0 -- wget -qO- 'http://localhost:3100/loki/api/v1/query?query={job=~"ishastra.*"}' | jq .
 
 # Check retention
 kubectl exec -n monitoring loki-0 -- wget -qO- http://localhost:3100/loki/api/v1/series?match%5B%5D=%7Bjob%3D%22strix%22%7D | jq .
@@ -184,19 +184,19 @@ kubectl patch statefulset prometheus -n monitoring -p '{"spec":{"template":{"spe
 kubectl exec -n monitoring prometheus-0 -- find /prometheus -type f -mtime +15 -delete
 ```
 
-#### 2. Prometheus Target Down (Strix)
+#### 2. Prometheus Target Down (Ishastra)
 ```bash
-# Check if Strix metrics endpoint accessible
-kubectl exec -n monitoring prometheus-0 -- wget -qO- http://strix-api.strix.svc.cluster.local:8000/api/metrics
+# Check if Ishastra metrics endpoint accessible
+kubectl exec -n monitoring prometheus-0 -- wget -qO- http://ishastra-api.ishastra.svc.cluster.local:8000/api/metrics
 
 # Check ServiceMonitor
-kubectl get servicemonitor -n monitoring strix-api -o yaml
+kubectl get servicemonitor -n monitoring ishastra-api -o yaml
 
 # Check network policy
-kubectl get networkpolicy -n strix
+kubectl get networkpolicy -n ishastra
 
 # Fix: Ensure ServiceMonitor selector matches
-kubectl patch servicemonitor strix-api -n monitoring -p '{"spec":{"selector":{"matchLabels":{"app.kubernetes.io/name":"strix"}}}}'
+kubectl patch servicemonitor ishastra-api -n monitoring -p '{"spec":{"selector":{"matchLabels":{"app.kubernetes.io/name":"ishastra"}}}}'
 ```
 
 #### 3. Prometheus Rule Errors
@@ -295,14 +295,14 @@ kubectl exec -n monitoring tempo-0 -- du -sh /tempo
 
 #### 1. Collector Not Receiving Traces
 ```bash
-# Check Strix OTel config
-kubectl exec -n strix strix-api-0 -- env | grep OTEL
+# Check Ishastra OTel config
+kubectl exec -n ishastra ishastra-api-0 -- env | grep OTEL
 
 # Check collector receiver config
 kubectl get configmap otel-collector-config -n monitoring -o yaml | grep -A20 "receivers:"
 
-# Test trace export from Strix
-kubectl exec -n strix strix-api-0 -- /usr/local/bin/python -c "
+# Test trace export from Ishastra
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/python -c "
 from opentelemetry import trace
 tracer = trace.get_tracer(__name__)
 with tracer.start_as_current_span('test') as span:

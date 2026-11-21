@@ -1,6 +1,6 @@
-# Strix Benchmarking Guide
+# Ishastra Benchmarking Guide
 
-This document describes how to run load/stress tests against the Strix API using the k6-based benchmarking framework.
+This document describes how to run load/stress tests against the Ishastra API using the k6-based benchmarking framework.
 
 ## Overview
 
@@ -31,7 +31,7 @@ The benchmarking framework includes:
    k6 version
    ```
 
-2. **Install Strix dependencies**:
+2. **Install Ishastra dependencies**:
    ```bash
    pip install -e ".[dev]" -c constraints.txt
    ```
@@ -39,14 +39,14 @@ The benchmarking framework includes:
 ### Run a Smoke Test (Local Development)
 
 ```bash
-# Start Strix API in one terminal
-export STRIX_API_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
-export STRIX_AUDIT_HMAC_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
-export STRIX_DB=/tmp/strix-bench.db
-export STRIX_SCOPE_FILE=scope.example.json
-export STRIX_LOG_LEVEL=WARNING
-export STRIX_REDIS_REQUIRED=0
-strix serve --host 127.0.0.1 --port 8000
+# Start Ishastra API in one terminal
+export ISHASTRA_API_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+export ISHASTRA_AUDIT_HMAC_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+export ISHASTRA_DB=/tmp/ishastra-bench.db
+export ISHASTRA_SCOPE_FILE=scope.example.json
+export ISHASTRA_LOG_LEVEL=WARNING
+export ISHASTRA_REDIS_REQUIRED=0
+ishastra serve --host 127.0.0.1 --port 8000
 
 # In another terminal, run the smoke test
 python scripts/benchmark.py --scenario smoke
@@ -57,8 +57,8 @@ python scripts/benchmark.py --scenario smoke
 ```bash
 python scripts/benchmark.py \
   --scenario load \
-  --base-url https://strix-staging.example.com \
-  --api-key $STRIX_API_KEY \
+  --base-url https://ishastra-staging.example.com \
+  --api-key $ISHASTRA_API_KEY \
   --tenant-id my-tenant \
   --output load-test-results.json
 ```
@@ -131,7 +131,7 @@ Options:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `BASE_URL` | Target API URL | `http://localhost:8000` |
-| `STRIX_API_KEY` | API key for auth | `test-admin-key-123456` |
+| `ISHASTRA_API_KEY` | API key for auth | `test-admin-key-123456` |
 | `TENANT_ID` | Tenant identifier | `test-tenant` |
 
 ## Output Files
@@ -169,7 +169,7 @@ Machine-readable format for CI/CD integration:
 Human-readable summary with threshold assessment:
 
 ```markdown
-# Strix Benchmark Results
+# Ishastra Benchmark Results
 
 ## Scenario Results
 
@@ -209,8 +209,8 @@ Each scenario has predefined thresholds. The report shows ✅ PASS or ❌ FAIL f
 | High P99, normal P95 | Occasional GC pauses, lock contention | Check logs for long requests |
 | Rising latency over time (soak) | Memory leak, connection pool exhaustion | Monitor memory, DB connections |
 | High error rate at ramp-up | Cold starts, connection pool warmup | Increase pool sizes, pre-warm |
-| 503 errors under load | Queue full, worker unavailable | Check `STRIX_WORKERS`, `STRIX_QUEUE_MAX` |
-| 429 errors | Rate limiting | Adjust `STRIX_RATE_LIMIT_*` settings |
+| 503 errors under load | Queue full, worker unavailable | Check `ISHASTRA_WORKERS`, `ISHASTRA_QUEUE_MAX` |
+| 429 errors | Rate limiting | Adjust `ISHASTRA_RATE_LIMIT_*` settings |
 
 ## CI/CD Integration
 
@@ -266,7 +266,7 @@ python scripts/benchmark.py --scenario load
 # Run against deployed staging
 python scripts/benchmark.py \
   --scenario load \
-  --base-url https://strix-staging.example.com \
+  --base-url https://ishastra-staging.example.com \
   --api-key $STAGING_API_KEY \
   --tenant-id staging-tenant
 ```
@@ -276,7 +276,7 @@ python scripts/benchmark.py \
 # Only run read-only scenarios against production
 python scripts/benchmark.py \
   --scenario smoke \
-  --base-url https://strix.example.com \
+  --base-url https://ishastra.example.com \
   --api-key $PROD_API_KEY \
   --tenant-id prod-tenant
 ```
@@ -336,20 +336,20 @@ python scripts/benchmark.py --install-k6 --scenario smoke
 ```
 
 ### Connection Refused
-- Ensure Strix API is running on the target URL
+- Ensure Ishastra API is running on the target URL
 - Check `BASE_URL` includes correct protocol (http/https)
 - Verify firewall/network allows connection
 
 ### Authentication Failures
-- Verify `STRIX_API_KEY` is correct and has appropriate permissions
+- Verify `ISHASTRA_API_KEY` is correct and has appropriate permissions
 - Check tenant exists and API key belongs to it
 - For local testing, use the same key that started the server
 
 ### High Latency / Timeouts
-- Check Strix logs for errors
+- Check Ishastra logs for errors
 - Verify database is not locked (SQLite contention)
-- Check Redis connection if `STRIX_REDIS_REQUIRED=1`
-- Increase `STRIX_WORKERS` for higher concurrency
+- Check Redis connection if `ISHASTRA_REDIS_REQUIRED=1`
+- Increase `ISHASTRA_WORKERS` for higher concurrency
 
 ### Out of Memory (Soak Test)
 - Monitor memory usage: `docker stats` or `htop`

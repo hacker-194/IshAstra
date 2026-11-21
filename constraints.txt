@@ -10,7 +10,7 @@
 #
 #   pip index versions <package>        # review the changelog first
 #   sed -i 's/^<package>==.*/<package>==<new>/' constraints.txt
-#   pip install -c constraints.txt -e ".[dev]" && pytest && python -m strix.lab
+#   pip install -c constraints.txt -e ".[dev]" && pytest && python -m ishastra.lab
 #
 # `pip-audit` runs against the installed environment in CI, so a new advisory
 # against anything in this set (or its transitive closure) fails the pipeline.

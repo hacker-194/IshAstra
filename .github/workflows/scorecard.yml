@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Run Scorecard
-        uses: ossf/scorecard-action@0864cf19026789058feabb7e87baa5f140aac736  # v2.3.1
+        uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5  # v2.6.0
         with:
           results_file: results.sarif
           results_format: sarif
@@ -35,7 +35,7 @@ jobs:
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
-        if: always()
+        if: always() && hashFiles('results.sarif') != ''
         with:
           sarif_file: results.sarif
           category: scorecard

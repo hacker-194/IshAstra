@@ -258,6 +258,74 @@
       },
       "default": [],
       "description": "Authorized ISO 3166-1 alpha-2 country codes (geo-fencing). Empty = no country policy. A policy set without a configured GeoIP lookup denies every address (fail closed)."
+    },
+    "rules_of_engagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "testing_hours": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Authorized testing hours (e.g., '09:00-18:00 UTC, Mon-Fri'). Empty = no time restriction."
+        },
+        "rate_limit_rps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum requests per second per assessment. 0 = no limit."
+        },
+        "prohibited_techniques": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "default": [],
+          "description": "List of prohibited testing techniques (e.g., 'DoS/DDoS attacks', 'Social engineering')."
+        },
+        "required_notifications": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "default": [],
+          "description": "Events requiring notification to the authorizing authority."
+        },
+        "data_handling": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pii_access": {
+              "type": "string",
+              "enum": ["prohibited", "restricted", "allowed"],
+              "description": "PII access policy"
+            },
+            "credential_access": {
+              "type": "string",
+              "enum": ["prohibited", "restricted", "allowed"],
+              "description": "Credential access policy"
+            },
+            "evidence_retention_days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650,
+              "description": "Days to retain evidence before secure deletion"
+            },
+            "report_delivery": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Method for delivering reports (e.g., 'encrypted_email_or_portal')"
+            }
+          },
+          "description": "Data handling requirements for the engagement"
+        }
+      },
+      "description": "Rules of Engagement for the assessment. Empty = no RoE restrictions."
     }
   }
 }

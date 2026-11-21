@@ -566,6 +566,7 @@ class Scope:
         revocation_reason: Reason for revocation
         expires_at: ISO 8601 timestamp when scope expires
         metadata: Arbitrary metadata for tooling and audit trails
+        rules_of_engagement: Rules of Engagement (testing_hours, rate_limit_rps, prohibited_techniques, etc.)
     """
 
     program: str
@@ -583,6 +584,7 @@ class Scope:
     allow_broad_networks: bool = False
     allowed_asns: tuple[int, ...] = ()
     allowed_countries: tuple[str, ...] = ()
+    rules_of_engagement: dict = field(default_factory=dict)
 
     version: int = CURRENT_SCHEMA_VERSION
     revoked: bool = False
@@ -633,6 +635,10 @@ class Scope:
             raise ValueError("allowed_asns entries must be positive AS numbers")
         if any(not COUNTRY_CODE.fullmatch(code) for code in self.allowed_countries):
             raise ValueError("allowed_countries entries must be ISO 3166-1 alpha-2 codes")
+
+        # Validate rules_of_engagement
+        if self.rules_of_engagement:
+            self._validate_rules_of_engagement()
 
         if not MIN_SUPPORTED_VERSION <= self.version <= MAX_SUPPORTED_VERSION:
             raise ValueError(
@@ -685,6 +691,163 @@ class Scope:
     def is_valid(self, now: datetime | None = None) -> bool:
         """Check if this scope is valid (not revoked, not expired)."""
         return not self.is_revoked() and not self.is_expired(now)
+
+    def _validate_rules_of_engagement(self) -> None:
+        """Validate Rules of Engagement configuration."""
+        roe = self.rules_of_engagement
+
+        # Validate testing_hours format if present
+        testing_hours = roe.get("testing_hours", "")
+        if testing_hours and not isinstance(testing_hours, str):
+            raise ValueError("rules_of_engagement.testing_hours must be a string")
+
+        # Validate rate_limit_rps if present
+        rate_limit = roe.get("rate_limit_rps", 0)
+        if rate_limit is not None and (
+            not isinstance(rate_limit, int)
+            or isinstance(rate_limit, bool)
+            or rate_limit < 0
+            or rate_limit > 1000
+        ):
+            raise ValueError("rules_of_engagement.rate_limit_rps must be an integer from 0 to 1000")
+
+        # Validate prohibited_techniques if present
+        prohibited = roe.get("prohibited_techniques", [])
+        if prohibited and (
+            not isinstance(prohibited, list) or not all(isinstance(t, str) for t in prohibited)
+        ):
+            raise ValueError("rules_of_engagement.prohibited_techniques must be a list of strings")
+
+        # Validate required_notifications if present
+        notifications = roe.get("required_notifications", [])
+        if notifications and (
+            not isinstance(notifications, list) or not all(isinstance(n, str) for n in notifications)
+        ):
+            raise ValueError("rules_of_engagement.required_notifications must be a list of strings")
+
+        # Validate data_handling if present
+        data_handling = roe.get("data_handling", {})
+        if data_handling and not isinstance(data_handling, dict):
+            raise ValueError("rules_of_engagement.data_handling must be an object")
+
+        valid_pii_values = ("prohibited", "restricted", "allowed")
+        valid_cred_values = ("prohibited", "restricted", "allowed")
+        if data_handling:
+            pii_access = data_handling.get("pii_access")
+            if pii_access and pii_access not in valid_pii_values:
+                raise ValueError(
+                    "rules_of_engagement.data_handling.pii_access "
+                    f"must be one of {valid_pii_values}"
+                )
+            cred_access = data_handling.get("credential_access")
+            if cred_access and cred_access not in valid_cred_values:
+                raise ValueError(
+                    "rules_of_engagement.data_handling.credential_access "
+                    f"must be one of {valid_cred_values}"
+                )
+            retention = data_handling.get("evidence_retention_days")
+            if retention is not None and (
+                not isinstance(retention, int) or retention < 1 or retention > 3650
+            ):
+                raise ValueError(
+                    "rules_of_engagement.data_handling.evidence_retention_days "
+                    "must be an integer from 1 to 3650"
+                )
+
+    def _enforce_rules_of_engagement(self) -> tuple[str, str]:
+        """Enforce Rules of Engagement during gate checks.
+
+        Returns:
+            (denial_code, reason) - empty strings if allowed, denial code and reason if denied.
+        """
+
+        roe = self.rules_of_engagement
+        if not roe:
+            return "", ""
+
+        # Check testing_hours
+        testing_hours = roe.get("testing_hours", "")
+        if testing_hours and not self._is_within_testing_hours(testing_hours):
+            return "roe_violation", f"Testing outside authorized hours: {testing_hours}"
+
+        return "", ""
+
+    def _is_within_testing_hours(self, testing_hours: str) -> bool:
+        """Check if current time is within authorized testing hours.
+
+        Expected format: "HH:MM-HH:MM TZ, Day-Day" (e.g., "09:00-18:00 UTC, Mon-Fri")
+        Supports: UTC, single day, day ranges (Mon-Fri), comma-separated lists.
+        """
+        try:
+            now = datetime.now(UTC)
+            current_day = now.strftime("%a")[:3].capitalize()  # Mon, Tue, etc.
+            current_time = now.time()
+
+            # Parse the testing hours string
+            # Format: "09:00-18:00 UTC, Mon-Fri" or "09:00-18:00 UTC"
+            parts = testing_hours.split(",")
+            if len(parts) < 2:
+                # No day restriction, just time
+                time_part = parts[0].strip()
+            else:
+                time_part = parts[0].strip()
+                days_part = parts[1].strip()
+
+                # Check day restriction
+                if not self._is_day_allowed(current_day, days_part):
+                    return False
+
+            # Parse time range (HH:MM-HH:MM TZ)
+            time_match = re.match(r"(\d{2}):(\d{2})-(\d{2}):(\d{2})\s*(\w+)?", time_part)
+            if not time_match:
+                # Invalid format - allow (fail open for misconfiguration)
+                log.warning("Invalid testing_hours format: %s", testing_hours)
+                return True
+
+            start_hour, start_min, end_hour, end_min, tz = time_match.groups()
+            start_time = datetime.strptime(f"{start_hour}:{start_min}", "%H:%M").time()
+            end_time = datetime.strptime(f"{end_hour}:{end_min}", "%H:%M").time()
+
+            # For simplicity, assume UTC if no timezone or if UTC
+            # In production, would use proper timezone handling
+            return start_time <= current_time <= end_time
+        except Exception:
+            # Fail open on parse errors - log and allow
+            log.warning("Failed to parse testing_hours: %s", testing_hours)
+            return True
+
+    def _is_day_allowed(self, current_day: str, days_spec: str) -> bool:
+        """Check if current day is within allowed days specification.
+
+        Days spec examples: "Mon-Fri", "Mon,Wed,Fri", "Mon-Fri,Sun"
+        """
+        days_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+        # Split by comma for multiple ranges
+        for part in days_spec.split(","):
+            part = part.strip()
+            if "-" in part:
+                # Range like Mon-Fri
+                start_day, end_day = part.split("-", 1)
+                start_day = start_day.strip().capitalize()[:3]
+                end_day = end_day.strip().capitalize()[:3]
+                try:
+                    start_idx = days_order.index(start_day)
+                    end_idx = days_order.index(end_day)
+                    if start_idx <= end_idx:
+                        allowed = days_order[start_idx:end_idx + 1]
+                    else:
+                        # Wrap around (e.g., Fri-Mon)
+                        allowed = days_order[start_idx:] + days_order[:end_idx + 1]
+                    if current_day in allowed:
+                        return True
+                except ValueError:
+                    continue
+            else:
+                # Single day
+                if part.capitalize()[:3] == current_day:
+                    return True
+        return False
 
     def _listed(self, host: str, patterns: tuple[str, ...]) -> bool:
         host = host.strip().lower().strip(".")
@@ -740,6 +903,10 @@ class Scope:
                 host,
                 parsed.port,
             )
+        # Enforce Rules of Engagement
+        roe_denial, roe_reason = self._enforce_rules_of_engagement()
+        if roe_denial:
+            return roe_denial, roe_reason, host, parsed.port
         return "", "", host, parsed.port
 
     def _judge_addresses(
@@ -1255,6 +1422,7 @@ def parse_scope_document(data: Any) -> Scope:
             "revocation_reason",
             "expires_at",
             "metadata",
+            "rules_of_engagement",
         }
         unknown = sorted(set(data) - _KNOWN_SCOPE_FIELDS_V2)
         if unknown:
@@ -1336,6 +1504,10 @@ def parse_scope_document(data: Any) -> Scope:
 
     metadata = {str(k): str(v) for k, v in metadata.items()}
 
+    rules_of_engagement = data.get("rules_of_engagement", {})
+    if not isinstance(rules_of_engagement, dict):
+        rules_of_engagement = {}
+
     return configure(
         program=data["program"].strip(),
         authorized_by=data["authorized_by"].strip(),
@@ -1356,6 +1528,7 @@ def parse_scope_document(data: Any) -> Scope:
         revocation_reason=revocation_reason,
         expires_at=expires_at,
         metadata=metadata,
+        rules_of_engagement=rules_of_engagement,
     )
 
 
@@ -1382,6 +1555,7 @@ def configure(
     revocation_reason: str = "",
     expires_at: str = "",
     metadata: dict[str, str] | None = None,
+    rules_of_engagement: dict | None = None,
 ) -> Scope:
     """Install the active scope. Raises ValueError if the record is incomplete.
 
@@ -1412,6 +1586,7 @@ def configure(
         revocation_reason=revocation_reason,
         expires_at=expires_at,
         metadata=metadata or {},
+        rules_of_engagement=rules_of_engagement or {},
     )
     return _active
 

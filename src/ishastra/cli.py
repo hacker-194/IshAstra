@@ -268,6 +268,64 @@ def _run_assess(args: argparse.Namespace) -> int:
         except (proof.ProofError, OSError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 3
+    elif getattr(args, "scope_file", "") and isinstance(args.scope_file, str) and args.scope_file:
+        # Import scope from OpenAPI, HAR, or scope.json
+        scope_path = Path(args.scope_file).expanduser().resolve()
+        if not scope_path.exists():
+            print(f"error: scope file not found: {scope_path}", file=sys.stderr)
+            return 3
+
+        content = scope_path.read_text()
+        scope_doc = None
+
+        scope_format = getattr(args, "scope_format", "auto")
+        # Check for scope format first if filename suggests it, or if explicitly requested
+        if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
+            scope_doc = _import_from_scope(content)
+        elif scope_format == "har" or (
+            scope_format == "auto" and scope_path.suffix == ".har"
+        ):
+            scope_doc = _import_from_har(content)
+        elif scope_format == "openapi" or (
+            scope_format == "auto" and scope_path.suffix in (".json", ".yaml", ".yml")
+        ):
+            scope_doc = _import_from_openapi(content, scope_path.suffix)
+        else:
+            msg = "error: unsupported format '{scope_format}'. Use --scope-format openapi|har|scope|auto"
+            print(msg.format(scope_format=scope_format), file=sys.stderr)
+            return 3
+
+        if scope_doc is None:
+            print("error: failed to extract scope from input", file=sys.stderr)
+            return 3
+
+        # Apply domain substitution if provided
+        scope_domain = getattr(args, "scope_domain", "")
+        if scope_domain:
+            scope_doc = _substitute_domain(scope_doc, scope_domain)
+
+        # Apply port filter if provided
+        scope_ports = getattr(args, "scope_ports", "")
+        if scope_ports:
+            scope_doc["allowed_ports"] = [int(p.strip()) for p in scope_ports.split(",") if p.strip()]
+
+        # Validate scope document by creating Scope object
+        try:
+            from ishastra.core.scope import Scope
+
+            loaded_scope = Scope(
+                program=scope_doc.get("program", "Imported scope"),
+                authorized_by=scope_doc.get("authorized_by", "REPLACE: authorizing authority"),
+                authorization_ref=scope_doc.get("authorization_ref", "REPLACE: engagement reference"),
+                include=tuple(scope_doc.get("include", [])),
+                exclude=tuple(scope_doc.get("exclude", [])),
+                authorized_networks=tuple(scope_doc.get("authorized_networks", [])),
+                allowed_ports=tuple(scope_doc.get("allowed_ports", [80, 443])),
+                allow_broad_networks=scope_doc.get("allow_broad_networks", False),
+            )
+        except ValueError as exc:
+            print(f"error: invalid scope document: {exc}", file=sys.stderr)
+            return 3
     else:
         scope_path = Path(args.scope).expanduser().resolve()
         loaded_scope = scope_module.load(scope_path)
@@ -335,12 +393,68 @@ def _run_evidence(args: argparse.Namespace) -> int:
     from ishastra.locale import TemplateContext
 
     locale_code: LocaleCode = args.locale
+    loaded_scope: scope_module.Scope | None = None
 
-    scope_path = Path(args.scope).expanduser().resolve()
-    loaded_scope = scope_module.load(scope_path)
-    if loaded_scope is None:
-        print(f"error: scope file not found: {scope_path}", file=sys.stderr)
-        return 3
+    # Handle scope import from OpenAPI, HAR, or scope.json
+    if getattr(args, "scope_file", "") and isinstance(args.scope_file, str) and args.scope_file:
+        scope_path = Path(args.scope_file).expanduser().resolve()
+        if not scope_path.exists():
+            print(f"error: scope file not found: {scope_path}", file=sys.stderr)
+            return 3
+
+        content = scope_path.read_text()
+        scope_doc = None
+
+        scope_format = getattr(args, "scope_format", "auto")
+        if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
+            scope_doc = _import_from_scope(content)
+        elif scope_format == "har" or (
+            scope_format == "auto" and scope_path.suffix == ".har"
+        ):
+            scope_doc = _import_from_har(content)
+        elif scope_format == "openapi" or (
+            scope_format == "auto" and scope_path.suffix in (".json", ".yaml", ".yml")
+        ):
+            scope_doc = _import_from_openapi(content, scope_path.suffix)
+        else:
+            msg = "error: unsupported format '{fmt}'. Use --scope-format openapi|har|scope|auto"
+            print(msg.format(fmt=scope_format), file=sys.stderr)
+            return 3
+
+        if scope_doc is None:
+            print("error: failed to extract scope from input", file=sys.stderr)
+            return 3
+
+        scope_domain = getattr(args, "scope_domain", "")
+        if scope_domain:
+            scope_doc = _substitute_domain(scope_doc, scope_domain)
+
+        scope_ports = getattr(args, "scope_ports", "")
+        if scope_ports:
+            scope_doc["allowed_ports"] = [int(p.strip()) for p in scope_ports.split(",") if p.strip()]
+
+        try:
+            from ishastra.core.scope import Scope
+
+            loaded_scope = Scope(
+                program=scope_doc.get("program", "Imported scope"),
+                authorized_by=scope_doc.get("authorized_by", "REPLACE: authorizing authority"),
+                authorization_ref=scope_doc.get("authorization_ref", "REPLACE: engagement reference"),
+                include=tuple(scope_doc.get("include", [])),
+                exclude=tuple(scope_doc.get("exclude", [])),
+                authorized_networks=tuple(scope_doc.get("authorized_networks", [])),
+                allowed_ports=tuple(scope_doc.get("allowed_ports", [80, 443])),
+                allow_broad_networks=scope_doc.get("allow_broad_networks", False),
+            )
+        except ValueError as exc:
+            print(f"error: invalid scope document: {exc}", file=sys.stderr)
+            return 3
+    else:
+        scope_path = Path(args.scope).expanduser().resolve()
+        loaded_scope = scope_module.load(scope_path)
+        if loaded_scope is None:
+            print(f"error: scope file not found: {scope_path}", file=sys.stderr)
+            return 3
 
     try:
         job = jobs_module.prepare(
@@ -1481,6 +1595,165 @@ def _run_scope_wizard(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_scope_import(args: argparse.Namespace) -> int:
+    """Import scope from various formats (OpenAPI, HAR, etc.)."""
+    import sys
+    from pathlib import Path
+
+    input_path = Path(args.input).expanduser().resolve()
+    if not input_path.exists():
+        print(f"error: input file not found: {input_path}", file=sys.stderr)
+        return 3
+
+    content = input_path.read_text()
+    scope_doc = None
+
+    # Check for scope format first if filename suggests it, or if explicitly requested
+    if args.format == "scope" or (args.format == "auto" and "scope" in input_path.name.lower()):
+        scope_doc = _import_from_scope(content)
+    elif args.format == "har" or (
+        args.format == "auto" and input_path.suffix == ".har"
+    ):
+        scope_doc = _import_from_har(content)
+    elif args.format == "openapi" or (
+        args.format == "auto" and input_path.suffix in (".json", ".yaml", ".yml")
+    ):
+        scope_doc = _import_from_openapi(content, input_path.suffix)
+    else:
+        msg = "error: unsupported format '{fmt}'. Use --format openapi|har|scope|auto"
+        print(msg.format(fmt=args.format), file=sys.stderr)
+        return 3
+
+    if scope_doc is None:
+        print("error: failed to extract scope from input", file=sys.stderr)
+        return 3
+
+    # Apply domain substitution if provided
+    if args.domain:
+        scope_doc = _substitute_domain(scope_doc, args.domain)
+
+    # Apply port filter if provided
+    if args.ports:
+        scope_doc["allowed_ports"] = [int(p.strip()) for p in args.ports.split(",") if p.strip()]
+
+    output = json.dumps(scope_doc, indent=2)
+
+    if args.output:
+        output_path = Path(args.output).expanduser().resolve()
+        output_path.write_text(output)
+        print(f"Scope document written to {output_path}", file=sys.stderr)
+    else:
+        print(output)
+
+    return 0
+
+
+def _import_from_openapi(content: str, suffix: str) -> dict | None:
+    """Extract scope from OpenAPI spec."""
+    try:
+        import yaml
+
+        spec = yaml.safe_load(content) if suffix in (".yaml", ".yml") else json.loads(content)
+
+        servers = spec.get("servers", [{"url": ""}])
+        hosts = set()
+        for server in servers:
+            url = server.get("url", "")
+            if url:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                if parsed.hostname:
+                    hosts.add(parsed.hostname)
+
+        paths = spec.get("paths", {})
+        for _path, methods in paths.items():
+            for _method, details in methods.items():
+                if isinstance(details, dict) and details.get("servers"):
+                    for server in details["servers"]:
+                        url = server.get("url", "")
+                        if url:
+                            from urllib.parse import urlparse
+                            parsed = urlparse(url)
+                            if parsed.hostname:
+                                hosts.add(parsed.hostname)
+
+        if not hosts:
+            return None
+
+        return {
+            "program": "Imported from OpenAPI",
+            "authorized_by": "REPLACE: authorizing authority",
+            "authorization_ref": "REPLACE: engagement reference",
+            "include": sorted(hosts),
+            "exclude": [],
+            "authorized_networks": [],
+            "allowed_ports": [443, 80],
+            "allow_broad_networks": False,
+        }
+    except Exception:
+        return None
+
+
+def _import_from_har(content: str) -> dict | None:
+    """Extract scope from HAR file."""
+    try:
+        har = json.loads(content)
+        entries = har.get("log", {}).get("entries", [])
+        hosts = set()
+        for entry in entries:
+            request = entry.get("request", {})
+            url = request.get("url", "")
+            if url:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                if parsed.hostname:
+                    hosts.add(parsed.hostname)
+
+        if not hosts:
+            return None
+
+        return {
+            "program": "Imported from HAR",
+            "authorized_by": "REPLACE: authorizing authority",
+            "authorization_ref": "REPLACE: engagement reference",
+            "include": sorted(hosts),
+            "exclude": [],
+            "authorized_networks": [],
+            "allowed_ports": [443, 80],
+            "allow_broad_networks": False,
+        }
+    except Exception:
+        return None
+
+
+def _import_from_scope(content: str) -> dict | None:
+    """Validate and return existing scope document."""
+    try:
+        doc = json.loads(content)
+        # Basic validation
+        required = ["program", "authorized_by", "authorization_ref", "include"]
+        if not all(k in doc for k in required):
+            return None
+        return doc
+    except Exception:
+        return None
+
+
+def _substitute_domain(scope_doc: dict, domain: str) -> dict:
+    """Substitute domain in scope document."""
+    import copy
+    doc = copy.deepcopy(scope_doc)
+    base = None
+    for host in doc.get("include", []):
+        if host.startswith("*."):
+            base = host[2:]
+            break
+    if base:
+        for key in ("include", "exclude"):
+            doc[key] = [h.replace(base, domain) for h in doc.get(key, [])]
+    return doc
+
+
 def _run_report(args: argparse.Namespace) -> int:
     """Generate assessment report (HTML or PDF). Competitors charge for this; ishastra gives it free."""
     settings = get_settings()
@@ -2338,6 +2611,27 @@ def main(argv: list[str] | None = None) -> None:
         default="",
         help="Signed grant (Ishastra Proof) authorizing and receipting this run",
     )
+    assess_parser.add_argument(
+        "--scope-file",
+        default="",
+        help="Import scope from OpenAPI spec, HAR file, or scope.json (auto-detected)",
+    )
+    assess_parser.add_argument(
+        "--scope-format",
+        choices=["auto", "openapi", "har", "scope"],
+        default="auto",
+        help="Scope import format (default: auto-detect from file extension)",
+    )
+    assess_parser.add_argument(
+        "--scope-domain",
+        default="",
+        help="Substitute domain in imported scope (e.g., example.com)",
+    )
+    assess_parser.add_argument(
+        "--scope-ports",
+        default="",
+        help="Override allowed ports in imported scope (comma-separated, e.g., 80,443,8443)",
+    )
     assess_parser.add_argument("--proof-out", default="", help="Write a proof pack for this run")
     assess_parser.add_argument(
         "--proof-ledger",
@@ -2363,6 +2657,27 @@ def main(argv: list[str] | None = None) -> None:
         "--scope",
         default="scope.json",
         help="Path to scope.json authorization document (default: scope.json)",
+    )
+    evidence_parser.add_argument(
+        "--scope-file",
+        default="",
+        help="Import scope from OpenAPI spec, HAR file, or scope.json (auto-detected)",
+    )
+    evidence_parser.add_argument(
+        "--scope-format",
+        choices=["auto", "openapi", "har", "scope"],
+        default="auto",
+        help="Scope import format (default: auto-detect from file extension)",
+    )
+    evidence_parser.add_argument(
+        "--scope-domain",
+        default="",
+        help="Substitute domain in imported scope (e.g., example.com)",
+    )
+    evidence_parser.add_argument(
+        "--scope-ports",
+        default="",
+        help="Override allowed ports in imported scope (comma-separated, e.g., 80,443,8443)",
     )
     evidence_parser.add_argument(
         "--framework",
@@ -2472,6 +2787,33 @@ def main(argv: list[str] | None = None) -> None:
         "-o",
         default="scope.json",
         help="Output file path (default: scope.json)",
+    )
+
+    scope_import_parser = subparsers.add_parser(
+        "scope-import", help="Import scope from OpenAPI spec, HAR file, or scope.json"
+    )
+    scope_import_parser.add_argument(
+        "input",
+        help="Input file path (OpenAPI .json/.yaml, HAR .har, or scope.json)",
+    )
+    scope_import_parser.add_argument(
+        "--format",
+        choices=["auto", "openapi", "har", "scope"],
+        default="auto",
+        help="Input format (default: auto-detect from file extension)",
+    )
+    scope_import_parser.add_argument(
+        "--output",
+        "-o",
+        help="Output file path (default: stdout)",
+    )
+    scope_import_parser.add_argument(
+        "--domain",
+        help="Substitute base domain in imported scope (e.g., example.com)",
+    )
+    scope_import_parser.add_argument(
+        "--ports",
+        help="Override allowed ports (comma-separated, e.g., 80,443,8443)",
     )
 
     scope_keygen_parser = subparsers.add_parser(
@@ -2915,6 +3257,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(_run_scope_template(args))
     elif args.command == "scope-wizard":
         sys.exit(_run_scope_wizard(args))
+    elif args.command == "scope-import":
+        sys.exit(_run_scope_import(args))
     elif args.command == "scope-keygen":
         sys.exit(_run_scope_keygen(args))
     elif args.command == "scope-key-rotate":

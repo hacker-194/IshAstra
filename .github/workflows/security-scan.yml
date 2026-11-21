@@ -106,7 +106,7 @@ jobs:
             --output-dir security-reports \
             --fail-on ${{ github.event.inputs.severity || 'high' }} \
             --format json \
-            --scanners all
+            --scanners bandit semgrep safety pip-audit
 
       - name: Upload security audit reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

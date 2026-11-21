@@ -1614,6 +1614,13 @@ class SqlmapAdapter(Adapter):
         if parsed_target.port is not None:
             host_header = f"{host_header}:{parsed_target.port}"
         pinned_target = parsed_target._replace(netloc=f"{ip_literal}:{destination.port}").geturl()
+        proxy = os.environ.get("ISHASTRA_SQLMAP_PROXY", "").strip()
+        if parsed_target.scheme == "https" and not proxy:
+            raise AdapterError(
+                "SQLMap HTTPS requires ISHASTRA_SQLMAP_PROXY pointing at an egress proxy "
+                "that preserves the target hostname and pins the authorized destination"
+            )
+        tool_target = target if proxy else pinned_target
 
         ok, detail = self.available()
         if not ok:
@@ -1625,7 +1632,7 @@ class SqlmapAdapter(Adapter):
             argv = [
                 shutil.which("sqlmap") or "sqlmap",
                 "-u",
-                pinned_target,
+                tool_target,
                 "--host",
                 host_header or "",
                 "--ignore-redirects",
@@ -1661,8 +1668,8 @@ class SqlmapAdapter(Adapter):
                 if auth.bearer:
                     argv.extend(["--header", f"Authorization: Bearer {auth.bearer}"])
 
-            if parsed_target.scheme == "https":
-                argv.append("--force-ssl")
+            if proxy:
+                argv.extend(["--proxy", proxy])
 
             code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
 
@@ -1722,6 +1729,9 @@ def _load_plugin_adapters() -> dict[str, Adapter]:
     from importlib.metadata import entry_points
 
     logger = logging.getLogger(__name__)
+    enabled = os.environ.get("ISHASTRA_ALLOW_PLUGINS", "").strip().lower()
+    if enabled not in {"1", "true", "yes"}:
+        return {}
     loaded: dict[str, Adapter] = {}
     for entry in entry_points(group=ADAPTER_PLUGIN_GROUP):
         try:

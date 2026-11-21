@@ -59,6 +59,10 @@ my-probe = "my_package.adapters:MyProbe"
 
 A plugin can add an adapter id but cannot replace a built-in one.
 
+Third-party adapters are opt-in: set `ISHASTRA_ALLOW_PLUGINS=1` only for
+packages you trust, because plugins run in-process and can open network
+connections without the Scope Gate.
+
 ## Signed Evidence Bundles
 
 `ishastra bundle` packages a job's result, its findings as SARIF, the rendered HTML report, the audit-chain entries and the exact scope document into a zip whose manifest is Ed25519-signed and whose members are SHA-256 pinned. Verification is offline, and any member that was edited, added or removed after signing is rejected.

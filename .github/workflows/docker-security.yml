@@ -30,7 +30,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # GHCR repository names must be lowercase.
+  IMAGE_NAME: ${{ github.repository_owner }}/ishastra
   TRIVY_VERSION: 0.56.2
   SYFT_VERSION: v1.10.0
 
@@ -204,6 +205,11 @@ jobs:
   compose-validation:
     name: Docker Compose Validation
     runs-on: ubuntu-latest
+    env:
+      # Validation-only values; docker-compose.yml intentionally has no defaults.
+      POSTGRES_PASSWORD: ci-compose-postgres-password
+      GRAFANA_PASSWORD: ci-compose-grafana-password
+      KEYCLOAK_ADMIN_PASSWORD: ci-compose-keycloak-password
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4

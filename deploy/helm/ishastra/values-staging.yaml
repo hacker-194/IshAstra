@@ -41,9 +41,10 @@ api:
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"
     hosts:
       - host: ishastra-staging.example.com
-        paths:
-          - path: /
-            pathType: Prefix
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
     tls:
       - secretName: ishastra-tls-staging
         hosts:

@@ -412,7 +412,7 @@ async def oidc_callback(
     try:
         tokens = await exchange_code_for_tokens(config, provider, code, code_verifier)
     except httpx.HTTPStatusError as e:
-        log.error("Token exchange failed: %s", e)
+        log.error("OIDC code exchange failed: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Token exchange failed",
@@ -428,7 +428,7 @@ async def oidc_callback(
     try:
         claims = await validate_id_token(id_token, provider, config.client_id, nonce_str)
     except Exception as e:
-        log.error("ID token validation failed: %s", e)
+        log.error("OIDC identity validation failed: %s", type(e).__name__)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ID token validation failed",

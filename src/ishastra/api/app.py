@@ -83,7 +83,7 @@ async def _bootstrap_admin_key_async() -> None:
     try:
         await api_keys.adopt_async("admin", "unlimited", deps_settings.api_key)
     except ValueError as exc:
-        log.critical("ISHASTRA_API_KEY rejected; refusing startup: %s", exc)
+        log.critical("Credential rejected; refusing startup: %s", exc)
         raise RuntimeError("Invalid ISHASTRA_API_KEY; refusing to start") from exc
 
 

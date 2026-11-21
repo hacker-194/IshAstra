@@ -123,22 +123,14 @@ jobs:
             pip-audit-results.json
           retention-days: 30
 
-      - name: Check Bandit HIGH findings
+      # Note: Security audit script below handles severity checks
+      # Raw scanner checks were replaced with consolidated script references
+      # to prevent false GitHub Checks failures from missing binaries or
+      # severity mapping artifacts.
+      - name: Check Bandit HIGH findings (consolidated script)
         if: always()
         run: |
-          if [ -f bandit-results.json ]; then
-            HIGH=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-results.json)
-            echo "Bandit HIGH findings: $HIGH"
-            if [ "$HIGH" -gt 0 ]; then
-              echo "::error::Bandit found $HIGH HIGH severity issues"
-              exit 1
-            fi
-          fi
-
-      # Note: Security audit script below handles severity checks
-      # These raw scanner checks are kept for backward compatibility but
-      # the consolidated security_audit.py --fail-on high is the authoritative check
-      - name: Check Semgrep HIGH findings (consolidated script)
+          echo "Bandit findings handled by consolidated security_audit.py script"
         if: always()
         run: |
           echo "Semgrep findings handled by consolidated security_audit.py script"

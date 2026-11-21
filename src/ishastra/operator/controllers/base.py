@@ -113,7 +113,7 @@ class BaseReconciler(abc.ABC):
             else:
                 resource = self.api.get_cluster_custom_object(self.group, self.version, self.plural, name)
 
-            finalizers = resource.get("metadata", {}).get("finalizers", [])  # type: ignore[attr-defined]
+            finalizers = resource.get("metadata", {}).get("finalizers", [])
             if finalizer not in finalizers:
                 finalizers.append(finalizer)
                 if self.namespace:
@@ -146,7 +146,7 @@ class BaseReconciler(abc.ABC):
             else:
                 resource = self.api.get_cluster_custom_object(self.group, self.version, self.plural, name)
 
-            finalizers = resource.get("metadata", {}).get("finalizers", [])  # type: ignore[attr-defined]
+            finalizers = resource.get("metadata", {}).get("finalizers", [])
             if finalizer in finalizers:
                 finalizers.remove(finalizer)
                 if self.namespace:

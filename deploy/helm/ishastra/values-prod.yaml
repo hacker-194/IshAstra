@@ -95,6 +95,8 @@ api:
     timeoutSeconds: 3
     failureThreshold: 30
 
+  env:
+    ISHASTRA_DEBUG: "0"
   volumeMounts:
     - name: tmp
       mountPath: /tmp
@@ -159,7 +161,6 @@ api:
         hosts:
           - ishastra.example.com
           - api.ishastra.example.com
-    ISHASTRA_DEBUG: "0"
     hosts:
       - host: ishastra.example.com
         http:

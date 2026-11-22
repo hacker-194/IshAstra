@@ -6,7 +6,7 @@ import abc
 import asyncio
 import contextlib
 import logging
-from typing import Any
+from typing import Any, cast
 
 from kubernetes import client, config
 from kubernetes.client import ApiException
@@ -107,11 +107,17 @@ class BaseReconciler(abc.ABC):
         """Add a finalizer to the resource."""
         try:
             if self.namespace:
-                resource = self.api.get_namespaced_custom_object(
-                    self.group, self.version, self.namespace, self.plural, name
+                resource = cast(
+                    dict[str, Any],
+                    self.api.get_namespaced_custom_object(
+                        self.group, self.version, self.namespace, self.plural, name
+                    ),
                 )
             else:
-                resource = self.api.get_cluster_custom_object(self.group, self.version, self.plural, name)
+                resource = cast(
+                    dict[str, Any],
+                    self.api.get_cluster_custom_object(self.group, self.version, self.plural, name),
+                )
 
             finalizers = resource.get("metadata", {}).get("finalizers", [])
             if finalizer not in finalizers:
@@ -140,11 +146,17 @@ class BaseReconciler(abc.ABC):
         """Remove a finalizer from the resource."""
         try:
             if self.namespace:
-                resource = self.api.get_namespaced_custom_object(
-                    self.group, self.version, self.namespace, self.plural, name
+                resource = cast(
+                    dict[str, Any],
+                    self.api.get_namespaced_custom_object(
+                        self.group, self.version, self.namespace, self.plural, name
+                    ),
                 )
             else:
-                resource = self.api.get_cluster_custom_object(self.group, self.version, self.plural, name)
+                resource = cast(
+                    dict[str, Any],
+                    self.api.get_cluster_custom_object(self.group, self.version, self.plural, name),
+                )
 
             finalizers = resource.get("metadata", {}).get("finalizers", [])
             if finalizer in finalizers:

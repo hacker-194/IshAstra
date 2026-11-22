@@ -308,7 +308,10 @@ class TestAssetRoutes:
 
         detail = await auth_client.get(f"/api/assets/{key}")
         assert detail.status_code == 200
-        assert detail.json()["findings"][0]["fingerprint"] == fingerprint
+        # The asset view lists findings from every job for this asset, and a
+        # PostgreSQL test database persists rows from earlier tests, so the
+        # finding saved above is not necessarily first.
+        assert fingerprint in {item["fingerprint"] for item in detail.json()["findings"]}
 
         patched_asset = await auth_client.patch(
             f"/api/assets/{key}", json={"owner": "alice", "criticality": "high"}

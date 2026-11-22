@@ -347,7 +347,7 @@ class TestRunReadinessChecks:
                 patch("ishastra.core.standby.AuditChain", return_value=audit_chain),
                 patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 patch.object(audit_chain, "verify_async", return_value=(True, "ok")),
-                patch("ishastra.core.scope.load", return_value=MagicMock(program="Test Program")),
+                patch("ishastra.security.authorization.scope.load", return_value=MagicMock(program="Test Program")),
             ):
                 results = await run_readiness_checks(temp_db)
 
@@ -537,7 +537,7 @@ class TestRunReadinessChecks:
                 patch("ishastra.core.standby.AuditChain", return_value=mock_audit_chain),
                 patch("ishastra.core.standby.get_settings", return_value=mock_settings),
                 patch("pathlib.Path.exists", return_value=True),
-                patch("ishastra.core.scope.load", return_value=None),
+                patch("ishastra.security.authorization.scope.load", return_value=None),
                 pytest.raises(StandbyError, match="scope file exists but failed to load"),
             ):
                 await run_readiness_checks(temp_db)

@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from ishastra.core import scope as scope_module
+from ishastra.security.authorization import scope as scope_module
 
 ALLOW_URL = "https://opa.example/v1/data/scope/allow"
 ADDRESS = "93.184.216.34"

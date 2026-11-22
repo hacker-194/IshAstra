@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from ishastra.core import scope_signing
-from ishastra.core.scope import (
+from ishastra.security.authorization.scope import (
     configure,
     configure_signing,
     extend_scope_expiry,

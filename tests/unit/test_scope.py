@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import ishastra.core.scope as scope_module
-from ishastra.core.scope import (
+import ishastra.security.authorization.scope as scope_module
+from ishastra.security.authorization.scope import (
     Destination,
     Scope,
     _ambiguous,
@@ -725,7 +725,7 @@ class TestScopeEnforcementBlocking:
     )
     def test_destination_blocks_unauthorized_ips(self, ip, expected_denial, reason_fragment):
         """destination() must block targets resolving to unauthorized IPs."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[ip]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == expected_denial, f"IP {ip}: expected {expected_denial}, got {denial}: {reason}"
             if expected_denial:
@@ -754,7 +754,7 @@ class TestScopeEnforcementBlocking:
     )
     def test_check_blocks_unauthorized_ips(self, ip, expected_denial, reason_fragment):
         """check() must block targets resolving to unauthorized IPs."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=[ip]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[ip]):
             denial, reason = self.scope.check("https://example.com/")
             assert denial == expected_denial, f"IP {ip}: expected {expected_denial}, got {denial}: {reason}"
             if expected_denial:
@@ -773,7 +773,7 @@ class TestScopeEnforcementBlocking:
             allowed_ports=[80, 443],
         )
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope_legacy.destination("https://example.com/")
             assert denial == "", f"Legacy mode should allow public IPs: {denial}: {reason}"
             assert dest is not None
@@ -789,14 +789,14 @@ class TestScopeEnforcementBlocking:
             authorized_networks=[],
             allowed_ports=[80, 443],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason = scope_legacy.check("https://example.com/")
             assert denial == "", f"Legacy mode should allow public IPs: {denial}: {reason}"
 
     def test_multiple_ips_one_unauthorized_blocks(self):
         """If ANY resolved IP is unauthorized, the target is blocked."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -804,7 +804,7 @@ class TestScopeEnforcementBlocking:
 
     def test_multiple_ips_all_authorized_allows(self):
         """If ALL resolved IPs are authorized, the target is allowed."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "198.51.100.50"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "198.51.100.50"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -814,21 +814,21 @@ class TestScopeEnforcementBlocking:
     def test_ipv6_with_embedded_private_blocked(self):
         """IPv6 transition addresses embedding private IPv4 must be blocked."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
 
     def test_ipv4_mapped_private_blocked(self):
         """IPv4-mapped IPv6 with private address must be blocked."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
 
     def test_6to4_private_blocked(self):
         """6to4 address with private embedded IPv4 must be blocked."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["2002:c0a8:0101::"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["2002:c0a8:0101::"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -844,7 +844,7 @@ class TestScopeEnforcementBlocking:
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = scope_with_private.destination("https://internal.example.com/")
             assert denial == "", f"Authorized private network should be allowed: {denial}: {reason}"
             assert dest is not None
@@ -853,7 +853,7 @@ class TestScopeEnforcementBlocking:
     def test_destination_port_enforcement(self):
         """destination() must enforce allowed_ports."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://example.com:8080/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -876,7 +876,7 @@ class TestScopeEnforcementBlocking:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope_with_exclude.destination("https://api.example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -892,7 +892,7 @@ class TestScopeEnforcementBlocking:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope_ip.destination("http://93.184.216.34/")
             assert denial == ""
             assert dest is not None
@@ -908,7 +908,7 @@ class TestScopeEnforcementBlocking:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope_ip.destination("http://8.8.8.8/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -943,7 +943,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_allowed_target(self):
         """Complete flow: URL in scope, resolves to authorized IP, port allowed."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["203.0.113.50"]):
             denial, reason = self.scope.check("https://target.example.com/")
             assert denial == ""
             assert reason == ""
@@ -975,7 +975,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_blocked_by_resolved_ip(self):
         """Complete flow: Host in scope but resolves to unauthorized IP."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason = self.scope.check("https://target.example.com/")
             assert denial == "out_of_scope"
             assert "non-public" in reason.lower() or "resolves to" in reason.lower()
@@ -986,7 +986,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_blocked_by_port(self):
         """Complete flow: Port not in allowed_ports."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["203.0.113.50"]):
             denial, reason = self.scope.check("https://target.example.com:9999/")
             assert denial == "out_of_scope"
             assert "port 9999" in reason.lower()
@@ -997,7 +997,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_subdomain_wildcard(self):
         """Complete flow: Wildcard subdomain match."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["198.51.100.10"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["198.51.100.10"]):
             denial, reason, dest = self.scope.destination("https://api.target.example.com/")
             assert denial == ""
             assert dest is not None
@@ -1006,7 +1006,7 @@ class TestScopeEnforcementIntegration:
     def test_full_flow_different_ports(self):
         """Complete flow: Various allowed ports."""
         for port, scheme in [(80, "http"), (443, "https"), (8080, "http"), (8443, "https")]:
-            with patch("ishastra.core.scope.resolve_sync", return_value=["203.0.113.50"]):
+            with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["203.0.113.50"]):
                 url = f"{scheme}://target.example.com:{port}/"
                 denial, reason, dest = self.scope.destination(url)
                 assert denial == "", f"Port {port} should be allowed: {denial}: {reason}"
@@ -1015,7 +1015,7 @@ class TestScopeEnforcementIntegration:
 
     def test_full_flow_resolution_failure(self):
         """Complete flow: DNS resolution fails."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[]):
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == "resolution_failed"
             assert dest is None
@@ -1023,7 +1023,7 @@ class TestScopeEnforcementIntegration:
     def test_full_flow_resolution_timeout(self):
         """Complete flow: DNS resolution times out (simulated by empty result)."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[]):
             denial, reason, dest = self.scope.destination("https://target.example.com/")
             assert denial == "resolution_failed"
             assert dest is None
@@ -1031,7 +1031,7 @@ class TestScopeEnforcementIntegration:
     @pytest.mark.asyncio
     async def test_async_destination_full_flow(self):
         """Async destination() full flow with authorized IP."""
-        with patch("ishastra.core.scope.resolve", return_value=["203.0.113.50"]):
+        with patch("ishastra.security.authorization.scope.resolve", return_value=["203.0.113.50"]):
             denial, reason, dest = await self.scope.destination_async("https://target.example.com/")
             assert denial == ""
             assert dest is not None
@@ -1040,7 +1040,7 @@ class TestScopeEnforcementIntegration:
     @pytest.mark.asyncio
     async def test_async_destination_blocks_unauthorized(self):
         """Async destination() blocks unauthorized IP."""
-        with patch("ishastra.core.scope.resolve", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve", return_value=["10.0.0.1"]):
             denial, reason, dest = await self.scope.destination_async("https://target.example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -1154,7 +1154,7 @@ class TestScopeEnforcementEdgeCases:
             authorized_networks=["93.184.216.0/24"],
             allowed_ports=[80, 443],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1170,7 +1170,7 @@ class TestScopeEnforcementEdgeCases:
             allowed_ports=[80, 443],
         )
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1186,7 +1186,7 @@ class TestScopeEnforcementEdgeCases:
             allowed_ports=[80, 443],
         )
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["8.8.8.8"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["8.8.8.8"]):
             denial, reason, dest = scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1397,13 +1397,13 @@ class TestScopeDocumentRejections:
             parse_scope_document({**self.DOC, "collab": {"host": ""}})
 
     def test_parse_coerces_non_dict_metadata(self):
-        with patch("ishastra.core.scope._load_schema", return_value={"type": "object"}):
+        with patch("ishastra.security.authorization.scope._load_schema", return_value={"type": "object"}):
             installed = parse_scope_document({**self.DOC, "metadata": ["not", "a", "dict"]})
         assert installed.metadata == {}
 
     def test_invalid_json_schema_is_reported(self):
         with (
-            patch("ishastra.core.scope._load_schema", return_value={"type": 5}),
+            patch("ishastra.security.authorization.scope._load_schema", return_value={"type": 5}),
             pytest.raises(ValueError, match="scope schema error"),
         ):
             parse_scope_document(self.DOC)
@@ -1432,7 +1432,7 @@ class TestScopeAddressPolicyEdges:
             include=["10.0.0.1"],
             allowed_ports=[80],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = scope_literal.destination("http://10.0.0.1/")
         assert denial == "out_of_scope"
         assert dest is None
@@ -1445,7 +1445,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="DNS-001",
             include=["example.com"],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[]):
             denial, reason, dest = scope_x.destination("https://example.com/")
         assert denial == "resolution_failed"
         assert dest is None
@@ -1502,7 +1502,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="LIVE-001",
             include=["example.com"],
         )
-        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.security.authorization.scope.resolve", new=AsyncMock(return_value=[])):
             denial, reason, dest = await live.destination_async("https://example.com/")
         assert denial == "resolution_failed"
         assert dest is None
@@ -1514,7 +1514,7 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="INT-001",
             include=["example.com"],
         )
-        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.security.authorization.scope.resolve", new=AsyncMock(return_value=[])):
             denial, reason, addresses = await live._authorize("build.internal", None)
             assert (denial, reason, addresses) == (
                 "out_of_scope",
@@ -1543,14 +1543,14 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="OFF-001",
             include=["example.com"],
         )
-        with patch("ishastra.core.scope.resolve_sync", side_effect=AssertionError("DNS must not be used")):
+        with patch("ishastra.security.authorization.scope.resolve_sync", side_effect=AssertionError("DNS must not be used")):
             assert scope_x.gate("https://example.com/") == ("", "")
             denial, reason = scope_x.gate("https://other.com/")
         assert denial == "out_of_scope"
         assert "not in the authorized scope" in reason
 
     def test_module_level_gate_fails_closed_without_a_scope(self):
-        with patch("ishastra.core.scope.current", return_value=None):
+        with patch("ishastra.security.authorization.scope.current", return_value=None):
             denial, reason = scope_module.check("https://example.com/")
             assert denial == "out_of_scope"
             assert "no authorized scope configured" in reason
@@ -1558,7 +1558,7 @@ class TestScopeAddressPolicyEdges:
             denial, reason, dest = scope_module.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
-            assert active() is None
+            assert scope_module.active() is None
 
 
 class TestAddressPolicyParity:
@@ -1591,9 +1591,9 @@ class TestAddressPolicyParity:
             include=["example.com"],
             authorized_networks=networks,
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=addresses):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=addresses):
             sync_result = scope._authorize_sync("example.com", 443, fail_on_empty=fail_on_empty)
-        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=addresses)):
+        with patch("ishastra.security.authorization.scope.resolve", new=AsyncMock(return_value=addresses)):
             async_result = await scope._authorize("example.com", 443, fail_on_empty=fail_on_empty)
 
         assert sync_result == async_result
@@ -1609,9 +1609,9 @@ class TestAddressPolicyParity:
             authorization_ref="PAR-002",
             include=["example.com"],
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=[]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=[]):
             sync_result = scope._authorize_sync("build.internal", None)
-        with patch("ishastra.core.scope.resolve", new=AsyncMock(return_value=[])):
+        with patch("ishastra.security.authorization.scope.resolve", new=AsyncMock(return_value=[])):
             async_result = await scope._authorize("build.internal", None)
 
         assert sync_result == async_result
@@ -1622,7 +1622,7 @@ class TestResolverRateLimit:
     """A single host cannot monopolize the resolver pool."""
 
     def test_hammered_host_is_refused_after_its_budget(self, monkeypatch):
-        from ishastra.core import scope as scope_module
+        from ishastra.security.authorization import scope as scope_module
 
         calls: list[str] = []
 
@@ -1640,7 +1640,7 @@ class TestResolverRateLimit:
         assert results[-1] == []
 
     def test_a_second_host_keeps_its_own_budget(self, monkeypatch):
-        from ishastra.core import scope as scope_module
+        from ishastra.security.authorization import scope as scope_module
 
         def fake_getaddrinfo(host, port, **kwargs):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]

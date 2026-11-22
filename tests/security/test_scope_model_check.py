@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pytest
 
-from ishastra.core import scope as scope_module
+from ishastra.security.authorization import scope as scope_module
 
 INCLUDES = (
     ("a.example.com",),

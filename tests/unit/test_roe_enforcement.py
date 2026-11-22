@@ -15,7 +15,7 @@ import pytest
 
 from ishastra.core.jobs import prohibited_technique_matches
 from ishastra.core.probe import EndpointProbe
-from ishastra.core.scope import Scope
+from ishastra.security.authorization.scope import Scope
 
 
 def _scope(**roe) -> Scope:

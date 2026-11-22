@@ -22,7 +22,7 @@ from ishastra.api.schemas import (
 from ishastra.core import jobs
 from ishastra.core.findings import Finding
 from ishastra.core.jobs import Job, JobState, RunState
-from ishastra.core.scope import Scope
+from ishastra.security.authorization.scope import Scope
 
 
 @pytest.fixture

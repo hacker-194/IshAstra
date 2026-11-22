@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ishastra.core.scope import (
+from ishastra.security.authorization.scope import (
     Scope,
     bound,
     check,
@@ -255,7 +255,7 @@ class TestIPv6IPv4MappedEdgeCases:
     def test_destination_rejects_embedded_private(self):
         """destination() must reject host resolving to IPv6 with private embedded IPv4."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope", f"Expected denial, got {denial!r}: {reason}"
             assert dest is None
@@ -263,7 +263,7 @@ class TestIPv6IPv4MappedEdgeCases:
 
     def test_check_rejects_embedded_private(self):
         """check() must reject host resolving to IPv6 with private embedded IPv4."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["::ffff:10.0.0.1"]):
             denial, reason = self.scope.check("https://example.com/")
             assert denial == "out_of_scope", f"Expected denial, got {denial!r}: {reason}"
             assert "non-public" in reason.lower() or "resolves to" in reason.lower()
@@ -279,7 +279,7 @@ class TestIPv6IPv4MappedEdgeCases:
             allowed_ports=[80, 443],
             allow_broad_networks=False,
         )
-        with patch("ishastra.core.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["64:ff9b::a00:1"]):
             denial, reason, dest = scope_with_public_v6.destination("https://example.com/")
             assert denial == "", f"Expected allow, got denial: {denial}: {reason}"
             assert dest is not None
@@ -379,7 +379,7 @@ class TestRedirectCanaries:
     def test_redirect_to_internal_via_external_host(self):
         """External host in scope that redirects to internal must be caught at destination()."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -387,7 +387,7 @@ class TestRedirectCanaries:
 
     def test_redirect_to_loopback_via_external_host(self):
         """External host resolving to loopback must be denied."""
-        with patch("ishastra.core.scope.resolve_sync", return_value=["127.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["127.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -423,11 +423,11 @@ class TestDNSRebindingSimulation:
         4. destination() must deny because the NEW resolution is not authorized
         """
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason = self.scope.check("https://attacker.com/")
             assert denial == "", f"Initial check should allow: {denial}: {reason}"
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
             assert denial == "out_of_scope", f"Rebound destination must deny: {denial}: {reason}"
             assert dest is None
@@ -439,11 +439,11 @@ class TestDNSRebindingSimulation:
         destination() is called, destination() will allow. This is by design:
         each call independently validates the current resolution.
         """
-        with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
             denial, reason = self.scope.check("https://attacker.com/")
             assert denial == "out_of_scope"
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
 
             assert denial == "", f"Fresh resolution should allow: {denial}: {reason}"
@@ -452,13 +452,13 @@ class TestDNSRebindingSimulation:
     def test_pinned_destination_prevents_rebind(self):
         """The pinned destination mechanism prevents rebind between check and connect."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             denial, reason, dest = self.scope.destination("https://attacker.com/")
             assert denial == ""
             token = set_pinned_destination(dest)
 
         try:
-            with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+            with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
                 pinned = get_pinned_destination()
                 assert pinned is not None
                 assert pinned.ip == "93.184.216.34", f"Pinned IP should not change: {pinned.ip}"
@@ -474,7 +474,7 @@ class TestDNSRebindingSimulation:
         import asyncio
 
         async def task_a():
-            with patch("ishastra.core.scope.resolve", return_value=["93.184.216.34"]):
+            with patch("ishastra.security.authorization.scope.resolve", return_value=["93.184.216.34"]):
                 denial, reason, dest = await self.scope.destination_async("https://attacker.com/")
                 assert denial == ""
                 token = set_pinned_destination(dest)
@@ -485,7 +485,7 @@ class TestDNSRebindingSimulation:
 
         async def task_b():
             await asyncio.sleep(0.005)
-            with patch("ishastra.core.scope.resolve", return_value=["10.0.0.1"]):
+            with patch("ishastra.security.authorization.scope.resolve", return_value=["10.0.0.1"]):
                 denial, reason, dest = await self.scope.destination_async("https://attacker.com/")
                 assert denial == "out_of_scope"
                 pinned = get_pinned_destination()
@@ -594,7 +594,7 @@ class TestAdditionalAdversarialVectors:
     def test_multiple_ips_one_unauthorized(self):
         """If host resolves to multiple IPs and ANY is unauthorized, must deny."""
 
-        with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -765,11 +765,11 @@ class TestRapidRebinding:
         results = []
         for i in range(20):
             if i % 2 == 0:
-                with patch("ishastra.core.scope.resolve_sync", return_value=["93.184.216.34"]):
+                with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
                     denial, reason, dest = self.scope.destination("https://target.com/")
                     results.append(("allow", denial))
             else:
-                with patch("ishastra.core.scope.resolve_sync", return_value=["10.0.0.1"]):
+                with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1"]):
                     denial, reason, dest = self.scope.destination("https://target.com/")
                     results.append(("deny", denial))
 

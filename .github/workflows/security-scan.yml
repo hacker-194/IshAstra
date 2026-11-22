@@ -61,29 +61,25 @@ jobs:
       - name: Run Bandit
         id: bandit
         run: |
-          bandit -r src/ -f json -o bandit-results.json || true
-          bandit -r src/ -f sarif -o bandit-results.sarif || true
-          bandit -r src/ -f txt -o bandit-results.txt || true
-        continue-on-error: true
+          bandit -r src/ -f json -o bandit-results.json
+          bandit -r src/ -f sarif -o bandit-results.sarif
+          bandit -r src/ -f txt -o bandit-results.txt
 
       - name: Run Semgrep
         id: semgrep
         run: |
           semgrep scan --config=auto --config=p/security-audit --config=p/owasp-top-ten --config=p/secrets \
-            --json=semgrep-results.json --sarif=semgrep-results.sarif src/ || true
-        continue-on-error: true
+            --json=semgrep-results.json --sarif=semgrep-results.sarif src/
 
       - name: Run Safety
         id: safety
         run: |
-          safety check --json --output safety-results.json || true
-        continue-on-error: true
+          safety check --json --output safety-results.json
 
       - name: Run pip-audit
         id: pip-audit
         run: |
-          pip-audit --format=json --output=pip-audit-results.json -r constraints.txt || true
-        continue-on-error: true
+          pip-audit --format=json --output=pip-audit-results.json -r constraints.txt
 
       - name: Upload Bandit SARIF
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
@@ -122,30 +118,6 @@ jobs:
             safety-results.json
             pip-audit-results.json
           retention-days: 30
-
-      # Note: Security audit script below handles severity checks
-      # Raw scanner checks were replaced with consolidated script references
-      # to prevent false GitHub Checks failures from missing binaries or
-      # severity mapping artifacts.
-      - name: Check Bandit HIGH findings (consolidated script)
-        if: always()
-        run: |
-          echo "Bandit findings handled by consolidated security_audit.py script"
-
-      - name: Check Semgrep HIGH findings (consolidated script)
-        if: always()
-        run: |
-          echo "Semgrep findings handled by consolidated security_audit.py script"
-
-      - name: Check Safety HIGH findings (consolidated script)
-        if: always()
-        run: |
-          echo "Safety findings handled by consolidated security_audit.py script"
-
-      - name: Check pip-audit HIGH findings (consolidated script)
-        if: always()
-        run: |
-          echo "pip-audit findings handled by consolidated security_audit.py script"
 
   container-security-scan:
     name: Container Security Scan

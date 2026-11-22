@@ -47,3 +47,21 @@ def test_every_scanner_ran_and_clean_passes() -> None:
     assert security_audit.unavailable_scanners(results) == []
     report = security_audit.generate_report(results, Path("."), "json")
     assert '"overall_status": "passed"' in report
+
+
+def test_scanner_crash_is_error_not_passed() -> None:
+    """A scanner that crashes (non-zero exit) must be reported as error, not passed."""
+    results = [_result("pip-audit", "error"), _result("bandit", "passed")]
+    # error status means unavailable_scanners should include it
+    assert security_audit.unavailable_scanners(results) == ["pip-audit"]
+    report = security_audit.generate_report(results, Path("."), "json")
+    assert '"overall_status": "warnings"' in report
+
+
+def test_all_scanners_crash_fails_gate() -> None:
+    """If all required scanners crash, the gate must fail (no clean pass)."""
+    results = [_result("pip-audit", "error"), _result("safety", "error"), _result("bandit", "error")]
+    assert security_audit.unavailable_scanners(results) == ["pip-audit", "safety", "bandit"]
+    report = security_audit.generate_report(results, Path("."), "json")
+    # With all scanners error, should be warnings not passed
+    assert '"overall_status": "warnings"' in report

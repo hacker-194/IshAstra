@@ -9,7 +9,7 @@ from unittest.mock import patch
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from ishastra.core import scope as scope_module
+from ishastra.security.authorization import scope as scope_module
 
 PROPERTY_SETTINGS = settings(max_examples=100, derandomize=True, deadline=None)
 LABELS = st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=16)

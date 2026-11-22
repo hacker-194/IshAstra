@@ -22,7 +22,7 @@ from ishastra.core.k8s_queue import (
     _job_name,
     get_k8s_assessment_queue,
 )
-from ishastra.core.scope import Scope
+from ishastra.security.authorization.scope import Scope
 
 
 def test_job_name_is_an_rfc1123_subdomain():

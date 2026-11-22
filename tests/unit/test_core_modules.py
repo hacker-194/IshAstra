@@ -35,7 +35,7 @@ from ishastra.core.jobs import (
     RunState,
     prepare,
 )
-from ishastra.core.scope import Scope, load
+from ishastra.security.authorization.scope import Scope, load
 from ishastra.crypto import EncryptionError, decrypt, encrypt, generate_key
 
 
@@ -906,9 +906,9 @@ class TestJobsUnit:
 
     def test_prepare_fails_without_scope(self):
         """Test prepare fails when no scope is configured."""
-        from ishastra.core import scope
+        from ishastra.security.authorization import scope as scope_module
 
-        scope._active = None
+        scope_module._active = None
         with pytest.raises(ValueError, match="no authorized scope configured"):
             prepare(
                 target="https://example.com/",

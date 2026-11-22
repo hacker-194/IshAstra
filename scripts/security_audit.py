@@ -241,6 +241,17 @@ def run_safety(project_root: Path) -> ScanResult:
             error=stderr or "Safety not installed",
         )
 
+    # Non-zero exit code means scanner crashed or failed - treat as error, not clean pass
+    if exit_code != 0:
+        return ScanResult(
+            scanner="safety",
+            status="error",
+            findings=[],
+            summary={},
+            duration_seconds=duration,
+            error=f"Safety exited with code {exit_code}: {stderr.strip() or stdout.strip()}",
+        )
+
     try:
         data = json.loads(stdout) if stdout else []
         findings = data if isinstance(data, list) else []
@@ -298,6 +309,17 @@ def run_pip_audit(project_root: Path) -> ScanResult:
             summary={},
             duration_seconds=duration,
             error=stderr or "pip-audit not installed",
+        )
+
+    # Non-zero exit code means scanner crashed or failed - treat as error, not clean pass
+    if exit_code != 0:
+        return ScanResult(
+            scanner="pip-audit",
+            status="error",
+            findings=[],
+            summary={},
+            duration_seconds=duration,
+            error=f"pip-audit exited with code {exit_code}: {stderr.strip() or stdout.strip()}",
         )
 
     try:

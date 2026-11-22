@@ -27,7 +27,7 @@ from ishastra.core.adapters import (
 from ishastra.core.crawler import CrawlerAdapter as CoreCrawlerAdapter
 from ishastra.core.exposure import GitExposureAdapter
 from ishastra.core.ports import TCPPortAdapter
-from ishastra.core.scope import Destination
+from ishastra.security.authorization.scope import Destination
 
 
 class TestAdapterBase:

@@ -494,7 +494,7 @@ def get_cross_framework_controls(control_id: str) -> list[str]:
     return CROSS_FRAMEWORK_MAPPING.get(control_id, [])
 
 
-def get_strix_features_for_framework(framework: str) -> dict[str, dict[str, Any]]:
+def get_ishastra_features_for_framework(framework: str) -> dict[str, dict[str, Any]]:
     """Get Ishastra features that map to a framework's controls."""
     framework = framework.lower()
     result = {}
@@ -504,7 +504,7 @@ def get_strix_features_for_framework(framework: str) -> dict[str, dict[str, Any]
     return result
 
 
-def get_strix_features_for_control(control_id: str) -> list[str]:
+def get_ishastra_features_for_control(control_id: str) -> list[str]:
     """Get Ishastra features that map to a specific control."""
     control_id = control_id.upper()
     features = []
@@ -584,7 +584,7 @@ def build_mapping_matrix(frameworks: list[str] | None = None) -> dict[str, Any]:
         "frameworks": {fw: FRAMEWORK_METADATA[fw] for fw in valid_frameworks},
         "categories": {},
         "controls": {},
-        "strix_features": {},
+        "ishastra_features": {},
         "scope_controls": SCOPE_CONTROLS,
         "cross_framework": {},
     }
@@ -616,7 +616,7 @@ def build_mapping_matrix(frameworks: list[str] | None = None) -> dict[str, Any]:
     for feature_id, feature in ISHASTRA_FEATURE_MAPPING.items():
         feature_frameworks = {fw: ctrls for fw, ctrls in feature["frameworks"].items() if fw in frameworks}
         if feature_frameworks:
-            matrix["strix_features"][feature_id] = {
+            matrix["ishastra_features"][feature_id] = {
                 "name": feature["name"],
                 "description": feature["description"],
                 "frameworks": feature_frameworks,
@@ -665,7 +665,7 @@ def export_mapping_matrix_csv(matrix: dict[str, Any]) -> str:
         fw_name = fw_meta.get("name", fw.upper())
 
         for control_id, control in controls.items():
-            features = get_strix_features_for_control(control_id)
+            features = get_ishastra_features_for_control(control_id)
             cross_refs = get_cross_framework_controls(control_id)
 
             writer.writerow(
@@ -698,8 +698,8 @@ __all__ = [
     "get_controls_for_category",
     "get_frameworks_for_control",
     "get_cross_framework_controls",
-    "get_strix_features_for_framework",
-    "get_strix_features_for_control",
+    "get_ishastra_features_for_framework",
+    "get_ishastra_features_for_control",
     "build_mapping_matrix",
     "export_mapping_matrix_csv",
 ]

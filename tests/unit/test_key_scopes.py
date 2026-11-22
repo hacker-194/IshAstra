@@ -350,7 +350,7 @@ class TestKeyLifecycle:
             scope_type="tenant",
         )
 
-        assert raw_key.startswith("strix_")
+        assert raw_key.startswith("ishastra_")
         assert len(raw_key) > 10
 
         assert record.tenant_id == tenant_id
@@ -453,7 +453,7 @@ class TestKeyLifecycle:
     @pytest.mark.asyncio
     async def test_validate_project_key_invalid(self, temp_db, db_with_tenant):
         """Test validating an invalid key returns None."""
-        validated = await validate_project_key("strix_invalid_key_that_does_not_exist")
+        validated = await validate_project_key("ishastra_invalid_key_that_does_not_exist")
         assert validated is None
 
     @pytest.mark.asyncio
@@ -469,7 +469,7 @@ class TestKeyLifecycle:
         """Test validating an expired key returns None and deactivates it."""
         tenant_id = db_with_tenant
 
-        raw_key = "strix_" + "a" * 32
+        raw_key = "ishastra_" + "a" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         past = time.time() - 86400
 
@@ -611,7 +611,7 @@ class TestKeyRotation:
         """Test rotating an expired key returns None."""
         tenant_id = db_with_tenant
 
-        raw_key = "strix_" + "b" * 32
+        raw_key = "ishastra_" + "b" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         past = time.time() - 86400
 
@@ -933,7 +933,7 @@ class TestValidateApiKeyWithScopes:
     @pytest.mark.asyncio
     async def test_validate_api_key_with_scopes_invalid(self, temp_db):
         """Test validate_api_key_with_scopes returns None for invalid key."""
-        result = await validate_api_key_with_scopes("strix_invalid")
+        result = await validate_api_key_with_scopes("ishastra_invalid")
         assert result is None
 
     @pytest.mark.asyncio
@@ -941,7 +941,7 @@ class TestValidateApiKeyWithScopes:
         """Test validate_api_key_with_scopes returns None for expired key."""
         tenant_id = db_with_tenant
 
-        raw_key = "strix_" + "c" * 32
+        raw_key = "ishastra_" + "c" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         past = time.time() - 86400
 
@@ -1032,7 +1032,7 @@ class TestAuthorizeRequest:
     @pytest.mark.asyncio
     async def test_authorize_request_invalid_key(self, temp_db):
         """Test authorize_request returns None for invalid key."""
-        key = await authorize_request("strix_invalid", required_project="project-a")
+        key = await authorize_request("ishastra_invalid", required_project="project-a")
         assert key is None
 
     @pytest.mark.asyncio
@@ -1239,7 +1239,7 @@ class TestEdgeCases:
 
         assert len(results) == 5
         for raw_key, record in results:
-            assert raw_key.startswith("strix_")
+            assert raw_key.startswith("ishastra_")
             assert record.tenant_id in tenants
 
     @pytest.mark.asyncio

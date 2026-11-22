@@ -149,10 +149,10 @@ def main():
     print(f"Output directory: {output_dir}")
 
     ed25519_private_pem, ed25519_jwk = generate_ed25519_key()
-    strix_api_key = generate_api_key()
-    strix_audit_hmac_key = generate_hmac_key()
-    strix_webhook_secret = generate_hmac_key()
-    strix_encryption_key = generate_aes256_key()
+    ishastra_api_key = generate_api_key()
+    ishastra_audit_hmac_key = generate_hmac_key()
+    ishastra_webhook_secret = generate_hmac_key()
+    ishastra_encryption_key = generate_aes256_key()
     redis_password = generate_password(32)
     postgres_password = generate_password(32)
     grafana_admin_password = generate_password(24)
@@ -174,10 +174,10 @@ secrets:
   enabled: true
   createSecrets: false  # Let External Secrets / SealedSecrets manage the actual Secret
   strixSecrets:
-    ISHASTRA_API_KEY: "{strix_api_key}"
-    ISHASTRA_AUDIT_HMAC_KEY: "{strix_audit_hmac_key}"
-    ISHASTRA_WEBHOOK_SECRET: "{strix_webhook_secret}"
-    ISHASTRA_ENCRYPTION_KEY: "{strix_encryption_key}"
+    ISHASTRA_API_KEY: "{ishastra_api_key}"
+    ISHASTRA_AUDIT_HMAC_KEY: "{ishastra_audit_hmac_key}"
+    ISHASTRA_WEBHOOK_SECRET: "{ishastra_webhook_secret}"
+    ISHASTRA_ENCRYPTION_KEY: "{ishastra_encryption_key}"
     ISHASTRA_DATABASE_URL: "{database_url}"
   redisSecret:
     redis-password: "{redis_password}"
@@ -215,10 +215,10 @@ secrets:
             },
             "type": "Opaque",
             "stringData": {
-                "ISHASTRA_API_KEY": strix_api_key,
-                "ISHASTRA_AUDIT_HMAC_KEY": strix_audit_hmac_key,
-                "ISHASTRA_WEBHOOK_SECRET": strix_webhook_secret,
-                "ISHASTRA_ENCRYPTION_KEY": strix_encryption_key,
+                "ISHASTRA_API_KEY": ishastra_api_key,
+                "ISHASTRA_AUDIT_HMAC_KEY": ishastra_audit_hmac_key,
+                "ISHASTRA_WEBHOOK_SECRET": ishastra_webhook_secret,
+                "ISHASTRA_ENCRYPTION_KEY": ishastra_encryption_key,
                 "ISHASTRA_DATABASE_URL": database_url,
             },
         }
@@ -233,10 +233,10 @@ secrets:
 # Source this file: source .env.secrets
 # ⚠️  DO NOT COMMIT TO GIT
 
-export ISHASTRA_API_KEY="{strix_api_key}"
-export ISHASTRA_AUDIT_HMAC_KEY="{strix_audit_hmac_key}"
-export ISHASTRA_WEBHOOK_SECRET="{strix_webhook_secret}"
-export ISHASTRA_ENCRYPTION_KEY="{strix_encryption_key}"
+export ISHASTRA_API_KEY="{ishastra_api_key}"
+export ISHASTRA_AUDIT_HMAC_KEY="{ishastra_audit_hmac_key}"
+export ISHASTRA_WEBHOOK_SECRET="{ishastra_webhook_secret}"
+export ISHASTRA_ENCRYPTION_KEY="{ishastra_encryption_key}"
 export ISHASTRA_DATABASE_URL="{database_url}"
 export ISHASTRA_REDIS_URL="redis://:{redis_password}@{args.redis_host}:{args.redis_port}/0"
 export ISHASTRA_LOG_LEVEL="DEBUG"
@@ -262,10 +262,10 @@ export ISHASTRA_SCOPE_JWKS="/etc/ishastra/scope-jwks.json"
     print("\n" + "=" * 60)
     print("SECRET SUMMARY (save these securely!)")
     print("=" * 60)
-    print(f"ISHASTRA_API_KEY:              {strix_api_key}")
-    print(f"ISHASTRA_AUDIT_HMAC_KEY:       {strix_audit_hmac_key}")
-    print(f"ISHASTRA_WEBHOOK_SECRET:       {strix_webhook_secret}")
-    print(f"ISHASTRA_ENCRYPTION_KEY:       {strix_encryption_key}")
+    print(f"ISHASTRA_API_KEY:              {ishastra_api_key}")
+    print(f"ISHASTRA_AUDIT_HMAC_KEY:       {ishastra_audit_hmac_key}")
+    print(f"ISHASTRA_WEBHOOK_SECRET:       {ishastra_webhook_secret}")
+    print(f"ISHASTRA_ENCRYPTION_KEY:       {ishastra_encryption_key}")
     print(f"ISHASTRA_DATABASE_URL:         {database_url}")
     print(f"Redis password:             {redis_password}")
     print(f"PostgreSQL password:        {postgres_password}")

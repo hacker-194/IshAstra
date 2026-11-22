@@ -95,7 +95,7 @@ curl http://localhost:8000/health
 - **GitHub**: [github.com/hacker-194/IshAstra](https://github.com/hacker-194/IshAstra)
 - **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
 - **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
-- **Twitter**: [@strix_security](https://twitter.com/strix_security)
+- **Twitter**: [@ishastra_security](https://twitter.com/ishastra_security)
 
 ## License
 

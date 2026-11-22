@@ -167,7 +167,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_jobs_total{state=\"started\"}[5m])) by (tenant)",
+          "expr": "sum(rate(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         }
@@ -243,7 +243,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)",
+          "expr": "sum(increase(ishastra_findings_total[1h])) by (tenant, severity)",
           "legendFormat": "{{tenant}} - {{severity}}",
           "refId": "A"
         }
@@ -320,7 +320,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_findings_total[5m])) by (tenant, adapter)",
+          "expr": "sum(rate(ishastra_findings_total[5m])) by (tenant, adapter)",
           "legendFormat": "{{tenant}} - {{adapter}}",
           "refId": "A"
         }
@@ -396,7 +396,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_reports_total[1h])) by (tenant, kind)",
+          "expr": "sum(increase(ishastra_reports_total[1h])) by (tenant, kind)",
           "legendFormat": "{{tenant}} - {{kind}}",
           "refId": "A"
         }
@@ -566,7 +566,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_auth_failures_total[5m])) by (tenant, reason)",
+          "expr": "sum(rate(ishastra_auth_failures_total[5m])) by (tenant, reason)",
           "legendFormat": "{{tenant}} - {{reason}}",
           "refId": "A"
         }
@@ -642,7 +642,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_webhook_deliveries_total[1h])) by (tenant, status)",
+          "expr": "sum(increase(ishastra_webhook_deliveries_total[1h])) by (tenant, status)",
           "legendFormat": "{{tenant}} - {{status}}",
           "refId": "A"
         }
@@ -735,7 +735,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(rate(strix_jobs_total{state=\"started\"}[5m]))",
+          "expr": "sum(rate(ishastra_jobs_total{state=\"started\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -781,7 +781,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(rate(strix_findings_total[5m]))",
+          "expr": "sum(rate(ishastra_findings_total[5m]))",
           "refId": "A"
         }
       ],

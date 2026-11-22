@@ -712,12 +712,12 @@
       },
       "targets": [
         {
-          "expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))))",
+          "expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))))",
           "legendFormat": "Overall",
           "refId": "A"
         },
         {
-          "expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))",
+          "expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter))",
           "legendFormat": "{{adapter}}",
           "refId": "B"
         }
@@ -794,7 +794,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total[5m])) by (state)",
+          "expr": "sum(increase(ishastra_jobs_total[5m])) by (state)",
           "legendFormat": "{{state}}",
           "refId": "A"
         }
@@ -947,7 +947,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)",
+          "expr": "sum(increase(ishastra_findings_total[1h])) by (tenant, severity)",
           "legendFormat": "{{tenant}} - {{severity}}",
           "refId": "A"
         }

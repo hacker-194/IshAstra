@@ -574,7 +574,7 @@ async def test_ssh_audit_real_server(test_ssh_server, test_scope):
 my-ishastra-adapters/
 ├── pyproject.toml
 ├── src/
-│   └── my_strix_adapters/
+│   └── my_ishastra_adapters/
 │       ├── __init__.py
 │       ├── ssh_audit.py
 │       ├── tls_check.py
@@ -599,15 +599,15 @@ dependencies = [
 ]
 
 [project.entry-points."ishastra.adapters"]
-ssh_audit = "my_strix_adapters.ssh_audit:SSHAuditAdapter"
-tls_check = "my_strix_adapters.tls_check:TLSCheckAdapter"
-dns_audit = "my_strix_adapters.dns_audit:DNSAuditAdapter"
+ssh_audit = "my_ishastra_adapters.ssh_audit:SSHAuditAdapter"
+tls_check = "my_ishastra_adapters.tls_check:TLSCheckAdapter"
+dns_audit = "my_ishastra_adapters.dns_audit:DNSAuditAdapter"
 ```
 
 ### Auto-registration
 
 ```python
-# src/my_strix_adapters/__init__.py
+# src/my_ishastra_adapters/__init__.py
 from ishastra.core.adapters import adapter_registry
 
 def register_all():

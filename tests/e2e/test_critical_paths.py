@@ -32,7 +32,7 @@ class TestAuthFlow:
             pytest.skip("Metrics endpoint requires admin API key")
         assert response.ok
         text = response.text()
-        assert "strix_" in text or "http_requests_total" in text
+        assert "ishastra_" in text or "http_requests_total" in text
 
 
 @pytest.mark.e2e

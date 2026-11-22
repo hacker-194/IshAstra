@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- The `strix` naming is gone: every Prometheus metric is now `ishastra_*`
+  (`ishastra_jobs_total`, `ishastra_scope_gate_decisions_total`, ...), generated
+  API keys start with `ishastra_`, session and CSRF cookies are
+  `ishastra_session`/`ishastra_csrf`, and the nginx site file is
+  `deploy/nginx/conf.d/ishastra.conf`. The shipped Grafana dashboards,
+  Prometheus rules and alert examples were updated in the same change, so
+  dashboards built against the old names need their queries updated once.
+
 ### Added
 
 - Remediation SLAs: every finding has a deadline derived from severity

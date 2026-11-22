@@ -1,8 +1,8 @@
 # Capacity Planning Runbook
 
-> **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
+> **Metric note (verified 2026-11-17):** every `ishastra_*` series this page queries
 > is defined in `src/ishastra/metrics.py` and has a data source.
-> `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
+> `ishastra_queue_depth` and `ishastra_worker_*` publish in `inprocess` queue mode only.
 
 
 ## Overview
@@ -119,34 +119,34 @@ When `ISHASTRA_REDIS_REQUIRED=true` or `ISHASTRA_WORKERS>1`:
 
 | Metric | Warning | Critical | Action |
 |--------|---------|----------|--------|
-| `strix_queue_depth` | > 20 | > 40 | Scale workers / investigate stuck jobs |
-| `strix_job_duration_seconds` (p95) | > 300s | > 600s | Profile optimization / timeout increase |
-| `strix_active_jobs` | > 8 | > 15 | Queue saturation |
-| `strix_db_size_bytes` | > 5 GB | > 15 GB | Prune / archive |
-| `strix_audit_chain_length` | N/A | N/A | Monitor for gaps |
-| `strix_worker_heartbeat_age` | > 60s | > 120s | Worker dead |
-| `strix_rate_limit_exceeded_total` | > 10/min | > 100/min | Capacity / abuse |
+| `ishastra_queue_depth` | > 20 | > 40 | Scale workers / investigate stuck jobs |
+| `ishastra_job_duration_seconds` (p95) | > 300s | > 600s | Profile optimization / timeout increase |
+| `ishastra_active_jobs` | > 8 | > 15 | Queue saturation |
+| `ishastra_db_size_bytes` | > 5 GB | > 15 GB | Prune / archive |
+| `ishastra_audit_chain_length` | N/A | N/A | Monitor for gaps |
+| `ishastra_worker_heartbeat_age` | > 60s | > 120s | Worker dead |
+| `ishastra_rate_limit_exceeded_total` | > 10/min | > 100/min | Capacity / abuse |
 
 ### Prometheus Queries
 
 ```promql
 # Queue depth
-strix_queue_depth
+ishastra_queue_depth
 
 # Job duration p95
-histogram_quantile(0.95, rate(strix_job_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(ishastra_job_duration_seconds_bucket[5m]))
 
 # Active jobs by tenant
-strix_active_jobs{tenant="acme-corp"}
+ishastra_active_jobs{tenant="acme-corp"}
 
 # Database size
-strix_db_size_bytes / 1024 / 1024 / 1024 > 5
+ishastra_db_size_bytes / 1024 / 1024 / 1024 > 5
 
 # Worker health
-time() - strix_worker_heartbeat_timestamp > 60
+time() - ishastra_worker_heartbeat_timestamp > 60
 
 # Rate limit hits
-rate(strix_rate_limit_exceeded_total[5m]) > 0.16
+rate(ishastra_rate_limit_exceeded_total[5m]) > 0.16
 ```
 
 ### Grafana Dashboard Panels

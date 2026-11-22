@@ -122,7 +122,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (tenant)",
+          "expr": "sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (tenant)",
           "refId": "A"
         }
       ],
@@ -383,7 +383,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (tenant, tier)",
+          "expr": "sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (tenant, tier)",
           "legendFormat": "{{tenant}} - {{tier}}",
           "refId": "A"
         }
@@ -460,17 +460,17 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"completed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"completed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}} (completed)",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"failed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"failed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}} (failed)",
           "refId": "C"
         }
@@ -555,7 +555,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"failed\"}[5m])) by (tenant) / sum(increase(strix_jobs_total{state=~\"completed|failed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"failed\"}[5m])) by (tenant) / sum(increase(ishastra_jobs_total{state=~\"completed|failed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         }
@@ -709,7 +709,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_findings_total[5m])) by (tenant, severity)",
+          "expr": "sum(rate(ishastra_findings_total[5m])) by (tenant, severity)",
           "legendFormat": "{{tenant}} - {{severity}}",
           "refId": "A"
         }
@@ -785,7 +785,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_reports_total[1h])) by (tenant, kind)",
+          "expr": "sum(increase(ishastra_reports_total[1h])) by (tenant, kind)",
           "legendFormat": "{{tenant}} - {{kind}}",
           "refId": "A"
         }
@@ -861,7 +861,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_webhook_deliveries_total[1h])) by (tenant, status)",
+          "expr": "sum(increase(ishastra_webhook_deliveries_total[1h])) by (tenant, status)",
           "legendFormat": "{{tenant}} - {{status}}",
           "refId": "A"
         }
@@ -946,7 +946,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_auth_failures_total[5m])) by (tenant, reason)",
+          "expr": "sum(rate(ishastra_auth_failures_total[5m])) by (tenant, reason)",
           "legendFormat": "{{tenant}} - {{reason}}",
           "refId": "A"
         }

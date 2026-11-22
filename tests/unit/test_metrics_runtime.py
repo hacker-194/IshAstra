@@ -86,7 +86,8 @@ def test_adapter_error_and_timeout_series():
         == errors + 1
     )
     assert (
-        _value("ishastra_adapter_timeout_total", {"adapter": "ishastra-http", "tenant": tenant}) == timeouts + 1
+        _value("ishastra_adapter_timeout_total", {"adapter": "ishastra-http", "tenant": tenant})
+        == timeouts + 1
     )
 
 
@@ -125,7 +126,8 @@ def test_audit_append_records_event_and_chain_length():
     chain.append({"type": "policy_created", "tenant": "acme"})
 
     assert (
-        _value("ishastra_audit_events_total", {"tenant": "acme", "event_type": "policy_created"}) == before + 1
+        _value("ishastra_audit_events_total", {"tenant": "acme", "event_type": "policy_created"})
+        == before + 1
     )
     assert _value("ishastra_audit_chain_length", {}) == 1
 
@@ -156,7 +158,9 @@ def test_job_findings_are_counted_by_severity_and_detector():
     execute(job)
 
     assert (
-        _value("ishastra_findings_total", {"tenant": "global", "severity": "high", "adapter": "ishastra-http"})
+        _value(
+            "ishastra_findings_total", {"tenant": "global", "severity": "high", "adapter": "ishastra-http"}
+        )
         == before + 1
     )
 
@@ -169,7 +173,9 @@ def test_queue_wait_and_webhook_and_auth_recorders():
     metrics.observe_job_queue("web", 0.4)
     assert _value("ishastra_job_queue_duration_seconds_count", {"profile": "web"}) == queue_before + 1
 
-    delivered_before = _value("ishastra_webhook_deliveries_total", {"tenant": "global", "status": "delivered"})
+    delivered_before = _value(
+        "ishastra_webhook_deliveries_total", {"tenant": "global", "status": "delivered"}
+    )
     metrics.record_webhook_delivery("delivered", None)
     assert (
         _value("ishastra_webhook_deliveries_total", {"tenant": "global", "status": "delivered"})
@@ -179,5 +185,6 @@ def test_queue_wait_and_webhook_and_auth_recorders():
     failures_before = _value("ishastra_auth_failures_total", {"tenant": "global", "reason": "bad_key"})
     metrics.record_auth_failure("bad_key", None)
     assert (
-        _value("ishastra_auth_failures_total", {"tenant": "global", "reason": "bad_key"}) == failures_before + 1
+        _value("ishastra_auth_failures_total", {"tenant": "global", "reason": "bad_key"})
+        == failures_before + 1
     )

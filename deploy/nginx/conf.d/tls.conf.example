@@ -7,7 +7,7 @@
 #   3. Mount ./certs (or /etc/letsencrypt) into the nginx container and rename
 #      this file to tls.conf, replacing the paths and server_name below.
 #   4. Add `- "443:443"` to the nginx service ports.
-#   5. Uncomment the HTTP -> HTTPS redirect in strix.conf.
+#   5. Uncomment the HTTP -> HTTPS redirect in ishastra.conf.
 #
 # Verify after enabling:
 #   curl -sSI https://strix.example.com.np/api/health
@@ -30,7 +30,7 @@ server {
     add_header Referrer-Policy no-referrer always;
 
     location / {
-        proxy_pass http://strix_api;
+        proxy_pass http://ishastra_api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

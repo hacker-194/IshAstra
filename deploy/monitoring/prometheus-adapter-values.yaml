@@ -5,10 +5,10 @@ prometheus:
 rules:
   default: false
   external:
-    - seriesQuery: 'strix_assessment_queue_pending'
+    - seriesQuery: 'ishastra_assessment_queue_pending'
       name:
-        matches: "^strix_assessment_queue_pending$"
-        as: strix_assessment_queue_pending
+        matches: "^ishastra_assessment_queue_pending$"
+        as: ishastra_assessment_queue_pending
       metricsQuery: "sum(<<.Series>>)"
     - seriesQuery: 'ishastra_scope_gate_decision_latency_seconds_p95'
       name:

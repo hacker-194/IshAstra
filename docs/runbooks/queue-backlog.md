@@ -8,7 +8,7 @@
 
 ## Symptoms
 
-- `strix_queue_depth > 1000` for > 10 minutes
+- `ishastra_queue_depth > 1000` for > 10 minutes
 - Assessments stuck in "pending" status
 - Increased time-to-completion for assessments
 
@@ -18,7 +18,7 @@
 
 ```bash
 # Queue depth
-kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep strix_queue_depth
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep ishastra_queue_depth
 
 # Pending assessments
 ishastra assessment list --status pending --limit 20
@@ -37,7 +37,7 @@ kubectl logs -n ishastra-system -l app=ishastra-worker --tail=200
 kubectl top pods -n ishastra-system -l app=ishastra-worker
 
 # Active tasks per worker
-kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep strix_worker_active_tasks
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s localhost:8000/metrics | grep ishastra_worker_active_tasks
 ```
 
 ### 3. Check Scheduler
@@ -54,7 +54,7 @@ kubectl logs -n ishastra-system -l app=ishastra-scheduler --tail=100
 |-------|-----------|-----|
 | Insufficient workers | Queue depth high, few workers | Scale worker deployment: `kubectl scale deployment ishastra-worker --replicas=N` |
 | Workers OOM killed | `container_oom_kills_total` increasing | Increase memory limit in Helm values |
-| Long-running assessments | High `strix_assessment_duration_seconds` | Check adapter timeouts, reduce scope |
+| Long-running assessments | High `ishastra_assessment_duration_seconds` | Check adapter timeouts, reduce scope |
 | Scheduler not triggering | No new assessments from cron | Check scheduler logs and worker lease ownership |
 | Redis queue issues | Queue depth metric not updating | Check Redis connectivity, memory |
 

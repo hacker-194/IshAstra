@@ -138,7 +138,7 @@ async def test_adapter_with_mock():
 #[cfg(test)]
 mod tests {
     use super::*;
-    use strix_rust::{ScopeGate, ScopeDocument, Destination};
+    use ishastra_rust::{ScopeGate, ScopeDocument, Destination};
     
     fn test_scope() -> ScopeDocument {
         ScopeDocument {

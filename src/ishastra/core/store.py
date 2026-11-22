@@ -1158,7 +1158,7 @@ class SQLiteDatabase(Database):
     def __init__(self, path: str, max_size: int = 10):
         self.path = path
         self.max_size = max_size
-        self._memory_uri = f"file:strix_mem_{uuid.uuid4().hex}?mode=memory&cache=shared"
+        self._memory_uri = f"file:ishastra_mem_{uuid.uuid4().hex}?mode=memory&cache=shared"
 
         self._pools: dict[int, dict] = {}
         self._pool_lock = threading.Lock()

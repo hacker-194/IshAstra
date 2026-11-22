@@ -39,7 +39,7 @@ Optional Prometheus/Grafana:
 
 ```bash
 mkdir -p secrets
-printf '%s' "$ISHASTRA_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
+printf '%s' "$ISHASTRA_API_KEY" > secrets/ishastra_api_key && chmod 600 secrets/ishastra_api_key
 docker compose --env-file .env.production \
   -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 ```
@@ -321,10 +321,10 @@ superuser bypass row-level security entirely, so a superuser connection
 silently disables the tenant isolation you think you have.
 
 ```sql
-CREATE ROLE strix_app LOGIN PASSWORD '...';
-GRANT USAGE ON SCHEMA public TO strix_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO strix_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO strix_app;
+CREATE ROLE ishastra_app LOGIN PASSWORD '...';
+GRANT USAGE ON SCHEMA public TO ishastra_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ishastra_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ishastra_app;
 ```
 
 ## 13. Email invitations for organizations

@@ -127,7 +127,7 @@ spec:
 
     # Assessment Queue
     - alert: IshastraQueueDepthHigh
-      expr: strix_queue_depth > 1000
+      expr: ishastra_queue_depth > 1000
       for: 10m
       labels:
         severity: warning
@@ -136,7 +136,7 @@ spec:
         description: "Queue depth: {{ $value }} - consider scaling workers"
 
     - alert: IshastraQueueProcessingSlow
-      expr: rate(strix_assessment_duration_seconds_sum[5m]) / rate(strix_assessment_duration_seconds_count[5m]) > 600
+      expr: rate(ishastra_assessment_duration_seconds_sum[5m]) / rate(ishastra_assessment_duration_seconds_count[5m]) > 600
       for: 15m
       labels:
         severity: warning
@@ -173,7 +173,7 @@ spec:
         description: "Scheduler pod {{ $labels.pod }} down"
 
     - alert: IshastraSchedulerLeaderElectionFailures
-      expr: rate(strix_scheduler_leader_election_failures_total[5m]) > 0.1
+      expr: rate(ishastra_scheduler_leader_election_failures_total[5m]) > 0.1
       for: 5m
       labels:
         severity: warning
@@ -293,16 +293,16 @@ spec:
       "title": "Assessment Queue Depth",
       "type": "graph",
       "targets": [
-        {"expr": "strix_queue_depth", "legendFormat": "Queue Depth"}
+        {"expr": "ishastra_queue_depth", "legendFormat": "Queue Depth"}
       ]
     },
     {
       "title": "Assessment Rate",
       "type": "graph",
       "targets": [
-        {"expr": "rate(strix_assessments_started_total[5m])", "legendFormat": "Started"},
-        {"expr": "rate(strix_assessments_completed_total[5m])", "legendFormat": "Completed"},
-        {"expr": "rate(strix_assessments_failed_total[5m])", "legendFormat": "Failed"}
+        {"expr": "rate(ishastra_assessments_started_total[5m])", "legendFormat": "Started"},
+        {"expr": "rate(ishastra_assessments_completed_total[5m])", "legendFormat": "Completed"},
+        {"expr": "rate(ishastra_assessments_failed_total[5m])", "legendFormat": "Failed"}
       ]
     },
     {
@@ -356,7 +356,7 @@ spec:
       "title": "Break Glass Activations",
       "type": "stat",
       "targets": [
-        {"expr": "strix_break_glass_active_total", "legendFormat": "Active"}
+        {"expr": "ishastra_break_glass_active_total", "legendFormat": "Active"}
       ]
     }
   ]
@@ -454,28 +454,28 @@ data:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `strix_queue_depth` | Gauge | Pending assessments in queue |
-| `strix_assessments_started_total` | Counter | Assessments started |
-| `strix_assessments_completed_total` | Counter | Assessments completed |
-| `strix_assessments_failed_total` | Counter | Assessments failed |
-| `strix_assessment_duration_seconds` | Histogram | Assessment duration |
-| `strix_findings_total` | Counter | Findings by severity |
+| `ishastra_queue_depth` | Gauge | Pending assessments in queue |
+| `ishastra_assessments_started_total` | Counter | Assessments started |
+| `ishastra_assessments_completed_total` | Counter | Assessments completed |
+| `ishastra_assessments_failed_total` | Counter | Assessments failed |
+| `ishastra_assessment_duration_seconds` | Histogram | Assessment duration |
+| `ishastra_findings_total` | Counter | Findings by severity |
 
 ### Worker Metrics
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `strix_worker_active_tasks` | Gauge | Currently running tasks |
-| `strix_worker_task_duration_seconds` | Histogram | Task execution time |
-| `strix_worker_errors_total` | Counter | Worker errors by type |
+| `ishastra_worker_active_tasks` | Gauge | Currently running tasks |
+| `ishastra_worker_task_duration_seconds` | Histogram | Task execution time |
+| `ishastra_worker_errors_total` | Counter | Worker errors by type |
 
 ### Scheduler Metrics
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `strix_jobs_total` | Counter | Job state transitions |
-| `strix_scheduler_leader_election_failures_total` | Counter | Failed elections |
-| `strix_scheduler_jobs_triggered_total` | Counter | Cron jobs triggered |
+| `ishastra_jobs_total` | Counter | Job state transitions |
+| `ishastra_scheduler_leader_election_failures_total` | Counter | Failed elections |
+| `ishastra_scheduler_jobs_triggered_total` | Counter | Cron jobs triggered |
 
 ## Alertmanager Configuration
 

@@ -544,7 +544,7 @@ async def create_partner(
         raise ValueError("Slug too long (max 64 characters)")
 
     partner_id = _generate_id("mssp")
-    raw_admin_key = admin_key or f"strix_mssp_{secrets.token_urlsafe(32)}"
+    raw_admin_key = admin_key or f"ishastra_mssp_{secrets.token_urlsafe(32)}"
     admin_key_hash = _hash_key(raw_admin_key)
     now = time.time()
     settings_json = json.dumps(settings or {})
@@ -711,7 +711,7 @@ async def update_partner(
 
 async def rotate_partner_admin_key(partner_id: str) -> str:
     """Rotate the MSSP partner admin key. Returns new raw key."""
-    raw_key = f"strix_mssp_{secrets.token_urlsafe(32)}"
+    raw_key = f"ishastra_mssp_{secrets.token_urlsafe(32)}"
     key_hash = _hash_key(raw_key)
     now = time.time()
 

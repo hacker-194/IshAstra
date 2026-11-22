@@ -885,7 +885,7 @@ class TestOIDCIntegrationWithStore:
         store.configure(temp_db)
         await store.get_database()
 
-        raw_key = "strix_" + "a" * 32
+        raw_key = "ishastra_" + "a" * 32
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         now = time.time()
 

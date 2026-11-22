@@ -73,9 +73,9 @@ async def test_user_patch_routes_groups_to_membership(monkeypatch):
     calls: list[tuple] = []
 
     async def _get_user_mapping(user_id, tenant_id, scim_token):
-        return {"strix_user_id": "su_1", "scim_id": user_id}
+        return {"ishastra_user_id": "su_1", "scim_id": user_id}
 
-    async def _get_strix_user(user_id, tenant_id):
+    async def _get_ishastra_user(user_id, tenant_id):
         return {
             "user_id": user_id,
             "email": "a@example.com",
@@ -97,7 +97,7 @@ async def test_user_patch_routes_groups_to_membership(monkeypatch):
         return {"id": user_id}
 
     monkeypatch.setattr(svc, "_get_user_mapping", _get_user_mapping)
-    monkeypatch.setattr(svc, "_get_strix_user", _get_strix_user)
+    monkeypatch.setattr(svc, "_get_ishastra_user", _get_ishastra_user)
     monkeypatch.setattr(svc, "_apply_group_membership", _record)
     monkeypatch.setattr(svc, "get_user", _get_user)
     monkeypatch.setattr(store, "save_tenant_user", _save_tenant_user)

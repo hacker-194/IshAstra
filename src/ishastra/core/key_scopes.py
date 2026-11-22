@@ -228,7 +228,7 @@ async def create_project_key(
     if ttl_days is not None and (ttl_days < 1 or ttl_days > 3650):
         raise ValueError("ttl_days must be between 1 and 3650")
 
-    raw_key = f"strix_{secrets.token_urlsafe(32)}"
+    raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     now = time.time()
     expires_at = now + ttl_days * 86400.0 if ttl_days is not None else None
@@ -341,7 +341,7 @@ async def rotate_project_key(
         return None
 
     new_expires_at = (now + ttl_days * 86400.0) if ttl_days is not None else existing.expires_at
-    raw_key = f"strix_{secrets.token_urlsafe(32)}"
+    raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
     new_record = ProjectKey(

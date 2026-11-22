@@ -74,7 +74,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "strix_audit_chain_verified",
+          "expr": "ishastra_audit_chain_verified",
           "refId": "A"
         }
       ],
@@ -128,7 +128,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_auth_failures_total[1h]))",
+          "expr": "sum(increase(ishastra_auth_failures_total[1h]))",
           "refId": "A"
         }
       ],
@@ -182,7 +182,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_rate_limit_exceeded_total[1h]))",
+          "expr": "sum(increase(ishastra_rate_limit_exceeded_total[1h]))",
           "refId": "A"
         }
       ],
@@ -236,7 +236,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(ishastra_scope_gate_decisions_total{decision="blocked"}[1h]))",
+          "expr": "sum(increase(ishastra_scope_gate_decisions_total{decision=\"blocked\"}[1h]))",
           "refId": "A"
         }
       ],
@@ -312,7 +312,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_auth_failures_total[5m])) by (reason)",
+          "expr": "sum(rate(ishastra_auth_failures_total[5m])) by (reason)",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -397,7 +397,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier)",
+          "expr": "sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (route_class, tier)",
           "legendFormat": "{{route_class}} - {{tier}}",
           "refId": "A"
         }
@@ -474,7 +474,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(ishastra_scope_gate_decisions_total{decision="blocked"}[5m])) by (tenant, reason)",
+          "expr": "sum(rate(ishastra_scope_gate_decisions_total{decision=\"blocked\"}[5m])) by (tenant, reason)",
           "legendFormat": "{{tenant}} - {{violation_type}}",
           "refId": "A"
         }
@@ -551,7 +551,7 @@
       },
       "targets": [
         {
-          "expr": "strix_audit_chain_length",
+          "expr": "ishastra_audit_chain_length",
           "legendFormat": "Chain Length",
           "refId": "A"
         }
@@ -627,7 +627,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_auth_failures_total[1h])) by (reason)",
+          "expr": "sum(increase(ishastra_auth_failures_total[1h])) by (reason)",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -703,7 +703,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(ishastra_scope_gate_decisions_total{decision="blocked"}[1h])) by (tenant, violation_type)",
+          "expr": "sum(increase(ishastra_scope_gate_decisions_total{decision=\"blocked\"}[1h])) by (tenant, violation_type)",
           "legendFormat": "{{tenant}} - {{violation_type}}",
           "refId": "A"
         }
@@ -780,7 +780,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_auth_failures_total[5m])) by (tenant, reason)",
+          "expr": "sum(rate(ishastra_auth_failures_total[5m])) by (tenant, reason)",
           "legendFormat": "{{tenant}} - {{reason}}",
           "refId": "A"
         }
@@ -1010,7 +1010,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_webhook_failures_total[1h])) by (tenant, error_type)",
+          "expr": "sum(increase(ishastra_webhook_failures_total[1h])) by (tenant, error_type)",
           "legendFormat": "{{tenant}} - {{error_type}}",
           "refId": "A"
         }
@@ -1087,7 +1087,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_audit_events_total[5m])) by (event_type)",
+          "expr": "sum(rate(ishastra_audit_events_total[5m])) by (event_type)",
           "legendFormat": "{{event_type}}",
           "refId": "A"
         }
@@ -1164,7 +1164,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_audit_events_total[5m])) by (tenant, event_type)",
+          "expr": "sum(rate(ishastra_audit_events_total[5m])) by (tenant, event_type)",
           "legendFormat": "{{tenant}} - {{event_type}}",
           "refId": "A"
         }
@@ -1195,7 +1195,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(strix_auth_failures_total, tenant)",
+        "definition": "label_values(ishastra_auth_failures_total, tenant)",
         "hide": 0,
         "includeAll": true,
         "label": "Tenant",
@@ -1203,7 +1203,7 @@
         "name": "tenant",
         "options": [],
         "query": {
-          "query": "label_values(strix_auth_failures_total, tenant)",
+          "query": "label_values(ishastra_auth_failures_total, tenant)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

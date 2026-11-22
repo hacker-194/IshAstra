@@ -21,9 +21,9 @@ spec:
 
         - record: ishastra:sli:api_availability:ratio_rate5m
           expr: |
-            sum(rate(strix_http_requests_total{status!~"5.."}[5m]))
+            sum(rate(ishastra_http_requests_total{status!~"5.."}[5m]))
             /
-            sum(rate(strix_http_requests_total[5m]))
+            sum(rate(ishastra_http_requests_total[5m]))
 
 
         - record: ishastra:slo:api_availability:target
@@ -74,9 +74,9 @@ spec:
 
         - record: ishastra:sli:api_latency_p99:ratio_rate5m
           expr: |
-            sum(rate(strix_http_request_duration_seconds_bucket{le="5.0"}[5m]))
+            sum(rate(ishastra_http_request_duration_seconds_bucket{le="5.0"}[5m]))
             /
-            sum(rate(strix_http_request_duration_seconds_count[5m]))
+            sum(rate(ishastra_http_request_duration_seconds_count[5m]))
 
 
         - record: ishastra:slo:api_latency_p99:target
@@ -123,9 +123,9 @@ spec:
 
         - record: ishastra:sli:job_completion:ratio_rate5m
           expr: |
-            sum(rate(strix_jobs_total{state="completed"}[5m]))
+            sum(rate(ishastra_jobs_total{state="completed"}[5m]))
             /
-            sum(rate(strix_jobs_total{state=~"completed|failed"}[5m]))
+            sum(rate(ishastra_jobs_total{state=~"completed|failed"}[5m]))
 
 
         - record: ishastra:slo:job_completion:target
@@ -172,9 +172,9 @@ spec:
 
         - record: ishastra:sli:job_queue_latency:ratio_rate5m
           expr: |
-            sum(rate(strix_job_queue_duration_seconds_bucket{le="60.0"}[5m]))
+            sum(rate(ishastra_job_queue_duration_seconds_bucket{le="60.0"}[5m]))
             /
-            sum(rate(strix_job_queue_duration_seconds_count[5m]))
+            sum(rate(ishastra_job_queue_duration_seconds_count[5m]))
 
 
         - record: ishastra:slo:job_queue_latency:target
@@ -207,9 +207,9 @@ spec:
         - record: ishastra:sli:adapter_success:ratio_rate5m
           expr: |
             1 - (
-              sum(rate(strix_adapter_errors_total[5m]))
+              sum(rate(ishastra_adapter_errors_total[5m]))
               /
-              sum(rate(strix_adapter_errors_total[5m] + strix_adapter_duration_seconds_count[5m]))
+              sum(rate(ishastra_adapter_errors_total[5m] + ishastra_adapter_duration_seconds_count[5m]))
             )
 
 
@@ -242,9 +242,9 @@ spec:
 
         - record: ishastra:sli:findings_latency:ratio_rate5m
           expr: |
-            sum(rate(strix_job_duration_seconds_bucket{le="300.0"}[5m]))
+            sum(rate(ishastra_job_duration_seconds_bucket{le="300.0"}[5m]))
             /
-            sum(rate(strix_job_duration_seconds_count[5m]))
+            sum(rate(ishastra_job_duration_seconds_count[5m]))
 
 
         - record: ishastra:slo:findings_latency:target
@@ -262,9 +262,9 @@ spec:
 
         - record: ishastra:sli:webhook_delivery:ratio_rate5m
           expr: |
-            sum(rate(strix_webhook_deliveries_total{status="success"}[5m]))
+            sum(rate(ishastra_webhook_deliveries_total{status="success"}[5m]))
             /
-            sum(rate(strix_webhook_deliveries_total[5m]))
+            sum(rate(ishastra_webhook_deliveries_total[5m]))
 
 
         - record: ishastra:slo:webhook_delivery:target
@@ -296,9 +296,9 @@ spec:
 
         - record: ishastra:sli:auth_success:ratio_rate5m
           expr: |
-            sum(rate(strix_auth_success_total[5m]))
+            sum(rate(ishastra_auth_success_total[5m]))
             /
-            (sum(rate(strix_auth_success_total[5m])) + sum(rate(strix_auth_failures_total[5m])))
+            (sum(rate(ishastra_auth_success_total[5m])) + sum(rate(ishastra_auth_failures_total[5m])))
 
 
         - record: ishastra:slo:auth_success:target

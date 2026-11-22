@@ -173,3 +173,85 @@ secrets:
   - id: symfony-default-secret
     paths: [/var/lib/ishastra/nuclei-templates/**]
     expired_at: 2027-05-01
+
+# Manifests that are not standalone workloads: kustomize patches are merged
+# onto a hardened base, and the observability stack is vendored upstream.
+misconfigurations:
+  - id: KSV-0014
+    paths: [deploy/kustomize/overlays/ap-south/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0118
+    paths: [deploy/kustomize/overlays/ap-south/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0014
+    paths: [deploy/kustomize/overlays/eu-west/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0118
+    paths: [deploy/kustomize/overlays/eu-west/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0014
+    paths: [deploy/kustomize/overlays/us-east/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0118
+    paths: [deploy/kustomize/overlays/us-east/region-patch.yaml]
+    statement: >-
+      Strategic-merge patch applied on top of deploy/kustomize/base; the
+      container entry here only sets env, so the base manifest's hardened
+      securityContext is the one that runs.
+    expired_at: 2027-05-01
+  - id: KSV-0014
+    paths: [deploy/monitoring/kubernetes/loki.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01
+  - id: KSV-0014
+    paths: [deploy/monitoring/kubernetes/prometheus-operator.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01
+  - id: KSV-0041
+    paths: [deploy/monitoring/kubernetes/prometheus-operator.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01
+  - id: KSV-0056
+    paths: [deploy/monitoring/kubernetes/prometheus-operator.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01
+  - id: KSV-0114
+    paths: [deploy/monitoring/kubernetes/prometheus-operator.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01
+  - id: KSV-0014
+    paths: [deploy/monitoring/kubernetes/tempo.yaml]
+    statement: >-
+      Upstream observability/operator manifest, upgraded as a unit from the
+      upstream release rather than hand-patched here.
+    expired_at: 2027-05-01

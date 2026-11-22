@@ -60,3 +60,15 @@ def cleanup_db():
     Path(_db_path).unlink(missing_ok=True)
     Path(_db_path + "-shm").unlink(missing_ok=True)
     Path(_db_path + "-wal").unlink(missing_ok=True)
+
+
+@pytest.fixture(autouse=True)
+def reset_store_per_test():
+    """Override the async store reset that tests/conftest.py installs.
+
+    The Playwright sync API runs its own event loop, so an autouse async fixture
+    makes pytest-asyncio call Runner.run() from inside a running loop and every
+    e2e test errors during setup. These tests drive a live server over HTTP and
+    never touch the in-process store.
+    """
+    yield

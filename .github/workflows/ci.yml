@@ -518,12 +518,8 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4
         with:
-
-          fail-on-severity: high
-
-          allow-licenses: MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC, Python-2.0, MPL-2.0
-
-          deny-licenses: GPL-2.0, GPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, AGPL-3.0, EPL-1.0, EPL-2.0
+          # The policy lives in the config file; the action refuses both
+          # allow-licenses and deny-licenses in one invocation.
           config-file: '.github/dependency-review-config.yml'
 
   license-check:
@@ -562,7 +558,7 @@ jobs:
               'python 2.0', 'python software foundation license',
               'mpl 2.0', 'mozilla public license 2.0', 'psf 2.0', 'zlib',
               'unlicense', 'cc0 1.0', 'cc by 4.0', 'cc by sa 4.0',
-              'ofl 1.1', 'bsl 1.0'
+              'ofl 1.1', 'bsl 1.0', 'artistic', 'mpl 1.1'
           }
           
 
@@ -575,11 +571,20 @@ jobs:
               name = pkg.get('Name', '')
           
 
-              normalized = ' '.join(
-                  license_text.lower().replace('(', ' ').replace(')', ' ')
-                  .replace('-', ' ').replace('_', ' ').split()
+              # pip-licenses lists every option of a dual-licensed package
+              # ("Artistic License; GPL"), and choosing the permissive option is
+              # legitimate, so a package passes when any one option is allowed.
+              segments = [
+                  ' '.join(
+                      part.lower().replace('(', ' ').replace(')', ' ')
+                      .replace('-', ' ').replace('_', ' ').split()
+                  )
+                  for part in license_text.split(';')
+                  if part.strip()
+              ]
+              is_allowed = any(
+                  allowed in segment for segment in segments for allowed in allowed_licenses
               )
-              is_allowed = any(allowed in normalized for allowed in allowed_licenses)
           
               if not is_allowed and license_text:
                   failures.append(f'{name}: {license_text}')
@@ -653,12 +658,12 @@ jobs:
             constraints.txt
             pyproject.toml
       - name: Download security reports
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
         with:
           name: security-reports
           path: security-reports
       - name: Download grype results
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
         with:
           name: grype-results
           path: grype-results
@@ -769,13 +774,15 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Run Trivy vulnerability scanner
         run: |
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --format table ishastra:scan
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
+            --ignorefile .trivyignore.yaml --format table ishastra:scan
       - name: Run Trivy config scanner (Dockerfile)
         run: |
-          trivy config --exit-code 1 --severity HIGH,CRITICAL .
+          trivy config --exit-code 1 --severity HIGH,CRITICAL --ignorefile .trivyignore.yaml .
       - name: Run Trivy config scanner (Kubernetes manifests)
         run: |
-          trivy config --exit-code 1 --severity HIGH,CRITICAL ./deploy/helm/ishastra/
+          trivy config --exit-code 1 --severity HIGH,CRITICAL \
+            --ignorefile .trivyignore.yaml ./deploy/helm/ishastra/
 
   publish-container:
     name: Publish release container

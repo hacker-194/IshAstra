@@ -59,6 +59,11 @@ spec:
       labels:
         app: cloudflare-tunnel
     spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: cloudflared
         image: cloudflare/cloudflared:2024.10.0
@@ -78,6 +83,15 @@ spec:
         - name: credentials
           mountPath: /etc/cloudflared/credentials
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
         resources:
           requests:
             cpu: "50m"
@@ -104,6 +118,9 @@ spec:
       - name: credentials
         secret:
           secretName: cloudflare-tunnel-credentials
+      - name: tmp
+        emptyDir:
+          sizeLimit: 16Mi
 ---
 apiVersion: v1
 kind: ConfigMap

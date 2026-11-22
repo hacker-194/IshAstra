@@ -172,9 +172,7 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     roe = getattr(installed, "rules_of_engagement", {})
     retention_days_from_scope = roe.get("data_handling", {}).get("evidence_retention_days")
     retention_days = (
-        retention_days_from_scope
-        if retention_days_from_scope is not None
-        else deps_settings.retention_days
+        retention_days_from_scope if retention_days_from_scope is not None else deps_settings.retention_days
     )
     _retention_worker = RetentionWorker(retention_days)
 

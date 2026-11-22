@@ -425,9 +425,7 @@ def _execute(job: Job) -> None:
                 any_adapter_ran = True
                 start = time.monotonic()
                 try:
-                    context: dict[str, Any] = (
-                        {"auth_principal": auth_principal} if auth_principal else {}
-                    )
+                    context: dict[str, Any] = {"auth_principal": auth_principal} if auth_principal else {}
                     if rate_limit_rps:
                         context["rate_limit_rps"] = rate_limit_rps
                     result = adapter.assess(

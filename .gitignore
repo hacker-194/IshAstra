@@ -48,6 +48,8 @@ Thumbs.db
 
 # Local agent and knowledge-graph state
 # Development state (not for GitHub)
+.claude-flow/
+benchmarks/
 graphify-out/
 tools/
 security-audit-reports/

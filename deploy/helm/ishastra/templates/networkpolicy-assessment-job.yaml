@@ -28,11 +28,8 @@ spec:
 
     {{- if .Values.k8sJobs.scopeEgress }}
     {{- toYaml .Values.k8sJobs.scopeEgress | nindent 4 }}
-    {{- else }}
-
-
-    - to: []
-      ports: []
+    {{- else if not (and .Values.k8sJobs.allowScopeNetworks .Values.k8sJobs.authorizedNetworks) }}
+    {{- fail "k8sJobs.networkPolicyEnabled requires k8sJobs.scopeEgress (or allowScopeNetworks with authorizedNetworks): refusing to render a policy that allows all egress" }}
     {{- end }}
 
     - to:

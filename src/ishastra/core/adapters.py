@@ -153,7 +153,10 @@ class HTTPAdapter(Adapter):
         deadline = started + max(0.05, timeout)
         result = AdapterResult()
 
-        probe = EndpointProbe(timeout=min(timeout * 0.8, 8.0))
+        probe = EndpointProbe(
+            timeout=min(timeout * 0.8, 8.0),
+            rate_limit_rps=float((context or {}).get("rate_limit_rps") or 0),
+        )
 
         response = probe.probe(target, deadline=deadline, auth=auth_principal)
         if cancel.is_set():
@@ -1120,6 +1123,11 @@ class NmapAdapter(Adapter):
 
         active_scope = scope.active()
         argv = [shutil.which("nmap") or "nmap", "-sT", "-Pn", "-n"]
+        engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
+        if engagement_rate > 0:
+            # nmap's own rate control: packets per second, the closest exact
+            # analogue to the RoE's requests-per-second ceiling.
+            argv.extend(["--max-rate", str(max(1, int(engagement_rate)))])
 
         if ":" in destination.ip:
             argv.append("-6")
@@ -1230,6 +1238,14 @@ class NucleiAdapter(Adapter):
     """
 
     id = "nuclei"
+
+    def _rate_limit(self, context: dict[str, Any] | None) -> int:
+        """Nuclei requests/second: the RoE ceiling when it is stricter."""
+        engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
+        if engagement_rate > 0:
+            return max(1, min(self.RATE_LIMIT, int(engagement_rate)))
+        return self.RATE_LIMIT
+
     asset_types = ("web",)
     requires = ("nuclei",)
     RATE_LIMIT = 25
@@ -1326,7 +1342,7 @@ class NucleiAdapter(Adapter):
             "-severity",
             self.SEVERITIES,
             "-rate-limit",
-            str(self.RATE_LIMIT),
+            str(self._rate_limit(context)),
             "-concurrency",
             str(self.CONCURRENCY),
             "-timeout",
@@ -1656,6 +1672,9 @@ class SqlmapAdapter(Adapter):
                 "--flush-session",
                 "--fresh-queries",
             ]
+            engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
+            if engagement_rate > 0:
+                argv.extend(["--delay", f"{1.0 / engagement_rate:.2f}"])
 
             if context and "auth_principal" in context and context["auth_principal"]:
                 auth = context["auth_principal"]

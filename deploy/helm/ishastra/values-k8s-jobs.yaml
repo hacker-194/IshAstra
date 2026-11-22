@@ -68,8 +68,16 @@ k8sJobs:
 
 
 
-  scopeEgress: []
-
+  # Egress rules for the assessment Job. Kubernetes NetworkPolicy cannot match
+  # host names, so the authorized targets must appear here or in
+  # authorizedNetworks below; the chart refuses to render an allow-all policy.
+  scopeEgress:
+    - to:
+        - ipBlock:
+            cidr: 203.0.113.0/24
+      ports:
+        - protocol: TCP
+          port: 443
 
 
   allowScopeNetworks: true

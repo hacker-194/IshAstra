@@ -48,15 +48,11 @@ Thumbs.db
 
 # Local agent and knowledge-graph state
 # Development state (not for GitHub)
-.claude/
-.claude-flow/
 security-audit-reports/
 security-reports/
 load-test/
 migrations/
 
-.claude/
-.claude-flow/
 graphify-out/
 tools/
 
@@ -66,7 +62,6 @@ docs/tla/states/
 *.db-wal
 *.db-shm
 security-audit-reports/
-.claude/worktrees/
 
 # Local deployment secrets and generated security artefacts (never commit)
 prod-secrets/

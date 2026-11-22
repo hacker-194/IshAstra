@@ -1500,7 +1500,6 @@ class TestTriageAssessment:
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
-            patch("ishastra.api.routers.assessments.analyst.provider_from_env", return_value=None),
             patch("ishastra.api.routers.assessments.analyst.analyze_findings", return_value=mock_triage),
             patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):

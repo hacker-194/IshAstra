@@ -55,7 +55,6 @@ k8s/
 migrations/
 monitoring/
 graphify-out/
-.claude/
 
 # Database files
 *.db
@@ -85,7 +84,6 @@ secrets/
 src/hunt/
 
 # CI/CD
-.claude-flow/
 
 # Worker lock files
 *.worker-lock

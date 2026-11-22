@@ -777,15 +777,13 @@ async def triage_assessment(
     """AI-analyst triage for a finished job's findings (advisory only).
 
     The analyst can only attach priorities, rationales and next steps to
-    fingerprints that exist. It cannot create findings or alter severity,
-    status or evidence; without a configured provider the deterministic
-    findings are returned unchanged with ``ai_enriched: false``.
+    fingerprints that exist. Without a configured provider the deterministic
+    findings are returned unchanged.
     """
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] not in ("completed", "partial"):
         raise HTTPException(status_code=409, detail=f"Job is {job['state']}; triage needs findings")
-    provider = analyst.provider_from_env()
-    triage = analyst.analyze_findings(job["findings"], provider)
+    triage = analyst.analyze_findings(job["findings"])
     await audit_async(tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": triage.ai_enriched})
     return {
         **triage.to_dict(),

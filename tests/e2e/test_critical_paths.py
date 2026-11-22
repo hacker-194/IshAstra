@@ -39,10 +39,10 @@ class TestAuthFlow:
 class TestAssessmentLifecycle:
     """Tests for the full assessment lifecycle: create → monitor → results → export."""
 
-    def test_create_assessment(self, page, base_url: str, auth_headers: dict):
+    def test_create_assessment(self, page, base_url: str, auth_headers: dict, target_url: str):
         """Create a web assessment against a test target."""
         payload = {
-            "target": "https://httpbin.org",
+            "target": target_url,
             "profile": "web",
             "actor": "test-tenant-1",
         }
@@ -68,11 +68,11 @@ class TestAssessmentLifecycle:
         assert "total" in data
         assert isinstance(data["items"], list)
 
-    def test_create_and_monitor_assessment(self, page, base_url: str, auth_headers: dict):
+    def test_create_and_monitor_assessment(self, page, base_url: str, auth_headers: dict, target_url: str):
         """Create assessment and monitor until completion."""
 
         payload = {
-            "target": "https://httpbin.org/get",
+            "target": target_url,
             "profile": "web",
             "actor": "test-tenant-1",
         }
@@ -109,10 +109,10 @@ class TestAssessmentLifecycle:
 class TestFindingsAndExport:
     """Tests for findings review and SARIF export."""
 
-    def test_list_findings(self, page, base_url: str, auth_headers: dict):
+    def test_list_findings(self, page, base_url: str, auth_headers: dict, target_url: str):
         """List findings for an assessment."""
 
-        self._create_completed_assessment(page, base_url, auth_headers)
+        self._create_completed_assessment(page, base_url, auth_headers, target_url)
 
         response = page.request.get(
             f"{base_url}/api/findings",
@@ -123,9 +123,9 @@ class TestFindingsAndExport:
         assert "items" in data
         assert isinstance(data["items"], list)
 
-    def test_export_sarif(self, page, base_url: str, auth_headers: dict):
+    def test_export_sarif(self, page, base_url: str, auth_headers: dict, target_url: str):
         """Export findings as SARIF 2.1.0."""
-        self._create_completed_assessment(page, base_url, auth_headers)
+        self._create_completed_assessment(page, base_url, auth_headers, target_url)
 
         response = page.request.get(
             f"{base_url}/api/assess/{self._assessment_id}/sarif",
@@ -138,10 +138,10 @@ class TestFindingsAndExport:
         assert "runs" in data
         assert isinstance(data["runs"], list)
 
-    def _create_completed_assessment(self, page, base_url: str, auth_headers: dict):
+    def _create_completed_assessment(self, page, base_url: str, auth_headers: dict, target_url: str):
         """Helper to create and wait for assessment completion."""
         payload = {
-            "target": "https://httpbin.org/get",
+            "target": target_url,
             "profile": "web",
             "actor": "test-tenant-1",
         }
@@ -176,14 +176,16 @@ class TestFindingsAndExport:
 class TestTenantIsolation:
     """Tests for multi-tenant isolation."""
 
-    def test_tenant_cannot_access_other_tenant_data(self, page, base_url: str, auth_headers: dict):
+    def test_tenant_cannot_access_other_tenant_data(
+        self, page, base_url: str, auth_headers: dict, target_url: str
+    ):
         """Tenant A cannot access Tenant B's assessments.
 
         Note: Full tenant isolation test requires multiple valid API keys.
         This test verifies the auth mechanism works with the test key.
         """
 
-        payload = {"target": "https://httpbin.org", "profile": "web", "actor": "test-tenant-1"}
+        payload = {"target": target_url, "profile": "web", "actor": "test-tenant-1"}
         response = page.request.post(
             f"{base_url}/api/assess",
             headers=auth_headers,

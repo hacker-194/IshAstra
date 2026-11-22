@@ -392,7 +392,9 @@ jobs:
           # The workflow-level default points at PostgreSQL, but this job does not
           # install the postgres extra, so the server refused to start.
           ISHASTRA_DATABASE_URL: ""
-          ISHASTRA_DB: ":memory:"
+          # A file-backed database, not ":memory:": the worker writes while the
+          # API reads, and an in-memory database answers "table is locked".
+          ISHASTRA_DB: "/tmp/ishastra-e2e.db"
           ISHASTRA_SCOPE_FILE: "/tmp/scope.json"
           ISHASTRA_API_KEY: "test-key-12345678901234567890123456789012"
           ISHASTRA_ENCRYPTION_KEY: "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
@@ -406,11 +408,11 @@ jobs:
             "program": "Test Program",
             "authorized_by": "Test Authorizer",
             "authorization_ref": "TEST-001",
-            "include": ["httpbin.org", "*.httpbin.org", "example.com", "*.example.com"],
-            "exclude": ["admin.example.com"],
-            "authorized_networks": ["0.0.0.0/0", "::/0"],
-            "allowed_ports": [80, 443, 8080],
-            "allow_broad_networks": true,
+            "include": ["127.0.0.1"],
+            "exclude": [],
+            "authorized_networks": ["127.0.0.0/8"],
+            "allowed_ports": [8080],
+            "allow_broad_networks": false,
             "auth": {
               "users": [
                 {"id": "test-user-1", "cookies": [{"name": "sessionid", "value": "test-session-123"}], "headers": {}, "bearer": ""},

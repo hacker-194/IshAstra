@@ -2,6 +2,8 @@
 
 import os
 import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -72,3 +74,37 @@ def reset_store_per_test():
     never touch the in-process store.
     """
     yield
+
+
+STUB_TARGET_PORT = 8080
+
+
+class _StubTargetHandler(BaseHTTPRequestHandler):
+    """Answers every request, so an assessment has a reachable in-scope target."""
+
+    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        body = b"<!doctype html><title>ishastra e2e target</title><h1>ok</h1>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args: object) -> None:
+        """Keep the test output quiet."""
+
+
+@pytest.fixture(scope="session")
+def target_url() -> str:
+    """Serve the assessment target locally instead of hitting the internet.
+
+    The CI scope authorizes loopback only, and the port is in its allowed list.
+    """
+    server = ThreadingHTTPServer(("127.0.0.1", STUB_TARGET_PORT), _StubTargetHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{STUB_TARGET_PORT}"
+    finally:
+        server.shutdown()
+        server.server_close()

@@ -211,6 +211,27 @@ def prepare(
     return job
 
 
+def prohibited_technique_matches(engagement: dict, adapter: object) -> list[str]:
+    """Techniques the engagement forbids that this adapter would use.
+
+    A prohibited entry is matched against the adapter id and the binaries it
+    shells out to, so ``prohibited_techniques: [sqlmap]`` blocks the sqlmap
+    adapter even though its id is ``sqlmap`` and ``nuclei`` blocks the nuclei
+    adapter. Matching is case-insensitive and whitespace-trimmed.
+    """
+    prohibited = {
+        str(item).strip().lower()
+        for item in (engagement.get("prohibited_techniques") or [])
+        if str(item).strip()
+    }
+    if not prohibited:
+        return []
+    labels = {str(getattr(adapter, "id", "")).lower()}
+    labels |= {str(requirement).lower() for requirement in getattr(adapter, "requires", ())}
+    labels.discard("")
+    return sorted(prohibited & labels)
+
+
 def _set_state(job: Job, state: JobState) -> None:
     """Move the job to ``state`` and record the transition.
 
@@ -357,6 +378,12 @@ def _execute(job: Job) -> None:
             partial = False
             any_adapter_ran = False
 
+            # Rules of Engagement that the gate validates are only real if the
+            # runner honours them. Prohibited techniques are matched against an
+            # adapter id and the binaries it shells out to ("sqlmap", "nuclei").
+            engagement = job.scope_snapshot.rules_of_engagement or {}
+            rate_limit_rps = engagement.get("rate_limit_rps") or 0
+
             tenant_for_metrics = job.scope_snapshot.tenant_id if job.scope_snapshot else None
             for adapter in adapters:
                 if job.cancelled:
@@ -371,6 +398,18 @@ def _execute(job: Job) -> None:
                     job.finished_at = time.time()
                     _reset_pin()
                     return
+
+                blocked_by = prohibited_technique_matches(engagement, adapter)
+                if blocked_by:
+                    job.runs.append(
+                        AdapterRun(
+                            adapter=adapter.id,
+                            state=RunState.REJECTED,
+                            detail=("prohibited by rules of engagement: " + ", ".join(blocked_by)),
+                        )
+                    )
+                    partial = True
+                    continue
 
                 ok, detail = adapter.available()
                 if not ok:
@@ -387,6 +426,8 @@ def _execute(job: Job) -> None:
                 start = time.monotonic()
                 try:
                     context = {"auth_principal": auth_principal} if auth_principal else {}
+                    if rate_limit_rps:
+                        context["rate_limit_rps"] = rate_limit_rps
                     result = adapter.assess(
                         job.target,
                         timeout=job.policy.get("timeout", 300.0),

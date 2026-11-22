@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Security
+
+- Rules of engagement are now enforced instead of merely validated:
+  - An unparseable `testing_hours` schedule is rejected when the scope loads,
+    and enforcement fails closed (a scan is denied) rather than allowing every
+    run. Only UTC windows are accepted, since silently treating another zone as
+    UTC would authorize the wrong hours; overnight windows now work.
+  - `prohibited_techniques` blocks the matching adapter before it runs (matched
+    against the adapter id and the tools it shells out to) and records the run
+    as rejected with the reason.
+  - `rate_limit_rps` is applied to the request paths: the in-process HTTP probe
+    paces itself, nuclei takes the stricter of its own and the engagement limit,
+    nmap gets `--max-rate`, and sqlmap gets `--delay`.
+- Kubernetes assessment jobs can no longer run without their egress policy.
+  The Job is created suspended, the NetworkPolicy is applied, and only then is
+  the Job resumed; if the policy fails the Job is deleted and submission fails
+  instead of logging a warning. A scope that cannot be expressed as egress
+  CIDRs (wildcard-only, unresolvable) is refused rather than allowed
+  unrestricted, and host names in the scope are pinned to the addresses they
+  resolve to at submission, because NetworkPolicy has no hostname match.
+- The chart's assessment-job NetworkPolicy no longer falls back to an
+  allow-all egress rule when `scopeEgress` is empty; rendering fails with an
+  actionable message instead.
+
 ### Changed
 
 - The `strix` naming is gone: every Prometheus metric is now `ishastra_*`

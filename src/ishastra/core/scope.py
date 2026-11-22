@@ -36,6 +36,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from datetime import time as clock_time
 from pathlib import Path
 from typing import Any
 from urllib.parse import ParseResult, urlparse
@@ -696,10 +697,18 @@ class Scope:
         """Validate Rules of Engagement configuration."""
         roe = self.rules_of_engagement
 
-        # Validate testing_hours format if present
+        # Validate testing_hours format if present. An unparseable schedule used
+        # to be accepted here and then silently allowed at gate time, so a typo
+        # in the authorization document disabled the control entirely.
         testing_hours = roe.get("testing_hours", "")
         if testing_hours and not isinstance(testing_hours, str):
             raise ValueError("rules_of_engagement.testing_hours must be a string")
+        if testing_hours and self._parse_testing_hours(testing_hours) is None:
+            raise ValueError(
+                "rules_of_engagement.testing_hours must look like "
+                "'HH:MM-HH:MM [UTC], Day-Day' (e.g. '09:00-18:00 UTC, Mon-Fri'); "
+                f"got {testing_hours!r}"
+            )
 
         # Validate rate_limit_rps if present
         rate_limit = roe.get("rate_limit_rps", 0)
@@ -770,82 +779,97 @@ class Scope:
 
         return "", ""
 
-    def _is_within_testing_hours(self, testing_hours: str) -> bool:
-        """Check if current time is within authorized testing hours.
+    _TIME_OF_DAY = re.compile(r"(?P<hour>\d{2}):(?P<minute>\d{2})")
+    _TIME_RANGE = re.compile(
+        r"^(?P<start>\d{2}:\d{2})\s*-\s*(?P<end>\d{2}:\d{2})(?:\s+(?P<tz>[A-Za-z][A-Za-z0-9_+/-]*))?$"
+    )
+    _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
-        Expected format: "HH:MM-HH:MM TZ, Day-Day" (e.g., "09:00-18:00 UTC, Mon-Fri")
-        Supports: UTC, single day, day ranges (Mon-Fri), comma-separated lists.
+    @classmethod
+    def _parse_testing_hours(cls, testing_hours: str) -> tuple[clock_time, clock_time, str] | None:
+        """Parse 'HH:MM-HH:MM [UTC], Day-Day' into (start, end, days).
+
+        Returns None for anything this module cannot enforce exactly, so callers
+        can reject the schedule instead of guessing. Only UTC (or an omitted
+        zone) is accepted: silently treating '09:00-18:00 America/New_York' as
+        UTC would authorize the wrong window. Overnight ranges are supported.
         """
+        if not isinstance(testing_hours, str) or not testing_hours.strip():
+            return None
+        time_part, _, days_part = testing_hours.partition(",")
+        if "," in days_part:
+            return None
+        match = cls._TIME_RANGE.match(time_part.strip())
+        if not match:
+            return None
+        if (match.group("tz") or "UTC").strip().upper() not in (
+            "UTC",
+            "Z",
+            "GMT",
+        ):
+            return None
         try:
-            now = datetime.now(UTC)
-            current_day = now.strftime("%a")[:3].capitalize()  # Mon, Tue, etc.
-            current_time = now.time()
+            start = datetime.strptime(match.group("start"), "%H:%M").time()
+            end = datetime.strptime(match.group("end"), "%H:%M").time()
+        except ValueError:
+            return None
+        days = days_part.strip()
+        if days and cls._parse_day_ranges(days) is None:
+            return None
+        return start, end, days
 
-            # Parse the testing hours string
-            # Format: "09:00-18:00 UTC, Mon-Fri" or "09:00-18:00 UTC"
-            parts = testing_hours.split(",")
-            if len(parts) < 2:
-                # No day restriction, just time
-                time_part = parts[0].strip()
-            else:
-                time_part = parts[0].strip()
-                days_part = parts[1].strip()
-
-                # Check day restriction
-                if not self._is_day_allowed(current_day, days_part):
-                    return False
-
-            # Parse time range (HH:MM-HH:MM TZ)
-            time_match = re.match(r"(\d{2}):(\d{2})-(\d{2}):(\d{2})\s*(\w+)?", time_part)
-            if not time_match:
-                # Invalid format - allow (fail open for misconfiguration)
-                log.warning("Invalid testing_hours format: %s", testing_hours)
-                return True
-
-            start_hour, start_min, end_hour, end_min, tz = time_match.groups()
-            start_time = datetime.strptime(f"{start_hour}:{start_min}", "%H:%M").time()
-            end_time = datetime.strptime(f"{end_hour}:{end_min}", "%H:%M").time()
-
-            # For simplicity, assume UTC if no timezone or if UTC
-            # In production, would use proper timezone handling
-            return start_time <= current_time <= end_time
-        except Exception:
-            # Fail open on parse errors - log and allow
-            log.warning("Failed to parse testing_hours: %s", testing_hours)
-            return True
-
-    def _is_day_allowed(self, current_day: str, days_spec: str) -> bool:
-        """Check if current day is within allowed days specification.
-
-        Days spec examples: "Mon-Fri", "Mon,Wed,Fri", "Mon-Fri,Sun"
-        """
-        days_order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-        # Split by comma for multiple ranges
+    @classmethod
+    def _parse_day_ranges(cls, days_spec: str) -> list[tuple[int, int]] | None:
+        """Parse 'Mon-Fri,Sun' into inclusive index ranges, or None if invalid."""
+        ranges: list[tuple[int, int]] = []
         for part in days_spec.split(","):
             part = part.strip()
+            if not part:
+                return None
             if "-" in part:
-                # Range like Mon-Fri
-                start_day, end_day = part.split("-", 1)
-                start_day = start_day.strip().capitalize()[:3]
-                end_day = end_day.strip().capitalize()[:3]
-                try:
-                    start_idx = days_order.index(start_day)
-                    end_idx = days_order.index(end_day)
-                    if start_idx <= end_idx:
-                        allowed = days_order[start_idx : end_idx + 1]
-                    else:
-                        # Wrap around (e.g., Fri-Mon)
-                        allowed = days_order[start_idx:] + days_order[: end_idx + 1]
-                    if current_day in allowed:
-                        return True
-                except ValueError:
-                    continue
+                first, _, last = part.partition("-")
+                starts = [d for d in cls._DAYS if d.lower() == first.strip().lower()[:3]]
+                ends = [d for d in cls._DAYS if d.lower() == last.strip().lower()[:3]]
+                if not starts or not ends:
+                    return None
+                ranges.append((cls._DAYS.index(starts[0]), cls._DAYS.index(ends[0])))
             else:
-                # Single day
-                if part.capitalize()[:3] == current_day:
-                    return True
-        return False
+                matches = [d for d in cls._DAYS if d.lower() == part.lower()[:3]]
+                if not matches:
+                    return None
+                index = cls._DAYS.index(matches[0])
+                ranges.append((index, index))
+        return ranges
+
+    def _is_within_testing_hours(self, testing_hours: str) -> bool:
+        """Whether now is inside the authorized testing window.
+
+        Fails closed: a schedule that cannot be parsed exactly (or whose
+        construction bypassed validation) denies the scan rather than allowing
+        it. Denying is the only safe default for an authorization control.
+        """
+        parsed = self._parse_testing_hours(testing_hours)
+        if parsed is None:
+            log.error("Unenforceable testing_hours %r; denying scan", testing_hours)
+            return False
+        start, end, days = parsed
+        now = datetime.now(UTC)
+        if days:
+            ranges = self._parse_day_ranges(days)
+            if not ranges:
+                log.error("Unparseable testing days %r; denying scan", days)
+                return False
+            today = now.weekday()  # Mon=0 .. Sun=6, matching _DAYS
+            allowed = any(
+                (first <= today <= last) if first <= last else (today >= first or today <= last)
+                for first, last in ranges
+            )
+            if not allowed:
+                return False
+        current = now.time()
+        if start <= end:
+            return start <= current <= end
+        return current >= start or current <= end
 
     def _listed(self, host: str, patterns: tuple[str, ...]) -> bool:
         host = host.strip().lower().strip(".")

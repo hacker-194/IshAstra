@@ -136,7 +136,7 @@ class K8sAssessmentQueue:
             await store.save_job(job, tenant=job.actor)
             raise
 
-    def _build_job_manifest(self, job: Job, k8s_job_name: str) -> client.V1Job:
+    def _build_job_manifest(self, job: Job, k8s_job_name: str, *, suspend: bool = False) -> client.V1Job:
         """Build the K8s Job manifest."""
 
         scope_data = {
@@ -234,7 +234,7 @@ class K8sAssessmentQueue:
             backoff_limit=self.config.backoff_limit,
             active_deadline_seconds=self.config.active_deadline_seconds,
             completion_mode="NonIndexed",
-            suspend=False,
+            suspend=suspend,
             template=pod_template,
         )
 
@@ -299,8 +299,16 @@ class K8sAssessmentQueue:
         ]
 
     async def _create_k8s_job(self, job: Job, k8s_job_name: str) -> None:
-        """Create the K8s Job and optional NetworkPolicy."""
-        job_manifest = self._build_job_manifest(job, k8s_job_name)
+        """Create the K8s Job, with the egress policy in place before it runs.
+
+        When a policy is required the Job is created suspended, the
+        NetworkPolicy is applied, and only then is the Job resumed. A policy
+        that cannot be created (or an authorization that cannot be expressed as
+        egress CIDRs) fails the submission instead of letting the assessment pod
+        run with unrestricted egress.
+        """
+        policy_required = self.config.network_policy_enabled
+        job_manifest = self._build_job_manifest(job, k8s_job_name, suspend=policy_required)
 
         job_uid = ""
         try:
@@ -319,8 +327,63 @@ class K8sAssessmentQueue:
             else:
                 raise
 
-        if self.config.network_policy_enabled:
-            await self._create_network_policy(job, k8s_job_name, owner_uid=job_uid)
+        if policy_required:
+            try:
+                await self._create_network_policy(job, k8s_job_name, owner_uid=job_uid)
+            except Exception:
+                log.error("Egress policy failed for %s; deleting the Job", k8s_job_name)
+                self.batch_v1.delete_namespaced_job(
+                    name=k8s_job_name,
+                    namespace=self.config.namespace,
+                    body=client.V1DeleteOptions(propagation_policy="Foreground"),
+                )
+                raise
+            self.batch_v1.patch_namespaced_job(
+                name=k8s_job_name,
+                namespace=self.config.namespace,
+                body={"spec": {"suspend": False}},
+            )
+
+    @staticmethod
+    def _scope_egress_cidrs(job: Job) -> list[str]:
+        """Egress CIDRs that cover the authorized targets, or an empty list.
+
+        ``authorized_networks`` is the explicit allowlist and wins when present.
+        Otherwise the scope's host entries are pinned here: IP literals directly
+        and host names through a one-time resolution. NetworkPolicy has no
+        hostname match in the Kubernetes API, so the resolved address is pinned
+        for the lifetime of the job rather than widening egress to all
+        destinations. Wildcard entries cannot be pinned and are skipped.
+        """
+        import ipaddress
+        import socket
+
+        explicit = [str(network) for network in job.policy.get("scope_authorized_networks", [])]
+        if explicit:
+            return sorted(explicit)
+
+        cidrs: set[str] = set()
+        for entry in job.policy.get("scope_include", []) or []:
+            entry = str(entry).strip()
+            if not entry or entry.startswith("*"):
+                continue
+            try:
+                network = ipaddress.ip_network(entry, strict=False)
+            except ValueError:
+                try:
+                    infos = socket.getaddrinfo(entry, None, proto=socket.IPPROTO_TCP)
+                except OSError:
+                    continue
+                for info in infos:
+                    address = ipaddress.ip_address(info[4][0].split("%")[0])
+                    if not address.is_global:
+                        # Private addresses must be authorized explicitly through
+                        # authorized_networks; never infer them from a host name.
+                        continue
+                    cidrs.add(f"{address}/{address.max_prefixlen}")
+            else:
+                cidrs.add(str(network))
+        return sorted(cidrs)
 
     async def _create_network_policy(self, job: Job, k8s_job_name: str, *, owner_uid: str = "") -> None:
         """Create NetworkPolicy restricting egress to scope targets.
@@ -329,8 +392,16 @@ class K8sAssessmentQueue:
         itself expires via ttlSecondsAfterFinished) instead of leaking one
         policy per assessment.
         """
-        authorized_networks = job.policy.get("scope_authorized_networks", [])
-        allowed_ports = job.policy.get("scope_allowed_ports", [80, 443, 8443, 9443])
+        authorized_networks = self._scope_egress_cidrs(job)
+        if not authorized_networks:
+            raise RuntimeError(
+                f"job {job.id}: the authorized scope cannot be expressed as egress "
+                "CIDRs (wildcard-only scope or unresolvable host names); refusing to "
+                "run an assessment pod with unrestricted egress. Add "
+                "authorized_networks to the authorization or disable the Kubernetes "
+                "queue's network policy deliberately."
+            )
+        allowed_ports = job.policy.get("scope_allowed_ports") or [80, 443, 8443, 9443]
 
         egress_rules = []
 
@@ -350,15 +421,14 @@ class K8sAssessmentQueue:
             )
         )
 
-        if authorized_networks:
-            for cidr in authorized_networks:
-                for port in allowed_ports:
-                    egress_rules.append(
-                        client.V1NetworkPolicyEgressRule(
-                            to=[client.V1NetworkPolicyPeer(ip_block=client.V1IPBlock(cidr=cidr))],
-                            ports=[client.V1NetworkPolicyPort(protocol="TCP", port=port)],
-                        )
+        for cidr in authorized_networks:
+            for port in allowed_ports:
+                egress_rules.append(
+                    client.V1NetworkPolicyEgressRule(
+                        to=[client.V1NetworkPolicyPeer(ip_block=client.V1IPBlock(cidr=cidr))],
+                        ports=[client.V1NetworkPolicyPort(protocol="TCP", port=port)],
                     )
+                )
 
         egress_rules.append(
             client.V1NetworkPolicyEgressRule(
@@ -426,7 +496,9 @@ class K8sAssessmentQueue:
             )
         except ApiException as exc:
             if exc.status != 409:
-                log.warning("Failed to create NetworkPolicy: %s", exc)
+                # Fail closed: the caller deletes the suspended Job and reports
+                # the failure rather than running without egress restrictions.
+                raise RuntimeError(f"cannot create egress NetworkPolicy: {exc}") from exc
 
     def cancel(self, job_id: str) -> bool:
         """Cancel a job by deleting its K8s Job."""

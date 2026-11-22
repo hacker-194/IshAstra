@@ -190,9 +190,13 @@ def _read_line_with_deadline(
 
 
 class EndpointProbe:
-    def __init__(self, timeout: float = 8.0, max_body: int = MAX_BODY):
+    def __init__(self, timeout: float = 8.0, max_body: int = MAX_BODY, rate_limit_rps: float = 0):
         self.timeout = timeout
         self.max_body = max_body
+        # Rules-of-engagement rate limit: pace requests so an engagement that
+        # authorizes N requests per second is not exceeded by the probe engine.
+        self._min_interval = (1.0 / rate_limit_rps) if rate_limit_rps and rate_limit_rps > 0 else 0.0
+        self._last_request = 0.0
 
     def _fetch(
         self,
@@ -330,7 +334,16 @@ class EndpointProbe:
                 result["redirect_reason"] = redirect_reason
         return result
 
+    def _pace(self) -> None:
+        if not self._min_interval:
+            return
+        wait = self._min_interval - (time.monotonic() - self._last_request)
+        if wait > 0:
+            time.sleep(wait)
+        self._last_request = time.monotonic()
+
     def probe(self, url: str, *, deadline: float | None = None, auth: Any | None = None) -> dict[str, Any]:
+        self._pace()
         result = self._fetch(url, deadline=deadline, auth=auth)
         headers = result.get("headers", {})
         out = {

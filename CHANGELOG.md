@@ -28,6 +28,15 @@
   dependency-free load benchmark; and seeded property, chaos, model-check and
   adversarial suites.
 
+### Removed
+
+- The AI analyst provider. Triage was the only consumer of an
+  OpenAI-compatible endpoint, so `analyst.py` now holds just the deterministic
+  `analyze_findings()` and the `ISHASTRA_AI_BASE_URL`, `ISHASTRA_AI_API_KEY`,
+  `ISHASTRA_AI_MODEL` and `ISHASTRA_AI_TIMEOUT` settings are gone from every
+  environment template. Triage still returns the same payload, with
+  `ai_enriched` always `false` and no outbound call to a model.
+
 ### Fixed
 
 - A SQLite backup was not one file: the copy inherited WAL mode, so its tail sat

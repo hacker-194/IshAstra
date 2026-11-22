@@ -131,6 +131,9 @@ def main() -> int:
         "ISHASTRA_AUDIT_HMAC_KEY": hmac_key,
         "ISHASTRA_ENCRYPTION_KEY": encryption_key,
         "ISHASTRA_DB": str(work / "ishastra.db"),
+        # The gate runs on SQLite; an inherited DSN would make the app demand
+        # asyncpg here, and the startup failure only surfaces as "api starts".
+        "ISHASTRA_DATABASE_URL": "",
         "ISHASTRA_SCOPE_FILE": str(scope_path),
         "ISHASTRA_SCOPE_MODE": "global",
         "ISHASTRA_LOG_LEVEL": "WARNING",

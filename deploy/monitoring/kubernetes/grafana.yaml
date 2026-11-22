@@ -116,8 +116,6 @@ data:
 
     [security]
     admin_user = admin
-    admin_password = ${GF_SECURITY_ADMIN_PASSWORD}
-    secret_key = ${GF_SECURITY_SECRET_KEY}
     login_remember_days = 7
     cookie_username = grafana_user
     cookie_remember_name = grafana_remember
@@ -205,7 +203,6 @@ data:
     name = OAuth
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = user:email,read:org
     auth_url = https://example.com/oauth/authorize
     token_url = https://example.com/oauth/token
@@ -224,7 +221,6 @@ data:
     enabled = false
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = user:email,read:org
     auth_url = https://github.com/login/oauth/authorize
     token_url = https://github.com/login/oauth/access_token
@@ -237,7 +233,6 @@ data:
     enabled = false
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email
     auth_url = https://accounts.google.com/o/oauth2/auth
     token_url = https://accounts.google.com/o/oauth2/token
@@ -254,7 +249,6 @@ data:
     name = OAuth
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = user:email,read:org
     auth_url = https://example.com/oauth/authorize
     token_url = https://example.com/oauth/token
@@ -269,7 +263,6 @@ data:
     enabled = false
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = openid email profile
     auth_url = https://login.microsoftonline.com/common/oauth2/v2.0/authorize
     token_url = https://login.microsoftonline.com/common/oauth2/v2.0/token
@@ -285,7 +278,6 @@ data:
     enabled = false
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = openid email profile
     auth_url = https://example.okta.com/oauth2/v1/authorize
     token_url = https://example.okta.com/oauth2/v1/token
@@ -301,7 +293,6 @@ data:
     enabled = false
     allow_sign_up = true
     client_id = some_id
-    client_secret = some_secret
     scopes = read_user
     auth_url = https://gitlab.com/oauth/authorize
     token_url = https://gitlab.com/oauth/token
@@ -594,188 +585,6 @@ data:
 
 ---
 
-
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-overview
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-overview.json: |
-{{- $overview := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-overview.json" }}
-{{ $overview | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-queue-depth
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-queue-depth.json: |
-{{- $queueDepth := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-queue-depth.json" }}
-{{ $queueDepth | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-job-latency
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-job-latency.json: |
-{{- $jobLatency := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-job-latency.json" }}
-{{ $jobLatency | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-adapter-success-rates
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-adapter-success-rates.json: |
-{{- $adapterRates := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-adapter-success-rates.json" }}
-{{ $adapterRates | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-error-rates
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-error-rates.json: |
-{{- $errorRates := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-error-rates.json" }}
-{{ $errorRates | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-findings-pipeline
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-findings-pipeline.json: |
-{{- $findingsPipeline := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-findings-pipeline.json" }}
-{{ $findingsPipeline | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-security-events
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-security-events.json: |
-{{- $securityEvents := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-security-events.json" }}
-{{ $securityEvents | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-system-health
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-system-health.json: |
-{{- $systemHealth := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-system-health.json" }}
-{{ $systemHealth | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-tenant-isolation
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-tenant-isolation.json: |
-{{- $tenantIsolation := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-tenant-isolation.json" }}
-{{ $tenantIsolation | indent 4 }}
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-ishastra-tenant-throughput
-  namespace: monitoring
-  labels:
-    app: grafana
-    app.kubernetes.io/name: grafana
-    app.kubernetes.io/part-of: ishastra-observability
-    grafana_dashboard: "1"
-    dashboard_folder: "Ishastra"
-data:
-  ishastra-tenant-throughput.json: |
-{{- $tenantThroughput := .Files.Get "deploy/monitoring/grafana/dashboards/ishastra-tenant-throughput.json" }}
-{{ $tenantThroughput | indent 4 }}
-
----
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -818,6 +627,12 @@ spec:
         - name: grafana
           image: grafana/grafana:11.2.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 3000
               name: http
@@ -915,6 +730,8 @@ spec:
               readOnly: true
             - name: grafana-data
               mountPath: /var/lib/grafana
+            - name: grafana-tmp
+              mountPath: /tmp
       volumes:
         - name: grafana-config
           configMap:
@@ -932,6 +749,8 @@ spec:
           configMap:
             name: grafana-dashboard-ishastra-overview
         - name: grafana-data
+          emptyDir: {}
+        - name: grafana-tmp
           emptyDir: {}
 
 ---

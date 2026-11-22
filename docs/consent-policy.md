@@ -726,9 +726,9 @@ Response includes `version` field; client handles upcast.
 
 ## 16. References
 
-- [Scope Document Schema v2](../core/scope_schema.json) — `rules_of_engagement.data_handling`
-- [Scope Gate Concepts](../scope-gate/concepts.md) — Layer 1/2/3 authorization
-- [Ishastra Proof](../architecture/proof.md) — Ed25519 signing, audit chain
+- [Scope Document Schema v2](https://github.com/hacker-194/IshAstra/blob/master/src/ishastra/core/scope_schema.json) — `rules_of_engagement.data_handling`
+- [Scope Gate Concepts](scope-gate/concepts.md) — Layer 1/2/3 authorization
+- [Ishastra Proof](architecture/proof-chain.md) — Ed25519 signing, audit chain
 - [GDPR Article 6](https://gdpr.eu/article-6-lawfulness/) — Lawful basis for processing
 - [NIST SP 800-53 Rev. 5](https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final) — CA-2, CA-6, CA-7, AU-2, AU-3, AU-6, AU-12, SC-28
 - [ISO/IEC 27001:2022](https://www.iso.org/standard/27001) — A.5.10, A.5.12, A.5.13, A.8.10, A.8.11

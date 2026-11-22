@@ -382,7 +382,7 @@ def _execute(job: Job) -> None:
             # runner honours them. Prohibited techniques are matched against an
             # adapter id and the binaries it shells out to ("sqlmap", "nuclei").
             engagement = job.scope_snapshot.rules_of_engagement or {}
-            rate_limit_rps = engagement.get("rate_limit_rps") or 0
+            rate_limit_rps: float = float(engagement.get("rate_limit_rps") or 0)
 
             tenant_for_metrics = job.scope_snapshot.tenant_id if job.scope_snapshot else None
             for adapter in adapters:
@@ -425,7 +425,9 @@ def _execute(job: Job) -> None:
                 any_adapter_ran = True
                 start = time.monotonic()
                 try:
-                    context = {"auth_principal": auth_principal} if auth_principal else {}
+                    context: dict[str, Any] = (
+                        {"auth_principal": auth_principal} if auth_principal else {}
+                    )
                     if rate_limit_rps:
                         context["rate_limit_rps"] = rate_limit_rps
                     result = adapter.assess(

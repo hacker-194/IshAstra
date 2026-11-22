@@ -375,7 +375,8 @@ class K8sAssessmentQueue:
                 except OSError:
                     continue
                 for info in infos:
-                    address = ipaddress.ip_address(info[4][0].split("%")[0])
+                    addr_str = str(info[4][0])
+                    address = ipaddress.ip_address(addr_str.split("%")[0])
                     if not address.is_global:
                         # Private addresses must be authorized explicitly through
                         # authorized_networks; never infer them from a host name.
@@ -665,7 +666,11 @@ def get_k8s_assessment_queue(
         else None,
         db_secret_name=os.environ.get("ISHASTRA_K8S_DB_SECRET", "ishastra-secrets"),
         scope_configmap_name=os.environ.get("ISHASTRA_K8S_SCOPE_CM", "ishastra-scope"),
-        network_policy_enabled = True if os.environ.get("ISHASTRA_ENV", "").strip().lower() == "production" else os.environ.get("ISHASTRA_K8S_NETPOL", "true").lower() == "true",
+        network_policy_enabled=(
+            True
+            if os.environ.get("ISHASTRA_ENV", "").strip().lower() == "production"
+            else os.environ.get("ISHASTRA_K8S_NETPOL", "true").lower() == "true"
+        ),
     )
 
     return K8sAssessmentQueue(

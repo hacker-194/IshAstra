@@ -16,8 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from ishastra import __version__
-from ishastra.monitor import WebhookAlertSink
 from ishastra.api import deps
 from ishastra.api.body_depth import BodyLimitMiddleware
 from ishastra.api.csrf import CSRFMiddleware
@@ -87,7 +87,7 @@ async def _bootstrap_admin_key_async() -> None:
         raise RuntimeError("Invalid ISHASTRA_API_KEY; refusing to start") from exc
 
 
-async def _load_scope_async() -> None:
+async def _load_scope_async():
     """Deny everything until an authorization record is supplied.
 
     A scope document that fails validation is fatal for scanning (the process
@@ -98,13 +98,13 @@ async def _load_scope_async() -> None:
         scope.configure_intel_from_env()
     except ValueError as exc:
         log.critical("scope intel file rejected; no target may be assessed: %s", exc)
-        return
+        return None
     if deps_settings.scope_jwks:
         try:
             scope.configure_signing(deps_settings.scope_jwks, max_age=deps_settings.scope_max_age)
         except (OSError, ValueError) as exc:
             log.critical("scope signing key set rejected; no target may be assessed: %s", exc)
-            return
+            return None
     try:
         installed = scope.load(deps_settings.scope_file)
     except (OSError, ValueError) as exc:
@@ -113,7 +113,7 @@ async def _load_scope_async() -> None:
             deps_settings.scope_file,
             exc,
         )
-        return
+        return None
     if installed is not None:
         log.info(
             "scope document %s active: program=%s include=%d host(s)",
@@ -121,6 +121,7 @@ async def _load_scope_async() -> None:
             installed.program,
             len(installed.include),
         )
+    return installed
 
 
 def _warn_incomplete_secrets() -> None:
@@ -151,7 +152,7 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     await policies.registry.load_async()
     await get_audit_log().load_async()
     await get_monitor().load_async()
-    await _load_scope_async()
+    installed = await _load_scope_async()
 
     await _bootstrap_admin_key_async()
     _warn_incomplete_secrets()
@@ -168,8 +169,13 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
     global _retention_worker
     # Read evidence_retention_days from scope data_handling, fall back to settings
-    retention_days_from_scope = getattr(installed, "rules_of_engagement", {}).get("data_handling", {}).get("evidence_retention_days", None)
-    retention_days = retention_days_from_scope if retention_days_from_scope is not None else deps_settings.retention_days
+    roe = getattr(installed, "rules_of_engagement", {})
+    retention_days_from_scope = roe.get("data_handling", {}).get("evidence_retention_days")
+    retention_days = (
+        retention_days_from_scope
+        if retention_days_from_scope is not None
+        else deps_settings.retention_days
+    )
     _retention_worker = RetentionWorker(retention_days)
 
     global _scheduler

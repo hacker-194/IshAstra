@@ -422,7 +422,11 @@ class OpenAPIAdapter(Adapter):
         started = time.monotonic()
         deadline = started + max(0.05, timeout)
         rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
-        probe = EndpointProbe(timeout=min(5.0, timeout), max_body=self.MAX_SPEC_BYTES, rate_limit_rps=rate_limit_rps)
+        probe = EndpointProbe(
+            timeout=min(5.0, timeout),
+            max_body=self.MAX_SPEC_BYTES,
+            rate_limit_rps=rate_limit_rps,
+        )
 
         auth_principal = None
         if context and "auth_principal" in context:
@@ -858,7 +862,6 @@ class SSRFOOBAdapter(Adapter):
         checked_destination(target)
         listener, canary_base = self._listener()
         deadline = time.monotonic() + max(0.05, timeout)
-        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
         pool = [target]
         if context:
             pool.extend(url for url in context.get("discovered_urls", []) if url != target)

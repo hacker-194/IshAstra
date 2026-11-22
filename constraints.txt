@@ -32,7 +32,7 @@ prometheus-client==0.25.0
 jsonschema==4.26.0
 apscheduler==3.11.3
 pytz==2024.2
-weasyprint==61.2
+weasyprint==70.0
 PyJWT==2.15.1
 python3-saml==1.16.0
 

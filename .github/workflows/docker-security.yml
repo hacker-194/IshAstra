@@ -121,6 +121,7 @@ jobs:
           severity: ${{ github.event.inputs.severity || 'HIGH,CRITICAL' }}
           exit-code: '1'
           ignore-unfixed: true
+          trivyignores: '.trivyignore.yaml'
           vuln-type: 'os,library'
 
       - name: Upload Trivy results to GitHub Security
@@ -227,19 +228,19 @@ jobs:
     if: always()
     steps:
       - name: Check vulnerability scan results
-        if: failure() && needs.vulnerability-scan.result == 'failure'
+        if: needs.vulnerability-scan.result != 'success'
         run: |
           echo "❌ Vulnerability scan failed - blocking release"
           exit 1
 
       - name: Check Dockerfile lint
-        if: failure() && needs.dockerfile-lint.result == 'failure'
+        if: needs.dockerfile-lint.result != 'success'
         run: |
           echo "❌ Dockerfile lint failed"
           exit 1
 
       - name: Check Compose validation
-        if: failure() && needs.compose-validation.result == 'failure'
+        if: needs.compose-validation.result != 'success'
         run: |
           echo "❌ Docker Compose validation failed"
           exit 1

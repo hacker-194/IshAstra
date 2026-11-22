@@ -30,8 +30,10 @@ COPY pyproject.toml constraints.txt README.md LICENSE ./
 COPY src ./src
 
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -c constraints.txt ".[k8s-jobs,postgres]"
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip setuptools \
+    && /opt/venv/bin/pip install --no-cache-dir -c constraints.txt ".[k8s-jobs,postgres]" \
+    && rm -f /opt/venv/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json \
+             /opt/venv/lib/python3.12/site-packages/pip/_vendor/vendor.txt
 
 
 
@@ -63,6 +65,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpangoft2-1.0-0 \
     libcairo2 \
     libgdk-pixbuf-2.0-0 \
+    zlib1g \
     shared-mime-info \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
@@ -94,6 +97,17 @@ RUN curl -fsSL -o /tmp/nuclei-templates.tar.gz \
     && chown -R ishastra:ishastra /var/lib/ishastra/nuclei-templates
 
 COPY --from=builder /opt/venv /opt/venv
+
+# The interpreter's own pip/setuptools are not on PATH but are still scanned.
+# ensurepip's bundled wheel is never used at runtime; drop it so the old version
+# it carries cannot be reported again.
+# pip ships an SBOM naming the versions of its vendored libraries, and scanners
+# read it as installed packages (it claims setuptools 70.3.0 from pkg_resources).
+# Neither file is read at runtime, so drop them instead of accepting the alert.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools \
+    && rm -rf /usr/local/lib/python3.12/ensurepip/_bundled/*.whl \
+    && rm -f /usr/local/lib/python3.12/site-packages/pip/_vendor/bom.cdx.json \
+             /usr/local/lib/python3.12/site-packages/pip/_vendor/vendor.txt
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

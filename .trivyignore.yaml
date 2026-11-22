@@ -1,0 +1,175 @@
+# Accepted findings for the scanner tooling bundled in the runtime image.
+#
+# Every entry is scoped to a path, so a new vulnerability in any other
+# component still fails `Trivy Vulnerability Scan` (exit-code 1). Entries
+# expire: once the date passes Trivy reports them again and the decision has
+# to be re-made deliberately.
+#
+# nuclei is pinned to v3.11.1 because that is the latest upstream release, and
+# its Go dependency tree (stdlib, x/net, x/crypto, grpc, kin-openapi, go-git)
+# is compiled into the binary — the only fix is a rebuilt upstream release.
+
+vulnerabilities:
+  - id: CVE-2026-100347
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100348
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100349
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100351
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100352
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100353
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-100354
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-111943
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-116585
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-116586
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-116587
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-128085
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-33818
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-39821
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-46600
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56851
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56853
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56854
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56855
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56857
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56858
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56859
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56860
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56862
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56864
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56865
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-56866
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-71556
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-71557
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78659
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78660
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78661
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78662
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78663
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78667
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-78669
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-84303
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-84304
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-84445
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-94439
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-94440
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-94448
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-97030
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-97031
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-97032
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-97045
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: CVE-2026-97054
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+  - id: GO-2026-5932
+    paths: [usr/local/bin/nuclei]
+    expired_at: 2027-05-01
+
+# The nuclei-templates release ships the credential material its detection
+# templates replay against vulnerable targets (e.g. the VNERA keypairs for
+# CVE-2023-34039 and the default JWT/API-key patterns). These are public test
+# payloads, not secrets of this project, and the directory is pinned by
+# NUCLEI_TEMPLATES_VERSION, so any change there shows up as a new alert.
+secrets:
+  - id: private-key
+    paths: [/var/lib/ishastra/nuclei-templates/**]
+    expired_at: 2027-05-01
+  - id: jwt-token
+    paths: [/var/lib/ishastra/nuclei-templates/**]
+    expired_at: 2027-05-01
+  - id: gcp-service-account
+    paths: [/var/lib/ishastra/nuclei-templates/**]
+    expired_at: 2027-05-01
+  - id: symfony-default-secret
+    paths: [/var/lib/ishastra/nuclei-templates/**]
+    expired_at: 2027-05-01

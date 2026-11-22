@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ishastra.analyst import analyze_findings, TriageOutput
+from ishastra.analyst import TriageOutput, analyze_findings
 
 FINDINGS = [
     {

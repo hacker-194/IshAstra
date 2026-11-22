@@ -391,7 +391,7 @@ class APIKeyStore:
         """Issue a new key for a tenant (shown once). A positive TTL expires it."""
         if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
-        raw_key = f"strix_{secrets.token_urlsafe(32)}"
+        raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
         expires_at = time.time() + ttl_days * 86400.0 if ttl_days is not None else None
         with self._lock:
             self._install(
@@ -426,7 +426,7 @@ class APIKeyStore:
         """Async version of register."""
         if ttl_days is not None and (isinstance(ttl_days, bool) or ttl_days < 1 or ttl_days > 3650):
             raise ValueError("ttl_days must be between 1 and 3650")
-        raw_key = f"strix_{secrets.token_urlsafe(32)}"
+        raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
         expires_at = time.time() + ttl_days * 86400.0 if ttl_days is not None else None
         with self._lock:
             await self._install_async(
@@ -461,7 +461,7 @@ class APIKeyStore:
             if expires_at is not None and now >= float(expires_at):
                 return None
             new_expiry = (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
-            raw_key = f"strix_{secrets.token_urlsafe(32)}"
+            raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
             self._install(
                 tenant_id,
                 raw_key,
@@ -484,7 +484,7 @@ class APIKeyStore:
             if expires_at is not None and now >= float(expires_at):
                 return None
             new_expiry = (now + ttl_days * 86400.0) if ttl_days is not None else expires_at
-            raw_key = f"strix_{secrets.token_urlsafe(32)}"
+            raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
             await self._install_async(
                 tenant_id,
                 raw_key,
@@ -704,7 +704,7 @@ class APIKeyStore:
         scope = "read" if role == "viewer" else "write"
 
         user_id = f"user_{secrets.token_urlsafe(16)}"
-        raw_key = f"strix_{secrets.token_urlsafe(32)}"
+        raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         now = time.time()
         expires_at = now + ttl_days * 86400.0 if ttl_days is not None else None
@@ -956,7 +956,7 @@ class SessionCookieMiddleware(BaseHTTPMiddleware):
         self,
         app,
         *,
-        cookie_name: str = "strix_session",
+        cookie_name: str = "ishastra_session",
         max_age: int = 3600,
         secure: bool = True,
         httponly: bool = True,

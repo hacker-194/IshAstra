@@ -10,7 +10,7 @@ import secrets
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
-CSRF_COOKIE_NAME = "strix_csrf"
+CSRF_COOKIE_NAME = "ishastra_csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_FORM_FIELD = "csrf_token"
 

@@ -116,8 +116,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     def _is_authenticated_request(self, request: Request) -> bool:
         """Check if request has authentication credentials."""
         auth_header = request.headers.get("Authorization", "")
-        session_cookie = request.cookies.get("strix_session")
-        csrf_cookie = request.cookies.get("strix_csrf")
+        session_cookie = request.cookies.get("ishastra_session")
+        csrf_cookie = request.cookies.get("ishastra_csrf")
         return bool(auth_header.startswith("Bearer ") or session_cookie or csrf_cookie)
 
     def _build_hsts_header(self) -> str:

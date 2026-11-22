@@ -1,46 +1,17 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Template: a Cloudflare Tunnel ingress for IshAstra.
+#
+# Fill in before applying, or it will be rejected or fail to start:
+#   <TUNNEL_UUID>     the tunnel id from `cloudflared tunnel create`
+#   api.yourdomain.com / app.yourdomain.com   your hostnames
+#   cloudflare-tunnel-credentials  a Secret holding credentials.json for that tunnel
+#
+# cloudflared dials out to Cloudflare; it opens no inbound listener, so this file
+# publishes no Service. Readiness is served on the metrics port (2000).
 
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ishastra
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: cloudflare-tunnel
-  namespace: ishastra
-  labels:
-    app: cloudflare-tunnel
-spec:
-  selector:
-    app: cloudflare-tunnel
-  ports:
-  - name: http
-    port: 80
-    targetPort: 8080
-  - name: https
-    port: 443
-    targetPort: 8443
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -59,6 +30,7 @@ spec:
       labels:
         app: cloudflare-tunnel
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         fsGroup: 65532
@@ -74,8 +46,8 @@ spec:
         - run
         - <TUNNEL_UUID>
         ports:
-        - containerPort: 8080
-        - containerPort: 8443
+        - name: metrics
+          containerPort: 2000
         volumeMounts:
         - name: config
           mountPath: /etc/cloudflared/config
@@ -102,13 +74,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /ready
-            port: 8080
+            port: 2000
           initialDelaySeconds: 10
           periodSeconds: 30
         readinessProbe:
           httpGet:
             path: /ready
-            port: 8080
+            port: 2000
           initialDelaySeconds: 5
           periodSeconds: 10
       volumes:

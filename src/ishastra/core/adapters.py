@@ -297,7 +297,8 @@ class DynamicValidationAdapter(Adapter):
                 "no query parameters available; dynamic input validation is inconclusive"
             )
         deadline = time.monotonic() + min(max(0.05, timeout), self.MAX_TIMEOUT)
-        probe = EndpointProbe(timeout=min(5.0, timeout))
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
+        probe = EndpointProbe(timeout=min(5.0, timeout), rate_limit_rps=rate_limit_rps)
 
         auth_principal = None
         if context and "auth_principal" in context:
@@ -420,7 +421,8 @@ class OpenAPIAdapter(Adapter):
         candidates = list(dict.fromkeys(candidates))[:7]
         started = time.monotonic()
         deadline = started + max(0.05, timeout)
-        probe = EndpointProbe(timeout=min(5.0, timeout), max_body=self.MAX_SPEC_BYTES)
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
+        probe = EndpointProbe(timeout=min(5.0, timeout), max_body=self.MAX_SPEC_BYTES, rate_limit_rps=rate_limit_rps)
 
         auth_principal = None
         if context and "auth_principal" in context:
@@ -593,8 +595,11 @@ class CrawlerAdapter(Adapter):
         if context and "auth_principal" in context:
             auth_principal = context["auth_principal"]
 
-        crawler = WebCrawler(max_pages=CRAWL_MAX_PAGES)
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
+        crawler = WebCrawler(max_pages=CRAWL_MAX_PAGES, timeout=min(10.0, timeout / 2))
         crawl = crawler.crawl(target, deadline=deadline, cancel=cancel, auth=auth_principal)
+        if rate_limit_rps:
+            crawl.notes.append(f"rate limit applied: {rate_limit_rps} rps")
         result = AdapterResult()
         result.notes.extend(crawl.notes or [f"crawl completed: {len(crawl.pages)} page(s)"])
         result.notes.append(
@@ -814,8 +819,8 @@ class SSRFOOBAdapter(Adapter):
     )
     CANARY_MARKER = "ishastra-canary"
 
-    def __init__(self) -> None:
-        self._probe = EndpointProbe(timeout=6.0)
+    def __init__(self, rate_limit_rps: float = 0) -> None:
+        self._probe = EndpointProbe(timeout=6.0, rate_limit_rps=rate_limit_rps)
 
     def _listener(self) -> tuple[CollabServer | CollabClient, str]:
         """(listener, canary base) from the active scope configuration."""
@@ -853,6 +858,7 @@ class SSRFOOBAdapter(Adapter):
         checked_destination(target)
         listener, canary_base = self._listener()
         deadline = time.monotonic() + max(0.05, timeout)
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
         pool = [target]
         if context:
             pool.extend(url for url in context.get("discovered_urls", []) if url != target)
@@ -878,6 +884,8 @@ class SSRFOOBAdapter(Adapter):
             if remaining <= 0:
                 result.notes.append("SSRF probing stopped at deadline")
                 break
+            # Apply rate limiting between probes
+            self._probe._pace()
             token = new_token()
             canary = f"{canary_base}/{token}"
             finding = self._probe_param(
@@ -1674,7 +1682,12 @@ class SqlmapAdapter(Adapter):
             ]
             engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
             if engagement_rate > 0:
-                argv.extend(["--delay", f"{1.0 / engagement_rate:.2f}"])
+                # Calculate delay respecting RoE rate limit with precision
+                # SQLMap's --delay adds a pause between requests; use a floor of 0.1s
+                # and cap at 10s to avoid excessively slow scans
+                raw_delay = 1.0 / engagement_rate
+                delay = max(0.1, min(raw_delay, 10.0))
+                argv.extend(["--delay", f"{delay:.4f}"])
 
             if context and "auth_principal" in context and context["auth_principal"]:
                 auth = context["auth_principal"]

@@ -665,7 +665,7 @@ def get_k8s_assessment_queue(
         else None,
         db_secret_name=os.environ.get("ISHASTRA_K8S_DB_SECRET", "ishastra-secrets"),
         scope_configmap_name=os.environ.get("ISHASTRA_K8S_SCOPE_CM", "ishastra-scope"),
-        network_policy_enabled=os.environ.get("ISHASTRA_K8S_NETPOL", "true").lower() == "true",
+        network_policy_enabled = True if os.environ.get("ISHASTRA_ENV", "").strip().lower() == "production" else os.environ.get("ISHASTRA_K8S_NETPOL", "true").lower() == "true",
     )
 
     return K8sAssessmentQueue(

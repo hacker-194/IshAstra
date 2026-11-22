@@ -1,35 +1,41 @@
 <div align="center">
 
-<img src="./assets/banner.svg" alt="IshAstra — Authorization-First Security Assessment Platform" width="100%">
+# <span style="color:#f8fafc; font-size:2.2rem; font-weight:900">IshAstra</span>
+# <span style="color:#1e293b; font-size:1.1rem; opacity:0.8">Authorization-First Security Assessment Platform</span>
+
+<span style="display:block; margin:2rem 0; border-top:1px solid #334155; border-bottom:1px solid #334155; padding:1rem 0"></span>
+
+<img src="./assets/banner.svg" alt="IshAstra — Authorization is enforced before every outbound connection" width="100%" style="margin:1rem 0; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));">
 
 <br>
 
-### 🛡️ Authorization is enforced before every outbound connection IshAstra makes.
+<sup><span style="color:#64748b">Default-deny authorization that proves you're allowed — before every connection.</span></sup>
 
 <br>
 
-[![License](https://img.shields.io/github/license/hacker-194/IshAstra?style=for-the-badge&color=2563eb)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/hacker-194/IshAstra/ci.yml?style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/hacker-194/IshAstra/actions)
-[![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Kubernetes](https://img.shields.io/badge/kubernetes-1.28%2B-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io)
-
-[![TLA+](https://img.shields.io/badge/TLA%2B-model--checked-8b5cf6?style=flat-square)](docs/tla)
-[![Ed25519](https://img.shields.io/badge/evidence-Ed25519--signed-0ea5e9?style=flat-square)](#signed-evidence-bundles)
-[![SARIF](https://img.shields.io/badge/reports-SARIF-22c55e?style=flat-square)](#why-ishastra)
-[![Status](https://img.shields.io/badge/status-pilot--grade-f59e0b?style=flat-square)](docs/quickstart/production.md)
-[![Stars](https://img.shields.io/github/stars/hacker-194/IshAstra?style=flat-square&logo=github&color=eab308)](https://github.com/hacker-194/IshAstra/stargazers)
+<div align="center" style="gap:1rem;">
+  [![License](https://img.shields.io/github/license/hacker-194/IshAstra?style=for-the-badge&color=2563eb&labelColor=1e293b)](LICENSE)
+  [![CI](https://img.shields.io/github/actions/workflow/status/hacker-194/IshAstra/ci.yml?style=for-the-badge&label=%F0%9F%94%99%20CI&logoColor=white&labelColor=1e293b)](https://github.com/hacker-194/IshAstra/actions)
+  [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=1e293b)](https://python.org)
+  [![Kubernetes](https://img.shields.io/badge/kubernetes-1.28%2B-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white&labelColor=1e293b)](https://kubernetes.io)
+  [![TLA+](https://img.shields.io/badge/TLA%2B-model%20checked-8b5cf6?style=flat-square&labelColor=1e293b)](docs/tla)
+  [![Ed25519](https://img.shields.io/badge/evidence-Ed25519%20signed-0ea5e9?style=flat-square&labelColor=1e293b)](#signed-evidence-bundles)
+  [![SARIF](https://img.shields.io/badge/reports-SARIF-22c55e?style=flat-square&labelColor=1e293b)](#why-ishastra)
+  [![Status](https://img.shields.io/badge/status-pilot--grade-f59e0b?style=flat-square&labelColor=1e293b)](docs/quickstart/production.md)
+  [![Stars](https://img.shields.io/github/stars/hacker-194/IshAstra?style=flat-square&color=eab308&labelColor=1e293b)](https://github.com/hacker-194/IshAstra/stargazers)
+]
+</div>
 
 <p>
-  <a href="#try-it-in-one-command"><b>Quick start</b></a> &nbsp;·&nbsp;
-  <a href="#why-ishastra"><b>Why IshAstra</b></a> &nbsp;·&nbsp;
-  <a href="#architecture"><b>Architecture</b></a> &nbsp;·&nbsp;
-  <a href="#deployment"><b>Deployment</b></a> &nbsp;·&nbsp;
-  <a href="#documentation"><b>Docs</b></a> &nbsp;·&nbsp;
-  <a href="#security"><b>Security</b></a> &nbsp;·&nbsp;
-  <a href="#contributing"><b>Contributing</b></a>
+  <a href="#why-ishastra" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Why IshAstra</b></a> &nbsp;•&nbsp; 
+  <a href="#architecture" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Architecture</b></a> &nbsp;•&nbsp;
+  <a href="#deployment" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Deployment</b></a> &nbsp;•&nbsp;
+  <a href="#documentation" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Docs</b></a> &nbsp;•&nbsp;
+  <a href="#security" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Security</b></a> &nbsp;•&nbsp;
+  <a href="#contributing" style="color:#1e293b; text-decoration:none; font-weight:600;"><b>Contributing</b></a>
 </p>
 
-<img src="./assets/divider.svg" alt="" width="100%">
+<img src="./assets/divider.svg" alt="" width="100%" style="margin:2rem 0; opacity:0.5;">
 
 <table>
   <tr>
@@ -40,64 +46,56 @@
   </tr>
 </table>
 
+<div align="center" style="margin-top:1.5rem;">
+  <sub><span style="color:#64748b">Authorization core: TLA+-model-checked, CI-enforced. Production-ready with single-tenant deployment.</span></sub>
 </div>
-
-> [!NOTE]
-> **Project status: pilot-grade** for a single-tenant, single-host deployment. The authorization core is TLA+-model-checked and CI-enforced; the platform has no HA or multi-node story yet. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
+</div>
 
 ## Why IshAstra
 
-Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch this?"** first, and proves the answer afterwards.
+<div align="center" style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+  <h3 style="color:#f8fafc; margin-top:0;">🛡️ Default-deny authorization</h3>
+  <p style="color:#94a3b8; line-height:1.6;">A three-layer Scope Gate validates URL/host, DNS/IP and the pinned destination before any connection is made. If it isn't explicitly authorized, it doesn't happen. <em>No scope, no connection.</em></p>
+  <h3 style="color:#f8fafc; margin-top:1.5rem;">🔐 Tenant isolation</h3>
+  <p style="color:#94a3b8; line-height:1.6;">API-key tenant isolation, with per-task scope binding through <code>ContextVar</code>s, keeps tenants strictly apart. No cross-tenant leakage.</p>
+  <h3 style="color:#f8fafc; margin-top:1.5rem;">⛓️ Cryptographic audit chain</h3>
+  <p style="color:#94a3b8; line-height:1.6;">Every gate decision is receipted in a tamper-evident chain that is verifiable offline and compliance-ready. Your evidence, cryptographically signed.</p>
+</div>
 
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <h3>🛡️ Default-deny</h3>
-      A three-layer Scope Gate validates URL/host, DNS/IP and the pinned destination before any connection is made. If it isn't explicitly authorized, it doesn't happen.
-    </td>
-    <td width="33%" valign="top">
-      <h3>🔐 Tenant isolation</h3>
-      API-key tenant isolation, with per-task scope binding through <code>ContextVar</code>s, keeps tenants apart.
-    </td>
-    <td width="33%" valign="top">
-      <h3>⛓️ Audit chain</h3>
-      Every gate decision is receipted in a cryptographic chain that is tamper-evident, verifiable offline and compliance-ready.
-    </td>
-  </tr>
-  <tr>
-    <td width="33%" valign="top">
-      <h3>📜 Policy-as-code</h3>
-      Express scope as code with CIDR, ASN and geo rules in a signed scope file. The gate refuses anything else.
-    </td>
-    <td width="33%" valign="top">
-      <h3>🌐 DNS-rebinding proof</h3>
-      Hostnames are resolved, every IP is validated, and the connection is pinned to the single approved destination.
-    </td>
-    <td width="33%" valign="top">
-      <h3>🧰 Real tools</h3>
-      Runs Nuclei, nmap, SQLMap and Nikto through adapters that re-check the gate and emit normalized findings.
-    </td>
-  </tr>
+<div align="center" style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:1.5rem; margin:1.5rem 0;">
+  <h3 style="color:#f8fafc; margin-top:0;">📜 Policy-as-code</h3>
+  <p style="color:#94a3b8; line-height:1.6;">Express scope as code with CIDR, ASN and geo rules in a signed scope file. The gate refuses anything else. <em>Code is law.</em></p>
+  <h3 style="color:#f8fafc; margin-top:1.5rem;">🌐 DNS-rebinding proof</h3>
+  <p style="color:#94a3b8; line-height:1.6;">Hostnames are resolved, every IP is validated, and the connection is pinned to the single approved destination. No DNS rebinding accepted.</p>
+  <h3 style="color:#f8fafc; margin-top:1.5rem;">🧰 Real tools</h3>
+  <p style="color:#94a3b8; line-height:1.6;">Runs Nuclei, nmap, SQLMap and Nikto through adapters that re-check the gate and emit normalized findings. <em>Real tools, normalized output.</em></p>
+</div>
+
+<h3 style="color:#1e293b; margin:2rem 0 1rem 0;">📊 How IshAstra compares</h3>
+
+<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+  <thead>
+    <tr style="background:#0f172a; color:#94a3b8; border-bottom:2px solid #334155;">
+      <th style="padding:0.5rem 0.75rem; text-align:left;">Feature</th>
+      <th style="padding:0.5rem 0.75rem; text-align:center;">IshAstra</th>
+      <th style="padding:0.5rem 0.75rem; text-align:center;">Nuclei</th>
+      <th style="padding:0.5rem 0.75rem; text-align:center;">Trivy</th>
+      <th style="padding:0.5rem 0.75rem; text-align:center;">OWASP ZAP</th>
+      <th style="padding:0.5rem 0.75rem; text-align:center;">OpenVAS</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Default-deny authorization</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">API-key tenant isolation</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Cryptographic audit chain</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">SARIF + compliance reports</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Runs Nuclei / nmap / SQLMap</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Policy-as-code (CIDR+ASN+Geo)</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">DNS rebinding protection</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Free-tier deployable</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">TLA+ model-checked</td><td style="padding:0.5rem 0.75rem; text-align:center;" >✅</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td><td style="padding:0.5rem 0.75rem; text-align:center;" >❌</td></tr>
+  </tbody>
 </table>
-
-<details>
-<summary><b>📊 How IshAstra compares</b></summary>
-
-<br>
-
-| Feature                           | **IshAstra** | Nuclei | Trivy | OWASP ZAP | OpenVAS |
-| --------------------------------- | :----------: | :----: | :---: | :-------: | :-----: |
-| **Default-deny authorization**    |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-| **API-key tenant isolation**      |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-| **Cryptographic audit chain**     |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-| **SARIF + compliance reports**    |      ✅      |   ✅   |  ✅   |    ✅     |   ✅    |
-| **Runs Nuclei / nmap / SQLMap**   |      ✅      |   ✅   |  ❌   |    ❌     |   ❌    |
-| **Policy-as-code (CIDR+ASN+Geo)** |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-| **DNS rebinding protection**      |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-| **Free-tier deployable**          |      ✅      |   ✅   |  ✅   |    ❌     |   ❌    |
-| **TLA+ model-checked**            |      ✅      |   ❌   |  ❌   |    ❌     |   ❌    |
-
-</details>
 
 ## Try it in one command
 
@@ -112,7 +110,7 @@ pip install -c constraints.txt -e .
 ishastra demo
 ```
 
-The demo writes its own **Ed25519-signed scope** (localhost only), generates an admin key, uses SQLite, and prints the URL plus the key you paste into the top bar. Nothing outside `.ishastra-demo/` is touched.
+The demo writes its own <span style="color:#0ea5e9;">Ed25519-signed scope</span> (localhost only), generates an admin key, uses SQLite, and prints the URL plus the key you paste into the top bar. Nothing outside <code>.ishastra-demo/</code> is touched.
 
 ### Drop it into CI
 
@@ -235,12 +233,15 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 
 ## Deployment
 
-| Environment                | Command                                                        |   Cost   |
-| :------------------------- | :------------------------------------------------------------- | :------: |
-| **Free tier (Oracle)**     | `./scripts/bootstrap-free.sh`                                  | $0/month |
-| **Single-host production** | systemd or Compose, one writer                                 |   Low    |
-| **Local dev**              | `docker compose up -d` (after setting the required passwords)  |   Free   |
-| **Kind / Minikube**        | `./scripts/bootstrap-kind.sh`                                  |   Free   |
+<div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:1rem; margin:1rem 0;">
+  <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+    <tr style="background:#1e293b; color:#f8fafc; border-bottom:2px solid #334155;"><th style="padding:0.5rem 0.75rem;">Environment</th><th style="padding:0.5rem 0.75rem; text-align:center;">Command</th><th style="padding:0.5rem 0.75rem; text-align:center;">Cost</th></tr>
+    <tr style="background:#0f172a; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Free tier (Oracle)</td><td style="padding:0.5rem 0.75rem; text-align:center;" >./scripts/bootstrap-free.sh</td><td style="padding:0.5rem 0.75rem; text-align:center;" >$0/month</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Single-host production</td><td style="padding:0.5rem 0.75rem; text-align:center;" >systemd or Compose, one writer</td><td style="padding:0.5rem 0.75rem; text-align:center;" >Low</td></tr>
+    <tr style="background:#0f172a; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Local dev</td><td style="padding:0.5rem 0.75rem; text-align:center;" >docker compose up -d</td><td style="padding:0.5rem 0.75rem; text-align:center;" >Free</td></tr>
+    <tr style="background:#1e293b; color:#f8fafc;"><td style="padding:0.5rem 0.75rem;">Kind / Minikube</td><td style="padding:0.5rem 0.75rem; text-align:center;" >./scripts/bootstrap-kind.sh</td><td style="padding:0.5rem 0.75rem; text-align:center;" >Free</td></tr>
+  </table>
+</div>
 
 <details>
 <summary><b>☁️ Free tier: $0/month on Oracle Cloud Always Free</b></summary>
@@ -257,15 +258,18 @@ chmod +x scripts/bootstrap-free.sh
 
 **What you get:**
 
-| | Component | Details |
-| :-: | :-------- | :------ |
-| ☸️ | **k0s cluster** | Oracle Always Free Arm (2 OCPU / 12 GB total, halved by Oracle in June 2026). Add a third controller for quorum |
-| 🐘 | **Neon PostgreSQL** | Serverless, 0.5 GB free |
-| ⚡ | **Upstash Redis** | Serverless, 256 MB free |
-| 🌩️ | **Cloudflare Tunnel** | Ingress with zero public IP and DDoS protection |
-| 🔒 | **SealedSecrets** | Git-safe secret management |
-| 📈 | **Prometheus + Grafana** | Monitoring out of the box |
-| 🚪 | **IshAstra ScopeGate API** | Served at `https://api.yourdomain.com` |
+<div style="background:#1e293b; border:1px solid #334155; border-radius:6px; padding:1rem; margin:0.5rem 0;">
+  <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+    <tr style="background:#0f172a; color:#94a3b8; border-bottom:2px solid #334155;"><th style="padding:0.4rem 0.6rem;">Component</th><th style="padding:0.4rem 0.6rem; text-align:center;">Details</th></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">☸️</td><td style="padding:0.4rem 0.6rem;">k0s cluster: Oracle Always Free Arm (2 OCPU / 12 GB total, halved by Oracle in June 2026). Add a third controller for quorum.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">🐘</td><td style="padding:0.4rem 0.6rem;">Neon PostgreSQL: Serverless, 0.5 GB free.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">⚡</td><td style="padding:0.4rem 0.6rem;">Upstash Redis: Serverless, 256 MB free.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">🌩️</td><td style="padding:0.4rem 0.6rem;">Cloudflare Tunnel: Ingress with zero public IP and DDoS protection.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">🔒</td><td style="padding:0.4rem 0.6rem;">SealedSecrets: Git-safe secret management.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">📈</td><td style="padding:0.4rem 0.6rem;">Prometheus + Grafana: Monitoring out of the box.</td></tr>
+    <tr style="background:#1e293b; color:#cfdef3;"><td style="padding:0.4rem 0.6rem;">🚪</td><td style="padding:0.4rem 0.6rem;">IshAstra ScopeGate API: Served at <code>https://api.yourdomain.com</code>.</td></tr>
+  </table>
+</div>
 
 </details>
 
@@ -278,7 +282,7 @@ chmod +x scripts/bootstrap-free.sh
 cp .env.example .env
 # Set POSTGRES_PASSWORD, GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD in .env
 docker compose up -d
-# API     → http://localhost:8000
+# API → http://localhost:8000
 # Grafana → http://localhost:3000  (log in with GRAFANA_PASSWORD)
 ```
 
@@ -286,10 +290,7 @@ docker compose up -d
 
 ### Data backend and queue modes
 
-| Component | Default | Alternative | Notes |
-| :-------- | :------ | :---------- | :---- |
-| **Database** | **SQLite**, the supported single-host pilot backend | **PostgreSQL** via `ISHASTRA_DB=postgresql://...` and the `postgres` extra | *Experimental.* Schema, RLS and a single-host worker path are tested, but there is no HA or multi-node failover |
-| **Queue** | **`in-process`**, held in memory (a restart loses queued jobs) | **`redis-streams`** via `ISHASTRA_QUEUE_MODE=redis-streams` and `ISHASTRA_REDIS_URL`, for durable work shared by workers | `k8s-jobs` is experimental. See [ARCHITECTURE.md](ARCHITECTURE.md#deployment-constraints) |
+<div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:1rem; margin:1rem 0;"><table style="width:100%; border-collapse:collapse; font-size:0.85rem;"><tr style="background:#1e293b; color:#f8fafc; border-bottom:2px solid #334155;"><th style="padding:0.5rem 0.75rem;">Component</th><th style="padding:0.5rem 0.75rem; text-align:center;">Default</th><th style="padding:0.5rem 0.75rem; text-align:center;">Alternative</th><th style="padding:0.5rem 0.75rem; text-align:center;">Notes</th></tr><tr style="background:#0f172a; color:#cfdef3;"><td style="padding:0.5rem 0.75rem;">Database</td><td style="padding:0.5rem 0.75rem; text-align:center;" >**SQLite**, the supported single-host pilot backend</td><td style="padding:0.5rem 0.75rem; text-align:center;" >**PostgreSQL** via `ISHASTRA_DB=postgresql://...` and the `postgres` extra</td><td style="padding:0.5rem 0.75rem; text-align:center;" >*Experimental.* Schema, RLS and a single-host worker path are tested, but there is no HA or multi-node failover.</td></tr><tr style="background:#0f172a; color:#cfdef3;"><td style="padding:0.5rem 0.75rem;">Queue</td><td style="padding:0.5rem 0.75rem; text-align:center;" >**<code>in-process</code>**, held in memory (a restart loses queued jobs)</td><td style="padding:0.5rem 0.75rem; text-align:center;" >**<code>redis-streams</code>* via `ISHASTRA_QUEUE_MODE=redis-streams` and `ISHASTRA_REDIS_URL`, for durable work shared by workers</td><td style="padding:0.5rem 0.75rem; text-align:center;" >`k8s-jobs` is experimental. See <a href="ARCHITECTURE.md#deployment-constraints">ARCHITECTURE.md</a>.</td></tr></table></div>
 
 ## Extend and integrate
 
@@ -298,17 +299,29 @@ docker compose up -d
 
 <br>
 
-Adapters plug in without forking the project. Publish one under the `ishastra.adapters` entry-point group and it becomes available to profiles:
+Adapters plug in without forking the project. Publish one under the <code>ishastra.adapters</code> entry-point group and it becomes available to profiles:
 
 ```toml
 [project.entry-points."ishastra.adapters"]
 my-probe = "my_package.adapters:MyProbe"
 ```
 
-A plugin can add an adapter id but **cannot replace a built-in one**.
+A plugin can add an adapter id but <strong>cannot replace a built-in one</strong>.
 
 > [!CAUTION]
-> Third-party adapters are opt-in. Set `ISHASTRA_ALLOW_PLUGINS=1` only for packages you trust: plugins run in-process and can open network connections **without the Scope Gate**.
+> Third-party adapters are opt-in. Set <code>ISHASTRA_ALLOW_PLUGINS=1</code> only for packages you trust: plugins run in-process and can open network connections <strong>without the Scope Gate</strong>.
+
+</details>
+
+<details>
+<summary><b>🔔 Job notifications (webhooks & Slack)</b></summary>
+
+<br>
+
+Set <code>ISHASTRA_NOTIFY_WEBHOOK_URL</code> to POST a JSON summary (job, target, state, verdict, severity counts) whenever a job finishes. The same body carries Slack <code>text</code> and <code>blocks</code>, so a Slack incoming webhook renders it as a formatted card while other receivers read the structured fields.
+
+- Destinations must be <strong>public https URLs</strong>
+- Set <code>ISHASTRA_WEBHOOK_SECRET</code> to add an <code>X-Ishastra-Signature: sha256=…</code> HMAC header so the receiver can verify the payload
 
 </details>
 

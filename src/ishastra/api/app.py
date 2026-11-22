@@ -16,8 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
-
 from ishastra import __version__
+from ishastra.monitor import WebhookAlertSink
 from ishastra.api import deps
 from ishastra.api.body_depth import BodyLimitMiddleware
 from ishastra.api.csrf import CSRFMiddleware
@@ -167,7 +167,10 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("Audit chain verified: %d entries", chain_length)
 
     global _retention_worker
-    _retention_worker = RetentionWorker(deps_settings.retention_days)
+    # Read evidence_retention_days from scope data_handling, fall back to settings
+    retention_days_from_scope = getattr(installed, "rules_of_engagement", {}).get("data_handling", {}).get("evidence_retention_days", None)
+    retention_days = retention_days_from_scope if retention_days_from_scope is not None else deps_settings.retention_days
+    _retention_worker = RetentionWorker(retention_days)
 
     global _scheduler
     _scheduler = await create_scheduler(

@@ -113,7 +113,7 @@ class Settings:
 
     encryption_key: str = ""
 
-    retention_days: int = 0
+    retention_days: int = 90
     max_body_bytes: int = 1_048_576
     max_nesting_depth: int = 10
     log_format: str = "text"

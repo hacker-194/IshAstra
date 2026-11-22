@@ -471,7 +471,7 @@ async def oidc_callback(
 
     response = RedirectResponse(url="/", status_code=302)
     response.set_cookie(
-        key="strix_session",
+        key="ishastra_session",
         value=session_token,
         httponly=True,
         secure=True,
@@ -489,7 +489,7 @@ async def oidc_callback(
 async def oidc_logout(request: Request, settings: Settings = Depends(get_settings)):
     """Logout - clear session cookie."""
     response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie(key="strix_session", path="/", secure=True, samesite="strict")
+    response.delete_cookie(key="ishastra_session", path="/", secure=True, samesite="strict")
 
     config = OIDCConfig.from_settings(settings)
     if config.is_configured:
@@ -633,11 +633,11 @@ async def saml_acs(
         admin_roles = [r.strip().lower() for r in config.admin_roles.split(",")]
         analyst_roles = [r.strip().lower() for r in config.analyst_roles.split(",")]
 
-        strix_role = "viewer"
+        ishastra_role = "viewer"
         if any(r in admin_roles for r in raw_roles):
-            strix_role = "admin"
+            ishastra_role = "admin"
         elif any(r in analyst_roles for r in raw_roles):
-            strix_role = "analyst"
+            ishastra_role = "analyst"
 
         email = name_id or attributes.get("email", [""])[0] or attributes.get("mail", [""])[0]
         sub = attributes.get("sub", [name_id])[0] if name_id else email
@@ -650,7 +650,7 @@ async def saml_acs(
 
         tenant_id = f"saml_{sub}"
         tier = "standard"
-        admin = strix_role == "admin"
+        admin = ishastra_role == "admin"
 
         tenant_key = await api_keys.validate_async(f"tenant:{tenant_id}")
         if not tenant_key and config.auto_provision:
@@ -677,7 +677,7 @@ async def saml_acs(
 
         response = RedirectResponse(url="/", status_code=302)
         response.set_cookie(
-            key="strix_session",
+            key="ishastra_session",
             value=session_token,
             httponly=True,
             secure=True,
@@ -766,7 +766,7 @@ async def saml_slo(
 async def logout(request: Request):
     """Local logout - clear session cookie."""
     response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie(key="strix_session", path="/", secure=True, samesite="strict")
+    response.delete_cookie(key="ishastra_session", path="/", secure=True, samesite="strict")
     return response
 
 
@@ -774,7 +774,7 @@ async def logout(request: Request):
 async def auth_status(request: Request, settings: Settings = Depends(get_settings)):
     """Check authentication status."""
 
-    session_cookie = request.cookies.get("strix_session")
+    session_cookie = request.cookies.get("ishastra_session")
     if session_cookie:
         tenant = await api_keys.validate_async(session_cookie)
         if tenant:

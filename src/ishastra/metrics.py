@@ -103,14 +103,14 @@ def init_metrics() -> CollectorRegistry:
     _registry = CollectorRegistry()
 
     REQUEST_COUNT = Counter(
-        "strix_http_requests_total",
+        "ishastra_http_requests_total",
         "Total HTTP requests",
         ["method", "endpoint", "status"],
         registry=_registry,
     )
 
     REQUEST_LATENCY = Histogram(
-        "strix_http_request_duration_seconds",
+        "ishastra_http_request_duration_seconds",
         "HTTP request latency in seconds",
         ["method", "endpoint"],
         buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
@@ -118,28 +118,28 @@ def init_metrics() -> CollectorRegistry:
     )
 
     REQUEST_IN_PROGRESS = Gauge(
-        "strix_http_requests_in_progress",
+        "ishastra_http_requests_in_progress",
         "HTTP requests currently being processed",
         ["method", "endpoint"],
         registry=_registry,
     )
 
     REPORTS_TOTAL = Counter(
-        "strix_reports_total",
+        "ishastra_reports_total",
         "Total evidence reports generated",
         ["kind"],
         registry=_registry,
     )
 
     RATE_LIMIT_HITS = Counter(
-        "strix_rate_limit_hits_total",
+        "ishastra_rate_limit_hits_total",
         "Total rate limit checks",
         ["route_class", "tier", "allowed"],
         registry=_registry,
     )
 
     RATE_LIMIT_EXCEEDED = Counter(
-        "strix_rate_limit_exceeded_total",
+        "ishastra_rate_limit_exceeded_total",
         "Total rate limit exceeded responses",
         ["route_class", "tier", "identity_type"],
         registry=_registry,
@@ -160,159 +160,159 @@ def init_metrics() -> CollectorRegistry:
     )
 
     BREAK_GLASS_ACTIVATIONS = Counter(
-        "strix_break_glass_activations_total",
+        "ishastra_break_glass_activations_total",
         "Break-glass emergency scope activations by tenant and result",
         ["tenant", "result"],
         registry=_registry,
     )
 
     JOBS_TOTAL = Counter(
-        "strix_jobs_total",
+        "ishastra_jobs_total",
         "Assessment jobs by state entered",
         ["state", "tenant"],
         registry=_registry,
     )
     JOBS_ACTIVE = Gauge(
-        "strix_jobs_active",
+        "ishastra_jobs_active",
         "Assessment jobs currently queued or running",
         ["tenant"],
         registry=_registry,
     )
     JOB_DURATION = Histogram(
-        "strix_job_duration_seconds",
+        "ishastra_job_duration_seconds",
         "Assessment job wall-clock duration",
         ["profile", "tenant"],
         buckets=(1, 5, 15, 30, 60, 120, 300, 600, 1800, 3600),
         registry=_registry,
     )
     JOB_QUEUE_DURATION = Histogram(
-        "strix_job_queue_duration_seconds",
+        "ishastra_job_queue_duration_seconds",
         "Time between job creation and worker start",
         ["profile"],
         buckets=(0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1800),
         registry=_registry,
     )
     JOB_TRANSITIONS = Counter(
-        "strix_job_state_transitions_total",
+        "ishastra_job_state_transitions_total",
         "Assessment job state transitions",
         ["from", "to"],
         registry=_registry,
     )
 
     QUEUE_DEPTH = Gauge(
-        "strix_queue_depth",
+        "ishastra_queue_depth",
         "Jobs waiting for a worker",
         ["mode"],
         registry=_registry,
     )
     WORKERS_TOTAL = Gauge(
-        "strix_workers_total",
+        "ishastra_workers_total",
         "Worker slots configured",
         ["mode"],
         registry=_registry,
     )
     WORKER_BUSY = Gauge(
-        "strix_worker_busy",
+        "ishastra_worker_busy",
         "Worker slots currently running a job",
         ["mode"],
         registry=_registry,
     )
 
     ADAPTER_DURATION = Histogram(
-        "strix_adapter_duration_seconds",
+        "ishastra_adapter_duration_seconds",
         "Adapter run duration",
         ["adapter", "tenant"],
         buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300),
         registry=_registry,
     )
     ADAPTER_ERRORS = Counter(
-        "strix_adapter_errors_total",
+        "ishastra_adapter_errors_total",
         "Adapter runs that did not produce a clean result",
         ["adapter", "error_type", "tenant"],
         registry=_registry,
     )
     ADAPTER_TIMEOUTS = Counter(
-        "strix_adapter_timeout_total",
+        "ishastra_adapter_timeout_total",
         "Adapter deadlines exceeded",
         ["adapter", "tenant"],
         registry=_registry,
     )
 
     AUTH_SUCCESS = Counter(
-        "strix_auth_success_total",
+        "ishastra_auth_success_total",
         "Successful authentications",
         ["tenant", "tier"],
         registry=_registry,
     )
     AUTH_FAILURES = Counter(
-        "strix_auth_failures_total",
+        "ishastra_auth_failures_total",
         "Rejected authentication attempts",
         ["tenant", "reason"],
         registry=_registry,
     )
     WEBHOOK_DELIVERIES = Counter(
-        "strix_webhook_deliveries_total",
+        "ishastra_webhook_deliveries_total",
         "Webhook deliveries by outcome",
         ["tenant", "status"],
         registry=_registry,
     )
     WEBHOOK_FAILURES = Counter(
-        "strix_webhook_failures_total",
+        "ishastra_webhook_failures_total",
         "Webhook delivery failures",
         ["tenant", "error_type"],
         registry=_registry,
     )
     FINDINGS_TOTAL = Counter(
-        "strix_findings_total",
+        "ishastra_findings_total",
         "Findings produced, by severity and detector",
         ["tenant", "severity", "adapter"],
         registry=_registry,
     )
     AUDIT_EVENTS = Counter(
-        "strix_audit_events_total",
+        "ishastra_audit_events_total",
         "Audit chain entries appended",
         ["tenant", "event_type"],
         registry=_registry,
     )
     AUDIT_CHAIN_LENGTH = Gauge(
-        "strix_audit_chain_length",
+        "ishastra_audit_chain_length",
         "Audit chain entries",
         registry=_registry,
     )
     AUDIT_CHAIN_VERIFIED = Gauge(
-        "strix_audit_chain_verified",
+        "ishastra_audit_chain_verified",
         "1 when the audit chain verified at its last check, 0 otherwise",
         registry=_registry,
     )
 
     DB_POOL_SIZE = Gauge(
-        "strix_db_pool_size",
+        "ishastra_db_pool_size",
         "Database connection pool size",
         ["dialect"],
         registry=_registry,
     )
     DB_POOL_AVAILABLE = Gauge(
-        "strix_db_pool_available",
+        "ishastra_db_pool_available",
         "Database connections available without waiting",
         ["dialect"],
         registry=_registry,
     )
     DB_POOL_ACQUIRE = Histogram(
-        "strix_db_pool_acquire_seconds",
+        "ishastra_db_pool_acquire_seconds",
         "Time spent waiting for a pooled connection",
         ["dialect"],
         buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
         registry=_registry,
     )
     DB_SIZE = Gauge(
-        "strix_db_size_bytes",
+        "ishastra_db_size_bytes",
         "Database size on disk",
         ["dialect"],
         registry=_registry,
     )
 
     Gauge(
-        "strix_build_info",
+        "ishastra_build_info",
         "Build information",
         ["version"],
         registry=_registry,
@@ -564,3 +564,38 @@ def observe_job_queue(profile: str, seconds: float) -> None:
     """Record how long a job waited before a worker started it."""
     if m := _metric("JOB_QUEUE_DURATION"):
         m.labels(profile=profile or "web").observe(max(0.0, seconds))
+
+
+
+# Backwards compatibility aliases: strix_ names now point to ishastra_ metric objects
+
+strix_http_requests_total = REQUEST_COUNT
+strix_http_request_duration_seconds = REQUEST_LATENCY
+strix_http_requests_in_progress = REQUEST_IN_PROGRESS
+strix_reports_total = REPORTS_TOTAL
+strix_rate_limit_hits_total = RATE_LIMIT_HITS
+strix_rate_limit_exceeded_total = RATE_LIMIT_EXCEEDED
+strix_break_glass_activations_total = BREAK_GLASS_ACTIVATIONS
+strix_jobs_total = JOBS_TOTAL
+strix_jobs_active = JOBS_ACTIVE
+strix_job_duration_seconds = JOB_DURATION
+strix_job_queue_duration_seconds = JOB_QUEUE_DURATION
+strix_job_state_transitions_total = JOB_TRANSITIONS
+strix_queue_depth = QUEUE_DEPTH
+strix_workers_total = WORKERS_TOTAL
+strix_worker_busy = WORKER_BUSY
+strix_adapter_duration_seconds = ADAPTER_DURATION
+strix_adapter_errors_total = ADAPTER_ERRORS
+strix_adapter_timeout_total = ADAPTER_TIMEOUTS
+strix_auth_success_total = AUTH_SUCCESS
+strix_auth_failures_total = AUTH_FAILURES
+strix_webhook_deliveries_total = WEBHOOK_DELIVERIES
+strix_webhook_failures_total = WEBHOOK_FAILURES
+strix_findings_total = FINDINGS_TOTAL
+strix_audit_events_total = AUDIT_EVENTS
+strix_audit_chain_length = AUDIT_CHAIN_LENGTH
+strix_audit_chain_verified = AUDIT_CHAIN_VERIFIED
+strix_db_pool_size = DB_POOL_SIZE
+strix_db_pool_available = DB_POOL_AVAILABLE
+strix_db_pool_acquire_seconds = DB_POOL_ACQUIRE
+strix_db_size_bytes = DB_SIZE

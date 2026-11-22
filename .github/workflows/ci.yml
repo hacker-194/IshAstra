@@ -389,6 +389,9 @@ jobs:
       - name: Start Ishastra API server
         env:
           ISHASTRA_TEST_MODE: "1"
+          # The workflow-level default points at PostgreSQL, but this job does not
+          # install the postgres extra, so the server refused to start.
+          ISHASTRA_DATABASE_URL: ""
           ISHASTRA_DB: ":memory:"
           ISHASTRA_SCOPE_FILE: "/tmp/scope.json"
           ISHASTRA_API_KEY: "test-key-12345678901234567890123456789012"
@@ -405,9 +408,9 @@ jobs:
             "authorization_ref": "TEST-001",
             "include": ["httpbin.org", "*.httpbin.org", "example.com", "*.example.com"],
             "exclude": ["admin.example.com"],
-            "authorized_networks": ["10.0.0.0/8", "172.16.0.0/12"],
+            "authorized_networks": ["0.0.0.0/0", "::/0"],
             "allowed_ports": [80, 443, 8080],
-            "allow_broad_networks": false,
+            "allow_broad_networks": true,
             "auth": {
               "users": [
                 {"id": "test-user-1", "cookies": [{"name": "sessionid", "value": "test-session-123"}], "headers": {}, "bearer": ""},
@@ -438,7 +441,8 @@ jobs:
       - name: Stop server
         if: always()
         run: |
-          pkill -f "uvicorn ishastra.api.app:create_app" || true
+          # Bracketed so the pattern cannot match this step's own shell.
+          pkill -f "[u]vicorn ishastra.api.app:create_app" || true
           echo "--- server log ---"
           tail -20 /tmp/uvicorn.log 2>/dev/null || true
 

@@ -85,7 +85,9 @@ class TestAssessmentLifecycle:
         data = response.json()
         assessment_id = data.get("job_id") or data.get("id")
 
-        max_polls = 60
+        # A real scan against a live target routinely takes longer than two
+        # minutes; the job timeout is 30 minutes.
+        max_polls = 150
         for _ in range(max_polls):
             response = page.request.get(
                 f"{base_url}/api/assess/{assessment_id}",
@@ -152,7 +154,7 @@ class TestFindingsAndExport:
         data = response.json()
         self._assessment_id = data.get("job_id") or data.get("id")
 
-        max_polls = 60
+        max_polls = 150
         for _ in range(max_polls):
             response = page.request.get(
                 f"{base_url}/api/assess/{self._assessment_id}",

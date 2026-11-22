@@ -282,9 +282,7 @@ def _run_assess(args: argparse.Namespace) -> int:
         # Check for scope format first if filename suggests it, or if explicitly requested
         if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
             scope_doc = _import_from_scope(content)
-        elif scope_format == "har" or (
-            scope_format == "auto" and scope_path.suffix == ".har"
-        ):
+        elif scope_format == "har" or (scope_format == "auto" and scope_path.suffix == ".har"):
             scope_doc = _import_from_har(content)
         elif scope_format == "openapi" or (
             scope_format == "auto" and scope_path.suffix in (".json", ".yaml", ".yml")
@@ -408,9 +406,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
         scope_format = getattr(args, "scope_format", "auto")
         if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
             scope_doc = _import_from_scope(content)
-        elif scope_format == "har" or (
-            scope_format == "auto" and scope_path.suffix == ".har"
-        ):
+        elif scope_format == "har" or (scope_format == "auto" and scope_path.suffix == ".har"):
             scope_doc = _import_from_har(content)
         elif scope_format == "openapi" or (
             scope_format == "auto" and scope_path.suffix in (".json", ".yaml", ".yml")
@@ -1611,9 +1607,7 @@ def _run_scope_import(args: argparse.Namespace) -> int:
     # Check for scope format first if filename suggests it, or if explicitly requested
     if args.format == "scope" or (args.format == "auto" and "scope" in input_path.name.lower()):
         scope_doc = _import_from_scope(content)
-    elif args.format == "har" or (
-        args.format == "auto" and input_path.suffix == ".har"
-    ):
+    elif args.format == "har" or (args.format == "auto" and input_path.suffix == ".har"):
         scope_doc = _import_from_har(content)
     elif args.format == "openapi" or (
         args.format == "auto" and input_path.suffix in (".json", ".yaml", ".yml")
@@ -1661,6 +1655,7 @@ def _import_from_openapi(content: str, suffix: str) -> dict | None:
             url = server.get("url", "")
             if url:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(url)
                 if parsed.hostname:
                     hosts.add(parsed.hostname)
@@ -1673,6 +1668,7 @@ def _import_from_openapi(content: str, suffix: str) -> dict | None:
                         url = server.get("url", "")
                         if url:
                             from urllib.parse import urlparse
+
                             parsed = urlparse(url)
                             if parsed.hostname:
                                 hosts.add(parsed.hostname)
@@ -1705,6 +1701,7 @@ def _import_from_har(content: str) -> dict | None:
             url = request.get("url", "")
             if url:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(url)
                 if parsed.hostname:
                     hosts.add(parsed.hostname)
@@ -1742,6 +1739,7 @@ def _import_from_scope(content: str) -> dict | None:
 def _substitute_domain(scope_doc: dict, domain: str) -> dict:
     """Substitute domain in scope document."""
     import copy
+
     doc = copy.deepcopy(scope_doc)
     base = None
     for host in doc.get("include", []):

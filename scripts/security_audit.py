@@ -552,13 +552,20 @@ def generate_sarif(report: AuditReport) -> str:
 
 def generate_markdown(report: AuditReport) -> str:
     """Generate Markdown format report."""
+    if report.overall_status == "passed":
+        status = "✅ PASSED"
+    elif report.overall_status == "warnings":
+        status = "⚠️ WARNINGS"
+    else:
+        status = "❌ FAILED"
+
     lines = [
         "# Ishastra Security Audit Report",
         "",
         f"**Project:** {report.project}",
         f"**Version:** {report.version}",
         f"**Scan Date:** {report.timestamp}",
-        f"**Overall Status:** {'✅ PASSED' if report.overall_status == 'passed' else '⚠️ WARNINGS' if report.overall_status == 'warnings' else '❌ FAILED'}",
+        f"**Overall Status:** {status}",
         "",
         "## Summary",
         "",
@@ -576,7 +583,9 @@ def generate_markdown(report: AuditReport) -> str:
 
     missing = unavailable_scanners(report.scanners)
     if missing:
-        lines.append(f"**Scanners not available:** {', '.join(missing)} — report includes available scanner results.")
+        lines.append(
+            f"**Scanners not available:** {', '.join(missing)} — report includes available scanner results."
+        )
         lines.append("")
 
     for scanner in report.scanners:
@@ -733,7 +742,7 @@ def main():
     for r in results:
         if r.scanner == "semgrep" and r.findings:
             for f in r.findings:
-                if f.get('extra', {}).get('severity', 'INFO').lower() == 'error':
+                if f.get("extra", {}).get("severity", "INFO").lower() == "error":
                     semgrep_error_count += 1
     actual_critical = critical
     actual_high = high - semgrep_error_count
@@ -745,7 +754,7 @@ def main():
         print(f"\n⚠️  WARNING: {medium} medium severity findings found (no critical/high)")
         # Still pass - just warnings
 
-    print(f"\n✅ PASS: No critical or high severity findings")
+    print("\n✅ PASS: No critical or high severity findings")
     sys.exit(0)
 
 

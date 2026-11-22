@@ -177,10 +177,7 @@ class SQLiteAssessmentQueue:
     def _enqueue(self, job_id: str, tenant_id: str) -> None:
         """Add a job to the in-memory queue from database row."""
         with self._get_conn() as conn:
-            row = conn.execute(
-                f"SELECT * FROM {QUEUE_TABLE} WHERE job_id = ?",
-                (job_id,)
-            ).fetchone()
+            row = conn.execute(f"SELECT * FROM {QUEUE_TABLE} WHERE job_id = ?", (job_id,)).fetchone()
         if row:
             job = _job_from_row(dict(row))
             with self._lock:
@@ -202,14 +199,13 @@ class SQLiteAssessmentQueue:
 
         # Check queue depth
         with self._get_conn() as conn:
-            count = conn.execute(
-                f"SELECT COUNT(*) FROM {QUEUE_TABLE} WHERE state = 'queued'"
-            ).fetchone()[0]
+            count = conn.execute(f"SELECT COUNT(*) FROM {QUEUE_TABLE} WHERE state = 'queued'").fetchone()[0]
         if count >= self.queue_max:
             raise AssessmentQueueFull(f"assessment queue is full ({self.queue_max} waiting)")
 
         # Insert into database
         import json
+
         with self._get_conn() as conn:
             conn.execute(
                 f"""
@@ -226,7 +222,7 @@ class SQLiteAssessmentQueue:
                     json.dumps(job.policy or {}),
                     time.time(),
                     job.idempotency_key,
-                )
+                ),
             )
             conn.commit()
 
@@ -339,7 +335,7 @@ class SQLiteAssessmentQueue:
                 AND visibility_timeout IS NOT NULL
                 AND (claimed_at + visibility_timeout) < ?
                 """,
-                (now,)
+                (now,),
             )
 
             # Claim next queued job
@@ -355,7 +351,7 @@ class SQLiteAssessmentQueue:
                 )
                 RETURNING *
                 """,
-                (now, self._worker_id, self.visibility_seconds)
+                (now, self._worker_id, self.visibility_seconds),
             ).fetchone()
             conn.commit()
 
@@ -385,26 +381,23 @@ class SQLiteAssessmentQueue:
 
     async def _run_job(self, job: Job) -> None:
         """Run the job using the existing job execution logic."""
+        import asyncio
+
         from ishastra.core import jobs as jobs_module
-        await jobs_module.run_assessment(job)
+
+        await asyncio.to_thread(jobs_module.execute, job)
 
     def _mark_completed(self, job_id: str) -> None:
         """Mark job as completed in database."""
         with self._get_conn() as conn:
-            conn.execute(
-                f"UPDATE {QUEUE_TABLE} SET state = 'completed' WHERE job_id = ?",
-                (job_id,)
-            )
+            conn.execute(f"UPDATE {QUEUE_TABLE} SET state = 'completed' WHERE job_id = ?", (job_id,))
             conn.commit()
 
     def _mark_failed(self, job_id: str, error: str) -> None:
         """Mark job as failed in database."""
         with self._get_conn() as conn:
             # Check retry count
-            row = conn.execute(
-                f"SELECT retries FROM {QUEUE_TABLE} WHERE job_id = ?",
-                (job_id,)
-            ).fetchone()
+            row = conn.execute(f"SELECT retries FROM {QUEUE_TABLE} WHERE job_id = ?", (job_id,)).fetchone()
             retries = row["retries"] if row else 0
             if retries < 3:
                 conn.execute(
@@ -414,13 +407,10 @@ class SQLiteAssessmentQueue:
                         claimed_by = NULL, claimed_at = NULL, visibility_timeout = NULL
                     WHERE job_id = ?
                     """,
-                    (job_id,)
+                    (job_id,),
                 )
             else:
-                conn.execute(
-                    f"UPDATE {QUEUE_TABLE} SET state = 'failed' WHERE job_id = ?",
-                    (job_id,)
-                )
+                conn.execute(f"UPDATE {QUEUE_TABLE} SET state = 'failed' WHERE job_id = ?", (job_id,))
             conn.commit()
 
 

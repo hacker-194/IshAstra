@@ -131,6 +131,8 @@ jobs:
         if: always()
         run: |
           echo "Bandit findings handled by consolidated security_audit.py script"
+
+      - name: Check Semgrep HIGH findings (consolidated script)
         if: always()
         run: |
           echo "Semgrep findings handled by consolidated security_audit.py script"

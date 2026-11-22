@@ -736,14 +736,12 @@ class Scope:
             pii_access = data_handling.get("pii_access")
             if pii_access and pii_access not in valid_pii_values:
                 raise ValueError(
-                    "rules_of_engagement.data_handling.pii_access "
-                    f"must be one of {valid_pii_values}"
+                    f"rules_of_engagement.data_handling.pii_access must be one of {valid_pii_values}"
                 )
             cred_access = data_handling.get("credential_access")
             if cred_access and cred_access not in valid_cred_values:
                 raise ValueError(
-                    "rules_of_engagement.data_handling.credential_access "
-                    f"must be one of {valid_cred_values}"
+                    f"rules_of_engagement.data_handling.credential_access must be one of {valid_cred_values}"
                 )
             retention = data_handling.get("evidence_retention_days")
             if retention is not None and (
@@ -835,10 +833,10 @@ class Scope:
                     start_idx = days_order.index(start_day)
                     end_idx = days_order.index(end_day)
                     if start_idx <= end_idx:
-                        allowed = days_order[start_idx:end_idx + 1]
+                        allowed = days_order[start_idx : end_idx + 1]
                     else:
                         # Wrap around (e.g., Fri-Mon)
-                        allowed = days_order[start_idx:] + days_order[:end_idx + 1]
+                        allowed = days_order[start_idx:] + days_order[: end_idx + 1]
                     if current_day in allowed:
                         return True
                 except ValueError:

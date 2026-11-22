@@ -282,8 +282,6 @@ This product includes software developed by the Ishastra Project (https://ishast
 
 The Ishastra name and logo are trademarks of Ishastra Security, Inc.
 
-Portions of this software were developed using AI assistance (Claude Code).
-
 ---
 
 ## Contributor License Agreement

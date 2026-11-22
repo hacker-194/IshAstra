@@ -287,8 +287,8 @@ data:
           "id": 9,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m])))", "legendFormat": "Overall", "refId": "A"},
-            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "B"}
+            {"expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m])))", "legendFormat": "Overall", "refId": "A"},
+            {"expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "B"}
           ],
           "title": "Adapter Success Rates",
           "type": "timeseries"
@@ -308,7 +308,7 @@ data:
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
           "id": 10,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
-          "targets": [{"expr": "sum(increase(strix_jobs_total[5m])) by (state)", "legendFormat": "{{printf `{{state}}`}}", "refId": "A"}],
+          "targets": [{"expr": "sum(increase(ishastra_jobs_total[5m])) by (state)", "legendFormat": "{{printf `{{state}}`}}", "refId": "A"}],
           "title": "Job State Transitions (5m rate)",
           "type": "timeseries"
         },
@@ -346,7 +346,7 @@ data:
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
           "id": 12,
           "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
-          "targets": [{"expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}],
+          "targets": [{"expr": "sum(increase(ishastra_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}],
           "title": "Findings by Tenant & Severity (1h)",
           "type": "barchart"
         }
@@ -424,7 +424,7 @@ data:
           "id": 1,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(strix_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
+            {"expr": "sum(increase(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(ishastra_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
           ],
           "title": "Queue Backlog by Tenant (5m)",
           "type": "timeseries"
@@ -445,7 +445,7 @@ data:
           "id": 2,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(strix_jobs_queued) by (tenant, priority)", "legendFormat": "{{printf `{{tenant}} - {{ "{{priority}}" }}`}}", "refId": "A"}
+            {"expr": "sum(ishastra_jobs_queued) by (tenant, priority)", "legendFormat": "{{printf `{{tenant}} - {{ "{{priority}}" }}`}}", "refId": "A"}
           ],
           "title": "Queued Jobs by Tenant & Priority",
           "type": "timeseries"
@@ -487,7 +487,7 @@ data:
           "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
           "pluginVersion": "11.2.0",
           "targets": [
-            {"expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(strix_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "refId": "A"}
+            {"expr": "sum(increase(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant) - sum(increase(ishastra_jobs_total{state=~\"completed|failed|cancelled\"}[5m])) by (tenant)", "refId": "A"}
           ],
           "title": "Total Queue Backlog",
           "type": "gauge"
@@ -508,10 +508,10 @@ data:
           "id": 5,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_jobs_total{state=\"started\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - started`}}", "refId": "A"},
-            {"expr": "sum(rate(strix_jobs_total{state=\"completed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - completed`}}", "refId": "B"},
-            {"expr": "sum(rate(strix_jobs_total{state=\"failed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - failed`}}", "refId": "C"},
-            {"expr": "sum(rate(strix_jobs_total{state=\"cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - cancelled`}}", "refId": "D"}
+            {"expr": "sum(rate(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - started`}}", "refId": "A"},
+            {"expr": "sum(rate(ishastra_jobs_total{state=\"completed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - completed`}}", "refId": "B"},
+            {"expr": "sum(rate(ishastra_jobs_total{state=\"failed\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - failed`}}", "refId": "C"},
+            {"expr": "sum(rate(ishastra_jobs_total{state=\"cancelled\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - cancelled`}}", "refId": "D"}
           ],
           "title": "Job State Transition Rates by Tenant",
           "type": "timeseries"
@@ -532,7 +532,7 @@ data:
           "id": 6,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(strix_worker_count) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
+            {"expr": "sum(ishastra_worker_count) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"}
           ],
           "title": "Worker Count by Tenant",
           "type": "timeseries"
@@ -547,14 +547,14 @@ data:
           {
             "current": {"selected": false, "text": "All", "value": "$__all"},
             "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-            "definition": "label_values(strix_jobs_total, tenant)",
+            "definition": "label_values(ishastra_jobs_total, tenant)",
             "hide": 0,
             "includeAll": true,
             "label": "Tenant",
             "multi": true,
             "name": "tenant",
             "options": [],
-            "query": {"query": "label_values(strix_jobs_total, tenant)", "refId": "StandardVariableQuery"},
+            "query": {"query": "label_values(ishastra_jobs_total, tenant)", "refId": "StandardVariableQuery"},
             "refresh": 1,
             "regex": "",
             "skipUrlSync": false,
@@ -657,7 +657,7 @@ data:
           "id": 3,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_job_duration_seconds_sum[5m])) by (tenant) / sum(rate(strix_job_duration_seconds_count[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - avg`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_job_duration_seconds_sum[5m])) by (tenant) / sum(rate(ishastra_job_duration_seconds_count[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}} - avg`}}", "refId": "A"}
           ],
           "title": "Average Job Duration by Tenant",
           "type": "timeseries"
@@ -678,7 +678,7 @@ data:
           "id": 4,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_job_duration_seconds_sum[5m])) by (adapter) / sum(rate(strix_job_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_job_duration_seconds_sum[5m])) by (adapter) / sum(rate(ishastra_job_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
           ],
           "title": "Average Job Duration by Adapter",
           "type": "timeseries"
@@ -757,7 +757,7 @@ data:
           "id": 1,
           "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "A"}
+            {"expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter))", "legendFormat": "{{printf `{{adapter}}`}}", "refId": "A"}
           ],
           "title": "Adapter Success Rate by Adapter",
           "type": "timeseries"
@@ -778,7 +778,7 @@ data:
           "id": 2,
           "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter, tenant) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter, tenant))", "legendFormat": "{{printf `{{tenant}} - {{adapter}}`}}", "refId": "A"}
+            {"expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter, tenant) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter, tenant))", "legendFormat": "{{printf `{{tenant}} - {{adapter}}`}}", "refId": "A"}
           ],
           "title": "Adapter Success Rate by Tenant & Adapter",
           "type": "timeseries"
@@ -799,7 +799,7 @@ data:
           "id": 3,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_adapter_errors_total[5m])) by (adapter, error_type)", "legendFormat": "{{printf `{{adapter}} - {{error_type}}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_adapter_errors_total[5m])) by (adapter, error_type)", "legendFormat": "{{printf `{{adapter}} - {{error_type}}`}}", "refId": "A"}
           ],
           "title": "Adapter Error Rates by Type",
           "type": "timeseries"
@@ -820,7 +820,7 @@ data:
           "id": 4,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_adapter_duration_seconds_sum[5m])) by (adapter) / sum(rate(strix_adapter_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_adapter_duration_seconds_sum[5m])) by (adapter) / sum(rate(ishastra_adapter_duration_seconds_count[5m])) by (adapter)", "legendFormat": "{{printf `{{adapter}} - avg duration`}}", "refId": "A"}
           ],
           "title": "Adapter Average Duration",
           "type": "timeseries"
@@ -841,7 +841,7 @@ data:
           "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
           "pluginVersion": "11.2.0",
           "targets": [
-            {"expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m])))", "refId": "A"}
+            {"expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m])))", "refId": "A"}
           ],
           "title": "Overall Adapter Success Rate",
           "type": "gauge"
@@ -856,14 +856,14 @@ data:
           {
             "current": {"selected": false, "text": "All", "value": "$__all"},
             "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-            "definition": "label_values(strix_adapter_errors_total, adapter)",
+            "definition": "label_values(ishastra_adapter_errors_total, adapter)",
             "hide": 0,
             "includeAll": true,
             "label": "Adapter",
             "multi": true,
             "name": "adapter",
             "options": [],
-            "query": {"query": "label_values(strix_adapter_errors_total, adapter)", "refId": "StandardVariableQuery"},
+            "query": {"query": "label_values(ishastra_adapter_errors_total, adapter)", "refId": "StandardVariableQuery"},
             "refresh": 1,
             "regex": "",
             "skipUrlSync": false,
@@ -983,7 +983,7 @@ data:
           "id": 4,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_auth_failures_total[5m])) by (reason)", "legendFormat": "{{printf `{{ "{{reason}}" }}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_auth_failures_total[5m])) by (reason)", "legendFormat": "{{printf `{{ "{{reason}}" }}`}}", "refId": "A"}
           ],
           "title": "Authentication Failure Rate by Reason",
           "type": "timeseries"
@@ -1004,7 +1004,7 @@ data:
           "id": 5,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier)", "legendFormat": "{{printf `{{route_class}} - {{tier}}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (route_class, tier)", "legendFormat": "{{printf `{{route_class}} - {{tier}}`}}", "refId": "A"}
           ],
           "title": "Rate Limit Exceeded by Route Class & Tier",
           "type": "timeseries"
@@ -1025,7 +1025,7 @@ data:
           "id": 6,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_webhook_failures_total[5m])) by (error_type)", "legendFormat": "{{printf `{{error_type}}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_webhook_failures_total[5m])) by (error_type)", "legendFormat": "{{printf `{{error_type}}`}}", "refId": "A"}
           ],
           "title": "Webhook Failure Rate by Error Type",
           "type": "timeseries"
@@ -1104,7 +1104,7 @@ data:
           "id": 1,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_findings_total[5m])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_findings_total[5m])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
           ],
           "title": "Findings Rate by Tenant & Severity",
           "type": "timeseries"
@@ -1125,7 +1125,7 @@ data:
           "id": 2,
           "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(increase(strix_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
+            {"expr": "sum(increase(ishastra_findings_total[1h])) by (tenant, severity)", "legendFormat": "{{printf `{{tenant}} - {{severity}}`}}", "refId": "A"}
           ],
           "title": "Findings Volume (1h) by Tenant & Severity",
           "type": "barchart"
@@ -1146,7 +1146,7 @@ data:
           "id": 3,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_findings_total[5m])) by (adapter, severity)", "legendFormat": "{{printf `{{adapter}} - {{severity}}`}}", "refId": "A"}
+            {"expr": "sum(rate(ishastra_findings_total[5m])) by (adapter, severity)", "legendFormat": "{{printf `{{adapter}} - {{severity}}`}}", "refId": "A"}
           ],
           "title": "Findings Rate by Adapter & Severity",
           "type": "timeseries"
@@ -1167,10 +1167,10 @@ data:
           "id": 4,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
           "targets": [
-            {"expr": "sum(rate(strix_findings_total{severity=\"critical\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"},
-            {"expr": "sum(rate(strix_findings_total{severity=\"high\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "B"},
-            {"expr": "sum(rate(strix_findings_total{severity=\"medium\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "C"},
-            {"expr": "sum(rate(strix_findings_total{severity=\"low\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "D"}
+            {"expr": "sum(rate(ishastra_findings_total{severity=\"critical\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "A"},
+            {"expr": "sum(rate(ishastra_findings_total{severity=\"high\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "B"},
+            {"expr": "sum(rate(ishastra_findings_total{severity=\"medium\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "C"},
+            {"expr": "sum(rate(ishastra_findings_total{severity=\"low\"}[5m])) by (tenant)", "legendFormat": "{{printf `{{tenant}}`}}", "refId": "D"}
           ],
           "title": "Findings Rate by Severity (Stacked)",
           "type": "timeseries"
@@ -1191,7 +1191,7 @@ data:
           "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto"},
           "pluginVersion": "11.2.0",
           "targets": [
-            {"expr": "sum(rate(strix_findings_total[5m]))", "refId": "A"}
+            {"expr": "sum(rate(ishastra_findings_total[5m]))", "refId": "A"}
           ],
           "title": "Total Findings Rate",
           "type": "stat"
@@ -1206,14 +1206,14 @@ data:
           {
             "current": {"selected": false, "text": "All", "value": "$__all"},
             "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-            "definition": "label_values(strix_findings_total, tenant)",
+            "definition": "label_values(ishastra_findings_total, tenant)",
             "hide": 0,
             "includeAll": true,
             "label": "Tenant",
             "multi": true,
             "name": "tenant",
             "options": [],
-            "query": {"query": "label_values(strix_findings_total, tenant)", "refId": "StandardVariableQuery"},
+            "query": {"query": "label_values(ishastra_findings_total, tenant)", "refId": "StandardVariableQuery"},
             "refresh": 1,
             "regex": "",
             "skipUrlSync": false,

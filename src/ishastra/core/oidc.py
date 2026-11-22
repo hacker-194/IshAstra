@@ -398,7 +398,7 @@ class OIDCAuthenticator(Authenticator):
         tenant_exists = any(k["tenant_id"] == tenant_id for k in keys)
 
         if not tenant_exists and self.config.auto_provision:
-            raw_key = f"strix_{secrets.token_urlsafe(32)}"
+            raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
             key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
             now = time.time()
             save_api_key_sync(

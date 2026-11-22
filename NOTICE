@@ -1,13 +1,8 @@
-Apache License Version 2.0, January 2004
+IshAstra
+Copyright (c) the IshAstra contributors
 
-http://www.apache.org/licenses/
+This product is licensed under the Apache License, Version 2.0. See LICENSE.
 
-Unlike the source code, the NOTICE file may include additional distribution
-terms pursuant to the Apache License, Version 2.0.
-
-This distribution includes third-party code and documentation referenced
-below.  For third-party trademarks, see the attributions in the code
-itself (e.g., strix_ metrics → ishastra_ metrics migration).
-
-No external trademarks requiring separate attribution are included in
-this distribution beyond what is already governed by the Apache 2.0 license.
+The names, metrics, API key prefixes and Cookie names exposed by this software
+use the "ishastra" prefix. Third-party trademarks referenced in documentation
+remain the property of their respective owners.

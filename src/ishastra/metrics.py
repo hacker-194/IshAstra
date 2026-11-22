@@ -564,38 +564,3 @@ def observe_job_queue(profile: str, seconds: float) -> None:
     """Record how long a job waited before a worker started it."""
     if m := _metric("JOB_QUEUE_DURATION"):
         m.labels(profile=profile or "web").observe(max(0.0, seconds))
-
-
-
-# Backwards compatibility aliases: strix_ names now point to ishastra_ metric objects
-
-strix_http_requests_total = REQUEST_COUNT
-strix_http_request_duration_seconds = REQUEST_LATENCY
-strix_http_requests_in_progress = REQUEST_IN_PROGRESS
-strix_reports_total = REPORTS_TOTAL
-strix_rate_limit_hits_total = RATE_LIMIT_HITS
-strix_rate_limit_exceeded_total = RATE_LIMIT_EXCEEDED
-strix_break_glass_activations_total = BREAK_GLASS_ACTIVATIONS
-strix_jobs_total = JOBS_TOTAL
-strix_jobs_active = JOBS_ACTIVE
-strix_job_duration_seconds = JOB_DURATION
-strix_job_queue_duration_seconds = JOB_QUEUE_DURATION
-strix_job_state_transitions_total = JOB_TRANSITIONS
-strix_queue_depth = QUEUE_DEPTH
-strix_workers_total = WORKERS_TOTAL
-strix_worker_busy = WORKER_BUSY
-strix_adapter_duration_seconds = ADAPTER_DURATION
-strix_adapter_errors_total = ADAPTER_ERRORS
-strix_adapter_timeout_total = ADAPTER_TIMEOUTS
-strix_auth_success_total = AUTH_SUCCESS
-strix_auth_failures_total = AUTH_FAILURES
-strix_webhook_deliveries_total = WEBHOOK_DELIVERIES
-strix_webhook_failures_total = WEBHOOK_FAILURES
-strix_findings_total = FINDINGS_TOTAL
-strix_audit_events_total = AUDIT_EVENTS
-strix_audit_chain_length = AUDIT_CHAIN_LENGTH
-strix_audit_chain_verified = AUDIT_CHAIN_VERIFIED
-strix_db_pool_size = DB_POOL_SIZE
-strix_db_pool_available = DB_POOL_AVAILABLE
-strix_db_pool_acquire_seconds = DB_POOL_ACQUIRE
-strix_db_size_bytes = DB_SIZE

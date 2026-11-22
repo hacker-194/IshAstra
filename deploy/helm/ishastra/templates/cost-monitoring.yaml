@@ -44,8 +44,8 @@ spec:
           expr: |
             (
               sum by (tenant, project) (
-                rate(strix_assessment_cost_usd_total[1h]) * 24 * 30
-              ) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+                rate(ishastra_assessment_cost_usd_total[1h]) * 24 * 30
+              ) / sum by (tenant, project) (ishastra_tenant_budget_monthly_usd)
             ) > 0.8
           for: {{ .Values.monitoringExtras.cost.budgetAlertFor | default "5m" }}
           labels:
@@ -62,8 +62,8 @@ spec:
           expr: |
             (
               sum by (tenant, project) (
-                rate(strix_assessment_cost_usd_total[1h]) * 24 * 30
-              ) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+                rate(ishastra_assessment_cost_usd_total[1h]) * 24 * 30
+              ) / sum by (tenant, project) (ishastra_tenant_budget_monthly_usd)
             ) > 1.0
           for: {{ .Values.monitoringExtras.cost.budgetExceededFor | default "1m" }}
           labels:
@@ -79,11 +79,11 @@ spec:
         - alert: IshastraAssessmentCostSpike
           expr: |
             (
-              rate(strix_assessment_cost_usd_total[5m]) /
-              rate(strix_assessment_count_total[5m])
+              rate(ishastra_assessment_cost_usd_total[5m]) /
+              rate(ishastra_assessment_count_total[5m])
             ) >
             (
-              avg_over_time(rate(strix_assessment_cost_usd_total[1h]) / rate(strix_assessment_count_total[1h])[1h:5m]) * 3
+              avg_over_time(rate(ishastra_assessment_cost_usd_total[1h]) / rate(ishastra_assessment_count_total[1h])[1h:5m]) * 3
             )
           for: {{ .Values.monitoringExtras.cost.spikeFor | default "10m" }}
           labels:
@@ -98,7 +98,7 @@ spec:
 
         - alert: IshastraSpotTerminationRateHigh
           expr: |
-            rate(strix_spot_termination_total[5m]) > 0.1
+            rate(ishastra_spot_termination_total[5m]) > 0.1
           for: {{ .Values.monitoringExtras.cost.spotTerminationFor | default "2m" }}
           labels:
             severity: warning
@@ -131,7 +131,7 @@ spec:
             (
               sum by (tenant) (kube_pod_status_phase{phase="Running", namespace=~".*-ishastra-worker"})
               -
-              sum by (tenant) (strix_worker_busy)
+              sum by (tenant) (ishastra_worker_busy)
             ) > 5
           for: {{ .Values.monitoringExtras.cost.idleWorkerFor | default "30m" }}
           labels:
@@ -149,39 +149,39 @@ spec:
 
         - record: ishastra:cost:hourly:tenant_project
           expr: |
-            sum by (tenant, project) (rate(strix_assessment_cost_usd_total[1h]))
+            sum by (tenant, project) (rate(ishastra_assessment_cost_usd_total[1h]))
 
 
         - record: ishastra:cost:daily:tenant_project
           expr: |
-            sum by (tenant, project) (rate(strix_assessment_cost_usd_total[24h]))
+            sum by (tenant, project) (rate(ishastra_assessment_cost_usd_total[24h]))
 
 
         - record: ishastra:cost:per_assessment:1h
           expr: |
             sum by (tenant, project, assessment_type) (
-              rate(strix_assessment_cost_usd_total[1h]) / rate(strix_assessment_count_total[1h])
+              rate(ishastra_assessment_cost_usd_total[1h]) / rate(ishastra_assessment_count_total[1h])
             )
 
 
         - record: ishastra:cost:spot_vs_ondemand:1h
           expr: |
-            sum by (tenant, project, instance_type) (rate(strix_assessment_cost_usd_total[1h]))
+            sum by (tenant, project, instance_type) (rate(ishastra_assessment_cost_usd_total[1h]))
 
 
         - record: ishastra:worker:utilization:5m
           expr: |
-            sum by (tenant, project) (strix_worker_busy) / sum by (tenant, project) (kube_pod_status_phase{phase="Running", namespace=~".*-ishastra-worker"})
+            sum by (tenant, project) (ishastra_worker_busy) / sum by (tenant, project) (kube_pod_status_phase{phase="Running", namespace=~".*-ishastra-worker"})
 
 
         - record: ishastra:queue:latency:p99:5m
           expr: |
-            histogram_quantile(0.99, sum by (tenant, project, le) (rate(strix_assessment_queue_latency_seconds_bucket[5m])))
+            histogram_quantile(0.99, sum by (tenant, project, le) (rate(ishastra_assessment_queue_latency_seconds_bucket[5m])))
 
 
         - record: ishastra:budget:utilization:monthly
           expr: |
-            sum by (tenant, project) (ishastra:cost:daily:tenant_project * 30) / sum by (tenant, project) (strix_tenant_budget_monthly_usd)
+            sum by (tenant, project) (ishastra:cost:daily:tenant_project * 30) / sum by (tenant, project) (ishastra_tenant_budget_monthly_usd)
 
 ---
 
@@ -257,11 +257,11 @@ data:
 
 
     metrics:
-      - name: strix_assessment_cost_usd_total
+      - name: ishastra_assessment_cost_usd_total
         type: counter
         help: "Total cost of assessments in USD"
         labels: [tenant, project, assessment_type, instance_type, priority_class]
-      - name: strix_assessment_count_total
+      - name: ishastra_assessment_count_total
         type: counter
         help: "Total number of assessments completed"
         labels: [tenant, project, assessment_type, status]
@@ -269,28 +269,28 @@ data:
         type: gauge
         help: "Number of pending assessments in queue"
         labels: [tenant, project, priority]
-      - name: strix_assessment_queue_latency_seconds
+      - name: ishastra_assessment_queue_latency_seconds
         type: histogram
         help: "Queue latency from enqueue to start"
         labels: [tenant, project, priority]
         buckets: [1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]
-      - name: strix_worker_busy
+      - name: ishastra_worker_busy
         type: gauge
         help: "Number of workers currently processing assessments"
         labels: [tenant, project, node_pool]
-      - name: strix_spot_termination_total
+      - name: ishastra_spot_termination_total
         type: counter
         help: "Total spot instance terminations"
         labels: [tenant, project, node_pool, reason]
-      - name: strix_tenant_budget_monthly_usd
+      - name: ishastra_tenant_budget_monthly_usd
         type: gauge
         help: "Monthly budget limit for tenant/project in USD"
         labels: [tenant, project]
-      - name: strix_node_pool_cost_usd_per_hour
+      - name: ishastra_node_pool_cost_usd_per_hour
         type: gauge
         help: "Current hourly cost of node pool"
         labels: [node_pool, instance_type, lifecycle]
-      - name: strix_pod_resource_cost_usd_per_hour
+      - name: ishastra_pod_resource_cost_usd_per_hour
         type: gauge
         help: "Estimated hourly cost of pod resources"
         labels: [tenant, project, pod, priority_class, node_pool]

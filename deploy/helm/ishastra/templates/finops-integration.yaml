@@ -162,7 +162,7 @@ data:
         enabled: true
 
         metrics:
-          - strix_assessment_cost_usd_total
+          - ishastra_assessment_cost_usd_total
           - ishastra:cost:hourly:tenant_project
           - ishastra:budget:utilization:monthly
 
@@ -275,7 +275,7 @@ spec:
 
         - record: ishastra:finops:daily_cost:tenant
           expr: |
-            sum by (strix_io_tenant) (
+            sum by (ishastra_io_tenant) (
               rate(container_cpu_usage_seconds_total{container!="",pod=~"ishastra-.*"}[24h]) * 0.034 +
               rate(container_memory_usage_bytes{container!="",pod=~"ishastra-.*"}[24h]) / 1024 / 1024 / 1024 * 0.0045
             )
@@ -288,10 +288,10 @@ spec:
 
         - record: ishastra:finops:cost_per_assessment
           expr: |
-            sum by (strix_io_tenant, strix_io_project) (
-              rate(strix_assessment_cost_usd_total[24h])
-            ) / sum by (strix_io_tenant, strix_io_project) (
-              rate(strix_assessment_count_total[24h])
+            sum by (ishastra_io_tenant, ishastra_io_project) (
+              rate(ishastra_assessment_cost_usd_total[24h])
+            ) / sum by (ishastra_io_tenant, ishastra_io_project) (
+              rate(ishastra_assessment_count_total[24h])
             )
 
 
@@ -310,13 +310,13 @@ spec:
 
         - record: ishastra:finops:budget_utilization
           expr: |
-            ishastra:finops:monthly_projected:tenant / strix_tenant_budget_monthly_usd
+            ishastra:finops:monthly_projected:tenant / ishastra_tenant_budget_monthly_usd
 
 
         - record: ishastra:finops:idle_worker_cost_usd_per_hour
           expr: |
-            sum by (strix_io_tenant) (
-              (kube_pod_status_phase{phase="Running", pod=~"ishastra-worker-.*"} - strix_worker_busy)
+            sum by (ishastra_io_tenant) (
+              (kube_pod_status_phase{phase="Running", pod=~"ishastra-worker-.*"} - ishastra_worker_busy)
               * (container_spec_cpu_quota / container_spec_cpu_period) * 0.034
             )
 
@@ -326,29 +326,29 @@ spec:
 
         - alert: IshastraFinOpsDailyBudgetWarning
           expr: |
-            ishastra:finops:daily_cost:tenant > (strix_tenant_budget_monthly_usd / 30 * 0.8)
+            ishastra:finops:daily_cost:tenant > (ishastra_tenant_budget_monthly_usd / 30 * 0.8)
           for: 15m
           labels:
             severity: warning
             team: finops
             category: budget
           annotations:
-            summary: "Tenant {{ "{{ $labels.strix_io_tenant }}" }} approaching daily budget threshold"
+            summary: "Tenant {{ "{{ $labels.ishastra_io_tenant }}" }} approaching daily budget threshold"
             description: "Daily spend is ' }} USD, daily budget is USD."
             runbook_url: "https://wiki.ishastra.io/runbooks/finops-daily-budget"
 
 
         - alert: IshastraFinOpsMonthlyBudgetExceeded
           expr: |
-            ishastra:finops:monthly_projected:tenant > strix_tenant_budget_monthly_usd
+            ishastra:finops:monthly_projected:tenant > ishastra_tenant_budget_monthly_usd
           for: 5m
           labels:
             severity: critical
             team: finops
             category: budget
           annotations:
-            summary: "Tenant {{ "{{ $labels.strix_io_tenant }}" }} EXCEEDED monthly budget"
-            description: "Projected monthly spend {{ "{{ $value | humanize  }}" }} USD exceeds budget {{ "{{ strix_tenant_budget_monthly_usd }}" }} USD"
+            summary: "Tenant {{ "{{ $labels.ishastra_io_tenant }}" }} EXCEEDED monthly budget"
+            description: "Projected monthly spend {{ "{{ $value | humanize  }}" }} USD exceeds budget {{ "{{ ishastra_tenant_budget_monthly_usd }}" }} USD"
             runbook_url: "https://wiki.ishastra.io/runbooks/finops-monthly-budget"
 
 
@@ -362,7 +362,7 @@ spec:
             team: finops
             category: anomaly
           annotations:
-            summary: "Cost per assessment anomaly for {{ "{{ $labels.strix_io_tenant }}" }}/{{ "{{ $labels.strix_io_project }}" }}"
+            summary: "Cost per assessment anomaly for {{ "{{ $labels.ishastra_io_tenant }}" }}/{{ "{{ $labels.ishastra_io_project }}" }}"
             description: "Current cost per assessment is {{ "{{ $value | humanize  }}" }} USD, 2x the 7-day average"
             runbook_url: "https://wiki.ishastra.io/runbooks/finops-cost-anomaly"
 
@@ -394,7 +394,7 @@ spec:
             team: finops
             category: optimization
           annotations:
-            summary: "Idle worker cost exceeding $10/hour for tenant {{ "{{ $labels.strix_io_tenant }}" }}"
+            summary: "Idle worker cost exceeding $10/hour for tenant {{ "{{ $labels.ishastra_io_tenant }}" }}"
             description: "Idle workers costing {{ "{{ $value | humanize  }}" }}/hour. Enable scale-to-zero or reduce minReplicas."
             runbook_url: "https://wiki.ishastra.io/runbooks/finops-idle-workers"
 
@@ -461,7 +461,7 @@ data:
             "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
             "datasource": "Prometheus",
             "targets": [
-              { "expr": "sum by (strix_io_tenant) (rate(kubecost_namespace_cost_usd_total[1h]))", "legendFormat": "{{ "{{strix_io_tenant}}" }}" }
+              { "expr": "sum by (ishastra_io_tenant) (rate(kubecost_namespace_cost_usd_total[1h]))", "legendFormat": "{{ "{{ishastra_io_tenant}}" }}" }
             ]
           },
           {
@@ -471,8 +471,8 @@ data:
             "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
             "datasource": "Prometheus",
             "targets": [
-              { "expr": "ishastra:finops:monthly_projected:tenant", "legendFormat": "Projected - {{ "{{strix_io_tenant}}" }}" },
-              { "expr": "strix_tenant_budget_monthly_usd", "legendFormat": "Budget - {{ "{{ tenant }}" }}" }
+              { "expr": "ishastra:finops:monthly_projected:tenant", "legendFormat": "Projected - {{ "{{ishastra_io_tenant}}" }}" },
+              { "expr": "ishastra_tenant_budget_monthly_usd", "legendFormat": "Budget - {{ "{{ tenant }}" }}" }
             ],
             "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
           },
@@ -483,7 +483,7 @@ data:
             "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
             "datasource": "Prometheus",
             "targets": [
-              { "expr": "ishastra:finops:cost_per_assessment", "legendFormat": "{{ "{{strix_io_tenant}}" }}/{{ "{{strix_io_project}}" }}" }
+              { "expr": "ishastra:finops:cost_per_assessment", "legendFormat": "{{ "{{ishastra_io_tenant}}" }}/{{ "{{ishastra_io_project}}" }}" }
             ],
             "fieldConfig": { "defaults": { "unit": "currencyUSD" } }
           },
@@ -526,7 +526,7 @@ data:
             "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 },
             "datasource": "Prometheus",
             "targets": [
-              { "expr": "ishastra:finops:budget_utilization * 100", "legendFormat": "{{ "{{strix_io_tenant}}" }}", "format": "table" }
+              { "expr": "ishastra:finops:budget_utilization * 100", "legendFormat": "{{ "{{ishastra_io_tenant}}" }}", "format": "table" }
             ],
             "fieldConfig": { "defaults": { "unit": "percent", "custom": { "align": "auto" } }, "overrides": [ { "matcher": { "type": "byName", "options": "Value" }, "properties": [ { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "orange", "value": 80 }, { "color": "red", "value": 100 } ] } } ] } }
           },
@@ -537,7 +537,7 @@ data:
             "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
             "datasource": "Prometheus",
             "targets": [
-              { "expr": "ishastra:finops:idle_worker_cost_usd_per_hour", "legendFormat": "{{ "{{strix_io_tenant}}" }}" }
+              { "expr": "ishastra:finops:idle_worker_cost_usd_per_hour", "legendFormat": "{{ "{{ishastra_io_tenant}}" }}" }
             ],
             "fieldConfig": { "defaults": { "unit": "currencyUSD/hr" } }
           }

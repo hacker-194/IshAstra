@@ -293,7 +293,7 @@ def verify_webhook(payload: bytes, signature_header: str, secret: str, tolerance
 
 # FastAPI example
 @app.post("/webhooks/ishastra")
-async def strix_webhook(request: Request):
+async def ishastra_webhook(request: Request):
     body = await request.body()
     signature = request.headers.get("Ishastra-Signature")
     

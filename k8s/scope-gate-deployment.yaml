@@ -213,7 +213,7 @@ spec:
     - type: Pods
       pods:
         metric:
-          name: strix_scope_gate_decisions_total
+          name: ishastra_scope_gate_decisions_total
         target:
           type: AverageValue
           averageValue: "1000"

@@ -1,8 +1,8 @@
 # Scaling Procedures Runbook
 
-> **Metric note (verified 2026-11-17):** every `strix_*` series this page queries
+> **Metric note (verified 2026-11-17):** every `ishastra_*` series this page queries
 > is defined in `src/ishastra/metrics.py` and has a data source.
-> `strix_queue_depth` and `strix_worker_*` publish in `inprocess` queue mode only.
+> `ishastra_queue_depth` and `ishastra_worker_*` publish in `inprocess` queue mode only.
 
 
 ## Overview
@@ -309,11 +309,11 @@ kubectl patch configmap ishastra-config -n ishastra -p '{
 
 | Metric | Scale Up Trigger | Scale Down Trigger |
 |--------|------------------|-------------------|
-| `strix_queue_depth` | > 20 for 5 min | < 5 for 15 min |
-| `strix_job_duration_seconds` p95 | > 300s | < 60s |
-| `strix_active_jobs` | > 80% of max | < 30% of max |
-| `strix_worker_heartbeat_age` | > 60s (worker dead) | N/A |
-| `strix_rate_limit_exceeded_total` | > 10/min | < 1/min |
+| `ishastra_queue_depth` | > 20 for 5 min | < 5 for 15 min |
+| `ishastra_job_duration_seconds` p95 | > 300s | < 60s |
+| `ishastra_active_jobs` | > 80% of max | < 30% of max |
+| `ishastra_worker_heartbeat_age` | > 60s (worker dead) | N/A |
+| `ishastra_rate_limit_exceeded_total` | > 10/min | < 1/min |
 | CPU utilization | > 70% | < 30% |
 | Memory utilization | > 80% | < 40% |
 
@@ -325,7 +325,7 @@ groups:
 - name: ishastra-scaling
   rules:
   - alert: IshastraQueueDepthHigh
-    expr: strix_queue_depth > 20
+    expr: ishastra_queue_depth > 20
     for: 5m
     labels:
       severity: warning
@@ -334,7 +334,7 @@ groups:
       description: "Consider scaling workers or increasing ISHASTRA_WORKERS"
 
   - alert: IshastraJobDurationHigh
-    expr: histogram_quantile(0.95, rate(strix_job_duration_seconds_bucket[5m])) > 300
+    expr: histogram_quantile(0.95, rate(ishastra_job_duration_seconds_bucket[5m])) > 300
     for: 5m
     labels:
       severity: warning
@@ -342,7 +342,7 @@ groups:
       summary: "Job duration p95 > 5 minutes"
 
   - alert: IshastraWorkerDown
-    expr: time() - strix_worker_heartbeat_timestamp > 120
+    expr: time() - ishastra_worker_heartbeat_timestamp > 120
     for: 1m
     labels:
       severity: critical
@@ -350,7 +350,7 @@ groups:
       summary: "Worker {{ $labels.worker_id }} heartbeat lost"
 
   - alert: IshastraRateLimitExceeded
-    expr: rate(strix_rate_limit_exceeded_total[5m]) > 0.16
+    expr: rate(ishastra_rate_limit_exceeded_total[5m]) > 0.16
     for: 2m
     labels:
       severity: warning
@@ -404,7 +404,7 @@ echo "Completed jobs in last batch: $COMPLETED"
 
 # 6. Check metrics
 echo "Current metrics:"
-curl -sf "$API_URL/metrics" | grep -E 'strix_(queue_depth|active_jobs|worker_)'
+curl -sf "$API_URL/metrics" | grep -E 'ishastra_(queue_depth|active_jobs|worker_)'
 
 echo "=== Verification Complete ==="
 ```

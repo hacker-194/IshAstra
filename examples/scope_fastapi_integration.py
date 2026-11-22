@@ -73,12 +73,12 @@ SCOPE_LATENCY = Histogram(
     ["operation"]
 )
 HTTP_REQUESTS = Counter(
-    "strix_http_requests_total",
+    "ishastra_http_requests_total",
     "HTTP requests",
     ["method", "endpoint", "status"]
 )
 HTTP_LATENCY = Histogram(
-    "strix_http_request_duration_seconds",
+    "ishastra_http_request_duration_seconds",
     "HTTP request latency",
     ["method", "endpoint"]
 )

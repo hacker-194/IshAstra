@@ -162,7 +162,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 | Structs/Enums/Traits | PascalCase | `ScopeGate`, `ValidationResult` |
 | Functions/Methods | snake_case | `validate_target`, `compute_proof` |
 | Constants | UPPER_SNAKE_CASE | `DEFAULT_TTL`, `MAX_DEPTH` |
-| Modules | snake_case | `scope_gate`, `strix_proof` |
+| Modules | snake_case | `scope_gate`, `ishastra_proof` |
 | Type Parameters | PascalCase | `T`, `TargetType` |
 
 ### Error Handling

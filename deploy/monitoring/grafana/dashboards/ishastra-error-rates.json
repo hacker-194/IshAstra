@@ -176,7 +176,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_errors_total[5m]))",
+          "expr": "sum(increase(ishastra_adapter_errors_total[5m]))",
           "refId": "A"
         }
       ],
@@ -230,7 +230,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_auth_failures_total[5m]))",
+          "expr": "sum(increase(ishastra_auth_failures_total[5m]))",
           "refId": "A"
         }
       ],
@@ -484,7 +484,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_adapter_errors_total[5m])) by (adapter, error_type) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter, error_type)",
+          "expr": "sum(rate(ishastra_adapter_errors_total[5m])) by (adapter, error_type) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter, error_type)",
           "legendFormat": "{{adapter}} - {{error_type}}",
           "refId": "A"
         }
@@ -569,7 +569,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_auth_failures_total[5m])) by (reason)",
+          "expr": "sum(rate(ishastra_auth_failures_total[5m])) by (reason)",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -654,7 +654,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_webhook_failures_total[5m])) by (error_type)",
+          "expr": "sum(rate(ishastra_webhook_failures_total[5m])) by (error_type)",
           "legendFormat": "{{error_type}}",
           "refId": "A"
         }
@@ -731,7 +731,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier)",
+          "expr": "sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (route_class, tier)",
           "legendFormat": "{{route_class}} - {{tier}}",
           "refId": "A"
         }
@@ -807,7 +807,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_errors_total[1h])) by (error_type)",
+          "expr": "sum(increase(ishastra_adapter_errors_total[1h])) by (error_type)",
           "legendFormat": "{{error_type}}",
           "refId": "A"
         }
@@ -883,7 +883,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_auth_failures_total[1h])) by (reason)",
+          "expr": "sum(increase(ishastra_auth_failures_total[1h])) by (reason)",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }

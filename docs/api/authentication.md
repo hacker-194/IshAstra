@@ -27,7 +27,7 @@ The response contains the key once. Store it in a secret manager.
 {
   "id": "key_abc123",
   "name": "CI/CD Pipeline",
-  "key": "strix_abc123...",
+  "key": "ishastra_abc123...",
   "created_at": "2026-01-15T10:00:00Z",
   "expires_at": "2026-04-15T10:00:00Z"
 }
@@ -40,7 +40,7 @@ curl -H "Authorization: Bearer $ISHASTRA_API_KEY" \
   https://your-host/api/v1/assessments
 ```
 
-Keys are stored as SHA-256 hashes, never in plaintext. The `strix_` prefix is a
+Keys are stored as SHA-256 hashes, never in plaintext. The `ishastra_` prefix is a
 legacy wire-format prefix retained for compatibility; it does not grant any
 additional privilege.
 

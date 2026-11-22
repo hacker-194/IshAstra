@@ -74,7 +74,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_errors_total[5m])) by (adapter)",
+          "expr": "sum(increase(ishastra_adapter_errors_total[5m])) by (adapter)",
           "legendFormat": "{{adapter}}",
           "refId": "A"
         }
@@ -159,7 +159,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)",
+          "expr": "sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter)",
           "legendFormat": "{{adapter}}",
           "refId": "A"
         }
@@ -236,7 +236,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_duration_seconds_count[5m])) by (adapter)",
+          "expr": "sum(increase(ishastra_adapter_duration_seconds_count[5m])) by (adapter)",
           "legendFormat": "{{adapter}}",
           "refId": "A"
         }
@@ -321,7 +321,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_adapter_errors_total[5m])) by (adapter, error_type) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter, error_type)",
+          "expr": "sum(rate(ishastra_adapter_errors_total[5m])) by (adapter, error_type) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter, error_type)",
           "legendFormat": "{{adapter}} - {{error_type}}",
           "refId": "A"
         }
@@ -376,7 +376,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_errors_total[1h]))",
+          "expr": "sum(increase(ishastra_adapter_errors_total[1h]))",
           "refId": "A"
         }
       ],
@@ -430,7 +430,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))))",
+          "expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))))",
           "refId": "A"
         }
       ],
@@ -514,7 +514,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_adapter_errors_total[5m])) by (tenant) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (tenant)",
+          "expr": "sum(rate(ishastra_adapter_errors_total[5m])) by (tenant) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         }
@@ -590,7 +590,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_adapter_errors_total[1h])) by (error_type)",
+          "expr": "sum(increase(ishastra_adapter_errors_total[1h])) by (error_type)",
           "legendFormat": "{{error_type}}",
           "refId": "A"
         }
@@ -645,7 +645,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter))",
+          "expr": "1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter))",
           "legendFormat": "{{adapter}}",
           "refId": "A"
         }
@@ -675,7 +675,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(strix_adapter_duration_seconds_bucket, adapter)",
+        "definition": "label_values(ishastra_adapter_duration_seconds_bucket, adapter)",
         "hide": 0,
         "includeAll": true,
         "label": "Adapter",
@@ -683,7 +683,7 @@
         "name": "adapter",
         "options": [],
         "query": {
-          "query": "label_values(strix_adapter_duration_seconds_bucket, adapter)",
+          "query": "label_values(ishastra_adapter_duration_seconds_bucket, adapter)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

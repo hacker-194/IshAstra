@@ -53,7 +53,7 @@ class TestMainModuleIntegration:
     """Integration-style tests for the main module."""
 
     @patch("ishastra.cli.main")
-    def test_python_m_strix_calls_cli_main(self, mock_cli_main):
+    def test_python_m_ishastra_calls_cli_main(self, mock_cli_main):
         """Test that 'python -m ishastra' calls cli.main()."""
         import runpy
 

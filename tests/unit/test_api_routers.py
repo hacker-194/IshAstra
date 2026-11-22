@@ -25,7 +25,7 @@ def app(monkeypatch):
     import os
     import tempfile
 
-    db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="strix_test_")
+    db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="ishastra_test_")
     os.close(db_fd)
 
     # monkeypatch restores these after the test, so one test's database, scope and
@@ -218,7 +218,7 @@ class TestMonitoringRouter:
         response = auth_client.get("/api/metrics/otel")
         assert response.status_code == 200
 
-        assert response.text.startswith("# HELP") or "strix_" in response.text
+        assert response.text.startswith("# HELP") or "ishastra_" in response.text
 
     def test_get_health(self, auth_client):
         """Test GET /api/health."""

@@ -519,7 +519,7 @@ class TestSCIMSchemas:
 class TestSCIMAttributeMapping:
     """Tests for SCIM to Ishastra attribute mapping."""
 
-    def test_user_to_strix_mapping(self):
+    def test_user_to_ishastra_mapping(self):
         """Test SCIM user maps to Ishastra user correctly."""
         user = SCIMUser(
             userName="john.doe@example.com",
@@ -531,14 +531,14 @@ class TestSCIMAttributeMapping:
             externalId="ext_123",
         )
 
-        strix_user = user.to_strix_user()
+        ishastra_user = user.to_ishastra_user()
 
-        assert strix_user["email"] == "john.doe@example.com"
-        assert strix_user["display_name"] == "John Doe"
-        assert strix_user["role"] == "analyst"
-        assert strix_user["scope"] == "write"
-        assert strix_user["active"] is True
-        assert strix_user["external_id"] == "ext_123"
+        assert ishastra_user["email"] == "john.doe@example.com"
+        assert ishastra_user["display_name"] == "John Doe"
+        assert ishastra_user["role"] == "analyst"
+        assert ishastra_user["scope"] == "write"
+        assert ishastra_user["active"] is True
+        assert ishastra_user["external_id"] == "ext_123"
 
     def test_user_viewer_maps_to_read_scope(self):
         """Test viewer role maps to read scope."""
@@ -549,8 +549,8 @@ class TestSCIMAttributeMapping:
             role="viewer",
         )
 
-        strix_user = user.to_strix_user()
-        assert strix_user["scope"] == "read"
+        ishastra_user = user.to_ishastra_user()
+        assert ishastra_user["scope"] == "read"
 
     def test_user_admin_maps_to_write_scope(self):
         """Test admin role maps to write scope."""
@@ -561,10 +561,10 @@ class TestSCIMAttributeMapping:
             role="admin",
         )
 
-        strix_user = user.to_strix_user()
-        assert strix_user["scope"] == "write"
+        ishastra_user = user.to_ishastra_user()
+        assert ishastra_user["scope"] == "write"
 
-    def test_group_to_strix_mapping(self):
+    def test_group_to_ishastra_mapping(self):
         """Test SCIM group maps to Ishastra group."""
         group = SCIMGroup(
             displayName="Test Group",
@@ -575,11 +575,11 @@ class TestSCIMAttributeMapping:
             ],
         )
 
-        strix_group = group.to_strix_group()
+        ishastra_group = group.to_ishastra_group()
 
-        assert strix_group["display_name"] == "Test Group"
-        assert strix_group["external_id"] == "ext_group_123"
-        assert strix_group["member_ids"] == ["user_1", "user_2"]
+        assert ishastra_group["display_name"] == "Test Group"
+        assert ishastra_group["external_id"] == "ext_group_123"
+        assert ishastra_group["member_ids"] == ["user_1", "user_2"]
 
 
 class TestSCIMFilterParsing:

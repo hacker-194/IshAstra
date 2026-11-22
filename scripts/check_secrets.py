@@ -57,7 +57,7 @@ MAX_BYTES = 2 * 1024 * 1024
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "ishastra api key",
-        re.compile(r"\bstrix_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"),
+        re.compile(r"\bishastra_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"),
     ),
     (
         "private key",

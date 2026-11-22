@@ -19,8 +19,8 @@ from ishastra.compliance.mapping import (
     get_controls_for_framework,
     get_cross_framework_controls,
     get_frameworks_for_control,
-    get_strix_features_for_control,
-    get_strix_features_for_framework,
+    get_ishastra_features_for_control,
+    get_ishastra_features_for_framework,
 )
 from ishastra.compliance.ncsp import (
     NCSP_CATEGORY_MAPPING,
@@ -85,8 +85,8 @@ __all__ = [
     "get_controls_for_category",
     "get_frameworks_for_control",
     "get_cross_framework_controls",
-    "get_strix_features_for_framework",
-    "get_strix_features_for_control",
+    "get_ishastra_features_for_framework",
+    "get_ishastra_features_for_control",
     "NRB_MAPPINGS",
     "NRB_7_074_CONTROLS",
     "NRB_8_075_CONTROLS",

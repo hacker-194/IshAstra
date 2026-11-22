@@ -161,7 +161,7 @@ worker:
     - type: External
       external:
         metric:
-          name: strix_queue_depth
+          name: ishastra_queue_depth
         target:
           type: AverageValue
           averageValue: "50"

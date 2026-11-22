@@ -140,7 +140,7 @@ servicenow:
   urgency: "2"
   ci_identifier_field: "name"
   custom_fields:
-    "u_strix_scanner": "ishastra-v3.5"
+    "u_ishastra_scanner": "ishastra-v3.5"
   timeout_seconds: 60.0
   retry_attempts: 3
   retry_backoff_seconds: 2.0

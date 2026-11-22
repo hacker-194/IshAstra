@@ -122,7 +122,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) - sum(increase(strix_jobs_total{state=~\"completed|failed|cancelled\"}[5m]))",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"started\"}[5m])) - sum(increase(ishastra_jobs_total{state=~\"completed|failed|cancelled\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -230,7 +230,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"failed\"}[5m]))",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"failed\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -306,7 +306,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total[5m])) by (state)",
+          "expr": "sum(increase(ishastra_jobs_total[5m])) by (state)",
           "legendFormat": "{{state}}",
           "refId": "A"
         }
@@ -468,17 +468,17 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"started\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"started\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"completed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"completed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}} (completed)",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"failed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"failed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}} (failed)",
           "refId": "C"
         }
@@ -563,7 +563,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total{state=\"failed\"}[5m])) by (tenant) / sum(increase(strix_jobs_total{state=~\"completed|failed\"}[5m])) by (tenant)",
+          "expr": "sum(increase(ishastra_jobs_total{state=\"failed\"}[5m])) by (tenant) / sum(increase(ishastra_jobs_total{state=~\"completed|failed\"}[5m])) by (tenant)",
           "legendFormat": "{{tenant}}",
           "refId": "A"
         }
@@ -726,7 +726,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(strix_jobs_total[1h])) by (state, tenant)",
+          "expr": "sum(increase(ishastra_jobs_total[1h])) by (state, tenant)",
           "legendFormat": "{{tenant}} - {{state}}",
           "refId": "A"
         }
@@ -756,7 +756,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(strix_jobs_total, tenant)",
+        "definition": "label_values(ishastra_jobs_total, tenant)",
         "hide": 0,
         "includeAll": true,
         "label": "Tenant",
@@ -764,7 +764,7 @@
         "name": "tenant",
         "options": [],
         "query": {
-          "query": "label_values(strix_jobs_total, tenant)",
+          "query": "label_values(ishastra_jobs_total, tenant)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

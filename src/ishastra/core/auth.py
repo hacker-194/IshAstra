@@ -912,7 +912,7 @@ class OIDCAuthenticator(Authenticator):
         tenant_exists = any(k["tenant_id"] == tenant_id for k in keys)
 
         if not tenant_exists and self.config.auto_provision:
-            raw_key = f"strix_{secrets.token_urlsafe(32)}"
+            raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
             key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
             now = time.time()
             save_api_key_sync(
@@ -1267,11 +1267,11 @@ class SAMLAuthenticator(Authenticator):
 
         admin_roles = [r.strip().lower() for r in self.config.admin_roles.split(",")]
         analyst_roles = [r.strip().lower() for r in self.config.analyst_roles.split(",")]
-        strix_role = "viewer"
+        ishastra_role = "viewer"
         if any(r in admin_roles for r in raw_roles):
-            strix_role = "admin"
+            ishastra_role = "admin"
         elif any(r in analyst_roles for r in raw_roles):
-            strix_role = "analyst"
+            ishastra_role = "analyst"
 
         email = name_id or attributes.get("email", [""])[0] or attributes.get("mail", [""])[0]
         sub = attributes.get("sub", [name_id])[0] if name_id else email
@@ -1286,7 +1286,7 @@ class SAMLAuthenticator(Authenticator):
             "sub": sub,
             "name": name,
             "org": org,
-            "role": strix_role,
+            "role": ishastra_role,
             "raw_roles": raw_roles,
             "attributes": attributes,
             "session_index": session_index,
@@ -1356,7 +1356,7 @@ class SAMLAuthenticator(Authenticator):
         tenant_exists = any(k["tenant_id"] == tenant_id for k in keys)
 
         if not tenant_exists and self.config.auto_provision:
-            raw_key = f"strix_{secrets.token_urlsafe(32)}"
+            raw_key = f"ishastra_{secrets.token_urlsafe(32)}"
             key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
             now = time.time()
             save_api_key_sync(

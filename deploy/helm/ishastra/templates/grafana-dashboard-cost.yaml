@@ -120,7 +120,7 @@ data:
             "datasource": "Prometheus",
             "targets": [
               {
-                "expr": "sum by (tenant, project) (rate(strix_assessment_cost_usd_total[1h]))",
+                "expr": "sum by (tenant, project) (rate(ishastra_assessment_cost_usd_total[1h]))",
                 "legendFormat": "{{ "{{ tenant }}" }}/{{ "{{ project }}" }}",
                 "refId": "A"
               }
@@ -249,7 +249,7 @@ data:
             "datasource": "Prometheus",
             "targets": [
               {
-                "expr": "rate(strix_spot_termination_total[5m]) * 60",
+                "expr": "rate(ishastra_spot_termination_total[5m]) * 60",
                 "legendFormat": "{{ "{{node_pool}}" }} ({{ "{{reason}}" }})",
                 "refId": "A"
               }
@@ -269,7 +269,7 @@ data:
             "datasource": "Prometheus",
             "targets": [
               {
-                "expr": "strix_node_pool_cost_usd_per_hour",
+                "expr": "ishastra_node_pool_cost_usd_per_hour",
                 "format": "table",
                 "refId": "A"
               }
@@ -301,7 +301,7 @@ data:
             "datasource": "Prometheus",
             "targets": [
               {
-                "expr": "topk(10, sum by (tenant, project, assessment_id) (increase(strix_assessment_cost_usd_total[24h])))",
+                "expr": "topk(10, sum by (tenant, project, assessment_id) (increase(ishastra_assessment_cost_usd_total[24h])))",
                 "format": "table",
                 "refId": "A"
               }
@@ -361,7 +361,7 @@ data:
             "datasource": "Prometheus",
             "targets": [
               {
-                "expr": "sum by (tenant) (kube_pod_status_phase{phase=\"Running\", namespace=~\".*-ishastra-worker\"}) - sum by (tenant) (strix_worker_busy)",
+                "expr": "sum by (tenant) (kube_pod_status_phase{phase=\"Running\", namespace=~\".*-ishastra-worker\"}) - sum by (tenant) (ishastra_worker_busy)",
                 "legendFormat": "{{ "{{ tenant }}" }}",
                 "refId": "A"
               }

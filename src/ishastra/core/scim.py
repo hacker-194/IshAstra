@@ -116,7 +116,7 @@ class SCIMUser(BaseModel):
             raise ValueError("role must be one of: admin, analyst, viewer")
         return v
 
-    def to_strix_user(self) -> dict[str, Any]:
+    def to_ishastra_user(self) -> dict[str, Any]:
         """Convert SCIM user to Ishastra tenant user format."""
         email = self.userName
         display_name = self.displayName or (self.name.formatted if self.name else None) or email.split("@")[0]
@@ -148,7 +148,7 @@ class SCIMGroup(BaseModel):
     tenant_id: str | None = None
     org_id: str | None = None
 
-    def to_strix_group(self) -> dict[str, Any]:
+    def to_ishastra_group(self) -> dict[str, Any]:
         """Convert SCIM group to Ishastra format."""
         return {
             "display_name": self.displayName,
@@ -275,7 +275,7 @@ class SCIMStore:
     @staticmethod
     def _generate_api_key() -> str:
         """Generate a new API key."""
-        return f"strix_scim_{secrets.token_urlsafe(32)}"
+        return f"ishastra_scim_{secrets.token_urlsafe(32)}"
 
     async def create_user(self, user: SCIMUser, tenant_id: str, scim_token: str) -> SCIMUser:
         """Create a new SCIM user (provisions in Ishastra)."""
@@ -295,7 +295,7 @@ class SCIMStore:
         )
         user.tenant_id = tenant_id
 
-        strix_user = user.to_strix_user()
+        ishastra_user = user.to_ishastra_user()
         user_id = f"user_{secrets.token_urlsafe(16)}"
         raw_key = self._generate_api_key()
         key_hash = self._hash_key(raw_key)
@@ -305,12 +305,12 @@ class SCIMStore:
         await store.save_tenant_user(
             user_id=user_id,
             tenant_id=tenant_id,
-            email=strix_user["email"],
-            display_name=strix_user["display_name"],
-            role=strix_user["role"],
+            email=ishastra_user["email"],
+            display_name=ishastra_user["display_name"],
+            role=ishastra_user["role"],
             key_hash=key_hash,
-            scope=strix_user["scope"],
-            active=strix_user["active"],
+            scope=ishastra_user["scope"],
+            active=ishastra_user["active"],
             created_at=now,
             expires_at=expires_at,
             last_used=None,
@@ -327,11 +327,11 @@ class SCIMStore:
         if not mapping:
             return None
 
-        strix_user = await self._get_strix_user(mapping["strix_user_id"], tenant_id)
-        if not strix_user:
+        ishastra_user = await self._get_ishastra_user(mapping["ishastra_user_id"], tenant_id)
+        if not ishastra_user:
             return None
 
-        return self._strix_to_scim_user(strix_user, user_id)
+        return self._ishastra_to_scim_user(ishastra_user, user_id)
 
     async def get_user_by_username(self, username: str, tenant_id: str) -> SCIMUser | None:
         """Get a SCIM user by userName (email)."""
@@ -342,12 +342,12 @@ class SCIMStore:
                 mappings = await self._get_user_mappings_by_tenant(tenant_id)
                 scim_id = None
                 for m in mappings:
-                    if m["strix_user_id"] == user["user_id"]:
+                    if m["ishastra_user_id"] == user["user_id"]:
                         scim_id = m["scim_id"]
                         break
 
                 if scim_id:
-                    return self._strix_to_scim_user(user, scim_id)
+                    return self._ishastra_to_scim_user(user, scim_id)
 
         return None
 
@@ -357,39 +357,39 @@ class SCIMStore:
         if not mapping:
             raise ValueError(f"User {user_id} not found")
 
-        strix_user_id = mapping["strix_user_id"]
+        ishastra_user_id = mapping["ishastra_user_id"]
 
-        strix_user = await self._get_strix_user(strix_user_id, tenant_id)
-        if not strix_user:
-            raise ValueError(f"Ishastra user {strix_user_id} not found")
+        ishastra_user = await self._get_ishastra_user(ishastra_user_id, tenant_id)
+        if not ishastra_user:
+            raise ValueError(f"Ishastra user {ishastra_user_id} not found")
 
         now = time.time()
-        strix_user["display_name"] = (
+        ishastra_user["display_name"] = (
             user.displayName or (user.name.formatted if user.name else None) or user.userName.split("@")[0]
         )
-        strix_user["role"] = user.role or "analyst"
-        strix_user["scope"] = "read" if user.role == "viewer" else "write"
-        strix_user["active"] = user.active
-        strix_user["email"] = user.userName
+        ishastra_user["role"] = user.role or "analyst"
+        ishastra_user["scope"] = "read" if user.role == "viewer" else "write"
+        ishastra_user["active"] = user.active
+        ishastra_user["email"] = user.userName
 
         await store.save_tenant_user(
-            user_id=strix_user_id,
+            user_id=ishastra_user_id,
             tenant_id=tenant_id,
-            email=strix_user["email"],
-            display_name=strix_user["display_name"],
-            role=strix_user["role"],
-            key_hash=strix_user["key_hash"],
-            scope=strix_user["scope"],
-            active=strix_user["active"],
-            created_at=strix_user["created_at"],
-            expires_at=strix_user.get("expires_at"),
-            last_used=strix_user.get("last_used"),
+            email=ishastra_user["email"],
+            display_name=ishastra_user["display_name"],
+            role=ishastra_user["role"],
+            key_hash=ishastra_user["key_hash"],
+            scope=ishastra_user["scope"],
+            active=ishastra_user["active"],
+            created_at=ishastra_user["created_at"],
+            expires_at=ishastra_user.get("expires_at"),
+            last_used=ishastra_user.get("last_used"),
         )
 
         updated = user.model_copy(deep=True)
         updated.meta = SCIMMeta(
             resourceType="User",
-            created=_scim_timestamp(strix_user.get("created_at", now)),
+            created=_scim_timestamp(ishastra_user.get("created_at", now)),
             lastModified=_scim_timestamp(now),
             location=f"/scim/v2/Users/{user_id}",
             version=hashlib.sha256(str(now).encode()).hexdigest()[:32],
@@ -408,10 +408,10 @@ class SCIMStore:
         if not mapping:
             raise ValueError(f"User {user_id} not found")
 
-        strix_user_id = mapping["strix_user_id"]
-        strix_user = await self._get_strix_user(strix_user_id, tenant_id)
-        if not strix_user:
-            raise ValueError(f"Ishastra user {strix_user_id} not found")
+        ishastra_user_id = mapping["ishastra_user_id"]
+        ishastra_user = await self._get_ishastra_user(ishastra_user_id, tenant_id)
+        if not ishastra_user:
+            raise ValueError(f"Ishastra user {ishastra_user_id} not found")
 
         for op in operations:
             op_type = op.get("op")
@@ -420,22 +420,22 @@ class SCIMStore:
 
             if op_type == "replace":
                 if path == "displayName":
-                    strix_user["display_name"] = value
+                    ishastra_user["display_name"] = value
                 elif path == "userName":
                     if not isinstance(value, str) or "@" not in value:
                         raise ValueError("userName must be a valid email")
-                    strix_user["email"] = value.lower()
+                    ishastra_user["email"] = value.lower()
                 elif path == "active":
-                    strix_user["active"] = bool(value)
+                    ishastra_user["active"] = bool(value)
                 elif path == "role":
                     if value not in ("admin", "analyst", "viewer"):
                         raise ValueError("role must be admin, analyst, or viewer")
-                    strix_user["role"] = value
-                    strix_user["scope"] = "read" if value == "viewer" else "write"
+                    ishastra_user["role"] = value
+                    ishastra_user["scope"] = "read" if value == "viewer" else "write"
                 elif path == "emails" and isinstance(value, list) and value:
                     for email in value:
                         if email.get("primary"):
-                            strix_user["email"] = email["value"]
+                            ishastra_user["email"] = email["value"]
                             break
                 elif path == "name" and isinstance(value, dict):
                     formatted = (
@@ -443,7 +443,7 @@ class SCIMStore:
                         or f"{value.get('givenName', '')} {value.get('familyName', '')}".strip()
                     )
                     if formatted:
-                        strix_user["display_name"] = formatted
+                        ishastra_user["display_name"] = formatted
 
             elif op_type == "add" and path == "groups" and isinstance(value, list):
                 await self._apply_group_membership(user_id, value, tenant_id, scim_token, add=True)
@@ -453,17 +453,17 @@ class SCIMStore:
                 await self._apply_group_membership(user_id, refs, tenant_id, scim_token, add=False)
 
         await store.save_tenant_user(
-            user_id=strix_user_id,
+            user_id=ishastra_user_id,
             tenant_id=tenant_id,
-            email=strix_user.get("email", ""),
-            display_name=strix_user["display_name"],
-            role=strix_user["role"],
-            key_hash=strix_user["key_hash"],
-            scope=strix_user["scope"],
-            active=strix_user["active"],
-            created_at=strix_user["created_at"],
-            expires_at=strix_user.get("expires_at"),
-            last_used=strix_user.get("last_used"),
+            email=ishastra_user.get("email", ""),
+            display_name=ishastra_user["display_name"],
+            role=ishastra_user["role"],
+            key_hash=ishastra_user["key_hash"],
+            scope=ishastra_user["scope"],
+            active=ishastra_user["active"],
+            created_at=ishastra_user["created_at"],
+            expires_at=ishastra_user.get("expires_at"),
+            last_used=ishastra_user.get("last_used"),
         )
 
         updated = await self.get_user(user_id, tenant_id, scim_token)
@@ -514,8 +514,8 @@ class SCIMStore:
         if not mapping:
             return False
 
-        strix_user_id = mapping["strix_user_id"]
-        result = await store.deactivate_tenant_user(tenant_id=tenant_id, user_id=strix_user_id)
+        ishastra_user_id = mapping["ishastra_user_id"]
+        result = await store.deactivate_tenant_user(tenant_id=tenant_id, user_id=ishastra_user_id)
 
         await self._delete_user_mapping(user_id, tenant_id, scim_token)
 
@@ -546,12 +546,12 @@ class SCIMStore:
 
         resources = []
         mappings = await self._get_user_mappings_by_tenant(tenant_id)
-        mapping_dict = {m["strix_user_id"]: m["scim_id"] for m in mappings}
+        mapping_dict = {m["ishastra_user_id"]: m["scim_id"] for m in mappings}
 
         for user in page_users:
             scim_id = mapping_dict.get(user["user_id"])
             if scim_id:
-                scim_user = self._strix_to_scim_user(user, scim_id)
+                scim_user = self._ishastra_to_scim_user(user, scim_id)
                 resources.append(scim_user.model_dump(exclude_none=True))
 
         return SCIMListResponse(
@@ -577,7 +577,7 @@ class SCIMStore:
         group.tenant_id = tenant_id
         group.org_id = org_id
 
-        await self._save_group_mapping(group.id, group.to_strix_group(), tenant_id, org_id, scim_token)
+        await self._save_group_mapping(group.id, group.to_ishastra_group(), tenant_id, org_id, scim_token)
 
         log.info("Created SCIM group %s for tenant %s", group.id, tenant_id)
         return group
@@ -611,7 +611,7 @@ class SCIMStore:
         updated.tenant_id = tenant_id
 
         await self._save_group_mapping(
-            group_id, updated.to_strix_group(), tenant_id, mapping.get("org_id"), scim_token
+            group_id, updated.to_ishastra_group(), tenant_id, mapping.get("org_id"), scim_token
         )
 
         log.info("Updated SCIM group %s for tenant %s", group_id, tenant_id)
@@ -691,28 +691,28 @@ class SCIMStore:
             Resources=resources,
         )
 
-    def _strix_to_scim_user(self, strix_user: dict[str, Any], scim_id: str) -> SCIMUser:
+    def _ishastra_to_scim_user(self, ishastra_user: dict[str, Any], scim_id: str) -> SCIMUser:
         """Convert Ishastra user to SCIM user."""
-        email = strix_user.get("email", strix_user.get("userName", ""))
-        display_name = strix_user.get("display_name", email.split("@")[0] if "@" in email else email)
-        role = strix_user.get("role", "analyst")
+        email = ishastra_user.get("email", ishastra_user.get("userName", ""))
+        display_name = ishastra_user.get("display_name", email.split("@")[0] if "@" in email else email)
+        role = ishastra_user.get("role", "analyst")
 
         user = SCIMUser(
             id=scim_id,
             userName=email,
             displayName=display_name,
             emails=[SCIMEmail(value=email, primary=True)],
-            active=strix_user.get("active", True),
+            active=ishastra_user.get("active", True),
             role=role,
-            tenant_id=strix_user.get("tenant_id"),
-            externalId=strix_user.get("external_id"),
+            tenant_id=ishastra_user.get("tenant_id"),
+            externalId=ishastra_user.get("external_id"),
         )
 
-        if strix_user.get("created_at"):
+        if ishastra_user.get("created_at"):
             user.meta = SCIMMeta(
                 resourceType="User",
-                created=_scim_timestamp(strix_user["created_at"]),
-                lastModified=_scim_timestamp(strix_user.get("last_used") or strix_user["created_at"]),
+                created=_scim_timestamp(ishastra_user["created_at"]),
+                lastModified=_scim_timestamp(ishastra_user.get("last_used") or ishastra_user["created_at"]),
                 location=f"/scim/v2/Users/{scim_id}",
             )
 
@@ -829,7 +829,7 @@ class SCIMStore:
         return filtered
 
     async def _save_user_mapping(
-        self, scim_id: str, strix_user_id: str, tenant_id: str, scim_token: str
+        self, scim_id: str, ishastra_user_id: str, tenant_id: str, scim_token: str
     ) -> None:
         """Save SCIM to Ishastra user mapping."""
         db = await store.get_database()
@@ -837,14 +837,14 @@ class SCIMStore:
             await store._execute(
                 conn,
                 """INSERT INTO scim_user_mappings
-                   (scim_id, strix_user_id, tenant_id, scim_token, created_at)
+                   (scim_id, ishastra_user_id, tenant_id, scim_token, created_at)
                    VALUES (?, ?, ?, ?, ?)
                    ON CONFLICT(scim_id) DO UPDATE SET
-                       strix_user_id = excluded.strix_user_id,
+                       ishastra_user_id = excluded.ishastra_user_id,
                        tenant_id = excluded.tenant_id,
                        scim_token = excluded.scim_token""",
                 scim_id,
-                strix_user_id,
+                ishastra_user_id,
                 tenant_id,
                 scim_token,
                 time.time(),
@@ -886,7 +886,7 @@ class SCIMStore:
                 scim_token,
             )
 
-    async def _get_strix_user(self, user_id: str, tenant_id: str) -> dict | None:
+    async def _get_ishastra_user(self, user_id: str, tenant_id: str) -> dict | None:
         """Get Ishastra user by ID."""
         users = await store.load_tenant_users()
         for user in users:
@@ -983,7 +983,7 @@ async def init_scim_tables() -> None:
             """
             CREATE TABLE IF NOT EXISTS scim_user_mappings (
                 scim_id      TEXT PRIMARY KEY,
-                strix_user_id TEXT NOT NULL,
+                ishastra_user_id TEXT NOT NULL,
                 tenant_id    TEXT NOT NULL,
                 scim_token   TEXT NOT NULL,
                 created_at   REAL NOT NULL,
@@ -1351,7 +1351,7 @@ def get_schemas() -> SCIMSchemasResponse:
         ],
     )
 
-    strix_user_schema = SCIMSchema(
+    ishastra_user_schema = SCIMSchema(
         id=ISHASTRA_USER_SCHEMA,
         name="IshastraUser",
         description="Ishastra User Extension Schema",
@@ -1380,7 +1380,7 @@ def get_schemas() -> SCIMSchemasResponse:
         ],
     )
 
-    strix_group_schema = SCIMSchema(
+    ishastra_group_schema = SCIMSchema(
         id=ISHASTRA_GROUP_SCHEMA,
         name="IshastraGroup",
         description="Ishastra Group Extension Schema",
@@ -1412,5 +1412,5 @@ def get_schemas() -> SCIMSchemasResponse:
         totalResults=4,
         itemsPerPage=4,
         startIndex=1,
-        Resources=[user_schema, group_schema, strix_user_schema, strix_group_schema],
+        Resources=[user_schema, group_schema, ishastra_user_schema, ishastra_group_schema],
     )

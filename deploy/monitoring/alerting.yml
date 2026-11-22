@@ -6,9 +6,9 @@ groups:
       - alert: IshastraQueueBacklogHigh
         expr: |
           (
-            sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+            sum(increase(ishastra_jobs_total{state="started"}[5m])) by (tenant)
             -
-            sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            sum(increase(ishastra_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
           ) > 50
         for: 5m
         labels:
@@ -24,9 +24,9 @@ groups:
       - alert: IshastraQueueBacklogCritical
         expr: |
           (
-            sum(increase(strix_jobs_total{state="started"}[5m])) by (tenant)
+            sum(increase(ishastra_jobs_total{state="started"}[5m])) by (tenant)
             -
-            sum(increase(strix_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
+            sum(increase(ishastra_jobs_total{state=~"completed|failed|cancelled"}[5m])) by (tenant)
           ) > 200
         for: 2m
         labels:
@@ -42,7 +42,7 @@ groups:
 
       - alert: IshastraJobLatencyHigh
         expr: |
-          histogram_quantile(0.95, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 300
+          histogram_quantile(0.95, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le, tenant)) > 300
         for: 5m
         labels:
           severity: warning
@@ -56,7 +56,7 @@ groups:
 
       - alert: IshastraJobLatencyCritical
         expr: |
-          histogram_quantile(0.99, sum(rate(strix_job_duration_seconds_bucket[5m])) by (le, tenant)) > 1800
+          histogram_quantile(0.99, sum(rate(ishastra_job_duration_seconds_bucket[5m])) by (le, tenant)) > 1800
         for: 2m
         labels:
           severity: critical
@@ -71,7 +71,7 @@ groups:
 
       - alert: IshastraAdapterSuccessRateLow
         expr: |
-          1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.95
+          1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.95
         for: 5m
         labels:
           severity: warning
@@ -85,7 +85,7 @@ groups:
 
       - alert: IshastraAdapterSuccessRateCritical
         expr: |
-          1 - (sum(rate(strix_adapter_errors_total[5m])) by (adapter) / sum(rate(strix_adapter_errors_total[5m] + rate(strix_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.90
+          1 - (sum(rate(ishastra_adapter_errors_total[5m])) by (adapter) / sum(rate(ishastra_adapter_errors_total[5m] + rate(ishastra_adapter_duration_seconds_count[5m]))) by (adapter)) < 0.90
         for: 2m
         labels:
           severity: critical
@@ -100,7 +100,7 @@ groups:
 
       - alert: IshastraAuthFailureRateHigh
         expr: |
-          sum(rate(strix_auth_failures_total[5m])) by (reason) > 10
+          sum(rate(ishastra_auth_failures_total[5m])) by (reason) > 10
         for: 5m
         labels:
           severity: warning
@@ -114,7 +114,7 @@ groups:
 
       - alert: IshastraAuthFailureBurst
         expr: |
-          sum(increase(strix_auth_failures_total[1m])) > 50
+          sum(increase(ishastra_auth_failures_total[1m])) > 50
         for: 1m
         labels:
           severity: critical
@@ -129,7 +129,7 @@ groups:
 
       - alert: IshastraAuditChainVerificationFailed
         expr: |
-          strix_audit_chain_verified == 0
+          ishastra_audit_chain_verified == 0
         for: 1m
         labels:
           severity: critical
@@ -144,7 +144,7 @@ groups:
 
       - alert: IshastraAuditChainLengthAnomaly
         expr: |
-          rate(strix_audit_chain_length[5m]) < 0
+          rate(ishastra_audit_chain_length[5m]) < 0
         for: 5m
         labels:
           severity: warning
@@ -159,7 +159,7 @@ groups:
 
       - alert: IshastraHTTP5xxRateHigh
         expr: |
-          sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.05
+          sum(rate(ishastra_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(ishastra_http_requests_total[5m])) by (endpoint) > 0.05
         for: 5m
         labels:
           severity: warning
@@ -173,7 +173,7 @@ groups:
 
       - alert: IshastraHTTP5xxRateCritical
         expr: |
-          sum(rate(strix_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(strix_http_requests_total[5m])) by (endpoint) > 0.20
+          sum(rate(ishastra_http_requests_total{status=~"5.."}[5m])) by (endpoint) / sum(rate(ishastra_http_requests_total[5m])) by (endpoint) > 0.20
         for: 2m
         labels:
           severity: critical
@@ -188,7 +188,7 @@ groups:
 
       - alert: IshastraRateLimitExceededHigh
         expr: |
-          sum(rate(strix_rate_limit_exceeded_total[5m])) by (route_class, tier) > 100
+          sum(rate(ishastra_rate_limit_exceeded_total[5m])) by (route_class, tier) > 100
         for: 5m
         labels:
           severity: warning
@@ -203,7 +203,7 @@ groups:
 
       - alert: IshastraDBPoolExhausted
         expr: |
-          strix_db_pool_available / strix_db_pool_size < 0.1
+          ishastra_db_pool_available / ishastra_db_pool_size < 0.1
         for: 5m
         labels:
           severity: warning
@@ -217,7 +217,7 @@ groups:
 
       - alert: IshastraDBPoolAcquireSlow
         expr: |
-          histogram_quantile(0.95, sum(rate(strix_db_pool_acquire_seconds_bucket[5m])) by (le)) > 1.0
+          histogram_quantile(0.95, sum(rate(ishastra_db_pool_acquire_seconds_bucket[5m])) by (le)) > 1.0
         for: 5m
         labels:
           severity: warning
@@ -261,7 +261,7 @@ groups:
 
       - alert: IshastraWebhookFailureRateHigh
         expr: |
-          sum(rate(strix_webhook_failures_total[5m])) by (error_type) > 10
+          sum(rate(ishastra_webhook_failures_total[5m])) by (error_type) > 10
         for: 5m
         labels:
           severity: warning
@@ -276,7 +276,7 @@ groups:
 
       - alert: IshastraFindingsVolumeAnomaly
         expr: |
-          sum(rate(strix_findings_total[5m])) by (tenant) > 100
+          sum(rate(ishastra_findings_total[5m])) by (tenant) > 100
         for: 5m
         labels:
           severity: info

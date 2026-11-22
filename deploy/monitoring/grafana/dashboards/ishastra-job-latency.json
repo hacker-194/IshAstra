@@ -193,17 +193,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(strix_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
+          "expr": "histogram_quantile(0.50, sum(rate(ishastra_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
           "legendFormat": "p50 {{adapter}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(strix_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
+          "expr": "histogram_quantile(0.95, sum(rate(ishastra_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
           "legendFormat": "p95 {{adapter}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(strix_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
+          "expr": "histogram_quantile(0.99, sum(rate(ishastra_adapter_duration_seconds_bucket[5m])) by (le, adapter))",
           "legendFormat": "p99 {{adapter}}",
           "refId": "C"
         }
@@ -515,7 +515,7 @@
       "pluginVersion": "11.2.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(strix_db_pool_acquire_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(ishastra_db_pool_acquire_seconds_bucket[5m])) by (le))",
           "refId": "A"
         }
       ],
@@ -591,7 +591,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_http_request_duration_seconds_sum[5m])) by (endpoint) / sum(rate(strix_http_request_duration_seconds_count[5m])) by (endpoint)",
+          "expr": "sum(rate(ishastra_http_request_duration_seconds_sum[5m])) by (endpoint) / sum(rate(ishastra_http_request_duration_seconds_count[5m])) by (endpoint)",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
@@ -668,7 +668,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(strix_adapter_duration_seconds_sum[5m])) by (adapter) / sum(rate(strix_adapter_duration_seconds_count[5m])) by (adapter)",
+          "expr": "sum(rate(ishastra_adapter_duration_seconds_sum[5m])) by (adapter) / sum(rate(ishastra_adapter_duration_seconds_count[5m])) by (adapter)",
           "legendFormat": "{{adapter}}",
           "refId": "A"
         }

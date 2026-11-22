@@ -50,7 +50,7 @@ Key alert categories:
 ```bash
 # Create secrets directory with admin API key
 mkdir -p secrets
-printf '%s' "$ISHASTRA_API_KEY" > secrets/strix_api_key && chmod 600 secrets/strix_api_key
+printf '%s' "$ISHASTRA_API_KEY" > secrets/ishastra_api_key && chmod 600 secrets/ishastra_api_key
 
 # Set Grafana password in .env.production
 echo "GRAFANA_PASSWORD=your-secure-password" >> .env.production
@@ -80,49 +80,49 @@ Every series below is defined in `src/ishastra/metrics.py`:
 
 | Metric | Type | Labels |
 |---|---|---|
-| `strix_http_requests_total` | counter | `method`, `endpoint`, `status` |
-| `strix_http_request_duration_seconds` | histogram | `method`, `endpoint` |
-| `strix_http_requests_in_progress` | gauge | `method`, `endpoint` |
+| `ishastra_http_requests_total` | counter | `method`, `endpoint`, `status` |
+| `ishastra_http_request_duration_seconds` | histogram | `method`, `endpoint` |
+| `ishastra_http_requests_in_progress` | gauge | `method`, `endpoint` |
 | `ishastra_scope_gate_decisions_total` | counter | `decision`, `reason`, `tenant` |
 | `ishastra_scope_gate_decision_duration_seconds` | histogram | `decision` |
-| `strix_rate_limit_hits_total` | counter | `route_class`, `tier`, `allowed` |
-| `strix_rate_limit_exceeded_total` | counter | `route_class`, `tier`, `identity_type` |
-| `strix_jobs_total` | counter | `state`, `tenant` |
-| `strix_jobs_active` | gauge | `tenant` |
-| `strix_job_duration_seconds` | histogram | `profile`, `tenant` |
-| `strix_job_state_transitions_total` | counter | `from`, `to` |
-| `strix_queue_depth` | gauge | `mode` |
-| `strix_workers_total` | gauge | `mode` |
-| `strix_worker_busy` | gauge | `mode` |
-| `strix_adapter_duration_seconds` | histogram | `adapter`, `tenant` |
-| `strix_adapter_errors_total` | counter | `adapter`, `error_type`, `tenant` |
-| `strix_adapter_timeout_total` | counter | `adapter`, `tenant` |
-| `strix_db_pool_size` | gauge | `dialect` |
-| `strix_db_pool_available` | gauge | `dialect` |
-| `strix_db_pool_acquire_seconds` | histogram | `dialect` |
-| `strix_db_size_bytes` | gauge | `dialect` |
-| `strix_job_queue_duration_seconds` | histogram | `profile` |
-| `strix_auth_success_total` | counter | `tenant`, `tier` |
-| `strix_auth_failures_total` | counter | `tenant`, `reason` |
-| `strix_webhook_deliveries_total` | counter | `tenant`, `status` |
-| `strix_webhook_failures_total` | counter | `tenant`, `error_type` |
-| `strix_findings_total` | counter | `tenant`, `severity`, `adapter` |
-| `strix_audit_events_total` | counter | `tenant`, `event_type` |
-| `strix_audit_chain_length` | gauge | — |
-| `strix_audit_chain_verified` | gauge | — |
-| `strix_reports_total` | counter | `kind` |
-| `strix_build_info` | gauge | `version` |
+| `ishastra_rate_limit_hits_total` | counter | `route_class`, `tier`, `allowed` |
+| `ishastra_rate_limit_exceeded_total` | counter | `route_class`, `tier`, `identity_type` |
+| `ishastra_jobs_total` | counter | `state`, `tenant` |
+| `ishastra_jobs_active` | gauge | `tenant` |
+| `ishastra_job_duration_seconds` | histogram | `profile`, `tenant` |
+| `ishastra_job_state_transitions_total` | counter | `from`, `to` |
+| `ishastra_queue_depth` | gauge | `mode` |
+| `ishastra_workers_total` | gauge | `mode` |
+| `ishastra_worker_busy` | gauge | `mode` |
+| `ishastra_adapter_duration_seconds` | histogram | `adapter`, `tenant` |
+| `ishastra_adapter_errors_total` | counter | `adapter`, `error_type`, `tenant` |
+| `ishastra_adapter_timeout_total` | counter | `adapter`, `tenant` |
+| `ishastra_db_pool_size` | gauge | `dialect` |
+| `ishastra_db_pool_available` | gauge | `dialect` |
+| `ishastra_db_pool_acquire_seconds` | histogram | `dialect` |
+| `ishastra_db_size_bytes` | gauge | `dialect` |
+| `ishastra_job_queue_duration_seconds` | histogram | `profile` |
+| `ishastra_auth_success_total` | counter | `tenant`, `tier` |
+| `ishastra_auth_failures_total` | counter | `tenant`, `reason` |
+| `ishastra_webhook_deliveries_total` | counter | `tenant`, `status` |
+| `ishastra_webhook_failures_total` | counter | `tenant`, `error_type` |
+| `ishastra_findings_total` | counter | `tenant`, `severity`, `adapter` |
+| `ishastra_audit_events_total` | counter | `tenant`, `event_type` |
+| `ishastra_audit_chain_length` | gauge | — |
+| `ishastra_audit_chain_verified` | gauge | — |
+| `ishastra_reports_total` | counter | `kind` |
+| `ishastra_build_info` | gauge | `version` |
 
 `mode` is the queue backend; the in-process worker publishes `inprocess`, and the
-Celery and Kubernetes queue modes do not emit queue/worker gauges yet. **Not exported**: compliance scoring (`strix_compliance_*`) and the
-`strix_assessment_*` Kubernetes job gauges. Panels built on those have no data
+Celery and Kubernetes queue modes do not emit queue/worker gauges yet. **Not exported**: compliance scoring (`ishastra_compliance_*`) and the
+`ishastra_assessment_*` Kubernetes job gauges. Panels built on those have no data
 source; the compliance alert was removed rather than left firing on nothing.
 
 ## Custom-metric autoscaling
 
 The Helm chart's API and worker HPAs use the recording metrics
 `ishastra_scope_gate_decision_latency_seconds_p95` and
-`strix_assessment_queue_pending`. Prometheus rules for both are included in the
+`ishastra_assessment_queue_pending`. Prometheus rules for both are included in the
 chart. HPA custom metrics require the Prometheus Adapter (or another provider
 that exposes `external.metrics.k8s.io`); example values for the
 `prometheus-community/prometheus-adapter` chart are in
@@ -131,7 +131,7 @@ Prometheus service, install it before enabling custom-metric HPAs, and verify
 the metrics API with:
 
 ```bash
-kubectl get --raw /apis/external.metrics.k8s.io/v1beta1/namespaces/ishastra/strix_assessment_queue_pending
+kubectl get --raw /apis/external.metrics.k8s.io/v1beta1/namespaces/ishastra/ishastra_assessment_queue_pending
 ```
 
 ## Enabling OpenTelemetry

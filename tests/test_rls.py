@@ -25,7 +25,7 @@ if not ADMIN_DSN:
 
 asyncpg = pytest.importorskip("asyncpg")
 
-APP_ROLE = "strix_rls_test"
+APP_ROLE = "ishastra_rls_test"
 
 
 SEED_ADMIN = "__rls_seed_admin__"

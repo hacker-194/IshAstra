@@ -377,7 +377,7 @@ manifests that older revisions of this page suggested.
 ```python
 # Prometheus metric exposed by queue
 queue_depth = Gauge(
-    "strix_queue_depth",
+    "ishastra_queue_depth",
     "Number of jobs in queue",
     ["priority"]
 )
@@ -396,11 +396,11 @@ async def _update_metrics(self):
 
 | Metric | Description | Alert Threshold |
 |--------|-------------|-----------------|
-| `strix_jobs_total` | Jobs by status | Failed > 10/min |
-| `strix_job_duration_seconds` | Job runtime | p99 > 30 min |
-| `strix_queue_depth` | Queue depth by priority | NORMAL > 1000 |
-| `strix_worker_utilization` | Worker busy % | > 90% for 10m |
-| `strix_dlq_size` | Dead letter queue | > 0 |
+| `ishastra_jobs_total` | Jobs by status | Failed > 10/min |
+| `ishastra_job_duration_seconds` | Job runtime | p99 > 30 min |
+| `ishastra_queue_depth` | Queue depth by priority | NORMAL > 1000 |
+| `ishastra_worker_utilization` | Worker busy % | > 90% for 10m |
+| `ishastra_dlq_size` | Dead letter queue | > 0 |
 
 ### Grafana Dashboard
 

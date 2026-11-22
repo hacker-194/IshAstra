@@ -48,24 +48,21 @@ Thumbs.db
 
 # Local agent and knowledge-graph state
 # Development state (not for GitHub)
+graphify-out/
+tools/
 security-audit-reports/
 security-reports/
 load-test/
 migrations/
-
-graphify-out/
-tools/
 
 # TLA+ model checking (docs/tla): the TLC jar is fetched by CI, state dirs are scratch
 docs/tla/tla2tools.jar
 docs/tla/states/
 *.db-wal
 *.db-shm
-security-audit-reports/
 
 # Local deployment secrets and generated security artefacts (never commit)
 prod-secrets/
-security-reports/
 evidence/
 backups/
 site/

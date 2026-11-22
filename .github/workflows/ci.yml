@@ -418,23 +418,29 @@ jobs:
           }
           EOF
 
-          python -m uvicorn ishastra.api.app:create_app --host 0.0.0.0 --port 8000 --factory &
-          SERVER_PID=$!
+          # Detached from this step's process group; otherwise the runner kills
+          # the server when the step ends and every test sees ECONNREFUSED.
+          nohup setsid python -m uvicorn ishastra.api.app:create_app \
+            --host 127.0.0.1 --port 8000 --factory > /tmp/uvicorn.log 2>&1 &
 
           for i in {1..30}; do
-            if curl -sf http://localhost:8000/api/health >/dev/null 2>&1; then
+            if curl -sf http://127.0.0.1:8000/api/health >/dev/null 2>&1; then
               echo "Server ready"
               break
             fi
             sleep 1
           done
+          curl -sf http://127.0.0.1:8000/api/health >/dev/null || { cat /tmp/uvicorn.log; exit 1; }
       - name: Run E2E tests
         env:
-          ISHASTRA_E2E_BASE_URL: "http://localhost:8000"
+          ISHASTRA_E2E_BASE_URL: "http://127.0.0.1:8000"
         run: pytest -q --no-cov tests/e2e/ -m e2e
       - name: Stop server
         if: always()
-        run: kill $SERVER_PID 2>/dev/null || true
+        run: |
+          pkill -f "uvicorn ishastra.api.app:create_app" || true
+          echo "--- server log ---"
+          tail -20 /tmp/uvicorn.log 2>/dev/null || true
 
   security:
     name: Dependency and source scans
@@ -511,6 +517,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [lint]
+    # The action diffs a base and head ref, which only a pull request has.
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
     steps:
@@ -572,7 +580,7 @@ jobs:
           
 
               # pip-licenses lists every option of a dual-licensed package
-              # ("Artistic License; GPL"), and choosing the permissive option is
+              # (Artistic License; GPL), and choosing the permissive option is
               # legitimate, so a package passes when any one option is allowed.
               segments = [
                   ' '.join(

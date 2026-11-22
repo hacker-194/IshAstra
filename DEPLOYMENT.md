@@ -291,9 +291,15 @@ Ishastra is deliberately single-writer per database:
 
 ## 11. Nepal launch readiness
 
-See [`docs/.archive/nepal-launch-readiness.md`](docs/.archive/nepal-launch-readiness.md) for the
-in-country deployment profile, NRB/NTA/NCSP evidence mapping, and the
-legal/business prerequisites that are outside this repository's control.
+The NRB, NTA and NCSP control mappings are produced from assessment evidence, not
+from a separate document: `src/ishastra/compliance/nrb.py`, `nta.py` and
+`ncsp.py` map findings onto each framework's controls, and
+`GET /api/compliance/schedules/frequencies` lists the frameworks and review
+cadences the API accepts. `scope.example.json` shows an authorization document
+for an in-country target.
+
+Licensing, in-country hosting approval and regulatory filing are outside this
+repository and are not claimed here.
 
 ## 12. Database migrations and row-level security
 

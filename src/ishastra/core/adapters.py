@@ -73,6 +73,7 @@ from ishastra.core.sandbox import (
     run_in_sandbox,
 )
 from ishastra.core.signatures import match_url_signatures
+from ishastra.core.template_allowlist import TemplateAllowlist, TemplateAllowlistError, get_allowlist
 from ishastra.core.urls import parse_url
 
 log = logging.getLogger(__name__)
@@ -1137,6 +1138,8 @@ class NmapAdapter(Adapter):
 
     Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
     blocked at the egress gateway.
+
+    NSE scripts are restricted by the template allowlist (config/templates/allowlist.yaml).
     """
 
     id = "nmap"
@@ -1146,6 +1149,7 @@ class NmapAdapter(Adapter):
 
     def __init__(self) -> None:
         self._version: str | None = None
+        self._allowlist = get_allowlist()
 
     def available(self) -> tuple[bool, str]:
         binary = shutil.which("nmap")
@@ -1163,7 +1167,16 @@ class NmapAdapter(Adapter):
                 self._version = out.stdout.splitlines()[0].strip() if out.stdout else "unknown"
             except (OSError, subprocess.SubprocessError) as exc:
                 return False, f"nmap present but unusable: {exc}"
-        return True, self._version
+
+        # Validate NSE scripts against allowlist on startup
+        try:
+            allowed_scripts = self._allowlist.nmap_patterns
+            if not allowed_scripts:
+                return False, "nmap: no NSE scripts allowed by template allowlist"
+        except TemplateAllowlistError as exc:
+            return False, f"nmap: template allowlist error: {exc}"
+
+        return True, f"nmap {self._version} (allowed scripts: {', '.join(allowed_scripts)})"
 
     def assess(
         self,
@@ -1183,7 +1196,13 @@ class NmapAdapter(Adapter):
             raise AdapterError(detail)
 
         active_scope = scope.active()
+
+        # Get allowed NSE scripts from template allowlist
+        allowed_scripts = list(self._allowlist.nmap_patterns)
+
         argv = [shutil.which("nmap") or "nmap", "-sT", "-Pn", "-n"]
+        if allowed_scripts:
+            argv.extend(["--script", ",".join(allowed_scripts)])
         engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
         if engagement_rate > 0:
             argv.extend(["--max-rate", str(max(1, int(engagement_rate)))])
@@ -1300,6 +1319,8 @@ class NucleiAdapter(Adapter):
     fuzzing templates, bounded rate/concurrency and a per-template timeout.
     Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
     blocked at the egress gateway.
+
+    Templates are restricted by the template allowlist (config/templates/allowlist.yaml).
     """
 
     id = "nuclei"
@@ -1318,10 +1339,12 @@ class NucleiAdapter(Adapter):
     CONCURRENCY = 10
     SEVERITIES = "info,low,medium,high,critical"
 
+    # Kept for backward compatibility; actual templates come from allowlist
     TEMPLATE_SUBSET: tuple[str, ...] = ("http/exposures",)
 
     def __init__(self) -> None:
         self._version: str | None = None
+        self._allowlist = get_allowlist()
 
     def templates_dir(self) -> Path:
         """Where the official `nuclei -update-templates` install lives."""
@@ -1345,6 +1368,15 @@ class NucleiAdapter(Adapter):
             return False, (
                 f"nuclei template subset missing: {', '.join(missing)} (run: nuclei -update-templates)"
             )
+
+        # Validate templates against allowlist on startup
+        try:
+            allowed_templates = self._allowlist.get_allowed_nuclei_args(root)
+            if not allowed_templates:
+                return False, "nuclei: no templates allowed by template allowlist"
+        except TemplateAllowlistError as exc:
+            return False, f"nuclei: template allowlist error: {exc}"
+
         if self._version is None:
             try:
                 code, stdout, stderr = _run_tool([binary, "-version"], timeout=15.0, cancel=threading.Event())
@@ -1362,7 +1394,7 @@ class NucleiAdapter(Adapter):
                 ),
                 "unknown",
             )
-        return True, f"nuclei {self._version}"
+        return True, f"nuclei {self._version} (allowed templates: {len(allowed_templates)})"
 
     def assess(
         self,
@@ -1389,6 +1421,11 @@ class NucleiAdapter(Adapter):
         if not ok:
             raise AdapterError(detail)
 
+        # Get allowed templates from template allowlist
+        allowed_templates = self._allowlist.get_allowed_nuclei_args(self.templates_dir())
+        if not allowed_templates:
+            raise AdapterError("nuclei: no templates allowed by template allowlist")
+
         argv = [
             shutil.which("nuclei") or "nuclei",
             "-u",
@@ -1399,7 +1436,7 @@ class NucleiAdapter(Adapter):
             parsed_target.hostname,
             "-dr",
             "-t",
-            ",".join(str(self.templates_dir() / sub) for sub in self.TEMPLATE_SUBSET),
+            ",".join(allowed_templates),
             "-jsonl",
             "-silent",
             "-no-color",

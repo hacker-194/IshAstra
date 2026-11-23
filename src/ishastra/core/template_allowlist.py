@@ -48,15 +48,20 @@ class TemplateAllowlist:
             )
 
         with self.config_path.open() as f:
-            if self.config_path.suffix in (".yaml", ".yml"):
-                config = yaml.safe_load(f)
-            elif self.config_path.suffix == ".json":
-                import json
-                config = json.load(f)
-            else:
-                raise TemplateAllowlistError(
-                    f"Unsupported config format: {self.config_path.suffix}. Use .yaml, .yml, or .json"
-                )
+            try:
+                if self.config_path.suffix in (".yaml", ".yml"):
+                    config = yaml.safe_load(f)
+                elif self.config_path.suffix == ".json":
+                    import json
+                    config = json.load(f)
+                else:
+                    raise TemplateAllowlistError(
+                        f"Unsupported config format: {self.config_path.suffix}. Use .yaml, .yml, or .json"
+                    )
+            except yaml.YAMLError as exc:
+                raise TemplateAllowlistError(f"Invalid YAML in allowlist config: {exc}") from exc
+            except json.JSONDecodeError as exc:
+                raise TemplateAllowlistError(f"Invalid JSON in allowlist config: {exc}") from exc
 
         if not isinstance(config, dict):
             raise TemplateAllowlistError("Allowlist config must be a YAML/JSON object")

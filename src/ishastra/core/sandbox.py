@@ -278,3 +278,5 @@ SCANNER_SECCOMP_PROFILES = {
 def get_scanner_seccomp_profile(scanner: str) -> str:
     """Get the seccomp profile for a specific scanner."""
     return SCANNER_SECCOMP_PROFILES.get(scanner, "runtime/default")
+
+_AI_OFF_BY_DEFAULT = os.environ.get("ISHASTRA_AI_OFF_BY_DEFAULT", "1").strip() == "1"

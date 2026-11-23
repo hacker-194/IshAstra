@@ -378,9 +378,6 @@ def _execute(job: Job) -> None:
             partial = False
             any_adapter_ran = False
 
-            # Rules of Engagement that the gate validates are only real if the
-            # runner honours them. Prohibited techniques are matched against an
-            # adapter id and the binaries it shells out to ("sqlmap", "nuclei").
             engagement = job.scope_snapshot.rules_of_engagement or {}
             rate_limit_rps: float = float(engagement.get("rate_limit_rps") or 0)
 

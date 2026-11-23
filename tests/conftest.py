@@ -20,8 +20,8 @@ from httpx import ASGITransport, AsyncClient
 
 os.environ["ISHASTRA_RATE_LIMIT_DISABLED"] = "1"
 os.environ["ISHASTRA_SKIP_REDIS_INIT"] = "1"
-os.environ["ISHASTRA_DB"] = "/tmp/ishastra-test.db"
-os.environ["ISHASTRA_SCOPE_FILE"] = "/tmp/scope.json"
+os.environ["ISHASTRA_DB"] = str(Path(tempfile.gettempdir()) / "ishastra-test.db")
+os.environ["ISHASTRA_SCOPE_FILE"] = str(Path(tempfile.gettempdir()) / "scope.json")
 os.environ["ISHASTRA_API_KEY"] = "test-key-12345678901234567890123456789012"
 os.environ["ISHASTRA_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
 os.environ["ISHASTRA_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="

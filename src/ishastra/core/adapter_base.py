@@ -85,6 +85,11 @@ class Adapter:
     asset_types: tuple[str, ...] = ()
     requires: tuple[str, ...] = ()
 
+    protocols: tuple[str, ...] = ("tcp",)
+    scan_modes: tuple[str, ...] = ("connect",)
+    enforcement: str = "none"
+    timeout: float = 300.0
+
     def available(self) -> tuple[bool, str]:
         return True, "built in"
 
@@ -100,6 +105,19 @@ class Adapter:
         adapters (the crawler) may publish discovered in-scope URLs there."""
         raise NotImplementedError
 
+    def contract(self) -> dict[str, Any]:
+        """Declared capability, limits and enforcement boundary."""
+        return {
+            "id": self.id,
+            "version": self.version,
+            "asset_types": list(self.asset_types),
+            "protocols": list(self.protocols),
+            "scan_modes": list(self.scan_modes),
+            "enforcement": self.enforcement,
+            "timeout": self.timeout,
+            "requires": list(self.requires),
+        }
+
     def info(self) -> dict[str, Any]:
         ok, detail = self.available()
         return {
@@ -109,6 +127,7 @@ class Adapter:
             "requires": list(self.requires),
             "available": ok,
             "detail": detail,
+            "contract": self.contract(),
         }
 
     def net_boundary_state(self) -> str:
@@ -118,3 +137,38 @@ class Adapter:
         the current state without each adapter inventing its own vocabulary.
         """
         return "none"
+
+
+VALID_ENFORCEMENT = ("proxy", "firewall", "none")
+VALID_PROTOCOLS = ("tcp", "http", "https")
+VALID_SCAN_MODES = ("connect", "http")
+
+
+def validate_contract(adapter: Adapter) -> None:
+    """Reject an adapter whose declared contract is empty or out of vocabulary.
+
+    Called by the registry tests today; the dispatcher will call it before an
+    adapter is selected once the enforcement layer lands.
+    """
+    contract = adapter.contract()
+    if not isinstance(contract["id"], str) or not contract["id"].strip():
+        raise ValueError("adapter contract requires a non-empty id")
+    if contract["enforcement"] not in VALID_ENFORCEMENT:
+        raise ValueError(
+            f"adapter {contract['id']!r} declares unknown enforcement "
+            f"{contract['enforcement']!r}"
+        )
+    unknown_protocols = set(contract["protocols"]) - set(VALID_PROTOCOLS)
+    if unknown_protocols:
+        raise ValueError(
+            f"adapter {contract['id']!r} declares unsupported protocol(s): "
+            f"{', '.join(sorted(unknown_protocols))}"
+        )
+    unknown_modes = set(contract["scan_modes"]) - set(VALID_SCAN_MODES)
+    if unknown_modes:
+        raise ValueError(
+            f"adapter {contract['id']!r} declares unsupported scan mode(s): "
+            f"{', '.join(sorted(unknown_modes))}"
+        )
+    if not isinstance(contract["timeout"], int | float) or contract["timeout"] <= 0:
+        raise ValueError(f"adapter {contract['id']!r} must declare a positive timeout")

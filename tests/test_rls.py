@@ -558,7 +558,6 @@ async def test_transaction_applies_tenant_context(pg_ready, tenant_a):
     finally:
         db.set_tenant_context(None)
 
-    # transaction-local setting must not leak through the pooled connection
     async with db.transaction() as conn:
         value = await conn.fetchval("SELECT current_setting('app.current_tenant', true)")
         assert value in (None, "")

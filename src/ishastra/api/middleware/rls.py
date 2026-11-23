@@ -45,7 +45,6 @@ async def get_db_with_tenant(tenant_id: str | None = None):
 
     Usage in route handlers:
         async with get_db_with_tenant(tenant_id) as conn:
-            # RLS policies will use this tenant_id
             results = await conn.fetch(...)
 
     For admin/cross-tenant access, pass tenant_id=None.
@@ -63,7 +62,6 @@ async def get_tenant_db(
     Usage:
         @router.get("/findings")
         async def list_findings(conn = Depends(get_tenant_db)):
-            # conn has tenant context set from request.state.tenant_id
             ...
 
     Override tenant_id for cross-tenant queries (admin only):

@@ -35,6 +35,7 @@ from ishastra.core.adapter_base import (
     AdapterResult,
     AdapterTimeout,
     checked_destination,
+    validate_contract,
 )
 from ishastra.core.authz import (
     AuthConfig,
@@ -887,7 +888,6 @@ class SSRFOOBAdapter(Adapter):
             if remaining <= 0:
                 result.notes.append("SSRF probing stopped at deadline")
                 break
-            # Apply rate limiting between probes
             self._probe._pace()
             token = new_token()
             canary = f"{canary_base}/{token}"
@@ -1088,9 +1088,13 @@ class NmapAdapter(Adapter):
     When the scope omits ``allowed_ports``, only the target URL's port is scanned.
     Discovery only: an open port is an observed fact, not a vulnerability verdict,
     and this adapter never attempts exploitation.
+
+    Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
+    blocked at the egress gateway.
     """
 
     id = "nmap"
+    enforcement = "proxy"
     asset_types = ("web", "host")
     requires = ("nmap",)
 
@@ -1136,8 +1140,6 @@ class NmapAdapter(Adapter):
         argv = [shutil.which("nmap") or "nmap", "-sT", "-Pn", "-n"]
         engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
         if engagement_rate > 0:
-            # nmap's own rate control: packets per second, the closest exact
-            # analogue to the RoE's requests-per-second ceiling.
             argv.extend(["--max-rate", str(max(1, int(engagement_rate)))])
 
         if ":" in destination.ip:
@@ -1161,6 +1163,13 @@ class NmapAdapter(Adapter):
                 destination.ip,
             ]
         )
+        # When enforcement is "proxy", route nmap through the CONNECT proxy.
+        if self.enforcement == "proxy" and context:
+            gateway_url = context.get("gateway_url", "http://gateway:8080")
+            argv.extend(["--proxies", gateway_url])
+        code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
+        if code != 0:
+            raise AdapterError(f"nmap exited {code}: {stderr.strip()[:200]}")
         code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
         if code != 0:
             raise AdapterError(f"nmap exited {code}: {stderr.strip()[:200]}")
@@ -1246,9 +1255,12 @@ class NucleiAdapter(Adapter):
 
     Runs with a fixed, non-destructive template set: no interactsh callbacks, no
     fuzzing templates, bounded rate/concurrency and a per-template timeout.
+    Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
+    blocked at the egress gateway.
     """
 
     id = "nuclei"
+    enforcement = "proxy"
 
     def _rate_limit(self, context: dict[str, Any] | None) -> int:
         """Nuclei requests/second: the RoE ceiling when it is stricter."""
@@ -1444,6 +1456,7 @@ class NiktoAdapter(Adapter):
     """
 
     id = "nikto"
+    enforcement = "proxy"
     asset_types = ("web",)
     requires = ("nikto",)
     MAX_TIMEOUT = 300.0
@@ -1592,6 +1605,7 @@ class SqlmapAdapter(Adapter):
     """
 
     id = "sqlmap"
+    enforcement = "proxy"
     asset_types = ("web", "api")
     requires = ("sqlmap",)
     MAX_TIMEOUT = 300.0
@@ -1685,9 +1699,6 @@ class SqlmapAdapter(Adapter):
             ]
             engagement_rate = float((context or {}).get("rate_limit_rps") or 0)
             if engagement_rate > 0:
-                # Calculate delay respecting RoE rate limit with precision
-                # SQLMap's --delay adds a pause between requests; use a floor of 0.1s
-                # and cap at 10s to avoid excessively slow scans
                 raw_delay = 1.0 / engagement_rate
                 delay = max(0.1, min(raw_delay, 10.0))
                 argv.extend(["--delay", f"{delay:.4f}"])
@@ -1800,6 +1811,9 @@ _BUILTIN_ADAPTERS: tuple[Adapter, ...] = (
     NiktoAdapter(),
     SqlmapAdapter(),
 )
+
+for _builtin in _BUILTIN_ADAPTERS:
+    validate_contract(_builtin)
 
 ADAPTERS: dict[str, Adapter] = {a.id: a for a in _BUILTIN_ADAPTERS}
 ADAPTERS.update(_load_plugin_adapters())

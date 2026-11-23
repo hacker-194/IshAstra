@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from pydantic import ConfigDict, Field, SecretStr
 
+from ishastra.core.redaction import redact
 from ishastra.integrations.base import BaseConnector, BaseConnectorConfig, ConnectorResult
 from ishastra.integrations.registry import register_connector
 
@@ -22,12 +23,12 @@ class SlackConfig(BaseConnectorConfig):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     webhook_url: SecretStr = Field(description="Slack incoming webhook URL")
-    default_channel: Optional[str] = Field(
+    default_channel: str | None = Field(
         default=None, description="Default channel override (e.g., '#security-alerts')"
     )
     username: str = Field(default="ishastra", description="Username to display in Slack")
-    icon_emoji: Optional[str] = Field(default=":shield:", description="Emoji icon (e.g., ':shield:')")
-    icon_url: Optional[str] = Field(default=None, description="Icon URL (alternative to emoji)")
+    icon_emoji: str | None = Field(default=":shield:", description="Emoji icon (e.g., ':shield:')")
+    icon_url: str | None = Field(default=None, description="Icon URL (alternative to emoji)")
 
 
 class SlackConnector(BaseConnector):
@@ -37,7 +38,7 @@ class SlackConnector(BaseConnector):
 
     def __init__(self, config: SlackConfig | None = None) -> None:
         super().__init__(config)
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     @classmethod
     def default_config(cls) -> SlackConfig:
@@ -55,6 +56,11 @@ class SlackConnector(BaseConnector):
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(timeout=timeout)
         return self._client
+
+    @staticmethod
+    def _redact_secrets(payload: dict[str, Any]) -> dict[str, Any]:
+        """Redact credentials before a payload is logged."""
+        return redact(payload)
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -149,7 +155,10 @@ class SlackConnector(BaseConnector):
             blocks.append(
                 {
                     "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"*Remediation:*\n{remediation}"},
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Remediation:*\n{remediation}",
+                    },
                 }
             )
 
@@ -159,7 +168,10 @@ class SlackConnector(BaseConnector):
                 {
                     "type": "context",
                     "elements": [
-                        {"type": "mrkdwn", "text": f"*Job:* {job_id} | *Profile:* {profile} | *Actor:* {actor}"},
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Job:* {job_id} | *Profile:* {profile} | *Actor:* {actor}",
+                        },
                         {"type": "mrkdwn", "text": f"*Target:* {target} | *Timestamp:* {timestamp}"},
                     ],
                 },
@@ -189,8 +201,8 @@ class SlackConnector(BaseConnector):
     async def send(
         self,
         payload: dict[str, Any],
-        timeout: Optional[float] = None,
-        cancel: Optional[threading.Event] = None,
+        timeout: float | None = None,
+        cancel: threading.Event | None = None,
     ) -> ConnectorResult:
         """Send finding to Slack via webhook.
 
@@ -222,7 +234,7 @@ class SlackConnector(BaseConnector):
         log_payload = self._redact_secrets(slack_payload)
         logger.debug("Sending to Slack: %s", log_payload)
 
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         for attempt in range(self.config.retry_attempts + 1):
             if cancel and cancel.is_set():

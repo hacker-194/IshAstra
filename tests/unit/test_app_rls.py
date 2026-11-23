@@ -67,5 +67,4 @@ def test_rls_middleware_scopes_request_and_clears_context(monkeypatch) -> None:
         response = client.get("/")
         assert response.json() == {"tenant": None}
 
-    # Middleware sets the validated tenant and clears it in finally.
     assert db.values == ["tenant-a", None, None]

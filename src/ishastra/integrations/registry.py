@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
-
 from ishastra.integrations.base import BaseConnector, BaseConnectorConfig
 
 _connector_registry: dict[str, type[BaseConnector]] = {}
@@ -20,7 +18,7 @@ def register_connector(
     _config_registry[name] = config_cls
 
 
-def get_connector(name: str) -> Optional[BaseConnector]:
+def get_connector(name: str) -> BaseConnector | None:
     """Get a connector instance by name."""
     connector_cls = _connector_registry.get(name)
     if connector_cls is None:
@@ -28,7 +26,7 @@ def get_connector(name: str) -> Optional[BaseConnector]:
     return connector_cls()
 
 
-def get_config_class(name: str) -> Optional[type[BaseConnectorConfig]]:
+def get_config_class(name: str) -> type[BaseConnectorConfig] | None:
     """Get a connector config class by name."""
     return _config_registry.get(name)
 

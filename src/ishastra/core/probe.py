@@ -193,8 +193,6 @@ class EndpointProbe:
     def __init__(self, timeout: float = 8.0, max_body: int = MAX_BODY, rate_limit_rps: float = 0):
         self.timeout = timeout
         self.max_body = max_body
-        # Rules-of-engagement rate limit: pace requests so an engagement that
-        # authorizes N requests per second is not exceeded by the probe engine.
         self._min_interval = (1.0 / rate_limit_rps) if rate_limit_rps and rate_limit_rps > 0 else 0.0
         self._last_request = 0.0
 

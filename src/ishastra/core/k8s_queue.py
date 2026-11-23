@@ -378,8 +378,6 @@ class K8sAssessmentQueue:
                     addr_str = str(info[4][0])
                     address = ipaddress.ip_address(addr_str.split("%")[0])
                     if not address.is_global:
-                        # Private addresses must be authorized explicitly through
-                        # authorized_networks; never infer them from a host name.
                         continue
                     cidrs.add(f"{address}/{address.max_prefixlen}")
             else:
@@ -497,8 +495,6 @@ class K8sAssessmentQueue:
             )
         except ApiException as exc:
             if exc.status != 409:
-                # Fail closed: the caller deletes the suspended Job and reports
-                # the failure rather than running without egress restrictions.
                 raise RuntimeError(f"cannot create egress NetworkPolicy: {exc}") from exc
 
     def cancel(self, job_id: str) -> bool:

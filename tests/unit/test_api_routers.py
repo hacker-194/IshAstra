@@ -28,10 +28,8 @@ def app(monkeypatch):
     db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="ishastra_test_")
     os.close(db_fd)
 
-    # monkeypatch restores these after the test, so one test's database, scope and
-    # keys cannot leak into the next module that runs in the same process.
     monkeypatch.setenv("ISHASTRA_DB", db_path)
-    monkeypatch.setenv("ISHASTRA_SCOPE_FILE", "/tmp/scope.json")
+    monkeypatch.setenv("ISHASTRA_SCOPE_FILE", os.path.join(tempfile.gettempdir(), "scope.json"))
     monkeypatch.setenv("ISHASTRA_API_KEY", "test-key-12345678901234567890123456789012")
     monkeypatch.setenv("ISHASTRA_ENCRYPTION_KEY", "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=")
     monkeypatch.setenv("ISHASTRA_AUDIT_HMAC_KEY", "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==")

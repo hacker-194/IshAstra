@@ -9,7 +9,8 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -19,6 +20,7 @@ from ishastra.integrations.connectors.base import BaseConnector, BaseConnectorCo
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class SentinelConfig(BaseConnectorConfig):
     """Configuration for Azure Sentinel connector.
 
@@ -32,8 +34,8 @@ class SentinelConfig(BaseConnectorConfig):
         retry_backoff_seconds: Base backoff between retries.
     """
 
-    workspace_id: str
-    shared_key: str
+    workspace_id: str = ""
+    shared_key: str = ""
     log_type: str = "IshastraFindings"
 
     def __post_init__(self):
@@ -48,17 +50,13 @@ class SentinelConfig(BaseConnectorConfig):
 class SentinelConnector(BaseConnector):
     """Connector for sending findings to Azure Sentinel via Log Analytics Data Collector API."""
 
+    config: SentinelConfig
+
     def __init__(self, config: SentinelConfig | None = None):
+        if config is None:
+            raise ValueError("SentinelConfig is required")
         super().__init__(config)
         self._client: httpx.AsyncClient | None = None
-
-    @property
-    def config(self) -> SentinelConfig:
-        return super().config  # type: ignore[return-value]
-
-    @config.setter
-    def config(self, value: SentinelConfig):
-        self._config = value
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -96,15 +94,10 @@ class SentinelConnector(BaseConnector):
         """Convert payload to Sentinel log entries."""
         entries = []
 
-        # Handle both single finding and batch payloads
         findings = payload.get("findings")
         if findings is None:
-            # Single finding wrapped in finding key
             finding = payload.get("finding")
-            if finding:
-                findings = [finding]
-            else:
-                findings = []
+            findings = [finding] if finding else []
 
         job = payload.get("job", {})
         target = payload.get("target", "")
@@ -112,7 +105,7 @@ class SentinelConnector(BaseConnector):
 
         for finding in findings:
             entry = {
-                "TimeGenerated": datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat(),
+                "TimeGenerated": datetime.fromtimestamp(timestamp, tz=UTC).isoformat(),
                 "FindingCategory": finding.get("category", ""),
                 "FindingSeverity": finding.get("severity", ""),
                 "FindingTitle": finding.get("title", ""),
@@ -175,7 +168,7 @@ class SentinelConnector(BaseConnector):
         method = "POST"
         content_type = "application/json"
         resource = "/api/logs"
-        date = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        date = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
         signature = self._build_signature(
             date=date,
@@ -235,7 +228,6 @@ class SentinelConnector(BaseConnector):
                         details={"status_code": response.status_code, "response": response.text[:500]},
                     )
 
-                # Retry on server errors
                 if response.status_code >= 500:
                     last_error = httpx.HTTPStatusError(
                         f"Server error: {response.status_code}",
@@ -257,10 +249,19 @@ class SentinelConnector(BaseConnector):
 
             except httpx.TimeoutException as e:
                 last_error = e
-                logger.warning("Sentinel request timeout (attempt %d/%d)", attempt + 1, self.config.retry_attempts + 1)
+                logger.warning(
+                    "Sentinel request timeout (attempt %d/%d)",
+                    attempt + 1,
+                    self.config.retry_attempts + 1,
+                )
             except httpx.RequestError as e:
                 last_error = e
-                logger.warning("Sentinel request error (attempt %d/%d): %s", attempt + 1, self.config.retry_attempts + 1, e)
+                logger.warning(
+                    "Sentinel request error (attempt %d/%d): %s",
+                    attempt + 1,
+                    self.config.retry_attempts + 1,
+                    e,
+                )
 
             if attempt < self.config.retry_attempts:
                 backoff = self._calculate_backoff(attempt)

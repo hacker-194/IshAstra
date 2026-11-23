@@ -16,7 +16,6 @@ from ishastra.security.authorization.scope import (
     Scope,
     _ambiguous,
     _host_pattern_error,
-    active,
     bound,
     check,
     configure,
@@ -360,7 +359,6 @@ class TestScopeDestination:
         is set. This test documents the expected behavior; the implementation
         should be fixed to only allow IPs in authorized_networks.
         """
-        # Literal IP: this test runs inside an offline network namespace.
         scope = configure(
             program="Test",
             authorized_by="Me",
@@ -796,7 +794,10 @@ class TestScopeEnforcementBlocking:
     def test_multiple_ips_one_unauthorized_blocks(self):
         """If ANY resolved IP is unauthorized, the target is blocked."""
 
-        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            return_value=["93.184.216.34", "10.0.0.1"],
+        ):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -804,7 +805,10 @@ class TestScopeEnforcementBlocking:
 
     def test_multiple_ips_all_authorized_allows(self):
         """If ALL resolved IPs are authorized, the target is allowed."""
-        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "198.51.100.50"]):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            return_value=["93.184.216.34", "198.51.100.50"],
+        ):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == ""
             assert dest is not None
@@ -1543,7 +1547,10 @@ class TestScopeAddressPolicyEdges:
             authorization_ref="OFF-001",
             include=["example.com"],
         )
-        with patch("ishastra.security.authorization.scope.resolve_sync", side_effect=AssertionError("DNS must not be used")):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            side_effect=AssertionError("DNS must not be used"),
+        ):
             assert scope_x.gate("https://example.com/") == ("", "")
             denial, reason = scope_x.gate("https://other.com/")
         assert denial == "out_of_scope"

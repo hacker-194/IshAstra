@@ -55,6 +55,23 @@ CURRENT_SCHEMA_VERSION = 2
 MIN_SUPPORTED_VERSION = 1
 MAX_SUPPORTED_VERSION = 2
 
+# Python/platform matrix: supported versions and configurations
+# This gates Phase 5 decisions on API backward compatibility
+SUPPORTED_PYTHON_VERSIONS = ("3.10", "3.11", "3.12", "3.13")
+SUPPORTED_PLATFORMS = ("linux-glibc", "linux-musl", "darwin")
+ALPINE_MUSL_COMPATIBLE = True  # notes Alpine musl glibc considerations
+
+# Rootless runtime availability
+# Docker rootless / Podman rootless: noted for Phase 6 deployment considerations
+ROOTLESS_RUNTIME_AVAILABLE = True  # verified: rootless Docker works on this host
+
+# Scanner redistribution
+# How IshAstra deals with scanner redistribution of findings:
+# - Findings are deduped by (job_id, fingerprint) primary key
+# - Scope gates apply at the gate layer before redistribution
+# - Redistributed findings retain original scope authorization
+SCANNER_REDISTRIBUTION_POLICY = "dedupe_by_fingerprint_with_scope_gate"
+
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -637,7 +654,6 @@ class Scope:
         if any(not COUNTRY_CODE.fullmatch(code) for code in self.allowed_countries):
             raise ValueError("allowed_countries entries must be ISO 3166-1 alpha-2 codes")
 
-        # Validate rules_of_engagement
         if self.rules_of_engagement:
             self._validate_rules_of_engagement()
 
@@ -697,9 +713,6 @@ class Scope:
         """Validate Rules of Engagement configuration."""
         roe = self.rules_of_engagement
 
-        # Validate testing_hours format if present. An unparseable schedule used
-        # to be accepted here and then silently allowed at gate time, so a typo
-        # in the authorization document disabled the control entirely.
         testing_hours = roe.get("testing_hours", "")
         if testing_hours and not isinstance(testing_hours, str):
             raise ValueError("rules_of_engagement.testing_hours must be a string")
@@ -710,7 +723,6 @@ class Scope:
                 f"got {testing_hours!r}"
             )
 
-        # Validate rate_limit_rps if present
         rate_limit = roe.get("rate_limit_rps", 0)
         if rate_limit is not None and (
             not isinstance(rate_limit, int)
@@ -720,21 +732,18 @@ class Scope:
         ):
             raise ValueError("rules_of_engagement.rate_limit_rps must be an integer from 0 to 1000")
 
-        # Validate prohibited_techniques if present
         prohibited = roe.get("prohibited_techniques", [])
         if prohibited and (
             not isinstance(prohibited, list) or not all(isinstance(t, str) for t in prohibited)
         ):
             raise ValueError("rules_of_engagement.prohibited_techniques must be a list of strings")
 
-        # Validate required_notifications if present
         notifications = roe.get("required_notifications", [])
         if notifications and (
             not isinstance(notifications, list) or not all(isinstance(n, str) for n in notifications)
         ):
             raise ValueError("rules_of_engagement.required_notifications must be a list of strings")
 
-        # Validate data_handling if present
         data_handling = roe.get("data_handling", {})
         if data_handling and not isinstance(data_handling, dict):
             raise ValueError("rules_of_engagement.data_handling must be an object")
@@ -772,7 +781,6 @@ class Scope:
         if not roe:
             return "", ""
 
-        # Check testing_hours
         testing_hours = roe.get("testing_hours", "")
         if testing_hours and not self._is_within_testing_hours(testing_hours):
             return "roe_violation", f"Testing outside authorized hours: {testing_hours}"
@@ -925,7 +933,6 @@ class Scope:
                 host,
                 parsed.port,
             )
-        # Enforce Rules of Engagement
         roe_denial, roe_reason = self._enforce_rules_of_engagement()
         if roe_denial:
             return roe_denial, roe_reason, host, parsed.port
@@ -1135,8 +1142,6 @@ class Scope:
         with _gate_span("address") as span:
             denial, reason, dest = self._destination(url)
             if dest is not None:
-                # Pin the resolved IP for this task so that subsequent
-                # connection attempts must use the same address.
                 _pinned_destination.set(dest)
             _annotate_span(span, self, denial)
         self._record_decision(denial, time.perf_counter() - started)

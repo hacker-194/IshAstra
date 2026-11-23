@@ -67,7 +67,6 @@ def test_window_that_has_already_closed_denies_the_scan() -> None:
 
 def test_whole_day_and_overnight_windows_are_enforceable() -> None:
     assert _scope(testing_hours="00:00-23:59 UTC")._is_within_testing_hours("00:00-23:59 UTC")
-    # Overnight windows wrap rather than silently becoming an empty range.
     parsed = Scope._parse_testing_hours("22:00-06:00 UTC, Mon-Fri")
     assert parsed is not None
     assert parsed[0].hour == 22 and parsed[1].hour == 6

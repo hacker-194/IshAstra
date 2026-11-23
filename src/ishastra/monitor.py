@@ -226,8 +226,6 @@ async def notify_job_finished(job: Any, settings: Any = None) -> bool:
         "verdict": job.verdict,
         "findings": len(findings),
         "severity_counts": severity_counts,
-        # Slack incoming webhooks render ``blocks`` (and fall back to ``text``);
-        # other receivers read the structured fields above and ignore these.
         "text": f"[{state}] {target} — {job.verdict or 'no verdict'} ({len(findings)} finding(s))",
         "blocks": [
             {"type": "header", "text": {"type": "plain_text", "text": f"Assessment {state}"}},

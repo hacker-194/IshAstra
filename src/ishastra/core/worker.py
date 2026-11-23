@@ -125,9 +125,6 @@ def _acquire_worker_lease_sync(path: str | None = None) -> str:
         except (OSError, ValueError):
             pass
 
-    # The handle is kept open for the process lifetime to hold the flock; it is
-    # closed in _release_worker_lease_sync, so a context manager here would drop
-    # the lock immediately.
     handle = open(resolved, "a+", encoding="utf-8")  # noqa: SIM115
     try:
         if os.name == "nt":

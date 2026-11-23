@@ -8,6 +8,8 @@
 * ``k8s-jobs`` - one Kubernetes Job per assessment, for fleet deployments.
 * ``sqlite`` - durable SQLite-backed queue; queued work survives a restart
   and several worker processes can share the queue through database locking.
+* ``postgres`` - durable PostgreSQL queue using ``FOR UPDATE SKIP LOCKED``;
+  queued work survives a restart and several processes claim distinct jobs.
 
 The Celery mode was removed: no shipped artefact installed the extra and no
 worker command existed, so it could only ever raise at runtime.
@@ -23,6 +25,7 @@ from ishastra.core.worker import AssessmentWorker
 
 if TYPE_CHECKING:
     from ishastra.core.k8s_queue import K8sAssessmentQueue
+    from ishastra.core.pg_queue import PostgresAssessmentQueue
     from ishastra.core.redis_queue import RedisStreamsAssessmentQueue
     from ishastra.core.sqlite_queue import SQLiteAssessmentQueue
 
@@ -32,12 +35,25 @@ QUEUE_MODE = os.environ.get("ISHASTRA_QUEUE_MODE", "inprocess").strip().lower()
 QUEUE_MODE_K8S_JOBS = "k8s-jobs"
 QUEUE_MODE_REDIS_STREAMS = "redis-streams"
 QUEUE_MODE_SQLITE = "sqlite"
-VALID_MODES = ("inprocess", QUEUE_MODE_REDIS_STREAMS, QUEUE_MODE_K8S_JOBS, QUEUE_MODE_SQLITE)
+QUEUE_MODE_POSTGRES = "postgres"
+VALID_MODES = (
+    "inprocess",
+    QUEUE_MODE_REDIS_STREAMS,
+    QUEUE_MODE_K8S_JOBS,
+    QUEUE_MODE_SQLITE,
+    QUEUE_MODE_POSTGRES,
+)
 
 
 def get_assessment_queue(
     *, concurrency: int | None = None, queue_max: int | None = None
-) -> AssessmentWorker | K8sAssessmentQueue | RedisStreamsAssessmentQueue | SQLiteAssessmentQueue:
+) -> (
+    AssessmentWorker
+    | K8sAssessmentQueue
+    | RedisStreamsAssessmentQueue
+    | SQLiteAssessmentQueue
+    | PostgresAssessmentQueue
+):
     """Return the queue implementation named by ISHASTRA_QUEUE_MODE."""
     if QUEUE_MODE == QUEUE_MODE_REDIS_STREAMS:
         from ishastra.core.redis_queue import get_redis_streams_assessment_queue
@@ -54,6 +70,11 @@ def get_assessment_queue(
 
         log.info("Using durable SQLite-backed assessment queue")
         return get_sqlite_assessment_queue(concurrency=concurrency, queue_max=queue_max)
+    if QUEUE_MODE == QUEUE_MODE_POSTGRES:
+        from ishastra.core.pg_queue import get_postgres_assessment_queue
+
+        log.info("Using durable PostgreSQL assessment queue")
+        return get_postgres_assessment_queue(concurrency=concurrency, queue_max=queue_max)
     if QUEUE_MODE not in VALID_MODES:
         raise ValueError(f"ISHASTRA_QUEUE_MODE must be one of {', '.join(VALID_MODES)} (got {QUEUE_MODE!r})")
     log.info("Using in-process assessment queue")
@@ -61,12 +82,21 @@ def get_assessment_queue(
 
 
 _assessment_queue: (
-    AssessmentWorker | K8sAssessmentQueue | RedisStreamsAssessmentQueue | SQLiteAssessmentQueue | None
+    AssessmentWorker
+    | K8sAssessmentQueue
+    | RedisStreamsAssessmentQueue
+    | SQLiteAssessmentQueue
+    | PostgresAssessmentQueue
+    | None
 ) = None
 
 
 def get_assessment_worker() -> (
-    AssessmentWorker | K8sAssessmentQueue | RedisStreamsAssessmentQueue | SQLiteAssessmentQueue
+    AssessmentWorker
+    | K8sAssessmentQueue
+    | RedisStreamsAssessmentQueue
+    | SQLiteAssessmentQueue
+    | PostgresAssessmentQueue
 ):
     """Get the global assessment queue instance (lazy init)."""
     global _assessment_queue

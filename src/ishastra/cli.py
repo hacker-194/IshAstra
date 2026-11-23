@@ -147,11 +147,6 @@ def _run_server(args: argparse.Namespace) -> None:
         removed = store.reset_audit_chain_sync()
         print(f"audit chain reset: removed {removed} entries from {settings.db_path}")
 
-    # Honor the reverse proxy's X-Forwarded-Proto/X-Forwarded-For. With
-    # proxy_headers=False, a TLS-terminated request reaches the app as
-    # scheme="http", so HTTPS-only behaviour (HSTS) never triggers.
-    # ponytail: "*" trusts any peer that can reach the app port directly;
-    # narrow it with ISHASTRA_FORWARDED_ALLOW_IPS behind a fixed proxy range.
     forwarded_allow_ips = os.environ.get("ISHASTRA_FORWARDED_ALLOW_IPS", "*")
     uvicorn.run(
         "ishastra.api.app:app",
@@ -269,7 +264,6 @@ def _run_assess(args: argparse.Namespace) -> int:
             print(f"error: {exc}", file=sys.stderr)
             return 3
     elif getattr(args, "scope_file", "") and isinstance(args.scope_file, str) and args.scope_file:
-        # Import scope from OpenAPI, HAR, or scope.json
         scope_path = Path(args.scope_file).expanduser().resolve()
         if not scope_path.exists():
             print(f"error: scope file not found: {scope_path}", file=sys.stderr)
@@ -279,7 +273,6 @@ def _run_assess(args: argparse.Namespace) -> int:
         scope_doc = None
 
         scope_format = getattr(args, "scope_format", "auto")
-        # Check for scope format first if filename suggests it, or if explicitly requested
         if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
             scope_doc = _import_from_scope(content)
         elif scope_format == "har" or (scope_format == "auto" and scope_path.suffix == ".har"):
@@ -297,17 +290,14 @@ def _run_assess(args: argparse.Namespace) -> int:
             print("error: failed to extract scope from input", file=sys.stderr)
             return 3
 
-        # Apply domain substitution if provided
         scope_domain = getattr(args, "scope_domain", "")
         if scope_domain:
             scope_doc = _substitute_domain(scope_doc, scope_domain)
 
-        # Apply port filter if provided
         scope_ports = getattr(args, "scope_ports", "")
         if scope_ports:
             scope_doc["allowed_ports"] = [int(p.strip()) for p in scope_ports.split(",") if p.strip()]
 
-        # Validate scope document by creating Scope object
         try:
             from ishastra.core.scope import Scope
 
@@ -393,7 +383,6 @@ def _run_evidence(args: argparse.Namespace) -> int:
     locale_code: LocaleCode = args.locale
     loaded_scope: scope_module.Scope | None = None
 
-    # Handle scope import from OpenAPI, HAR, or scope.json
     if getattr(args, "scope_file", "") and isinstance(args.scope_file, str) and args.scope_file:
         scope_path = Path(args.scope_file).expanduser().resolve()
         if not scope_path.exists():
@@ -1256,6 +1245,28 @@ def _run_create_api_key(args: argparse.Namespace) -> int:
         return 1
 
 
+def _run_evidence_verify(args: argparse.Namespace) -> int:
+    """Verify a signed evidence manifest offline. Returns exit code."""
+    from ishastra.security.signing.service import verify_evidence_file
+
+    try:
+        ok, reason = verify_evidence_file(
+            args.manifest,
+            args.key,
+            artifacts_dir=args.artifacts_dir or None,
+        )
+    except (OSError, ValueError) as exc:
+        ok, reason = False, str(exc)
+
+    if args.json:
+        print(json.dumps({"valid": ok, "reason": reason}))
+    elif ok:
+        print(f"valid evidence: {args.manifest}")
+    else:
+        print(f"invalid evidence: {reason}", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def _run_bundle(args: argparse.Namespace) -> int:
     """Create or verify a signed evidence bundle. Returns exit code."""
     import asyncio
@@ -1604,7 +1615,6 @@ def _run_scope_import(args: argparse.Namespace) -> int:
     content = input_path.read_text()
     scope_doc = None
 
-    # Check for scope format first if filename suggests it, or if explicitly requested
     if args.format == "scope" or (args.format == "auto" and "scope" in input_path.name.lower()):
         scope_doc = _import_from_scope(content)
     elif args.format == "har" or (args.format == "auto" and input_path.suffix == ".har"):
@@ -1622,11 +1632,9 @@ def _run_scope_import(args: argparse.Namespace) -> int:
         print("error: failed to extract scope from input", file=sys.stderr)
         return 3
 
-    # Apply domain substitution if provided
     if args.domain:
         scope_doc = _substitute_domain(scope_doc, args.domain)
 
-    # Apply port filter if provided
     if args.ports:
         scope_doc["allowed_ports"] = [int(p.strip()) for p in args.ports.split(",") if p.strip()]
 
@@ -1727,7 +1735,6 @@ def _import_from_scope(content: str) -> dict | None:
     """Validate and return existing scope document."""
     try:
         doc = json.loads(content)
-        # Basic validation
         required = ["program", "authorized_by", "authorization_ref", "include"]
         if not all(k in doc for k in required):
             return None
@@ -2377,8 +2384,6 @@ def _generate_github_action_workflow(
 ) -> str:
     """Generate GitHub Action workflow YAML for Ishastra SARIF scans."""
     return f"""# Ishastra Security Assessment — GitHub Action
-# Generated by `ishastra init` — review before committing.
-# This workflow runs on push/PR and uploads SARIF to GitHub Code Scanning.
 name: Ishastra Security Scan
 
 on:
@@ -2410,16 +2415,12 @@ jobs:
       - name: Install Ishastra
         run: |
           pip install -U pip
-          # Not yet published to PyPI; pin a commit for production.
           pip install "ishastra @ git+https://github.com/hacker-194/IshAstra"
 
       - name: Install optional scanners
         run: |
-          # Semgrep for SAST (used by ishastra-code-scan)
           pip install semgrep || true
-          # Bandit for Python SAST
           pip install bandit || true
-          # Trivy for SCA/secrets/misconfig
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
             | sh -s -- -b /usr/local/bin || true
 
@@ -2433,9 +2434,6 @@ jobs:
             --output ishastra-results.sarif \\
             --actor "github-actions"
         env:
-          # Required for authenticated scans (if configured in scope)
-          # ISHASTRA_ENCRYPTION_KEY: ${{ secrets.ISHASTRA_ENCRYPTION_KEY }}
-          # ISHASTRA_AUDIT_HMAC_KEY: ${{ secrets.ISHASTRA_AUDIT_HMAC_KEY }}
 
       - name: Upload SARIF to GitHub Code Scanning
         if: {str(upload_sarif).lower()}
@@ -2504,6 +2502,18 @@ def main(argv: list[str] | None = None) -> None:
     bundle_parser.add_argument("-o", "--out", help="Output zip (default: evidence-<job>.zip)")
     bundle_parser.add_argument("--verify", default="", help="Verify this bundle instead of creating one")
     bundle_parser.add_argument("--jwks", default="jwks.json", help="JWKS used with --verify")
+
+    evidence_verify_parser = subparsers.add_parser(
+        "evidence-verify", help="Verify a signed evidence manifest offline"
+    )
+    evidence_verify_parser.add_argument("manifest", help="Path to the signed evidence JSON")
+    evidence_verify_parser.add_argument(
+        "--key", required=True, help="Trusted Ed25519 public key file"
+    )
+    evidence_verify_parser.add_argument(
+        "--artifacts-dir", default="", help="Re-hash artifacts from this directory"
+    )
+    evidence_verify_parser.add_argument("--json", action="store_true")
 
     assess_parser = subparsers.add_parser("assess", help="Run a single assessment and output SARIF")
     assess_parser.add_argument("--target", required=True, help="Target URL (e.g. https://app.example.com/)")
@@ -3249,6 +3259,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(_run_assess(args))
     elif args.command == "evidence":
         sys.exit(_run_evidence(args))
+    elif args.command == "evidence-verify":
+        sys.exit(_run_evidence_verify(args))
     elif args.command == "bundle":
         sys.exit(_run_bundle(args))
     elif args.command == "scope-template":

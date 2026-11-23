@@ -690,32 +690,10 @@ jobs:
         with:
           name: grype-results
           path: grype-results
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-      - name: Check bandit HIGH findings
-        run: |
-          HIGH_COUNT=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' security-reports/bandit-results.json)
-          echo "Bandit HIGH findings: $HIGH_COUNT"
-          if [ "$HIGH_COUNT" -gt 0 ]; then
-            echo "::error::Bandit found $HIGH_COUNT HIGH severity issues"
-            exit 1
-          fi
-      - name: Check pip-audit HIGH findings
-        run: |
-          HIGH_COUNT=$(jq '[.vulnerabilities[] | select(.severity == "HIGH")] | length' security-reports/pip-audit-results.json 2>/dev/null || echo 0)
-          echo "pip-audit HIGH findings: $HIGH_COUNT"
-          if [ "$HIGH_COUNT" -gt 0 ]; then
-            echo "::error::pip-audit found $HIGH_COUNT HIGH severity vulnerabilities"
-            exit 1
-          fi
-      - name: Check grype HIGH findings
-        run: |
-          HIGH_COUNT=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' grype-results/grype-results.json 2>/dev/null || echo 0)
-          echo "Grype HIGH findings: $HIGH_COUNT"
-          if [ "$HIGH_COUNT" -gt 0 ]; then
-            echo "::error::Grype found $HIGH_COUNT HIGH severity vulnerabilities"
-            exit 1
-          fi
+      - name: Evaluate security reports (fail closed)
+        # A missing, empty, unreadable or malformed report fails here. Tests:
+        # tests/unit/test_security_gate.py
+        run: python scripts/security_gate.py --exceptions security-gate-exceptions.json
 
   deployment-ref-check:
     name: Validate deployment tag

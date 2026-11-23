@@ -625,7 +625,7 @@ class TestSCIMAPIIntegration:
         import os
 
         os.environ["ISHASTRA_DB"] = ":memory:"
-        os.environ["ISHASTRA_SCOPE_FILE"] = "/tmp/scope.json"
+        os.environ["ISHASTRA_SCOPE_FILE"] = os.path.join(tempfile.gettempdir(), "scope.json")
         os.environ["ISHASTRA_API_KEY"] = "test-key-12345678901234567890123456789012"
         os.environ["ISHASTRA_ENCRYPTION_KEY"] = "i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ="
         os.environ["ISHASTRA_AUDIT_HMAC_KEY"] = "dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw=="
@@ -639,9 +639,8 @@ class TestSCIMAPIIntegration:
     "exclude": [],
     "authorized_networks": ["10.0.0.0/8"],
     "allowed_ports": [80, 443],
-    "allow_broad_networks": false
-}"""
-        import tempfile
+    "allow_broad_networks": false}
+"""
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(scope_content)

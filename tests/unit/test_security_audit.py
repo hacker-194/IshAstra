@@ -10,8 +10,6 @@ _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "security_audit.py"
 _spec = importlib.util.spec_from_file_location("security_audit", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 security_audit = importlib.util.module_from_spec(_spec)
-# The module must be registered before execution: dataclasses resolves
-# ``cls.__module__`` through sys.modules while the script is still importing.
 sys.modules[_spec.name] = security_audit
 _spec.loader.exec_module(security_audit)
 
@@ -52,7 +50,6 @@ def test_every_scanner_ran_and_clean_passes() -> None:
 def test_scanner_crash_is_error_not_passed() -> None:
     """A scanner that crashes (non-zero exit) must be reported as error, not passed."""
     results = [_result("pip-audit", "error"), _result("bandit", "passed")]
-    # error status means unavailable_scanners should include it
     assert security_audit.unavailable_scanners(results) == ["pip-audit"]
     report = security_audit.generate_report(results, Path("."), "json")
     assert '"overall_status": "warnings"' in report
@@ -63,5 +60,4 @@ def test_all_scanners_crash_fails_gate() -> None:
     results = [_result("pip-audit", "error"), _result("safety", "error"), _result("bandit", "error")]
     assert security_audit.unavailable_scanners(results) == ["pip-audit", "safety", "bandit"]
     report = security_audit.generate_report(results, Path("."), "json")
-    # With all scanners error, should be warnings not passed
     assert '"overall_status": "warnings"' in report

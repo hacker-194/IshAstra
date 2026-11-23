@@ -160,7 +160,6 @@ class SQLiteAssessmentQueue:
             await asyncio.to_thread(self._init_schema)
             await store.fail_running()
 
-            # Recover queued jobs
             queued_jobs = await store.list_queued_jobs()
             for job_id, tenant in queued_jobs:
                 self._enqueue(job_id, tenant)
@@ -191,19 +190,16 @@ class SQLiteAssessmentQueue:
 
     def _queue_put_nowait(self, job: Job) -> None:
         """Put job in memory queue - we'll use a simple list for SQLite queue."""
-        # For SQLite queue, we don't use in-memory queue - we pull from DB
 
     async def submit(self, job: Job, on_finish: Callable[[Job], None]) -> None:
         """Queue a prepared job. Raises AssessmentQueueFull when at capacity."""
         await self.start()
 
-        # Check queue depth
         with self._get_conn() as conn:
             count = conn.execute(f"SELECT COUNT(*) FROM {QUEUE_TABLE} WHERE state = 'queued'").fetchone()[0]
         if count >= self.queue_max:
             raise AssessmentQueueFull(f"assessment queue is full ({self.queue_max} waiting)")
 
-        # Insert into database
         import json
 
         with self._get_conn() as conn:
@@ -230,12 +226,10 @@ class SQLiteAssessmentQueue:
             self._active[job.id] = job
             self._on_finish[job.id] = on_finish
 
-        # Signal worker thread
         self._signal_work()
 
     def _signal_work(self) -> None:
         """Signal worker threads that work is available."""
-        # Using a simple approach - workers poll the database
 
     def cancel(self, job_id: str) -> bool:
         """Signal a queued or running job to stop. False if it is not ours."""
@@ -325,7 +319,6 @@ class SQLiteAssessmentQueue:
         """Atomically claim the next queued job for this worker."""
         now = time.time()
         with self._get_conn() as conn:
-            # First, reclaim stale jobs (visibility timeout expired)
             conn.execute(
                 f"""
                 UPDATE {QUEUE_TABLE}
@@ -338,7 +331,6 @@ class SQLiteAssessmentQueue:
                 (now,),
             )
 
-            # Claim next queued job
             row = conn.execute(
                 f"""
                 UPDATE {QUEUE_TABLE}
@@ -363,7 +355,6 @@ class SQLiteAssessmentQueue:
         """Execute a job and handle completion."""
         job_id = job.id
         try:
-            # Run the job
             loop.run_until_complete(self._run_job(job))
             self._mark_completed(job_id)
         except Exception as exc:
@@ -396,7 +387,6 @@ class SQLiteAssessmentQueue:
     def _mark_failed(self, job_id: str, error: str) -> None:
         """Mark job as failed in database."""
         with self._get_conn() as conn:
-            # Check retry count
             row = conn.execute(f"SELECT retries FROM {QUEUE_TABLE} WHERE job_id = ?", (job_id,)).fetchone()
             retries = row["retries"] if row else 0
             if retries < 3:

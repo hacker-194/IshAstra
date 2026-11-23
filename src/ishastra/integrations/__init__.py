@@ -8,8 +8,8 @@ from ishastra.integrations.base import (
     BaseConnector,
     BaseConnectorConfig,
     ConnectorResult,
-    get_connector,
 )
+from ishastra.integrations.registry import get_connector
 
 __all__ = [
     "BaseConnector",

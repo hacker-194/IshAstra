@@ -85,8 +85,6 @@ class TestAssessmentLifecycle:
         data = response.json()
         assessment_id = data.get("job_id") or data.get("id")
 
-        # A real scan against a live target routinely takes longer than two
-        # minutes; the job timeout is 30 minutes.
         max_polls = 150
         for _ in range(max_polls):
             response = page.request.get(

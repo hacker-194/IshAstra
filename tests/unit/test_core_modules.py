@@ -35,8 +35,8 @@ from ishastra.core.jobs import (
     RunState,
     prepare,
 )
-from ishastra.security.authorization.scope import Scope, load
 from ishastra.crypto import EncryptionError, decrypt, encrypt, generate_key
+from ishastra.security.authorization.scope import Scope, load
 
 
 class TestScopeUnit:

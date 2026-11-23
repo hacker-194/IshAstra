@@ -571,6 +571,47 @@ MIGRATIONS: list[tuple[int, str]] = [
     ALTER TABLE engagement_policies ADD COLUMN allowed_countries TEXT NOT NULL DEFAULT '[]';
     """,
     ),
+    (
+        29,
+        """
+    -- Migration 29: Capability token revocation list
+    CREATE TABLE IF NOT EXISTS capability_revocations (
+        jti            TEXT PRIMARY KEY,
+        key_id         TEXT NOT NULL,
+        reason         TEXT NOT NULL DEFAULT '',
+        revoked_at     REAL NOT NULL,
+        revoked_by     TEXT NOT NULL DEFAULT '',
+        job_id         TEXT,
+        engagement_id  TEXT,
+        tenant_id      TEXT
+    );
+    CREATE INDEX IF NOT EXISTS revocations_by_job ON capability_revocations (job_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_engagement ON capability_revocations (engagement_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_tenant ON capability_revocations (tenant_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_key ON capability_revocations (key_id);
+    """,
+    ),
+    (
+        30,
+        """
+    -- Migration 30: Capability token registry (tracks issued tokens for bulk revocation)
+    CREATE TABLE IF NOT EXISTS capability_tokens (
+        jti            TEXT PRIMARY KEY,
+        tenant_id      TEXT NOT NULL,
+        engagement_id  TEXT NOT NULL,
+        job_id         TEXT NOT NULL,
+        key_id         TEXT NOT NULL,
+        issued_at      REAL NOT NULL,
+        expires_at     REAL NOT NULL,
+        policy_hash    TEXT NOT NULL,
+        revoked        INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS tokens_by_job ON capability_tokens (job_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_engagement ON capability_tokens (engagement_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_tenant ON capability_tokens (tenant_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_key ON capability_tokens (key_id);
+    """,
+    ),
 ]
 
 
@@ -1065,6 +1106,47 @@ MIGRATIONS_PG: list[tuple[int, str]] = [
     CREATE INDEX IF NOT EXISTS idx_distributed_leases_category ON distributed_leases (category);
     """,
     ),
+    (
+        30,
+        """
+    -- Migration 30: Capability token revocation list (PostgreSQL)
+    CREATE TABLE IF NOT EXISTS capability_revocations (
+        jti            TEXT PRIMARY KEY,
+        key_id         TEXT NOT NULL,
+        reason         TEXT NOT NULL DEFAULT '',
+        revoked_at     DOUBLE PRECISION NOT NULL,
+        revoked_by     TEXT NOT NULL DEFAULT '',
+        job_id         TEXT,
+        engagement_id  TEXT,
+        tenant_id      TEXT
+    );
+    CREATE INDEX IF NOT EXISTS revocations_by_job ON capability_revocations (job_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_engagement ON capability_revocations (engagement_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_tenant ON capability_revocations (tenant_id);
+    CREATE INDEX IF NOT EXISTS revocations_by_key ON capability_revocations (key_id);
+    """,
+    ),
+    (
+        31,
+        """
+    -- Migration 31: Capability token registry (tracks issued tokens for bulk revocation) (PostgreSQL)
+    CREATE TABLE IF NOT EXISTS capability_tokens (
+        jti            TEXT PRIMARY KEY,
+        tenant_id      TEXT NOT NULL,
+        engagement_id  TEXT NOT NULL,
+        job_id         TEXT NOT NULL,
+        key_id         TEXT NOT NULL,
+        issued_at      DOUBLE PRECISION NOT NULL,
+        expires_at     DOUBLE PRECISION NOT NULL,
+        policy_hash    TEXT NOT NULL,
+        revoked        BOOLEAN NOT NULL DEFAULT false
+    );
+    CREATE INDEX IF NOT EXISTS tokens_by_job ON capability_tokens (job_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_engagement ON capability_tokens (engagement_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_tenant ON capability_tokens (tenant_id);
+    CREATE INDEX IF NOT EXISTS tokens_by_key ON capability_tokens (key_id);
+    """,
+    ),
 ]
 
 TERMINAL_STATES = ("completed", "partial", "failed", "cancelled")
@@ -1112,6 +1194,15 @@ class Database(ABC):
     @abstractmethod
     def transaction(self) -> AbstractAsyncContextManager[Any]:
         """Context manager for a transaction (yields connection)."""
+
+    @abstractmethod
+    def read_transaction(self) -> AbstractAsyncContextManager[Any]:
+        """Context manager for a read-only transaction (yields connection).
+
+        PostgreSQL: SET TRANSACTION READ ONLY. SQLite: PRAGMA query_only.
+        Used by the capability verifier and revocation reads so a compromised
+        read path cannot mutate state.
+        """
 
     @abstractmethod
     def transaction_with_tenant(self, tenant_id: str | None) -> AbstractAsyncContextManager[Any]:
@@ -1262,6 +1353,16 @@ class SQLiteDatabase(Database):
             raise
         finally:
             await self._put_conn(conn)
+
+    @asynccontextmanager
+    async def read_transaction(self) -> AsyncIterator[aiosqlite.Connection]:
+        """A transaction where SQLite rejects writes (PRAGMA query_only)."""
+        async with self.transaction() as conn:
+            await conn.execute("PRAGMA query_only=ON")
+            try:
+                yield conn
+            finally:
+                await conn.execute("PRAGMA query_only=OFF")
 
     def transaction_with_tenant(
         self, tenant_id: str | None
@@ -1432,8 +1533,6 @@ class PostgreSQLDatabase(Database):
         self._pool_loops: dict[int, asyncio.AbstractEventLoop] = {}
         self._pool_lock = threading.Lock()
 
-        # ContextVar, not threading.local: concurrent async requests on one
-        # event loop must not overwrite each other's tenant.
         self._tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
             "ishastra_db_tenant", default=None
         )
@@ -1499,9 +1598,29 @@ class PostgreSQLDatabase(Database):
             idle = getattr(pool, "get_idle_size", lambda: 0)()
             metrics.record_db_pool("postgres", pool.get_size(), idle)
             if tenant_id:
-                # is_local=true makes PostgreSQL reset this at transaction end,
-                # so a pooled connection can never leak the tenant to the next user.
                 await conn.execute("SELECT set_config('app.current_tenant', $1, true)", tenant_id)
+            yield conn
+
+    @asynccontextmanager
+    async def read_transaction(self) -> AsyncIterator[asyncpg.Connection]:
+        """A transaction PostgreSQL refuses to write in.
+
+        This is the verifier/revocation read path. A dedicated read-only DB
+        role is still recommended at deployment time; this makes the code path
+        safe even when the process connects as a writer.
+        """
+        from ishastra import metrics
+
+        acquire_started = time.monotonic()
+        pool = await self._ensure_pool()
+        tenant_id = self.get_tenant_context()
+        async with pool.acquire() as conn, conn.transaction():
+            metrics.observe_db_acquire("postgres", time.monotonic() - acquire_started)
+            await conn.execute("SET TRANSACTION READ ONLY")
+            if tenant_id:
+                await conn.execute(
+                    "SELECT set_config('app.current_tenant', $1, true)", tenant_id
+                )
             yield conn
 
     @asynccontextmanager
@@ -1513,14 +1632,14 @@ class PostgreSQLDatabase(Database):
         """
         pool = await self._ensure_pool()
         async with pool.acquire() as conn:
-            acquired = await conn.fetchval("SELECT pg_try_advisory_xact_lock($1)", lock_id)
+            acquired = await conn.fetchval("SELECT pg_try_advisory_xact_lock($1::bigint)", lock_id)
             if not acquired:
-                await conn.execute("SELECT pg_advisory_xact_lock($1)", lock_id)
+                await conn.execute("SELECT pg_advisory_xact_lock($1::bigint)", lock_id)
             try:
                 async with conn.transaction():
                     yield conn
             finally:
-                await conn.execute("SELECT pg_advisory_xact_unlock($1)", lock_id)
+                await conn.execute("SELECT pg_advisory_unlock($1::bigint)", lock_id)
 
     async def try_advisory_lock(self, lock_id: int) -> bool:
         """Try to acquire an advisory lock without blocking. Returns True if acquired."""
@@ -2354,6 +2473,56 @@ async def list_queued_jobs(*, limit: int = 1000) -> list[tuple[str, str]]:
             limit,
         )
     return [(row["id"], row["tenant"]) for row in rows]
+
+
+async def transition_job(
+    job_id: str,
+    *,
+    tenant: str,
+    from_states: tuple[str, ...],
+    to_state: str,
+    error: str | None = None,
+    worker: str | None = None,
+    now: float | None = None,
+) -> bool:
+    """Compare-and-set a job state. False when the row is not in ``from_states``.
+
+    The state predicate is part of the UPDATE, so two processes racing on the
+    same transition cannot both win. Terminal states record ``finished_at``;
+    callers refuse to reopen a terminal job by passing only non-terminal
+    ``from_states``.
+    """
+    if not from_states:
+        raise ValueError("from_states must not be empty")
+    known = {"queued", "running", "completed", "partial", "failed", "cancelled"}
+    invalid = set(from_states) - known
+    if invalid:
+        raise ValueError(f"unknown job state(s): {', '.join(sorted(invalid))}")
+    stamp = time.time() if now is None else now
+    assignments = ["state = ?"]
+    params: list[Any] = [to_state]
+    if error is not None:
+        assignments.append("error = ?")
+        params.append(error)
+    if worker is not None:
+        assignments.append("worker = ?")
+        params.append(worker)
+    if to_state == "running":
+        assignments.append("started_at = COALESCE(started_at, ?)")
+        params.append(stamp)
+    if to_state in TERMINAL_STATES:
+        assignments.append("finished_at = ?")
+        params.append(stamp)
+    placeholders = ", ".join("?" for _ in from_states)
+    sql = (
+        f"UPDATE jobs SET {', '.join(assignments)} "
+        f"WHERE id = ? AND tenant = ? AND state IN ({placeholders})"
+    )
+    params.extend([job_id, tenant, *from_states])
+    db = await get_database()
+    async with db.transaction() as conn:
+        cursor = await _execute(conn, sql, *params)
+        return getattr(cursor, "rowcount", 0) == 1
 
 
 async def mark_running(job_id: str, *, tenant: str, worker: str, now: float | None = None) -> bool:

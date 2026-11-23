@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -51,7 +51,6 @@ class BaseConnector(ABC):
         Returns:
             ConnectorResult with success status and details.
         """
-        pass
 
     def _is_cancelled(self, cancel: threading.Event | None) -> bool:
         """Check if operation was cancelled."""

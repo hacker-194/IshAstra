@@ -9,9 +9,8 @@ import threading
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from ishastra.core.redaction import redact
 from ishastra.integrations.base import BaseConnector, BaseConnectorConfig, ConnectorResult
 
 log = logging.getLogger(__name__)
@@ -35,6 +34,8 @@ class GithubIssuesConfig(BaseConnectorConfig):
 
 class GithubIssuesConnector(BaseConnector):
     """Connector for creating GitHub Issues from security findings."""
+
+    config: GithubIssuesConfig
 
     def __init__(self, config: GithubIssuesConfig | None = None) -> None:
         super().__init__(config)
@@ -66,7 +67,6 @@ class GithubIssuesConnector(BaseConnector):
         target = payload.get("target", "")
         timestamp = payload.get("timestamp", "")
 
-        # Build issue title
         title = finding.get("title", "Security Finding")
         category = finding.get("category", "unknown")
         severity = finding.get("severity", "info").upper()
@@ -74,7 +74,6 @@ class GithubIssuesConnector(BaseConnector):
         if not title.startswith("["):
             title = f"{title_prefix} {title}"
 
-        # Build issue body with markdown
         body_parts = [
             f"## Security Finding: {finding.get('title', 'Unknown')}",
             "",
@@ -139,20 +138,17 @@ class GithubIssuesConnector(BaseConnector):
             "Authorization": f"Bearer {self.config.token}",
         }
 
-        response = await client.post(
+        return await client.post(
             f"/repos/{self.config.owner}/{self.config.repo}/issues",
             json=issue_data,
             headers=headers,
         )
-        return response
 
     async def _add_to_projects(self, client: httpx.AsyncClient, issue_number: int) -> list[dict[str, Any]]:
         """Add issue to configured projects (requires GraphQL)."""
         if not self.config or not self.config.projects:
             return []
 
-        # Note: Adding to projects requires GraphQL API
-        # This is a placeholder for future implementation
         log.debug("Project linking not yet implemented for projects: %s", self.config.projects)
         return []
 
@@ -187,20 +183,19 @@ class GithubIssuesConnector(BaseConnector):
         effective_timeout = self._get_timeout(timeout)
         retry_attempts, retry_backoff = self._get_retry_config()
 
-        # Build issue data
         issue_data = self._build_issue_body(payload)
 
-        # Handle cancellation
         cancel_event: asyncio.Event | None = None
         if cancel is not None:
             if isinstance(cancel, threading.Event):
-                cancel_event = asyncio.Event()
+                event = asyncio.Event()
+                cancel_event = event
 
                 def check_cancel() -> None:
                     while not cancel.is_set():
                         asyncio.get_event_loop().call_later(0.1, check_cancel)
                         return
-                    cancel_event.set()
+                    event.set()
 
                 asyncio.get_event_loop().call_soon(check_cancel)
             elif isinstance(cancel, asyncio.Event):
@@ -227,7 +222,6 @@ class GithubIssuesConnector(BaseConnector):
                     issue_number = issue.get("number")
                     issue_url = issue.get("html_url")
 
-                    # Try to add to projects
                     await self._add_to_projects(client, issue_number)
 
                     log.info(
@@ -250,7 +244,6 @@ class GithubIssuesConnector(BaseConnector):
                         },
                     )
 
-                # Handle rate limiting
                 if response.status_code == 403:
                     reset_header = response.headers.get("X-RateLimit-Reset")
                     if reset_header:
@@ -267,7 +260,6 @@ class GithubIssuesConnector(BaseConnector):
                             await asyncio.sleep(wait_time)
                             continue
 
-                # Handle other errors
                 error_body = response.text
                 try:
                     error_json = response.json()
@@ -281,7 +273,6 @@ class GithubIssuesConnector(BaseConnector):
                     response=response,
                 )
 
-                # Don't retry on client errors (4xx except 429)
                 if 400 <= response.status_code < 500 and response.status_code != 429:
                     log.error(
                         "GitHub API client error (no retry): %s (config: %s)",
@@ -311,13 +302,11 @@ class GithubIssuesConnector(BaseConnector):
                     exc,
                 )
 
-            # Wait before retry with exponential backoff
             if attempt < retry_attempts:
                 wait_time = retry_backoff * (2 ** (attempt - 1))
                 log.debug("Waiting %.2fs before retry %d/%d", wait_time, attempt + 1, retry_attempts)
                 await asyncio.sleep(wait_time)
 
-        # All retries exhausted
         error_msg = str(last_error) if last_error else "Unknown error"
         log.error(
             "GitHub Issues connector failed after %d attempts: %s (config: %s)",

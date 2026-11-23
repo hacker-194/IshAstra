@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ishastra.core.redaction import redact
 
@@ -62,15 +62,21 @@ class BaseConnector(ABC):
         Returns:
             ConnectorResult with success status, message, external_id, and details
         """
-        pass
+
+    def _require_config(self) -> BaseConnectorConfig:
+        """Return the config or fail loudly; connectors cannot run unconfigured."""
+        if self.config is None:
+            raise RuntimeError(f"{self.__class__.__name__} has no configuration")
+        return self.config
 
     def _get_timeout(self, timeout: float | None) -> float:
         """Get effective timeout."""
-        return timeout if timeout is not None else self.config.timeout_seconds
+        return timeout if timeout is not None else self._require_config().timeout_seconds
 
     def _get_retry_config(self) -> tuple[int, float]:
         """Get retry attempts and backoff."""
-        return self.config.retry_attempts, self.config.retry_backoff_seconds
+        config = self._require_config()
+        return config.retry_attempts, config.retry_backoff_seconds
 
     def _log_attempt(self, attempt: int, max_attempts: int, error: Exception | None = None) -> None:
         """Log retry attempt with redacted config."""

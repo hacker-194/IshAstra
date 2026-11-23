@@ -280,7 +280,10 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_includes_resolved_ips_on_denial(self):
         """Denied result includes resolved IPs for debugging."""
-        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["10.0.0.1", "192.168.1.1"]):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            return_value=["10.0.0.1", "192.168.1.1"],
+        ):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False
@@ -320,7 +323,10 @@ class TestScopeGateValidateOutbound:
 
     def test_validate_outbound_multiple_ips_one_unauthorized(self):
         """If ANY resolved IP is unauthorized, target is denied."""
-        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            return_value=["93.184.216.34", "10.0.0.1"],
+        ):
             result = ScopeGate.validate_outbound("https://example.com/", self.scope)
 
         assert result.allowed is False

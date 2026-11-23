@@ -1,220 +1,372 @@
-# Migration Progress - IshAstra v3.5 → v4.0
+# Migration Progress - IshAstra v3.5 -> v4.0
 
-**Started:** 2026-11-22  
-**Current Phase:** Phase 2 - Vertical Slice (Security Spine)  
-**Last Commit:** `69ebbe1`
-
----
-
-## Phase Status Overview
-
-| Phase | Name | Status | Started | Completed |
-|-------|------|--------|---------|-----------|
-| 0 | Audit Only | ✅ DONE | 2026-11-22 | 2026-11-22 |
-| 1 | Trustworthy CI | ✅ DONE | 2026-11-22 | 2026-11-22 |
-| 2 | Vertical Slice (Security Spine) | 🔄 IN PROGRESS | 2026-11-22 | - |
-| 3 | Durable Orchestration | ⏳ PENDING | - | - |
-| 4 | Remaining Adapters | ⏳ PENDING | - | - |
-| 5 | Adoption Features | ⏳ PENDING | - | - |
-| 6 | Hardening & RC | ⏳ PENDING | - | - |
-| 7 | Optional AI | ⏳ PENDING | - | - |
+**Started:** 2026-11-22
+**Last update:** 2026-11-23 (Phase 2 CONNECT spine)
+**Branch:** `master` @ `3d681e3` + uncommitted Phase 2 work
+**Rule:** a phase is done only when its exit criterion is observable outside
+the project. Nothing here is called VERIFIED without a named test.
 
 ---
 
-## Phase 0: Audit Only - COMPLETED ✅
+## Phase status
 
-**Exit Criteria:** Audit exists and tests were run.
-
-**Completed:**
-- [x] Created `docs/architecture/EXISTING_ARCHITECTURE_AUDIT.md`
-- [x] Ran full test suite: 1653 passed, 13 skipped, 56.38% coverage
-- [x] Documented existing architecture, working components, gaps
-- [x] Documented security weaknesses and license findings
-- [x] Documented required migrations and adapted phase plan
-
-**Test Output:**
-```
-================ 1653 passed, 13 skipped, 33 warnings in 48.95s ================
-Required test coverage of 50% reached. Total coverage: 56.38%
-```
+| Phase | Name | Status |
+|---|---|---|
+| 0 | Audit only | DONE (re-run 2026-11-23) |
+| 1 | Trustworthy CI | DONE locally - gates green, gate logic tested; CI job itself unrun here |
+| 2 | Vertical slice (security spine) | IN PROGRESS - CONNECT spine works and is tested; container + firewall unverified |
+| 3 | Durable orchestration | PENDING |
+| 4 | Remaining adapters | PENDING |
+| 5 | Adoption features | PENDING |
+| 6 | Hardening & RC | PENDING |
+| 7 | Optional AI | PENDING |
 
 ---
 
-## Phase 1: Trustworthy CI - COMPLETED ✅
+## Uncommitted state
 
-**Exit Criteria:** Required gates are green, or red for stated real reasons, with no silent suppression.
+`master` is dirty: 61 paths (23 modified, 25 deleted empty placeholders,
+13 untracked). Covers the Phase 0 docs, the Phase 2 security spine, the
+cleanup, and the repo-wide lint/type fixes. Nothing is committed or pushed.
+The brief asks for one branch per phase; that has NOT been done, so the diff
+must be reviewed and split before commit.
 
-**Completed:**
-- [x] Fixed security audit false-pass bug in `scripts/security_audit.py`
-  - Added `exit_code != 0` checks in `run_pip_audit()` and `run_safety()`
-  - Scanner crashes now return "error" not "passed"
-- [x] Removed `|| true` and `continue-on-error: true` from CI workflows
-  - `.github/workflows/security-scan.yml`: Bandit, Semgrep, Safety, pip-audit
-  - `.github/workflows/ci.yml`: Security gate jobs
-- [x] Added regression tests in `tests/unit/test_security_audit.py`:
-  - `test_scanner_crash_is_error_not_passed()`
-  - `test_all_scanners_crash_fails_gate()`
-- [x] Updated dependencies to secure versions:
-  - `mitmproxy 12.1.3 → 12.3.1` (fixed PyPI availability)
-  - `kubernetes 30.1.0` (latest in 30.x)
-  - `fastmcp 2.14.7` (hexstrike extra)
-  - `in-toto 3.1.0` (slsa extra)
-- [x] Pinned all optional extras in `constraints.txt`
-- [x] Updated `pyproject.toml` dependency ranges:
-  - `hexstrike`: `fastmcp>=2.13.0,<5.0`
-  - `slsa`: `in-toto>=2.0.0,<4.0`
+---
 
-**Test Output:**
+## Phase 0: Audit only - DONE
+
+Deliverable: `docs/architecture/EXISTING_ARCHITECTURE_AUDIT.md`.
+
+Session-start verification 2026-11-23 (after Phases 1-2 work landed):
+
 ```
-tests/unit/test_security_audit.py::test_scanner_crash_is_error_not_passed PASSED
-tests/unit/test_security_audit.py::test_all_scanners_crash_fails_gate PASSED
-tests/unit/test_security_audit.py::test_pip_audit_finds_vulnerabilities PASSED
-================ 3 passed in 0.42s ================
+$ pytest -q                     -> 1697 passed, 13 skipped, 57.31%, 54.00s
+$ ruff check src tests scripts  -> All checks passed!
+$ mypy src                      -> no issues in 134 source files
 ```
 
-**Security Properties:**
-| Property | Status | Evidence |
-|----------|--------|----------|
-| Scanner crash = FAIL | VERIFIED | Regression tests pass |
-| No silent suppression | VERIFIED | No `|| true` in CI |
-| Bandit HIGH = FAIL | VERIFIED | CI security-gate job |
-| pip-audit HIGH = FAIL | VERIFIED | CI security-gate job |
-| Grype HIGH = FAIL | VERIFIED | CI security-gate job |
+```
+$ .venv/bin/python -m pytest -q        -> 1668 passed, 13 skipped, 54.79%
+$ .venv/bin/ruff check src tests scripts -> 90 errors
+$ .venv/bin/mypy src                   -> 30 errors in 8 files
+$ .venv/bin/ruff check src tests scripts -> 52 errors   (after Phase 2 lint pass)
+```
+
+Skips in the default run: 1 PostgreSQL RLS (no DSN), 10 E2E (no base URL),
+2 Redis (no server). With Redis and PostgreSQL started in containers, the full
+suite ran them too and skipped only the 10 E2E tests. The E2E suite was then
+run separately against a locally served API: 9 passed, 1 skipped (the OTel
+metrics endpoint needs an admin key).
 
 ---
 
-## Phase 2: Vertical Slice - Security Spine - IN PROGRESS 🔄
+## Phase 1: Trustworthy CI - DONE (locally verified, CI unrun)
 
-**Exit Criteria:** Adversarial matrix passes in CI, or each item marked UNVERIFIED with reason.
+Exit met locally: ruff and mypy are green, `scripts/security_gate.py` fails
+closed on missing/empty/invalid reports, and its logic has tests. The GitHub
+workflow itself has not executed in this environment, so "green in CI" stays
+UNVERIFIED until a run is available.
 
-### 2.1 Capability Issuer Service
-- [ ] Ed25519 signing key generation and rotation
-- [ ] Capability token structure (JWT EdDSA or PASETO v4.public)
-- [ ] Token fields: tenant, engagement, job, targets, pinned IPs, ports, protocols, tools, policy hash, request budget, jti, TTL ≤ 15 min
-- [ ] Issuance endpoint (internal, called by dispatcher)
-- [ ] Revocation list with DB persistence
-- [ ] Unit tests for issuance, validation, revocation
-
-### 2.2 Egress Gateway
-- [ ] CONNECT/SOCKS5 proxy implementation
-- [ ] Capability verification on every connection
-- [ ] DNS resolution by gateway (not worker)
-- [ ] IP pinning enforcement (connect to IP, not hostname)
-- [ ] Redirect handling (each hop re-authorized)
-- [ ] Request budget and rate limiting
-- [ ] Audit receipts for every decision
-- [ ] Host firewall rules (nftables/DOCKER-USER) as fallback
-- [ ] Unit tests for gateway decisions
-- [ ] Integration tests against local lab target
-
-### 2.3 Worker Manager
-- [ ] Disposable container creation (Docker/Podman)
-- [ ] Resource limits: CPU, memory, PID, wall-clock timeout
-- [ ] Security hardening: non-root, read-only rootfs, no-new-privileges, caps dropped
-- [ ] Argument arrays only (no shell interpolation)
-- [ ] Workspace collection after exit
-- [ ] Worker cleanup on cancel/expiry/completion
-- [ ] Capability injection at startup
-- [ ] Unit tests for container lifecycle
-
-### 2.4 Capability Verifier
-- [ ] Read-only DB role for verification queries
-- [ ] Checks: signature, audience, nbf/exp, revocation, job RUNNING, policy hash match
-- [ ] Unit tests for all verification paths
-
-### 2.5 Evidence Signing Service
-- [ ] Separate Ed25519 key from capability key
-- [ ] Canonical JSON manifest (RFC 8785)
-- [ ] SHA-256 artifact hashes
-- [ ] Key ID and rotation support
-- [ ] `ishastra evidence verify` offline command
-- [ ] Unit tests for manifest creation and verification
-
-### 2.6 End-to-End Vertical Slice Test
-- [ ] Local lab target container
-- [ ] Full flow: engagement → job → capability → worker → gateway → target → evidence → verify
-- [ ] Adversarial test matrix execution
-
-**Security Properties Target:**
-| Property | Target Status |
-|----------|---------------|
-| Capability token auth | VERIFIED |
-| Egress gateway enforcement | VERIFIED |
-| Worker isolation | VERIFIED |
-| DNS rebinding protection | VERIFIED |
-| Artifact signing | VERIFIED |
-| Offline evidence verify | VERIFIED |
+- [x] No `continue-on-error` in any workflow.
+- [x] Crashed scanner = error, not pass (`tests/unit/test_security_audit.py`).
+- [x] Actions pinned to commit SHAs.
+- [x] `ruff check src tests scripts` passes: **0 errors**.
+- [x] `mypy src` passes: **0 errors in 137 source files**.
+- [x] Fixed while greening: `SentinelConfig` was missing `@dataclass`, so it
+      could not be constructed with `workspace_id`/`shared_key`; `sentinel`
+      overrode `config` with an incompatible property; `slack` called a
+      nonexistent `_redact_secrets`; `github_issues` used a nonexistent
+      `get_connector` export from `base`.
+- [x] `security-gate` logic extracted to `scripts/security_gate.py` and tested
+      (`tests/unit/test_security_gate.py`): missing, empty, invalid JSON,
+      unexpected shape, HIGH finding, optional-skip, unknown scanner, valid
+      exception, expired exception, missing exception owner, exit codes. The
+      old `jq ... || echo 0` steps (which turned a missing report into "zero
+      findings") are gone; empty scanner output is now an error in
+      `scripts/security_audit.py` and covered by tests.
+Note: the earlier claim `mitmproxy 12.1.3 -> 12.3.1` was wrong; constraints
+still pin 12.1.3. No code change was attempted, because whether 12.3.1 resolves
+is an environment question rather than a gate.
 
 ---
 
-## Phase 3: Durable Orchestration - PENDING ⏳
+## Phase 2: Vertical slice - IN PROGRESS
 
-**Exit Criteria:** Tests for duplicate message, dispatcher restart, worker crash, pending-job recovery, and cleanup.
+**Exit criterion:** the adversarial matrix passes in CI, or each item is marked
+UNVERIFIED with its reason and a local command.
 
-- [ ] PostgreSQL queue with `FOR UPDATE SKIP LOCKED`
-- [ ] Idempotency keys on job submission
-- [ ] Retry policy with exponential backoff
-- [ ] Cancellation with worker cleanup
-- [ ] Orphan recovery on dispatcher restart
-- [ ] Terminal failure state (`retries_exhausted`)
-- [ ] Optional Redis Streams + outbox profile
+Working and tested (loopback lab target, no Docker needed):
+
+| Area | Tests |
+|---|---|
+| CONNECT relay, both directions | `tests/unit/test_egress_gateway.py::test_allowed_connection_relays_bytes_both_ways` |
+| Host outside scope denied | `...::test_host_outside_scope_is_denied` |
+| Port / protocol outside scope denied | `...::test_port_outside_scope_is_denied`, `...::test_protocol_outside_scope_is_denied` |
+| Expired token denied | `...::test_expired_token_is_denied` |
+| Revoked token denied | `...::test_revoked_token_is_denied` |
+| Unknown signing key denied | `...::test_token_signed_by_unknown_key_is_denied` |
+| Job must be RUNNING | `...::test_job_must_be_running` |
+| Request budget enforced | `...::test_request_budget_is_enforced` |
+| Mixed DNS answers denied | `...::test_mixed_dns_answers_are_denied` |
+| No pinned IPs denied | `...::test_token_without_pinned_ips_is_denied` |
+| Wrong audience / version denied | `...::test_wrong_audience_is_denied`, `...::test_unknown_token_version_is_denied` |
+| Token for another job denied | `...::test_token_for_another_job_is_denied` |
+| Basic proxy auth (scanner style) | `...::test_basic_proxy_auth_is_accepted` |
+| Allow and deny receipts chain | `...::test_allowed_connection_relays_bytes_both_ways`, `...::test_denied_connection_is_audited` |
+| Manifest sign/verify | `tests/unit/test_evidence_signing.py` (7 tests) |
+| Tampered artifact/manifest rejected offline | `...::test_offline_verification_rejects_tampered_artifact`, `...::test_offline_verification_rejects_tampered_manifest` |
+| Capability token crypto/TTL/binding | `tests/unit/test_capability_token.py` |
+| Offline `ishastra evidence-verify` (exit 0 / 1) | `tests/unit/test_evidence_signing.py::test_cli_evidence_verify` |
+| Worker argv: no host mount, no token in argv, hardening flags | `tests/unit/test_worker_manager.py` (5 tests) |
+| Token delivered in a 0600 env file | `...::test_token_is_delivered_in_an_owner_only_env_file` |
+
+Test run 2026-11-23:
+
+```
+$ pytest -q --no-cov tests/unit/test_firewall.py \
+  tests/unit/test_capability_lifecycle.py tests/unit/test_dispatcher.py
+32 passed in 0.31s
+
+$ pytest -q --no-cov tests/unit/test_store_read_only.py      # SQLite
+1 passed in 0.22s
+
+$ ISHASTRA_TEST_PG_DSN=... pytest -q --no-cov \
+  tests/integration/test_verifier_read_only.py
+2 passed in 0.26s
+
+$ pytest -q                     # full suite, PostgreSQL live, Redis not
+1762 passed, 26 skipped, 34 warnings in 53.43s
+Coverage gate passed (>= 50%; PostgreSQL and Redis were not running, so their
+17 integration tests skipped). With PostgreSQL live, the queue + CAS files run
+11 passed.
+```
+
+PostgreSQL RLS against a real server (the default suite skips it without a DSN):
+
+```bash
+docker run -d --rm --name ish-rls-pg -e POSTGRES_PASSWORD=ishastra \
+  -e POSTGRES_DB=ishastra -p 127.0.0.1:55432:5432 postgres:16-alpine
+ISHASTRA_TEST_PG_DSN=postgresql://postgres:ishastra@127.0.0.1:55432/ishastra \
+  pytest -q tests/test_rls.py
+# 16 passed in 5.49s
+```
+
+$ ruff check src tests scripts  -> All checks passed!
+$ mypy src                      -> Success: no issues found in 137 source files
+```
+
+Still open, in priority order:
+
+- [x] **Host firewall rules generated and tested**:
+      `security/egress/firewall.py` renders a deny-by-default nftables plan and
+      a DOCKER-USER fallback; `tests/unit/test_firewall.py` (18 tests) covers
+      gateway-only allow, metadata drops, invalid plans, and the root/nft
+      guards.
+- [x] **Host firewall applied and blocking**: `scripts/verify_firewall.sh`
+      proves in real Linux network namespaces that the plan allows only
+      `gateway:port` and blocks another host, another port, a metadata IP and
+      UDP DNS (2026-11-23, exit 0). Bare-host apply still needs root there.
+- [x] **Portability guards**: `firewall.apply()` fails closed on Windows and
+      where no POSIX euid exists, while `dry_run` renders the plan on any OS;
+      tests simulate both branches. Test fixtures resolve temp files through
+      `tempfile.gettempdir()` instead of `/tmp`.
+- [x] **Dispatcher vertical slice** (`control_plane/dispatcher.py`): issues a
+      job-bound token, starts a gateway with `expected_job_id`, runs the
+      injected worker through it, signs the workspace manifest, and revokes +
+      stops in `finally`. Tests: `tests/unit/test_dispatcher.py` (6), including
+      worker crash, empty workspace, and replay after revocation.
+- [x] **Real container execution verified**
+      (`tests/integration/test_worker_container.py`): a hardened `docker run`
+      writes `/workspace/results.json`, the artifact is collected, and the
+      container is removed. The test found a real bug: a tmpfs `/workspace` is
+      unmounted when the container stops, so `docker cp` after exit always
+      collected nothing and every run became "no artifacts". Replaced with a
+      per-job bind mount under `WORKER_ROOT`, `job_id` validation, and a
+      post-run disk-limit check.
+- [x] **Redis durable queue verified** against `redis:7-alpine`: 2 passed
+      (`queued job survives a restart and runs once`, queue-full refusal).
+- [x] **Container worker runner wired**: `container_worker_runner()` recovers
+      the dispatcher's token from the proxy header, runs the hardened container
+      with the job workspace mounted, and fails the job before evidence on a
+      non-zero exit. Verified against `python:3.12-slim` with `--network host`
+      (`tests/integration/test_dispatcher_container.py`); the production
+      worker-net + gateway-sidecar path is not exercised.
+- [x] **E2E critical paths verified** against a locally served API with a
+      loopback-only scope: 9 passed, 1 skipped in 1.45s. Covers health/ready,
+      assessment create/list/monitor, findings, SARIF export, tenant isolation
+      and out-of-scope rejection. Operational detail: the scope document needs
+      a non-empty `auth.users` whose principals each carry at least one
+      credential, otherwise every `/api/assess` request is 403.
+- Note: two full runs have crashed with SIGSEGV on Python 3.14 (the first
+  traced to `tests/security/test_scope_properties.py` under Hypothesis). Each
+  immediate rerun of the same suite passed, most recently 1771/1771, so it is
+  recorded as an intermittent interpreter/extension crash, not a security-spine
+  regression.
+- [x] **Worker container executed**: `tests/integration/test_worker_container.py`
+      runs a real `docker run`, collects artifacts, removes the container, and
+      verifies the empty-workspace failure (2026-11-23). The workspace is a
+      per-job bind mount (a tmpfs is unmounted on exit, which broke collection).
+      Wall-clock timeout and OOM are verified with real containers;
+      `--network ishastra-worker-net` still needs the operator's gateway-only
+      network.
+- [x] **Dispatcher wiring**: `control_plane/dispatcher.py` runs the 5.3
+      lifecycle (job -> capability -> worker -> gateway -> evidence), and
+      `container_worker_runner()` runs the worker in a hardened container
+      (unit test with an in-process worker, integration test against Docker).
+- [x] **Issuer tests**: key id derivation, TTL limit, pinned IP binding, key
+      rotation with `previous_keys` verification, unknown-key rejection
+      (`tests/unit/test_capability_lifecycle.py`).
+- [x] **Revocation tests**: revoke by job, engagement and tenant, idempotent
+      double revocation, `is_revoked` (`tests/unit/test_capability_lifecycle.py`).
+- [x] **Redirect test**: `test_redirect_hop_is_authorized_again` serves a 302
+      to another host; the follow-up CONNECT is refused and both decisions are
+      in the audit chain.
+- [ ] **Rate limit** from the rules of engagement (budget only today).
+- [x] **CLI** offline evidence verification: `ishastra evidence-verify
+      <manifest> --key <pub> [--artifacts-dir DIR] [--json]`, tested. Named
+      `evidence-verify` because `evidence` is the existing compliance-pack
+      command; the old command is unchanged.
+- [x] **IPv6 pinning** test: `test_ipv6_loopback_pinning` connects to `::1`
+      with a pinned `::1` token and relays bytes (skips only if the host has no
+      IPv6 loopback).
+- [x] **Read-only database access for the verifier**: `Database.read_transaction()`
+      (`SET TRANSACTION READ ONLY` on PostgreSQL, `PRAGMA query_only` on SQLite)
+      is used by `CapabilityVerifier._get_job_state` and `RevocationList.is_revoked`.
+      Tests: `tests/integration/test_verifier_read_only.py` (writes rejected,
+      verification succeeds under read-only) and
+      `tests/unit/test_store_read_only.py`. A dedicated read-only DB role is
+      still recommended deployment configuration.
+- [x] **PostgreSQL durable queue** (`core/pg_queue.py`,
+      `ISHASTRA_QUEUE_MODE=postgres`): `FOR UPDATE SKIP LOCKED` claims, a
+      unique idempotency key so a repeated message never runs twice, bounded
+      queue depth, persisted cancellation, retries with terminal
+      `retries_exhausted`, visibility-timeout orphan recovery, and requeue of
+      this worker's claims on shutdown. Tests (real PostgreSQL):
+      `tests/integration/test_pg_queue.py` (10) cover duplicate messages,
+      distinct concurrent claims, retry exhaustion, expired-claim recovery,
+      queue-full refusal, cancellation, policy-wide cancellation, a restart
+      picking up queued work, per-attempt history, and a stale worker that
+      cannot finish a job another worker recovered.
+
+Honest status of the two credentials: the capability key and the evidence key
+are generated separately by their services, but nothing provisions them from
+different secret stores yet.
 
 ---
 
-## Phase 4: Remaining Adapters - PENDING ⏳
+## Cleanup (2026-11-23)
 
-**Exit Criteria:** Each adapter passes enforcement spike and adapter tests, or disabled and documented.
+Removed, after proving nothing imported them:
 
-- [ ] Adapter contract definition
-- [ ] Nmap adapter (`-sT` only, proxy-enforced)
-- [ ] Nikto adapter (proxy-enforced)
-- [ ] SQLMap adapter (opt-in, high-risk flag)
-- [ ] Plugin runner for custom adapters (out-of-process)
-- [ ] Deduplication and correlation
+- 25 empty placeholder modules from the unused v4.0 skeleton (`control_plane/*`,
+  `orchestration/`, `infrastructure/*`, `adapters/*`, `analysis/*`,
+  `observability/`, `reporting/`, `security/audit/`) plus the empty
+  `src/ishastra/evidence/` directory.
+- Generated artifacts: `.pytest_cache`, `.mypy_cache` (53M), `.ruff_cache`,
+  `.hypothesis`, `.coverage`, `coverage.json`, `build/`, `dist/`, `site/`,
+  `graphify-out/`, `.ishastra-demo/`, the `:memory:.worker-lock` and
+  `:memory:_scheduler.db` junk files, and every `__pycache__`.
 
----
+Deliberately kept (possible data, not code): `ishastra.db`, `strix.db`,
+`ishastra_scheduler.db`, `strix_scheduler.db`, `backups/`, `evidence/`,
+`prod-secrets/`, `scope*.json`, `detection-benchmark-results.json` (tracked).
 
-## Phase 5: Adoption Features - PENDING ⏳
-
-**Exit Criteria:** Clean-machine quickstart test and dashboard working.
-
-- [ ] `docker compose up` quickstart (< 5 min)
-- [ ] `ishastra` CLI (submit, status, evidence verify)
-- [ ] SARIF/Nuclei/ZAP import
-- [ ] Multi-format export (SARIF, HTML, PDF, CSV, JSON, DefectDojo)
-- [ ] GitHub Action for CI
-- [ ] Dashboard: engagements, scans, findings, evidence, audit
+Verified after deletion: 1691 passed, 13 skipped, imports of `ishastra.api.app`,
+`ishastra.cli` and `ishastra.core.adapters` succeed.
 
 ---
 
-## Phase 6: Hardening & RC - PENDING ⏳
+## Real-world readiness pass (2026-11-23)
 
-**Exit Criteria:** Tag `4.0.0-rc1` locally only.
+Done in this pass:
 
-- [ ] SBOM in release artifacts
-- [ ] Signed container images (cosign)
-- [ ] Build provenance (SLSA)
-- [ ] Tag-to-commit verification
-- [ ] Release gated on all checks
-- [ ] Documentation: quickstart, threat model, limitations
-- [ ] Local tag `4.0.0-rc1`
+- Repo-wide `ruff` and `mypy` are green (Phase 1's gates).
+- `ishastra evidence-verify` verifies signature, key id, artifact hashes and
+  exits non-zero on failure, fully offline.- Worker Manager: token via an owner-only `--env-file` instead of `-e` on
+  the argv, a per-job workspace mount, empty workspace is a FAILED run, and the
+  container is removed afterwards. Both argv/secret handling and real container
+  execution are tested.
 
----
-
-## Phase 7: Optional AI - PENDING ⏳
-
-**Exit Criteria:** Off by default, local models only, advisory findings, human approval.
-
-- [ ] Off by default
-- [ ] Local/user-supplied models only
-- [ ] Summaries, dedup, explanations, remediation drafts
-- [ ] Human approval for follow-up scans
+Still missing before this is deployable by a stranger: Alembic migrations and
+the Compose quickstart with an egress-gateway service. Those are Phases 3-6,
+not claims.
 
 ---
 
-## Commit History
+## Phase 3: Durable orchestration - PARTIAL
+
+- [x] PostgreSQL queue with `FOR UPDATE SKIP LOCKED` (`core/pg_queue.py`)
+- [x] Idempotency keys; a repeated key never launches a second run
+- [x] Retries; terminal `retries_exhausted` (no backoff yet)
+- [x] Cancel, wall-clock timeout (adapter timeout + 60s grace), orphan cleanup
+- [x] Restart recovery: queued rows survive; expired claims requeue
+- [x] `job_attempts` history; queue finish/fail are compare-and-set on
+      `state = 'running' AND claimed_by = worker`
+- [x] Canonical `jobs` compare-and-set: `store.transition_job()` updates only
+      from an allowed state tuple and returns False for a stale/racing caller.
+      Tests: `tests/unit/test_job_transitions.py` (3) and
+      `tests/integration/test_pg_job_transitions.py` (1, real PostgreSQL).
+      `save_job` still owns findings/audit persistence and terminal-state
+      protection; callers that need a guarded edge use `transition_job`.
+- [x] Tests: duplicate message, expired claim (simulated crash), pending-job
+      recovery, cancellation (`tests/integration/test_pg_queue.py`)
+- [ ] Dispatcher/worker-manager process-kill test against real containers
+
+---
+
+## Phase 4: Remaining adapters - PARTIAL
+
+- [x] Adapter contract skeleton: `Adapter.contract()` declares protocols, scan
+      modes, timeout and enforcement; `validate_contract()` rejects empty ids,
+      unknown enforcement, protocols or scan modes, and non-positive timeouts.
+      Tests: `tests/unit/test_adapter_contract.py` (5). Every built-in still
+      declares `enforcement="none"` — no adapter may claim proxy/firewall
+      until its enforcement spike passes.
+- [ ] Enforcement spikes and per-adapter `proxy` / `firewall` declarations
+- [ ] Per-tool enforcement spike (does the scanner honor the proxy?)
+- [ ] Nmap `-sT` only; Nikto; SQLMap behind an explicit high-risk flag
+- [ ] Out-of-process plugin runner; deprecate in-process `ishastra.adapters`
+- [ ] Nuclei/NSE template allow-list
+- [ ] Dedupe and correlation
+
+---
+
+## Phase 5: Adoption features - PENDING
+
+- [ ] `docker compose up` first scan < 5 min
+- [ ] `ishastra` CLI: submit, status, evidence verify
+- [ ] Import SARIF / Nuclei JSON / ZAP
+- [ ] Export SARIF, HTML, PDF, CSV, JSON, DefectDojo
+- [ ] GitHub Action
+- [ ] Dashboard: failed/skipped/pending/succeeded shown distinctly
+- [ ] Demo lab data
+
+---
+
+## Phase 6: Hardening & RC - PENDING
+
+- [ ] SBOM in release artifacts; signed images; provenance; checksums
+- [ ] Tag-to-commit verification; release gated on required checks
+- [ ] Alembic (or documented equivalent) for the duplicated schema
+- [ ] Docs: quickstart, threat model, limitations, backup/recovery
+- [ ] Version bump out of 3.5.0; local tag `4.0.0-rc1` only
+
+---
+
+## Phase 7: Optional AI - PENDING
+
+- [ ] Off by default, local/user-supplied models only
+- [ ] Advisory output; cannot touch scope, capabilities, gateway, job creation
+- [ ] Follow-up scans require human approval and a new authorized job
+
+---
+
+## Commit history
 
 | Commit | Date | Phase | Description |
-|--------|------|-------|-------------|
-| `69ebbe1` | 2026-11-22 | 0,1 | Cleanup repo, update deps, fix security audit false-pass |
-| *(pending)* | 2026-11-22 | 0 | Add EXISTING_ARCHITECTURE_AUDIT.md and MIGRATION_PROGRESS.md |
+|---|---|---|---|
+| `3d681e3` | 2026-11-22 | 0 | Add Phase 0 audit and migration progress |
+| `69ebbe1` | 2026-11-22 | 0,1 | Cleanup repo, dependency updates, security-audit fix |
+| `1ef49e0` | - | - | Fix security audit false-pass bug, scope module migration |
+| *(pending)* | 2026-11-23 | 0 | Refresh audit + progress with real results |
+| *(pending)* | 2026-11-23 | 2 | Capability spine: CONNECT gateway, verifier, evidence verify + tests |

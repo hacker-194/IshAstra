@@ -5,8 +5,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import ishastra.metrics as metrics
-from ishastra.security.authorization.scope import ScopeGate, configure
 from ishastra.metrics import get_registry, init_metrics
+from ishastra.security.authorization.scope import ScopeGate, configure
 
 METRIC = "ishastra_scope_gate_decisions_total"
 DURATION_METRIC = "ishastra_scope_gate_decision_duration_seconds_count"

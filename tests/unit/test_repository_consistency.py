@@ -18,7 +18,6 @@ _ENV_REFERENCE = re.compile(r"ISHASTRA_[A-Z0-9_]+")
 _SCOPE_MODE = re.compile(r"^ISHASTRA_SCOPE_MODE\s*=\s*(\S+)", re.MULTILINE)
 _QUEUE_MODE = re.compile(r"^ISHASTRA_QUEUE_MODE\s*=\s*(\S+)", re.MULTILINE)
 
-# Every mode the code accepts; keep in sync with Settings.from_env().
 _SCOPE_MODES = {"auto", "global", "managed"}
 _QUEUE_MODES = {"inprocess", "redis-streams", "k8s-jobs"}
 

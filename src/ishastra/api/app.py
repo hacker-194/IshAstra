@@ -168,7 +168,6 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("Audit chain verified: %d entries", chain_length)
 
     global _retention_worker
-    # Read evidence_retention_days from scope data_handling, fall back to settings
     roe = getattr(installed, "rules_of_engagement", {})
     retention_days_from_scope = roe.get("data_handling", {}).get("evidence_retention_days")
     retention_days = (

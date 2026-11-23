@@ -594,7 +594,10 @@ class TestAdditionalAdversarialVectors:
     def test_multiple_ips_one_unauthorized(self):
         """If host resolves to multiple IPs and ANY is unauthorized, must deny."""
 
-        with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34", "10.0.0.1"]):
+        with patch(
+            "ishastra.security.authorization.scope.resolve_sync",
+            return_value=["93.184.216.34", "10.0.0.1"],
+        ):
             denial, reason, dest = self.scope.destination("https://example.com/")
             assert denial == "out_of_scope"
             assert dest is None
@@ -765,7 +768,10 @@ class TestRapidRebinding:
         results = []
         for i in range(20):
             if i % 2 == 0:
-                with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
+                with patch(
+                    "ishastra.security.authorization.scope.resolve_sync",
+                    return_value=["93.184.216.34"],
+                ):
                     denial, reason, dest = self.scope.destination("https://target.com/")
                     results.append(("allow", denial))
             else:

@@ -163,16 +163,12 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run standard benchmark (no external tools)
   python scripts/detection_benchmark.py --output results.json
 
-  # Run with workflow-level scans (web, network profiles)
   python scripts/detection_benchmark.py --workflow web,network --output results.json
 
-  # Run with Nuclei and nmap if available
   python scripts/detection_benchmark.py --include-nuclei --include-nmap --output results.json
 
-  # Accept incomplete coverage (e.g., missing Nuclei)
   python scripts/detection_benchmark.py --allow-unmeasured --output results.json
         """,
     )

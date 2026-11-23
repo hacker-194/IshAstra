@@ -75,6 +75,18 @@ def run_command(cmd: list[str], cwd: Path, timeout: int = 300) -> tuple[int, str
         return -1, "", str(e)
 
 
+def _empty_stdout(scanner: str, duration: float) -> ScanResult:
+    """A scanner that printed nothing produced no verdict: it is an error."""
+    return ScanResult(
+        scanner=scanner,
+        status="error",
+        findings=[],
+        summary={},
+        duration_seconds=duration,
+        error="scanner produced empty output",
+    )
+
+
 def run_bandit(project_root: Path) -> ScanResult:
     """Run Bandit static analysis."""
     log.info("Running Bandit...")
@@ -109,8 +121,11 @@ def run_bandit(project_root: Path) -> ScanResult:
             error=stderr or "Bandit not installed",
         )
 
+    if not stdout.strip():
+        return _empty_stdout("bandit", duration)
+
     try:
-        data = json.loads(stdout) if stdout else {"results": [], "metrics": {}}
+        data = json.loads(stdout)
         results = data.get("results", [])
         metrics = data.get("metrics", {}).get("_totals", {})
 
@@ -176,8 +191,11 @@ def run_semgrep(project_root: Path) -> ScanResult:
             error=stderr or "Semgrep not installed",
         )
 
+    if not stdout.strip():
+        return _empty_stdout("semgrep", duration)
+
     try:
-        data = json.loads(stdout) if stdout else {"results": []}
+        data = json.loads(stdout)
         results = data.get("results", [])
 
         summary = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "error": 0}
@@ -191,7 +209,6 @@ def run_semgrep(project_root: Path) -> ScanResult:
             else:
                 summary[severity] = summary.get(severity, 0) + 1
 
-        # Status: failed only if actual critical/high findings (not semgrep "error" severity artifacts)
         status = "passed" if summary["high"] == 0 and summary["critical"] == 0 else "failed"
 
         return ScanResult(
@@ -241,7 +258,6 @@ def run_safety(project_root: Path) -> ScanResult:
             error=stderr or "Safety not installed",
         )
 
-    # Non-zero exit code means scanner crashed or failed - treat as error, not clean pass
     if exit_code != 0:
         return ScanResult(
             scanner="safety",
@@ -252,8 +268,11 @@ def run_safety(project_root: Path) -> ScanResult:
             error=f"Safety exited with code {exit_code}: {stderr.strip() or stdout.strip()}",
         )
 
+    if not stdout.strip():
+        return _empty_stdout("safety", duration)
+
     try:
-        data = json.loads(stdout) if stdout else []
+        data = json.loads(stdout)
         findings = data if isinstance(data, list) else []
 
         summary = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -311,7 +330,6 @@ def run_pip_audit(project_root: Path) -> ScanResult:
             error=stderr or "pip-audit not installed",
         )
 
-    # Non-zero exit code means scanner crashed or failed - treat as error, not clean pass
     if exit_code != 0:
         return ScanResult(
             scanner="pip-audit",
@@ -322,8 +340,11 @@ def run_pip_audit(project_root: Path) -> ScanResult:
             error=f"pip-audit exited with code {exit_code}: {stderr.strip() or stdout.strip()}",
         )
 
+    if not stdout.strip():
+        return _empty_stdout("pip-audit", duration)
+
     try:
-        data = json.loads(stdout) if stdout else {"vulnerabilities": []}
+        data = json.loads(stdout)
         vulns = data.get("vulnerabilities", [])
 
         summary = {"critical": 0, "high": 0, "medium": 0, "low": 0}
@@ -389,8 +410,11 @@ def run_trivy(project_root: Path) -> ScanResult:
             error=stderr or "Trivy not installed",
         )
 
+    if not stdout.strip():
+        return _empty_stdout("trivy", duration)
+
     try:
-        data = json.loads(stdout) if stdout else {"Results": []}
+        data = json.loads(stdout)
         results = data.get("Results", [])
 
         findings = []
@@ -758,8 +782,6 @@ def main():
 
     critical, high, medium, low = check_for_critical_findings(results)
 
-    # Only fail on actual critical/high findings, not severity mapping artifacts
-    # (semgrep maps "error" severity to "high", but those are quality issues, not security vulnerabilities)
     semgrep_error_count = 0
     for r in results:
         if r.scanner == "semgrep" and r.findings:
@@ -774,7 +796,6 @@ def main():
 
     if critical == 0 and high == 0 and medium > 0:
         print(f"\n⚠️  WARNING: {medium} medium severity findings found (no critical/high)")
-        # Still pass - just warnings
 
     print("\n✅ PASS: No critical or high severity findings")
     sys.exit(0)

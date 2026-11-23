@@ -89,14 +89,14 @@ class TestMigrations:
 
     def test_sqlite_migrations_exist(self):
         """SQLite migrations are defined."""
-        assert MIGRATIONS[-1][0] == 28
+        assert MIGRATIONS[-1][0] == 30
         for target, script in MIGRATIONS:
             assert isinstance(target, int)
             assert isinstance(script, str)
             assert len(script) > 0
 
     def test_pg_migrations_exist(self):
-        """PostgreSQL migrations are defined (includes distributed_leases migration 29)."""
+        """PostgreSQL migrations exist (leases 29, revocations 30, token registry 31)."""
         expected_targets = {
             10,
             11,
@@ -118,6 +118,8 @@ class TestMigrations:
             27,
             28,
             29,
+            30,
+            31,
         }
         assert {target for target, _script in MIGRATIONS_PG} == expected_targets
         for target, script in MIGRATIONS_PG:

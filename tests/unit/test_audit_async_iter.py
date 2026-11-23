@@ -28,8 +28,6 @@ async def test_iterator_can_be_closed_from_another_task(store_with_scope):
     assert sequence == 1
     assert body["event"] == "one"
 
-    # Before the fix this raised RuntimeError("Lock released by non-owner"),
-    # because the generator frame owned the lock while suspended at the yield.
     await asyncio.create_task(iterator.aclose())
 
 
@@ -39,8 +37,6 @@ async def test_failed_verification_returns_instead_of_raising(store_with_scope):
     await chain.append_async({"event": "one"})
     await chain.append_async({"event": "two"})
 
-    # A different key cannot reproduce the MACs, so verification stops at the
-    # first entry and returns instead of raising.
     reader = AuditChain(persistent=True, hmac_key="x" * 32)
     ok, reason = await reader.verify_async()
     assert ok is False

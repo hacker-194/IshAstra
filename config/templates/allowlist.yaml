@@ -1,0 +1,32 @@
+# Template Allowlist for Nuclei and Nmap NSE
+# Only approved templates/scripts can run - enforced at adapter startup
+#
+# Format:
+# nuclei:
+#   - "http/exposures/configs"
+#   - "http/vulnerabilities/cve-2024-*"
+# nmap:
+#   - "http-title"
+#   - "ssl-cert"
+#
+# Supports glob patterns (*) for template paths
+
+nuclei:
+  - "http/exposures/configs"
+  - "http/exposures/tokens"
+  - "http/vulnerabilities/cve-2024-*"
+  - "http/misconfiguration/*"
+  - "http/cves/2024/*"
+  - "http/technologies/*"
+
+nmap:
+  - "http-title"
+  - "http-headers"
+  - "ssl-cert"
+  - "ssl-date"
+  - "ssh-hostkey"
+  - "banner"
+  - "dns-zone-transfer"
+  - "ftp-anon"
+  - "http-server-header"
+  - "http-methods"

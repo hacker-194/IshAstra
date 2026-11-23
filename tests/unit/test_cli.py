@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +17,9 @@ from ishastra.cli import (
     _gate_key,
     _public_key,
     _run_assess,
+    _run_assess_list,
+    _run_assess_status,
+    _run_assess_submit,
     _run_grant,
     _run_proof,
     _run_scope_template,
@@ -611,3 +615,260 @@ class TestMain:
             main(["--version"])
         captured = capsys.readouterr()
         assert "ishastra" in captured.out
+
+    def test_main_assess_run(self, monkeypatch):
+        """Test main with assess run command."""
+        monkeypatch.setattr("sys.argv", ["ishastra", "assess", "run", "--target", "https://example.com"])
+
+        with (
+            patch("ishastra.cli._run_assess") as mock_run_assess,
+            patch("ishastra.cli.get_settings"),
+            patch("ishastra.cli._configure_logging"),
+        ):
+            mock_run_assess.return_value = 0
+            with contextlib.suppress(SystemExit):
+                main()
+            mock_run_assess.assert_called_once()
+
+    def test_main_assess_submit(self, monkeypatch):
+        """Test main with assess submit command."""
+        monkeypatch.setattr("sys.argv", ["ishastra", "assess", "submit", "--target", "https://example.com"])
+
+        with (
+            patch("ishastra.cli._run_assess_submit") as mock_run_submit,
+            patch("ishastra.cli.get_settings"),
+            patch("ishastra.cli._configure_logging"),
+        ):
+            mock_run_submit.return_value = 0
+            with contextlib.suppress(SystemExit):
+                main()
+            mock_run_submit.assert_called_once()
+
+    def test_main_assess_status(self, monkeypatch):
+        """Test main with assess status command."""
+        monkeypatch.setattr("sys.argv", ["ishastra", "assess", "status", "--job-id", "test-job-123"])
+
+        with (
+            patch("ishastra.cli._run_assess_status") as mock_run_status,
+            patch("ishastra.cli.get_settings"),
+            patch("ishastra.cli._configure_logging"),
+        ):
+            mock_run_status.return_value = 0
+            with contextlib.suppress(SystemExit):
+                main()
+            mock_run_status.assert_called_once()
+
+    def test_main_assess_list(self, monkeypatch):
+        """Test main with assess list command."""
+        monkeypatch.setattr("sys.argv", ["ishastra", "assess", "list", "--tenant", "test-tenant"])
+
+        with (
+            patch("ishastra.cli._run_assess_list") as mock_run_list,
+            patch("ishastra.cli.get_settings"),
+            patch("ishastra.cli._configure_logging"),
+        ):
+            mock_run_list.return_value = 0
+            with contextlib.suppress(SystemExit):
+                main()
+            mock_run_list.assert_called_once()
+
+
+class TestRunAssessSubmit:
+    """Test _run_assess_submit function."""
+
+    @pytest.mark.asyncio
+    async def test_run_assess_submit_basic(self, tmp_path, scope_file):
+        """Test basic assess submit command."""
+        args = MagicMock()
+        args.target = "https://example.com/"
+        args.profile = "web"
+        args.scope_file = scope_file
+        args.scope_format = "scope"  # Explicitly set to scope format to avoid auto-detection issues
+        args.scope_domain = ""
+        args.scope_ports = ""
+        args.actor = "test"
+        args.timeout = 300.0
+        args.auth_type = None
+        args.auth_config = None
+        args.auth_bearer = None
+        args.auth_api_key = None
+        args.auth_api_key_header = "X-API-Key"
+        args.auth_header = []
+        args.auth_cookie = []
+        args.auth_login_url = None
+        args.auth_username = None
+        args.auth_password = None
+        args.auth_username_field = "username"
+        args.auth_password_field = "password"
+        args.auth_csrf_field = None
+        args.auth_extra_field = []
+        args.grant = ""
+        args.proof_out = ""
+        args.proof_ledger = ""
+        args.gate_key = ""
+        args.trusted_issuer = ""
+
+        with (
+            patch("ishastra.cli.jobs_module.prepare") as mock_prepare,
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.scope_module.load") as mock_scope_load,
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            mock_settings.return_value = Settings(
+                db_path=":memory:",
+                encryption_key="i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=",
+                audit_hmac_key="dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==",
+            )
+
+            mock_scope = MagicMock()
+            mock_scope_load.return_value = mock_scope
+
+            mock_job = MagicMock()
+            mock_job.id = "test-job-123"
+            mock_prepare.return_value = mock_job
+
+            mock_asyncio_run.return_value = None
+
+            result = _run_assess_submit(args)
+            assert result == 0
+            mock_prepare.assert_called_once()
+            mock_asyncio_run.assert_called_once()
+
+
+class TestRunAssessStatus:
+    """Test _run_assess_status function."""
+
+    @pytest.mark.asyncio
+    async def test_run_assess_status_found(self, tmp_path):
+        """Test assess status with existing job."""
+        args = MagicMock()
+        args.job_id = "test-job-123"
+        args.tenant = "test-tenant"
+
+        with (
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.store.configure"),
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            mock_settings.return_value = Settings(
+                db_path=":memory:",
+                encryption_key="i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=",
+                audit_hmac_key="dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==",
+            )
+
+            mock_job = {
+                "id": "test-job-123",
+                "target": "https://example.com/",
+                "profile": "web",
+                "state": "completed",
+                "verdict": "clean",
+                "started_at": datetime.now().timestamp(),
+                "finished_at": datetime.now().timestamp(),
+                "error": "",
+                "coverage": {"total": 3, "ok": 3},
+                "findings": [],
+            }
+            mock_asyncio_run.return_value = mock_job
+
+            result = _run_assess_status(args)
+            assert result == 0
+            mock_asyncio_run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_assess_status_not_found(self, tmp_path):
+        """Test assess status with non-existent job."""
+        args = MagicMock()
+        args.job_id = "nonexistent-job"
+        args.tenant = "test-tenant"
+
+        with (
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.store.configure"),
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            mock_settings.return_value = Settings(
+                db_path=":memory:",
+                encryption_key="i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=",
+                audit_hmac_key="dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==",
+            )
+
+            mock_asyncio_run.return_value = None
+
+            result = _run_assess_status(args)
+            assert result == 3
+            mock_asyncio_run.assert_called_once()
+
+
+class TestRunAssessList:
+    """Test _run_assess_list function."""
+
+    @pytest.mark.asyncio
+    async def test_run_assess_list_basic(self, tmp_path):
+        """Test assess list command."""
+        args = MagicMock()
+        args.tenant = "test-tenant"
+        args.limit = 20
+        args.offset = 0
+
+        with (
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.store.configure"),
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            mock_settings.return_value = Settings(
+                db_path=":memory:",
+                encryption_key="i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=",
+                audit_hmac_key="dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==",
+            )
+
+            mock_jobs = [
+                {
+                    "id": "job-1",
+                    "state": "completed",
+                    "target": "https://example.com/",
+                    "profile": "web",
+                    "verdict": "clean",
+                },
+                {
+                    "id": "job-2",
+                    "state": "running",
+                    "target": "https://test.com/",
+                    "profile": "api",
+                    "verdict": "in progress",
+                },
+            ]
+            mock_asyncio_run.return_value = mock_jobs
+
+            result = _run_assess_list(args)
+            assert result == 0
+            mock_asyncio_run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_assess_list_empty(self, tmp_path):
+        """Test assess list with no jobs."""
+        args = MagicMock()
+        args.tenant = "test-tenant"
+        args.limit = 20
+        args.offset = 0
+
+        with (
+            patch("ishastra.cli.get_settings") as mock_settings,
+            patch("ishastra.cli._configure_logging"),
+            patch("ishastra.cli.store.configure"),
+            patch("asyncio.run") as mock_asyncio_run,
+        ):
+            mock_settings.return_value = Settings(
+                db_path=":memory:",
+                encryption_key="i2q1RZNk5PGHI2AiS4waZgbfgwivSD+BEy14nBdumzQ=",
+                audit_hmac_key="dGVzdC1hdWQtaG1hYy1rZXktMzJieXRlcw==",
+            )
+
+            mock_asyncio_run.return_value = []
+
+            result = _run_assess_list(args)
+            assert result == 0
+            mock_asyncio_run.assert_called_once()

@@ -78,6 +78,7 @@ services:
       start_period: 20s
     networks:
       - ishastra-network
+      - ishastra-worker-net
     deploy:
       resources:
         limits:
@@ -86,6 +87,110 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
+  egress-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: ishastra-egress-gateway
+    image: ishastra/egress-gateway:dev
+    command: ["ishastra", "worker", "gateway"]
+    environment:
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_REDIS_URL=redis://redis:6379/0
+      - ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH=/etc/ishastra/keys/capability-private.key
+      - ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH=/etc/ishastra/keys/capability-public.key
+      - ISHASTRA_EVIDENCE_PRIVATE_KEY_PATH=/etc/ishastra/keys/evidence-private.key
+      - ISHASTRA_EVIDENCE_PUBLIC_KEY_PATH=/etc/ishastra/keys/evidence-public.key
+      - ISHASTRA_LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - ISHASTRA_GATEWAY_LISTEN_HOST=0.0.0.0
+      - ISHASTRA_GATEWAY_LISTEN_PORT=8080
+    volumes:
+      - ./examples/keys:/etc/ishastra/keys:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    networks:
+      - ishastra-network
+      - ishastra-worker-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  worker-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: ishastra-worker-manager
+    image: ishastra/worker-manager:dev
+    command: ["ishastra", "worker", "manager"]
+    environment:
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_REDIS_URL=redis://redis:6379/0
+      - ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH=/etc/ishastra/keys/capability-private.key
+      - ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH=/etc/ishastra/keys/capability-public.key
+      - ISHASTRA_EVIDENCE_PRIVATE_KEY_PATH=/etc/ishastra/keys/evidence-private.key
+      - ISHASTRA_EVIDENCE_PUBLIC_KEY_PATH=/etc/ishastra/keys/evidence-public.key
+      - ISHASTRA_LOG_LEVEL=INFO
+      - ISHASTRA_WORKER_IMAGE=ishastra/worker:latest
+      - ISHASTRA_WORKER_NETWORK=ishastra-worker-net
+      - ISHASTRA_WORKER_GATEWAY_URL=http://egress-gateway:8080
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./examples/keys:/etc/ishastra/keys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ishastra-worker-root:/tmp/ishastra-workers
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      egress-gateway:
+        condition: service_started
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    networks:
+      - ishastra-network
+      - ishastra-worker-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   prometheus:
     image: prom/prometheus:v2.48.0
@@ -172,12 +277,50 @@ services:
         aliases:
           - keycloak.localhost
 
+  # nftables rules for worker network isolation
+  # This runs as an init container to apply host-level firewall rules
+  # Requires host network and NET_ADMIN capability
+  egress-firewall:
+    image: alpine:3.20
+    container_name: ishastra-egress-firewall
+    command: >
+      sh -c "
+        apk add --no-cache nftables iptables iproute2 &&
+        nft -f /etc/nftables/ishastra_egress.nft &&
+        echo 'nftables rules applied successfully' &&
+        sleep infinity
+      "
+    volumes:
+      - ./deploy/firewall:/etc/nftables:ro
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    restart: "no"
+    depends_on:
+      - egress-gateway
+    profiles: ["firewall"]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 32M
+        reservations:
+          cpus: '0.05'
+          memory: 16M
+
 networks:
   ishastra-network:
     driver: bridge
     ipam:
       config:
         - subnet: 172.28.0.0/16
+  ishastra-worker-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+    internal: true
 
 volumes:
   postgres_data:
@@ -186,3 +329,4 @@ volumes:
   grafana_data:
   jaeger_data:
   keycloak_data:
+  ishastra-worker-root:

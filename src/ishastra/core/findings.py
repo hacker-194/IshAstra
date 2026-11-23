@@ -221,6 +221,55 @@ def dedupe(findings: Iterable[Finding]) -> list[Finding]:
     return sorted(merged.values(), key=lambda f: (SEVERITIES.index(f.severity), f.fingerprint))
 
 
+def correlation_fingerprint(finding: Finding) -> str:
+    """Broader fingerprint for cross-adapter correlation.
+
+    Groups by asset + category, and when CWE is present, by asset + CWE.
+    This allows findings from different tools detecting the same vulnerability
+    class (e.g., SQL injection found by both sqlmap and nuclei) to correlate
+    even if they use different category names.
+    """
+    # Use CWE for cross-category correlation when available
+    if finding.cwe:
+        basis = "\x1f".join((finding.asset.strip().lower(), finding.cwe))
+    else:
+        basis = "\x1f".join((finding.asset.strip().lower(), finding.category))
+    return hashlib.sha256(basis.encode()).hexdigest()[:32]
+
+
+def correlate(findings: Iterable[Finding]) -> list[Finding]:
+    """Cross-adapter correlation: merge findings sharing a correlation fingerprint.
+
+    Unlike dedupe (which requires exact fingerprint match: asset + category + location),
+    correlate uses a broader fingerprint (asset + category, or asset + CWE) to group
+    related findings from different tools. The most severe finding in each group is kept
+    with merged sources and combined evidence.
+    """
+    merged: dict[str, Finding] = {}
+    for item in findings:
+        corr_fp = correlation_fingerprint(item)
+        current = merged.get(corr_fp)
+        if current is None:
+            merged[corr_fp] = item
+            continue
+        more_severe = SEVERITIES.index(item.severity) < SEVERITIES.index(current.severity)
+        winner = item if more_severe else current
+        merged_sources = (
+            *(current.sources or (current.detector,)),
+            *(item.sources or (item.detector,)),
+        )
+        # Combine evidence from both findings
+        combined_evidence = current.evidence
+        if item.evidence and item.evidence not in combined_evidence:
+            combined_evidence = f"{combined_evidence}; {item.evidence}"
+        merged[corr_fp] = replace(
+            winner,
+            sources=tuple(dict.fromkeys(merged_sources)),
+            evidence=combined_evidence,
+        )
+    return sorted(merged.values(), key=lambda f: (SEVERITIES.index(f.severity), f.fingerprint))
+
+
 def to_sarif(findings: Iterable[Finding], *, tool_version: str = __version__) -> dict[str, Any]:
     """SARIF 2.1.0 document (https://docs.oasis-open.org/sarif/sarif/v2.1.0/)."""
     items = list(findings)

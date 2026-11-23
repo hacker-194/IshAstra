@@ -26,6 +26,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ishastra.security.authorization.scope import resolve
@@ -445,3 +446,78 @@ class EgressGateway:
         )
         with contextlib.suppress(Exception):
             await writer.drain()
+
+
+async def main() -> int:
+    """Run the egress gateway as a standalone service."""
+    import os
+    import signal
+
+    from ishastra.core import store
+    from ishastra.security.capabilities.issuer import CapabilityIssuer
+    from ishastra.security.capabilities.token import new_keypair
+    from ishastra.security.capabilities.verifier import CapabilityVerifier
+
+    # Configure database
+    db_url = os.environ.get("ISHASTRA_DATABASE_URL")
+    if not db_url:
+        print("ISHASTRA_DATABASE_URL not set", file=sys.stderr)
+        return 1
+
+    store.configure(db_url)
+    db = await store.get_database()
+
+    # Load keys
+    private_key_path = os.environ.get("ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH")
+    public_key_path = os.environ.get("ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH")
+
+    if not private_key_path or not os.path.exists(private_key_path):
+        print("ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH not set or file not found", file=sys.stderr)
+        return 1
+
+    private_key = Path(private_key_path).read_bytes()
+
+    # Create issuer and verifier
+    config = CapabilityIssuer.create_config(signing_key_private=private_key, database=db)
+    issuer = CapabilityIssuer(config)
+    await issuer.initialize()
+
+    verifier = CapabilityVerifier.from_issuer_config(config, database=db, require_job_running=False)
+
+    # Create gateway
+    listen_host = os.environ.get("ISHASTRA_GATEWAY_LISTEN_HOST", "0.0.0.0")
+    listen_port = int(os.environ.get("ISHASTRA_GATEWAY_LISTEN_PORT", "8080"))
+
+    gateway = EgressGateway(
+        verifier=verifier,
+        audit_chain=None,  # Could be configured from environment
+        listen_host=listen_host,
+        listen_port=listen_port,
+        expected_job_id=None,  # None means accept any valid job
+    )
+
+    shutdown_event = asyncio.Event()
+
+    def _signal_handler(signum, frame):
+        shutdown_event.set()
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+
+    print(f"Starting egress gateway on {listen_host}:{listen_port}", file=sys.stderr)
+    await gateway.start()
+
+    try:
+        await shutdown_event.wait()
+    finally:
+        print("Shutting down egress gateway...", file=sys.stderr)
+        await gateway.stop()
+
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    import asyncio
+    from pathlib import Path
+    sys.exit(asyncio.run(main()))

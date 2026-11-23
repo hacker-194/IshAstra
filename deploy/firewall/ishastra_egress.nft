@@ -1,0 +1,32 @@
+#!/usr/sbin/nft -f
+# Ishastra Egress Firewall Rules
+# Applied by egress-firewall init container (requires NET_ADMIN, host network)
+# Worker subnet: 172.29.0.0/16 (ishastra-worker-net)
+# Gateway: 172.29.0.2:8080 (egress-gateway on worker-net)
+#
+# This is the secondary defense layer - the primary is the egress gateway proxy
+# which enforces capability tokens. This nftables table drops all traffic from
+# the worker subnet except:
+# 1. Established/related connections
+# 2. Connections to the egress gateway (172.29.0.2:8080)
+# 3. Explicitly blocked cloud metadata addresses
+
+table inet ishaistra_egress {
+  chain worker_egress {
+    type filter hook forward priority -10; policy accept;
+
+    # Allow established/related traffic
+    ct state established,related accept
+
+    # Allow worker subnet -> egress gateway (TCP 8080)
+    ip saddr 172.29.0.0/16 ip daddr 172.29.0.2 tcp dport 8080 accept
+
+    # Block cloud metadata addresses (defense in depth)
+    ip daddr 169.254.169.254 drop
+    ip daddr 169.254.170.2 drop
+    ip daddr 100.100.100.200 drop
+
+    # Drop everything else from worker subnet
+    ip saddr 172.29.0.0/16 drop
+  }
+}

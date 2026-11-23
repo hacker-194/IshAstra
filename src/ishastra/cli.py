@@ -373,6 +373,216 @@ def _run_assess(args: argparse.Namespace) -> int:
     return 3
 
 
+def _run_assess_submit(args: argparse.Namespace) -> int:
+    """Submit an assessment to the queue (async). Returns exit code."""
+    settings = get_settings()
+    _configure_logging(settings)
+
+    auth_config = _build_auth_config(args)
+
+    job_policy = {}
+    if auth_config is not None:
+        if not settings.encryption_key:
+            print("error: ISHASTRA_ENCRYPTION_KEY not configured (required for auth)", file=sys.stderr)
+            return 3
+        try:
+            from ishastra.core.auth import EncryptedAuthConfig, create_authenticator_from_dict
+
+            authenticator = create_authenticator_from_dict(auth_config)
+            encrypted_auth = EncryptedAuthConfig.create(authenticator, settings.encryption_key)
+            job_policy["encrypted_auth_config"] = {
+                "principal_id": encrypted_auth.principal_id,
+                "authenticator_type": encrypted_auth.authenticator_type,
+                "encrypted_config": encrypted_auth.encrypted_config,
+                "created_at": encrypted_auth.created_at,
+            }
+        except Exception as exc:
+            print(f"error: invalid auth configuration: {exc}", file=sys.stderr)
+            return 3
+
+    gate: proof.Gate | None = None
+    grant: proof.Grant | None = None
+    loaded_scope: scope_module.Scope | None
+    if args.grant:
+        try:
+            grant = proof.load_grant(args.grant)
+            gate = proof.Gate(
+                grant,
+                signing_key=_gate_key(args.gate_key) if args.gate_key else "",
+                actor=args.actor,
+                ledger_path=args.proof_ledger,
+                trusted_issuer=_public_key(args.trusted_issuer) or None,
+            )
+            loaded_scope = grant.to_scope()
+        except (proof.ProofError, OSError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
+    elif getattr(args, "scope_file", "") and isinstance(args.scope_file, str) and args.scope_file:
+        scope_path = Path(args.scope_file).expanduser().resolve()
+        if not scope_path.exists():
+            print(f"error: scope file not found: {scope_path}", file=sys.stderr)
+            return 3
+
+        content = scope_path.read_text()
+        scope_doc = None
+
+        scope_format = getattr(args, "scope_format", "auto")
+        if scope_format == "scope" or (scope_format == "auto" and "scope" in scope_path.name.lower()):
+            scope_doc = _import_from_scope(content)
+        elif scope_format == "har" or (scope_format == "auto" and scope_path.suffix == ".har"):
+            scope_doc = _import_from_har(content)
+        elif scope_format == "openapi" or (
+            scope_format == "auto" and scope_path.suffix in (".json", ".yaml", ".yml")
+        ):
+            scope_doc = _import_from_openapi(content, scope_path.suffix)
+        else:
+            msg = "error: unsupported format '{scope_format}'. Use --scope-format openapi|har|scope|auto"
+            print(msg.format(scope_format=scope_format), file=sys.stderr)
+            return 3
+
+        if scope_doc is None:
+            print("error: failed to extract scope from input", file=sys.stderr)
+            return 3
+
+        scope_domain = getattr(args, "scope_domain", "")
+        if scope_domain:
+            scope_doc = _substitute_domain(scope_doc, scope_domain)
+
+        scope_ports = getattr(args, "scope_ports", "")
+        if scope_ports:
+            scope_doc["allowed_ports"] = [int(p.strip()) for p in scope_ports.split(",") if p.strip()]
+
+        try:
+            from ishastra.core.scope import Scope
+
+            loaded_scope = Scope(
+                program=scope_doc.get("program", "Imported scope"),
+                authorized_by=scope_doc.get("authorized_by", "REPLACE: authorizing authority"),
+                authorization_ref=scope_doc.get("authorization_ref", "REPLACE: engagement reference"),
+                include=tuple(scope_doc.get("include", [])),
+                exclude=tuple(scope_doc.get("exclude", [])),
+                authorized_networks=tuple(scope_doc.get("authorized_networks", [])),
+                allowed_ports=tuple(scope_doc.get("allowed_ports", [80, 443])),
+                allow_broad_networks=scope_doc.get("allow_broad_networks", False),
+            )
+        except ValueError as exc:
+            print(f"error: invalid scope document: {exc}", file=sys.stderr)
+            return 3
+    else:
+        scope_path = Path(args.scope).expanduser().resolve()
+        loaded_scope = scope_module.load(scope_path)
+        if loaded_scope is None:
+            print(f"error: scope file not found: {scope_path}", file=sys.stderr)
+            return 3
+
+    try:
+        job = jobs_module.prepare(
+            target=args.target,
+            profile=args.profile,
+            actor=args.actor,
+            timeout=args.timeout,
+            scope_snapshot=loaded_scope,
+            policy=job_policy or None,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    # Submit to queue
+    try:
+        import asyncio
+        from ishastra.core.queue import get_assessment_queue
+
+        queue = get_assessment_queue()
+
+        async def submit_job():
+            await queue.start()
+            await queue.submit(job, lambda j: None)
+
+        asyncio.run(submit_job())
+    except Exception as exc:
+        print(f"error: failed to submit job: {exc}", file=sys.stderr)
+        return 3
+
+    print(f"job submitted: {job.id}")
+    print(f"  target: {args.target}")
+    print(f"  profile: {args.profile}")
+    print(f"  status: queued")
+    print(f"  check status with: ishastra assess status --job-id {job.id}")
+    return 0
+
+
+def _run_assess_status(args: argparse.Namespace) -> int:
+    """Check status of a submitted assessment job. Returns exit code."""
+    settings = get_settings()
+    _configure_logging(settings)
+
+    try:
+        import asyncio
+        from ishastra.core import store
+
+        store.configure(settings.db_path)
+
+        async def get_status():
+            await store.get_database()
+            job = await store.get_job(args.job_id, tenant=args.tenant or None)
+            return job
+
+        job = asyncio.run(get_status())
+    except Exception as exc:
+        print(f"error: failed to get job status: {exc}", file=sys.stderr)
+        return 3
+
+    if job is None:
+        print(f"error: job {args.job_id} not found", file=sys.stderr)
+        return 3
+
+    print(f"job: {job['id']}")
+    print(f"  target: {job['target']}")
+    print(f"  profile: {job['profile']}")
+    print(f"  state: {job['state']}")
+    print(f"  verdict: {job['verdict']}")
+    if job['started_at']:
+        print(f"  started: {datetime.fromtimestamp(job['started_at']).isoformat()}")
+    if job['finished_at']:
+        print(f"  finished: {datetime.fromtimestamp(job['finished_at']).isoformat()}")
+    if job['error']:
+        print(f"  error: {job['error']}")
+    print(f"  coverage: {job['coverage']}")
+    print(f"  findings: {len(job['findings'])}")
+    return 0
+
+
+def _run_assess_list(args: argparse.Namespace) -> int:
+    """List assessment jobs for a tenant. Returns exit code."""
+    settings = get_settings()
+    _configure_logging(settings)
+
+    try:
+        import asyncio
+        from ishastra.core import store
+
+        store.configure(settings.db_path)
+
+        async def list_jobs():
+            await store.get_database()
+            return await store.list_jobs(tenant=args.tenant, limit=args.limit, offset=args.offset)
+
+        jobs = asyncio.run(list_jobs())
+    except Exception as exc:
+        print(f"error: failed to list jobs: {exc}", file=sys.stderr)
+        return 3
+
+    if not jobs:
+        print(f"no jobs found for tenant {args.tenant}")
+        return 0
+
+    print(f"jobs for tenant {args.tenant}:")
+    for job in jobs:
+        print(f"  {job['id']}  {job['state']:12}  {job['target']}  {job['profile']}  {job['verdict']}")
+    return 0
+
+
 def _run_evidence(args: argparse.Namespace) -> int:
     """Run compliance assessment and generate evidence pack. Returns exit code."""
     settings = get_settings()
@@ -773,6 +983,15 @@ def _run_worker(args: argparse.Namespace) -> int:
     from ishastra.core.worker_runner import main as worker_main
 
     return worker_main()
+
+
+def _run_gateway(args: argparse.Namespace) -> int:
+    """Run the egress gateway (CONNECT proxy) for worker network."""
+    from ishastra.security.egress.gateway import main as gateway_main
+    import asyncio
+    return asyncio.run(gateway_main())
+
+
 
 
 def _run_vault(args: argparse.Namespace) -> int:
@@ -2515,147 +2734,295 @@ def main(argv: list[str] | None = None) -> None:
     )
     evidence_verify_parser.add_argument("--json", action="store_true")
 
-    assess_parser = subparsers.add_parser("assess", help="Run a single assessment and output SARIF")
-    assess_parser.add_argument("--target", required=True, help="Target URL (e.g. https://app.example.com/)")
-    assess_parser.add_argument(
+    assess_parser = subparsers.add_parser("assess", help="Assessment commands")
+    assess_subparsers = assess_parser.add_subparsers(dest="assess_command", required=True)
+
+    # assess run (existing synchronous behavior)
+    run_parser = assess_subparsers.add_parser("run", help="Run a single assessment and output SARIF")
+    run_parser.add_argument("--target", required=True, help="Target URL (e.g. https://app.example.com/)")
+    run_parser.add_argument(
         "--profile",
         default="web",
         choices=["web", "web-deep", "api", "api-deep", "network"],
         help="Assessment profile (default: web)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--scope",
         default="scope.json",
         help="Path to scope.json authorization document (default: scope.json)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--output",
         "-o",
         help="Output SARIF file (default: stdout)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--timeout",
         type=float,
         default=300.0,
         help="Overall job deadline in seconds (default: 300)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--actor",
         default="analyst",
         help="Actor name for audit trail (default: analyst)",
     )
 
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-type",
         choices=["token", "session", "form_login", "multi_step"],
         help="Authentication type for authenticated scanning",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-config",
         help="Path to JSON file with authentication configuration (alternative to individual flags)",
     )
 
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-bearer",
         help="Bearer token for Authorization header",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-api-key",
         help="API key value",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-api-key-header",
         default="X-API-Key",
         help="Header name for API key (default: X-API-Key)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-header",
         action="append",
         default=[],
         help="Custom header as 'Name:Value' (repeatable)",
     )
 
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-cookie",
         action="append",
         default=[],
         help="Session cookie as 'name=value' (repeatable)",
     )
 
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-login-url",
         help="Login form URL",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-username",
         help="Username for form login",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-password",
         help="Password for form login",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-username-field",
         default="username",
         help="Username field name (default: username)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-password-field",
         default="password",
         help="Password field name (default: password)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-csrf-field",
         help="CSRF token field name",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--auth-extra-field",
         action="append",
         default=[],
         help="Extra form field as 'name=value' (repeatable)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--grant",
         default="",
         help="Signed grant (Ishastra Proof) authorizing and receipting this run",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--scope-file",
         default="",
         help="Import scope from OpenAPI spec, HAR file, or scope.json (auto-detected)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--scope-format",
         choices=["auto", "openapi", "har", "scope"],
         default="auto",
         help="Scope import format (default: auto-detect from file extension)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--scope-domain",
         default="",
         help="Substitute domain in imported scope (e.g., example.com)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--scope-ports",
         default="",
         help="Override allowed ports in imported scope (comma-separated, e.g., 80,443,8443)",
     )
-    assess_parser.add_argument("--proof-out", default="", help="Write a proof pack for this run")
-    assess_parser.add_argument(
+    run_parser.add_argument("--proof-out", default="", help="Write a proof pack for this run")
+    run_parser.add_argument(
         "--proof-ledger",
         default="",
         help="Append receipts to this JSONL ledger (default: in memory)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--gate-key",
         default="",
         help="Gate signing key file for receipts (created if absent)",
     )
-    assess_parser.add_argument(
+    run_parser.add_argument(
         "--trusted-issuer",
         default="",
         help="Require the grant to be signed by this public key (or key file)",
     )
+
+    # assess submit - queue an assessment asynchronously
+    submit_parser = assess_subparsers.add_parser("submit", help="Submit an assessment to the queue (async)")
+    submit_parser.add_argument("--target", required=True, help="Target URL (e.g. https://app.example.com/)")
+    submit_parser.add_argument(
+        "--profile",
+        default="web",
+        choices=["web", "web-deep", "api", "api-deep", "network"],
+        help="Assessment profile (default: web)",
+    )
+    submit_parser.add_argument(
+        "--scope-file",
+        default="",
+        help="Import scope from OpenAPI spec, HAR file, or scope.json (auto-detected)",
+    )
+    submit_parser.add_argument(
+        "--scope-format",
+        choices=["auto", "openapi", "har", "scope"],
+        default="auto",
+        help="Scope import format (default: auto-detect from file extension)",
+    )
+    submit_parser.add_argument(
+        "--scope-domain",
+        default="",
+        help="Substitute domain in imported scope (e.g., example.com)",
+    )
+    submit_parser.add_argument(
+        "--scope-ports",
+        default="",
+        help="Override allowed ports in imported scope (comma-separated, e.g., 80,443,8443)",
+    )
+    submit_parser.add_argument(
+        "--actor",
+        default="analyst",
+        help="Actor name for audit trail (default: analyst)",
+    )
+    submit_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="Overall job deadline in seconds (default: 300)",
+    )
+    submit_parser.add_argument(
+        "--auth-type",
+        choices=["token", "session", "form_login", "multi_step"],
+        help="Authentication type for authenticated scanning",
+    )
+    submit_parser.add_argument(
+        "--auth-config",
+        help="Path to JSON file with authentication configuration",
+    )
+    submit_parser.add_argument(
+        "--auth-bearer",
+        help="Bearer token for Authorization header",
+    )
+    submit_parser.add_argument(
+        "--auth-api-key",
+        help="API key value",
+    )
+    submit_parser.add_argument(
+        "--auth-api-key-header",
+        default="X-API-Key",
+        help="Header name for API key (default: X-API-Key)",
+    )
+    submit_parser.add_argument(
+        "--auth-header",
+        action="append",
+        default=[],
+        help="Custom header as 'Name:Value' (repeatable)",
+    )
+    submit_parser.add_argument(
+        "--auth-cookie",
+        action="append",
+        default=[],
+        help="Session cookie as 'name=value' (repeatable)",
+    )
+    submit_parser.add_argument(
+        "--auth-login-url",
+        help="Login form URL",
+    )
+    submit_parser.add_argument(
+        "--auth-username",
+        help="Username for form login",
+    )
+    submit_parser.add_argument(
+        "--auth-password",
+        help="Password for form login",
+    )
+    submit_parser.add_argument(
+        "--auth-username-field",
+        default="username",
+        help="Username field name (default: username)",
+    )
+    submit_parser.add_argument(
+        "--auth-password-field",
+        default="password",
+        help="Password field name (default: password)",
+    )
+    submit_parser.add_argument(
+        "--auth-csrf-field",
+        help="CSRF token field name",
+    )
+    submit_parser.add_argument(
+        "--auth-extra-field",
+        action="append",
+        default=[],
+        help="Extra form field as 'name=value' (repeatable)",
+    )
+    submit_parser.add_argument(
+        "--grant",
+        default="",
+        help="Signed grant (Ishastra Proof) authorizing and receipting this run",
+    )
+    submit_parser.add_argument(
+        "--proof-out",
+        default="",
+        help="Write a proof pack for this run when complete",
+    )
+    submit_parser.add_argument(
+        "--proof-ledger",
+        default="",
+        help="Append receipts to this JSONL ledger (default: in memory)",
+    )
+    submit_parser.add_argument(
+        "--gate-key",
+        default="",
+        help="Gate signing key file for receipts (created if absent)",
+    )
+    submit_parser.add_argument(
+        "--trusted-issuer",
+        default="",
+        help="Require the grant to be signed by this public key (or key file)",
+    )
+
+    # assess status - check job status
+    status_parser = assess_subparsers.add_parser("status", help="Check status of a submitted assessment job")
+    status_parser.add_argument("--job-id", required=True, help="Job ID to check")
+    status_parser.add_argument("--tenant", default="", help="Tenant ID (optional, for admin)")
+
+    # assess list - list assessment jobs
+    list_parser = assess_subparsers.add_parser("list", help="List assessment jobs for a tenant")
+    list_parser.add_argument("--tenant", required=True, help="Tenant ID to list jobs for")
+    list_parser.add_argument("--limit", type=int, default=20, help="Maximum number of jobs to return (default: 20)")
+    list_parser.add_argument("--offset", type=int, default=0, help="Offset for pagination (default: 0)")
 
     evidence_parser = subparsers.add_parser(
         "evidence", help="Generate compliance evidence pack (NRB, NTA, NCSP)"
@@ -2768,6 +3135,12 @@ def main(argv: list[str] | None = None) -> None:
         default=1000,
         help="Maximum queued jobs (default: 1000)",
     )
+    worker_subparsers = worker_parser.add_subparsers(dest="worker_command", required=False)
+
+    gateway_parser = worker_subparsers.add_parser("gateway", help="Run the egress gateway (CONNECT proxy) for worker network")
+    gateway_parser.add_argument("--listen-host", default="0.0.0.0", help="Listen address (default: 0.0.0.0)")
+    gateway_parser.add_argument("--listen-port", type=int, default=8080, help="Listen port (default: 8080)")
+    gateway_parser.set_defaults(func=_run_gateway)
 
     scope_tpl_parser = subparsers.add_parser(
         "scope-template", help="Generate scope.json template for Nepal sector"
@@ -3256,7 +3629,17 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "backup":
         sys.exit(_run_backup(args))
     elif args.command == "assess":
-        sys.exit(_run_assess(args))
+        assess_cmd = getattr(args, "assess_command", "run")
+        if assess_cmd == "run":
+            sys.exit(_run_assess(args))
+        elif assess_cmd == "submit":
+            sys.exit(_run_assess_submit(args))
+        elif assess_cmd == "status":
+            sys.exit(_run_assess_status(args))
+        elif assess_cmd == "list":
+            sys.exit(_run_assess_list(args))
+        else:
+            parser.error(f"unknown assess command: {assess_cmd}")
     elif args.command == "evidence":
         sys.exit(_run_evidence(args))
     elif args.command == "evidence-verify":
@@ -3294,6 +3677,8 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "standby-promote":
         sys.exit(_run_standby_promote(args))
     elif args.command == "worker":
+        if getattr(args, "worker_command", None) == "gateway":
+            sys.exit(_run_gateway(args))
         sys.exit(_run_worker(args))
     elif args.command == "vault":
         sys.exit(_run_vault(args))

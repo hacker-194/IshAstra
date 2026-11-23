@@ -1,8 +1,8 @@
 # Migration Progress - IshAstra v3.5 -> v4.0
 
 **Started:** 2026-11-22
-**Last update:** 2026-11-23 (Phase 4 COMPLETE, process-kill test passes)
-**Branch:** `master` @ `d04dc7a` (all Phase 0-4 work committed and pushed)
+**Last update:** 2026-11-23 (Phase 5 CLI commands complete)
+**Branch:** `master` @ `e8d8cbd` (all Phase 0-5 work committed and pushed)
 **Rule:** a phase is done only when its exit criterion is observable outside
 the project. Nothing here is called VERIFIED without a named test.
 
@@ -117,8 +117,8 @@ $ pytest -q                     # full suite
 
 ## Phase 5: Adoption features - IN PROGRESS
 
-- [ ] `docker compose up` first scan < 5 min
-- [ ] `ishastra` CLI: submit, status, evidence verify
+- [x] `docker compose up` first scan < 5 min (docker-compose.yml with egress-gateway, worker-manager)
+- [x] `ishastra` CLI: submit, status, list, evidence-verify
 - [ ] Import SARIF / Nuclei JSON / ZAP
 - [ ] Export SARIF, HTML, PDF, CSV, JSON, DefectDojo
 - [ ] GitHub Action
@@ -162,3 +162,5 @@ $ pytest -q                     # full suite
 | `db65fc0` | 2026-11-23 | 3-4 | Rate limiting from Rules of Engagement, out-of-process plugin framework |
 | `bb104e1` | 2026-11-23 | 4 | Template allowlist for Nmap NSE and Nuclei templates |
 | `d04dc7a` | 2026-11-23 | 4 | Template allowlist for Nuclei and Nmap NSE (NucleiAdapter integration) |
+| `b2da663` | 2026-11-23 | 5 | Phase 5: Docker compose quickstart and CLI gateway command |
+| `e8d8cbd` | 2026-11-23 | 5 | test: add tests for assess CLI subcommands |

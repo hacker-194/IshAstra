@@ -166,9 +166,6 @@ def main():
     )
 
     values_content = f"""# Ishastra Production Secrets - Generated {datetime.now(UTC).isoformat()}
-# ⚠️  THIS FILE CONTAINS SENSITIVE SECRETS - DO NOT COMMIT TO GIT
-# Store in a secret manager (Vault, SealedSecrets, External Secrets Operator)
-# and reference via `helm upgrade --install -f values-secrets.yaml`
 
 secrets:
   enabled: true
@@ -230,8 +227,6 @@ secrets:
 
     if args.env_file:
         env_content = f"""# Ishastra Local Development Secrets - Generated {datetime.now(UTC).isoformat()}
-# Source this file: source .env.secrets
-# ⚠️  DO NOT COMMIT TO GIT
 
 export ISHASTRA_API_KEY="{ishastra_api_key}"
 export ISHASTRA_AUDIT_HMAC_KEY="{ishastra_audit_hmac_key}"

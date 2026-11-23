@@ -70,3 +70,6 @@ backups/
 site/
 kubeseal
 /detection-benchmark-results.json
+scope-signing-key.pem
+scope-jwks.json
+security-gate-exceptions.json

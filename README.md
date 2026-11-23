@@ -403,8 +403,6 @@ Released under the **Apache-2.0** license. See [LICENSE](LICENSE).
 
 <img src="./assets/divider.svg" alt="" width="100%">
 
-**Built with ❤️ for the open source security community.**
-
 *Authorization-first. Audit-ready. Free forever.*
 
 <br>

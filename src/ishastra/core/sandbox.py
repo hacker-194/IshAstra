@@ -139,6 +139,9 @@ def run_in_sandbox(
         "PATH": os.environ.get("PATH", ""),
         "LC_ALL": "C",
         "HOME": os.environ.get("HOME", ""),
+        "HTTP_PROXY": os.environ.get("HTTP_PROXY", ""),
+        "HTTPS_PROXY": os.environ.get("HTTPS_PROXY", ""),
+        "NO_PROXY": os.environ.get("NO_PROXY", ""),
     }
     if env_extra:
         env.update(env_extra)

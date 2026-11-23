@@ -5,6 +5,10 @@ argument arrays with a minimal environment, a hard deadline and a kill switch.
 Nmap receives the validated destination IP; Nuclei receives it too, with the
 original Host header and TLS SNI preserved and redirects disabled. Keep
 host-level egress filtering on as a second layer if you customize templates.
+
+Plugin Support (v3.5+):
+Adapters can now run as out-of-process plugins communicating via stdin/stdout
+JSON protocol. See ishastra.core.plugin_runner and ishastra.plugins.template.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ import shutil
 import subprocess
 import threading
 import time
+import warnings
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -71,6 +76,23 @@ from ishastra.core.signatures import match_url_signatures
 from ishastra.core.urls import parse_url
 
 log = logging.getLogger(__name__)
+
+# Track deprecated in-process adapter imports
+_DEPRECATED_ADAPTERS_WARNED = False
+
+
+def _warn_deprecated_adapter_import(adapter_name: str) -> None:
+    """Emit deprecation warning for in-process adapter imports."""
+    global _DEPRECATED_ADAPTERS_WARNED
+    if not _DEPRECATED_ADAPTERS_WARNED:
+        warnings.warn(
+            f"In-process adapter imports are deprecated. "
+            f"Use out-of-process plugins via ishastra.core.plugin_runner instead. "
+            f"Adapter '{adapter_name}' will be removed in v4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        _DEPRECATED_ADAPTERS_WARNED = True
 
 
 WEB_CHECKS: dict[str, tuple[str, str, str, str]] = {
@@ -157,6 +179,7 @@ class HTTPAdapter(Adapter):
         probe = EndpointProbe(
             timeout=min(timeout * 0.8, 8.0),
             rate_limit_rps=float((context or {}).get("rate_limit_rps") or 0),
+            rate_limiter=(context or {}).get("rate_limiter"),
         )
 
         response = probe.probe(target, deadline=deadline, auth=auth_principal)
@@ -299,7 +322,11 @@ class DynamicValidationAdapter(Adapter):
             )
         deadline = time.monotonic() + min(max(0.05, timeout), self.MAX_TIMEOUT)
         rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
-        probe = EndpointProbe(timeout=min(5.0, timeout), rate_limit_rps=rate_limit_rps)
+        probe = EndpointProbe(
+            timeout=min(5.0, timeout),
+            rate_limit_rps=rate_limit_rps,
+            rate_limiter=(context or {}).get("rate_limiter"),
+        )
 
         auth_principal = None
         if context and "auth_principal" in context:
@@ -427,6 +454,7 @@ class OpenAPIAdapter(Adapter):
             timeout=min(5.0, timeout),
             max_body=self.MAX_SPEC_BYTES,
             rate_limit_rps=rate_limit_rps,
+            rate_limiter=(context or {}).get("rate_limiter"),
         )
 
         auth_principal = None
@@ -634,7 +662,8 @@ class AuthorizationDiffAdapter(Adapter):
     MAX_BODY_FOR_DIGEST = 32768
 
     def __init__(self) -> None:
-        self._probe = EndpointProbe(timeout=6.0)
+        # Probe is created in assess() with rate_limiter from context
+        self._probe: EndpointProbe | None = None
 
     def available(self) -> tuple[bool, str]:
         authorized = scope.active()
@@ -669,6 +698,14 @@ class AuthorizationDiffAdapter(Adapter):
                 "authorization differences cannot be exercised"
             )
             return result
+
+        # Create probe with rate limiter from context
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
+        self._probe = EndpointProbe(
+            timeout=6.0,
+            rate_limit_rps=rate_limit_rps,
+            rate_limiter=(context or {}).get("rate_limiter"),
+        )
 
         first, *rest = auth.users
         checked = 0
@@ -824,8 +861,9 @@ class SSRFOOBAdapter(Adapter):
     )
     CANARY_MARKER = "ishastra-canary"
 
-    def __init__(self, rate_limit_rps: float = 0) -> None:
-        self._probe = EndpointProbe(timeout=6.0, rate_limit_rps=rate_limit_rps)
+    def __init__(self) -> None:
+        # Probe is created in assess() with rate_limiter from context
+        self._probe: EndpointProbe | None = None
 
     def _listener(self) -> tuple[CollabServer | CollabClient, str]:
         """(listener, canary base) from the active scope configuration."""
@@ -879,6 +917,14 @@ class SSRFOOBAdapter(Adapter):
                 "out-of-band probing had nothing to inject into"
             )
             return result
+
+        # Create probe with rate limiter from context
+        rate_limit_rps = float((context or {}).get("rate_limit_rps") or 0)
+        self._probe = EndpointProbe(
+            timeout=6.0,
+            rate_limit_rps=rate_limit_rps,
+            rate_limiter=(context or {}).get("rate_limiter"),
+        )
 
         confirmed = 0
         for url, param in candidates:
@@ -1164,12 +1210,9 @@ class NmapAdapter(Adapter):
             ]
         )
         # When enforcement is "proxy", route nmap through the CONNECT proxy.
-        if self.enforcement == "proxy" and context:
+        if self.enforcement == "proxy" and context is not None:
             gateway_url = context.get("gateway_url", "http://gateway:8080")
             argv.extend(["--proxies", gateway_url])
-        code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
-        if code != 0:
-            raise AdapterError(f"nmap exited {code}: {stderr.strip()[:200]}")
         code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
         if code != 0:
             raise AdapterError(f"nmap exited {code}: {stderr.strip()[:200]}")
@@ -1533,6 +1576,11 @@ class NiktoAdapter(Adapter):
         if parsed_target and parsed_target.scheme == "https":
             argv.append("-ssl")
 
+        # When enforcement is "proxy", route nikto through the CONNECT proxy via -useproxy.
+        if self.enforcement == "proxy" and context is not None:
+            gateway_url = context.get("gateway_url", "http://gateway:8080")
+            argv.extend(["-useproxy", gateway_url])
+
         code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
         if code != 0 and not stdout.strip():
             raise AdapterError(f"nikto exited {code}: {stderr.strip()[:200]}")
@@ -1602,6 +1650,8 @@ class SqlmapAdapter(Adapter):
     Runs in read-only mode with conservative settings: boolean-based and
     time-based blind detection only, no exploitation, no file read/write,
     no OS command execution. Only targets parameters identified in-scope.
+
+    Requires explicit high-risk authorization in rules_of_engagement or job config.
     """
 
     id = "sqlmap"
@@ -1636,6 +1686,27 @@ class SqlmapAdapter(Adapter):
                 return False, f"sqlmap present but unusable: {exc}"
         return True, self._version
 
+    def _high_risk_authorized(self, context: dict[str, Any] | None) -> bool:
+        """Check if high-risk scanning is explicitly authorized.
+
+        Authorization can come from:
+        - rules_of_engagement.high_risk_allowed (in scope document)
+        - job config high_risk flag (passed via context)
+        """
+        if not context:
+            return False
+
+        # Check job config first (explicit per-job override)
+        if context.get("high_risk") is True:
+            return True
+
+        # Check rules_of_engagement from scope snapshot
+        roe = context.get("rules_of_engagement") or {}
+        if roe.get("high_risk_allowed") is True:
+            return True
+
+        return False
+
     def assess(
         self,
         target: str,
@@ -1644,6 +1715,14 @@ class SqlmapAdapter(Adapter):
         cancel: threading.Event,
         context: dict[str, Any] | None = None,
     ) -> AdapterResult:
+        # Require explicit high-risk authorization
+        if not self._high_risk_authorized(context):
+            raise AdapterError(
+                "sqlmap requires explicit high-risk authorization: "
+                "set rules_of_engagement.high_risk_allowed=true in scope document "
+                "or pass high_risk=true in job config"
+            )
+
         destination = checked_destination(target)
         parsed_target = parse_url(target)
         if parsed_target is None or not parsed_target.query:
@@ -1655,13 +1734,18 @@ class SqlmapAdapter(Adapter):
         if parsed_target.port is not None:
             host_header = f"{host_header}:{parsed_target.port}"
         pinned_target = parsed_target._replace(netloc=f"{ip_literal}:{destination.port}").geturl()
-        proxy = os.environ.get("ISHASTRA_SQLMAP_PROXY", "").strip()
-        if parsed_target.scheme == "https" and not proxy:
+
+        # Use gateway proxy from context (consistent with NmapAdapter, NiktoAdapter)
+        gateway_url = ""
+        if context is not None:
+            gateway_url = context.get("gateway_url", "").strip()
+
+        if parsed_target.scheme == "https" and not gateway_url:
             raise AdapterError(
-                "SQLMap HTTPS requires ISHASTRA_SQLMAP_PROXY pointing at an egress proxy "
-                "that preserves the target hostname and pins the authorized destination"
+                "SQLMap HTTPS requires gateway proxy: set ISHASTRA_GATEWAY_URL "
+                "or pass gateway_url in job context"
             )
-        tool_target = target if proxy else pinned_target
+        tool_target = target if gateway_url else pinned_target
 
         ok, detail = self.available()
         if not ok:
@@ -1714,8 +1798,9 @@ class SqlmapAdapter(Adapter):
                 if auth.bearer:
                     argv.extend(["--header", f"Authorization: Bearer {auth.bearer}"])
 
-            if proxy:
-                argv.extend(["--proxy", proxy])
+            # Pass proxy via --proxy flag (honors --proxy=http://gateway:port)
+            if gateway_url:
+                argv.extend(["--proxy", gateway_url])
 
             code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
 
@@ -1764,6 +1849,10 @@ class SqlmapAdapter(Adapter):
 
 
 ADAPTER_PLUGIN_GROUP = "ishastra.adapters"
+PLUGIN_DIRS = (
+    Path(__file__).parent.parent / "plugins",  # Built-in plugins
+    Path(os.environ.get("ISHASTRA_PLUGIN_DIR", "")),  # User plugin dir
+)
 
 
 def _load_plugin_adapters() -> dict[str, Adapter]:
@@ -1797,6 +1886,53 @@ def _load_plugin_adapters() -> dict[str, Adapter]:
     return loaded
 
 
+def _load_out_of_process_plugins() -> dict[str, Adapter]:
+    """Load out-of-process plugin adapters from plugin directories.
+
+    Plugins are executable scripts that communicate via stdin/stdout JSON protocol.
+    See ishastra.plugins.template for the protocol specification.
+    """
+    from ishastra.core.plugin_runner import AdapterPlugin
+
+    logger = logging.getLogger(__name__)
+    loaded: dict[str, Adapter] = {}
+
+    for plugin_dir in PLUGIN_DIRS:
+        if not plugin_dir or not plugin_dir.exists() or not plugin_dir.is_dir():
+            continue
+
+        for plugin_path in plugin_dir.iterdir():
+            if not plugin_path.is_file():
+                continue
+            # Only load executable Python scripts
+            if not (plugin_path.suffix == ".py" and os.access(plugin_path, os.X_OK)):
+                continue
+            # Skip template and __pycache__
+            if plugin_path.name in ("template.py", "__init__.py"):
+                continue
+
+            try:
+                adapter = AdapterPlugin(plugin_path)
+                # Start the plugin to get its metadata (id, version, etc.)
+                adapter.start()
+                adapter_id = adapter.id
+                if not adapter_id or adapter_id.strip() == "":
+                    logger.warning("plugin %r has no id; ignoring", plugin_path.name)
+                    adapter.close()
+                    continue
+                if adapter_id in ADAPTERS:
+                    logger.warning("plugin %r reuses built-in id %r; built-in wins", plugin_path.name, adapter_id)
+                    adapter.close()
+                    continue
+                loaded[adapter_id] = adapter
+                logger.info("Loaded out-of-process plugin: %s (%s)", adapter_id, plugin_path.name)
+            except Exception:
+                logger.exception("Failed to load plugin %r; ignoring", plugin_path.name)
+                continue
+
+    return loaded
+
+
 _BUILTIN_ADAPTERS: tuple[Adapter, ...] = (
     HTTPAdapter(),
     CrawlerAdapter(),
@@ -1817,8 +1953,10 @@ for _builtin in _BUILTIN_ADAPTERS:
 
 ADAPTERS: dict[str, Adapter] = {a.id: a for a in _BUILTIN_ADAPTERS}
 ADAPTERS.update(_load_plugin_adapters())
+ADAPTERS.update(_load_out_of_process_plugins())
 
-_PLUGIN_ADAPTER_IDS = tuple(sorted(set(ADAPTERS) - {a.id for a in _BUILTIN_ADAPTERS}))
+_BUILTIN_ADAPTER_IDS = {a.id for a in _BUILTIN_ADAPTERS}
+_PLUGIN_ADAPTER_IDS = tuple(sorted(set(ADAPTERS) - _BUILTIN_ADAPTER_IDS))
 
 
 PROFILES: dict[str, tuple[str, ...]] = {

@@ -14,6 +14,7 @@ authorization.
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 import threading
 import time
@@ -30,6 +31,7 @@ from ishastra.core.adapters import (
     AdapterTimeout,
 )
 from ishastra.core.findings import Finding, dedupe
+from ishastra.core.rate_limiter import JobRateLimiter, RateLimitResult
 from ishastra.core.redaction import redact, sanitize_target
 from ishastra.core.scope import Scope
 
@@ -197,6 +199,8 @@ def prepare(
     job_policy.setdefault("scope_authorized_networks", list(scope_snapshot.authorized_networks))
     job_policy.setdefault("scope_allowed_ports", list(scope_snapshot.allowed_ports))
     job_policy.setdefault("scope_allow_broad_networks", scope_snapshot.allow_broad_networks)
+    if scope_snapshot.rules_of_engagement:
+        job_policy.setdefault("rate_limit_rps", scope_snapshot.rules_of_engagement.get("rate_limit_rps", 0))
     job_policy.setdefault("timeout", timeout)
 
     job = Job(
@@ -381,6 +385,9 @@ def _execute(job: Job) -> None:
             engagement = job.scope_snapshot.rules_of_engagement or {}
             rate_limit_rps: float = float(engagement.get("rate_limit_rps") or 0)
 
+            # Create per-job rate limiter to enforce RoE rate limit across all adapters
+            rate_limiter = JobRateLimiter(rate_limit_rps)
+
             tenant_for_metrics = job.scope_snapshot.tenant_id if job.scope_snapshot else None
             for adapter in adapters:
                 if job.cancelled:
@@ -420,11 +427,27 @@ def _execute(job: Job) -> None:
                     continue
 
                 any_adapter_ran = True
+                # Enforce rate limit before running each adapter
+                if rate_limiter.enabled:
+                    rate_limiter.pace()
                 start = time.monotonic()
                 try:
                     context: dict[str, Any] = {"auth_principal": auth_principal} if auth_principal else {}
                     if rate_limit_rps:
                         context["rate_limit_rps"] = rate_limit_rps
+                    # Also pass the rate limiter for fine-grained control within adapters
+                    context["rate_limiter"] = rate_limiter
+                    # Pass gateway URL for proxy enforcement (from ISHASTRA_GATEWAY_URL env var)
+                    gateway_url = os.environ.get("ISHASTRA_GATEWAY_URL")
+                    if gateway_url:
+                        context["gateway_url"] = gateway_url
+                    # Pass rules_of_engagement for high-risk checks
+                    if engagement:
+                        context["rules_of_engagement"] = engagement
+                    # Pass high-risk flag from job policy (per-job override)
+                    high_risk = job.policy.get("high_risk")
+                    if high_risk is not None:
+                        context["high_risk"] = high_risk
                     result = adapter.assess(
                         job.target,
                         timeout=job.policy.get("timeout", 300.0),

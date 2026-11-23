@@ -62,6 +62,7 @@ class EngagementPolicy:
     allowed_asns: tuple[int, ...] = ()
     allowed_countries: tuple[str, ...] = ()
     allow_broad_networks: bool = False
+    rate_limit_rps: int = 0
     status: str = "active"
     version: int = 1
     created_at: float = 0.0
@@ -96,6 +97,8 @@ class EngagementPolicy:
             and float(self.effective_at) >= float(self.expires_at)
         ):
             raise PolicyError("effective_at must be earlier than expires_at")
+        if not isinstance(self.rate_limit_rps, int) or isinstance(self.rate_limit_rps, bool) or self.rate_limit_rps < 0 or self.rate_limit_rps > 1000:
+            raise PolicyError("rate_limit_rps must be an integer from 0 to 1000")
 
     def is_valid(self, *, now: float | None = None) -> tuple[bool, str]:
         """(True, '') when the policy may be used at ``now``, else (False, why)."""
@@ -140,6 +143,7 @@ class EngagementPolicy:
             policy_version=self.version,
             tenant_id=self.tenant_id,
             allow_broad_networks=self.allow_broad_networks,
+            rules_of_engagement={"rate_limit_rps": self.rate_limit_rps} if self.rate_limit_rps else {},
         )
 
     def to_dict(self, *, include_hosts: bool = False) -> dict[str, Any]:
@@ -158,6 +162,7 @@ class EngagementPolicy:
             "expires_at": self.expires_at,
             "created_by": self.created_by,
             "allow_broad_networks": self.allow_broad_networks,
+            "rate_limit_rps": self.rate_limit_rps,
             "allowed_ports": list(self.allowed_ports),
             "allowed_asns": list(self.allowed_asns),
             "allowed_countries": list(self.allowed_countries),
@@ -182,6 +187,7 @@ class EngagementPolicy:
             "allowed_asns": list(self.allowed_asns),
             "allowed_countries": list(self.allowed_countries),
             "allow_broad_networks": self.allow_broad_networks,
+            "rate_limit_rps": self.rate_limit_rps,
             "status": self.status,
             "version": self.version,
             "created_at": self.created_at,
@@ -206,6 +212,7 @@ class EngagementPolicy:
             allowed_asns=tuple(row.get("allowed_asns") or ()),
             allowed_countries=tuple(row.get("allowed_countries") or ()),
             allow_broad_networks=bool(row["allow_broad_networks"]),
+            rate_limit_rps=int(row.get("rate_limit_rps") or 0),
             status=row["status"],
             version=int(row["version"]),
             created_at=float(row["created_at"]),
@@ -283,6 +290,7 @@ class PolicyRegistry:
         allowed_asns: list[int] | None = None,
         allowed_countries: list[str] | None = None,
         allow_broad_networks: bool = False,
+        rate_limit_rps: int = 0,
         effective_at: float | None = None,
         expires_at: float | None = None,
         created_by: str = "",
@@ -309,6 +317,7 @@ class PolicyRegistry:
             allowed_asns=tuple(allowed_asns or ()),
             allowed_countries=tuple(allowed_countries or ()),
             allow_broad_networks=bool(allow_broad_networks),
+            rate_limit_rps=rate_limit_rps,
             status="active",
             version=1,
             created_at=moment,
@@ -343,6 +352,7 @@ class PolicyRegistry:
         allowed_asns: list[int] | None = None,
         allowed_countries: list[str] | None = None,
         allow_broad_networks: bool = False,
+        rate_limit_rps: int = 0,
         effective_at: float | None = None,
         expires_at: float | None = None,
         created_by: str = "",
@@ -362,6 +372,7 @@ class PolicyRegistry:
                 allowed_asns=allowed_asns,
                 allowed_countries=allowed_countries,
                 allow_broad_networks=allow_broad_networks,
+                rate_limit_rps=rate_limit_rps,
                 effective_at=effective_at,
                 expires_at=expires_at,
                 created_by=created_by,
@@ -389,6 +400,7 @@ class PolicyRegistry:
             "allowed_asns",
             "allowed_countries",
             "allow_broad_networks",
+            "rate_limit_rps",
             "effective_at",
             "expires_at",
         }

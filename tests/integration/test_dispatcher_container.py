@@ -143,6 +143,7 @@ async def test_dispatch_runs_the_worker_in_a_container(
         verifier=parts["verifier"],
         signing=parts["signing"],
         run_worker=runner,
+        worker_manager=manager,
     )
 
     assert outcome.revoked is True
@@ -174,6 +175,7 @@ async def test_failed_container_produces_no_evidence(
             verifier=parts["verifier"],
             signing=parts["signing"],
             run_worker=runner,
+            worker_manager=manager,
         )
 
     assert not (workspace / "evidence.json").exists()

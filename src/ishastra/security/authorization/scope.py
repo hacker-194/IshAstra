@@ -744,6 +744,10 @@ class Scope:
         ):
             raise ValueError("rules_of_engagement.required_notifications must be a list of strings")
 
+        high_risk = roe.get("high_risk_allowed")
+        if high_risk is not None and not isinstance(high_risk, bool):
+            raise ValueError("rules_of_engagement.high_risk_allowed must be a boolean")
+
         data_handling = roe.get("data_handling", {})
         if data_handling and not isinstance(data_handling, dict):
             raise ValueError("rules_of_engagement.data_handling must be an object")

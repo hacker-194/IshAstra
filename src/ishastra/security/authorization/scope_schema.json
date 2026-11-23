@@ -296,6 +296,11 @@
           "default": [],
           "description": "Events requiring notification to the authorizing authority."
         },
+        "high_risk_allowed": {
+          "type": "boolean",
+          "default": false,
+          "description": "Explicitly allow high-risk scanning techniques (e.g., sqlmap SQL injection detection). Default: false."
+        },
         "data_handling": {
           "type": "object",
           "additionalProperties": false,

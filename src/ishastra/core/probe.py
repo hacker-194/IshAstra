@@ -190,9 +190,17 @@ def _read_line_with_deadline(
 
 
 class EndpointProbe:
-    def __init__(self, timeout: float = 8.0, max_body: int = MAX_BODY, rate_limit_rps: float = 0):
+    def __init__(
+        self,
+        timeout: float = 8.0,
+        max_body: int = MAX_BODY,
+        rate_limit_rps: float = 0,
+        rate_limiter: "JobRateLimiter | None" = None,
+    ):
         self.timeout = timeout
         self.max_body = max_body
+        self._rate_limiter = rate_limiter
+        # Backward compatibility: use simple pacing if no rate_limiter provided
         self._min_interval = (1.0 / rate_limit_rps) if rate_limit_rps and rate_limit_rps > 0 else 0.0
         self._last_request = 0.0
 
@@ -333,6 +341,9 @@ class EndpointProbe:
         return result
 
     def _pace(self) -> None:
+        if self._rate_limiter is not None:
+            self._rate_limiter.pace()
+            return
         if not self._min_interval:
             return
         wait = self._min_interval - (time.monotonic() - self._last_request)

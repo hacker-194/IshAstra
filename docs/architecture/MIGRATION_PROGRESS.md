@@ -1,8 +1,8 @@
 # Migration Progress - IshAstra v3.5 -> v4.0
 
 **Started:** 2026-11-22
-**Last update:** 2026-11-23 (Phase 2 COMPLETE)
-**Branch:** `master` @ `ce4f425` (all Phase 0-2 work committed and pushed)
+**Last update:** 2026-11-23 (Phase 2 COMPLETE, CI hardened)
+**Branch:** `master` @ `6049d63` (all Phase 0-2 work + CI security gate fixes committed and pushed)
 **Rule:** a phase is done only when its exit criterion is observable outside
 the project. Nothing here is called VERIFIED without a named test.
 
@@ -13,7 +13,7 @@ the project. Nothing here is called VERIFIED without a named test.
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Audit only | DONE (re-run 2026-11-23) |
-| 1 | Trustworthy CI | DONE locally - gates green, gate logic tested; CI job itself unrun here |
+| 1 | Trustworthy CI | DONE - gates green, gate logic tested, fail-closed CI verified locally |
 | 2 | Vertical slice (security spine) | DONE - all adversarial matrix items pass, container + firewall verified |
 | 3 | Durable orchestration | PARTIAL - PG queue with FOR UPDATE SKIP LOCKED; process-kill test pending |
 | 4 | Remaining adapters | PARTIAL - contract skeleton done; enforcement spikes pending |
@@ -25,7 +25,7 @@ the project. Nothing here is called VERIFIED without a named test.
 
 ## Uncommitted state
 
-None. All Phase 0-2 work committed and pushed to GitHub (`ce4f425`).
+None. All Phase 0-2 work + CI fixes committed and pushed to GitHub (`6049d63`).
 
 ---
 
@@ -56,12 +56,13 @@ metrics endpoint needs an admin key).
 
 ---
 
-## Phase 1: Trustworthy CI - DONE (locally verified, CI unrun)
+## Phase 1: Trustworthy CI - DONE (locally verified, CI hardened)
 
 Exit met locally: ruff and mypy are green, `scripts/security_gate.py` fails
-closed on missing/empty/invalid reports, and its logic has tests. The GitHub
-workflow itself has not executed in this environment, so "green in CI" stays
-UNVERIFIED until a run is available.
+closed on missing/empty/invalid reports, and its logic has tests. CI workflow
+hardened: removed `|| true` from Bandit, pip-audit, Grype steps — crashed
+scanners now fail the build. The GitHub workflow itself has not executed in
+this environment, so "green in CI" stays UNVERIFIED until a run is available.
 
 - [x] No `continue-on-error` in any workflow.
 - [x] Crashed scanner = error, not pass (`tests/unit/test_security_audit.py`).
@@ -367,3 +368,5 @@ not claims.
 | `74240f7` | 2026-11-23 | 2 | Phase 2 Vertical Slice: capability tokens, egress gateway, worker manager, evidence signing |
 | `20908df` | 2026-11-23 | 0 | Add sensitive files to .gitignore, clean generate-secrets.py |
 | `ce4f425` | 2026-11-23 | 2 | docs: update README for production-ready status and Phase 2 features |
+| `d6be44e` | 2026-11-23 | 0 | docs: remove attribution line from README |
+| `6049d63` | 2026-11-23 | 1 | ci: remove || true from security scanner steps for fail-closed behavior |

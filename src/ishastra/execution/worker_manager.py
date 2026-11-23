@@ -345,14 +345,18 @@ class WorkerManager:
 
         try:
             proc.terminate()
-            await asyncio.wait_for(proc.wait(), timeout=10)
-            return True
+            await asyncio.wait_for(proc.wait(), timeout=5)
         except TimeoutError:
             proc.kill()
             await proc.wait()
-            return True
         except Exception:
-            return False
+            pass
+        finally:
+            # Always attempt to remove the container
+            await self._remove_container(job_id)
+            self._active_workers.pop(job_id, None)
+            self._worker_configs.pop(job_id, None)
+        return True
 
     async def _update_job_state(self, job_id: str, result: WorkerResult) -> None:
         """Update job state in database based on worker result."""

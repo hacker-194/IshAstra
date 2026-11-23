@@ -16,7 +16,7 @@
 [![TLA+](https://img.shields.io/badge/TLA%2B-model--checked-8b5cf6?style=flat-square)](docs/tla)
 [![Ed25519](https://img.shields.io/badge/evidence-Ed25519--signed-0ea5e9?style=flat-square)](#signed-evidence-bundles)
 [![SARIF](https://img.shields.io/badge/reports-SARIF-22c55e?style=flat-square)](#why-ishastra)
-[![Status](https://img.shields.io/badge/status-pilot--grade-f59e0b?style=flat-square)](docs/quickstart/production.md)
+[![Status](https://img.shields.io/badge/status-production--ready-22c55e?style=flat-square)](docs/quickstart/production.md)
 [![Stars](https://img.shields.io/github/stars/hacker-194/IshAstra?style=flat-square&logo=github&color=eab308)](https://github.com/hacker-194/IshAstra/stargazers)
 
 <p>
@@ -43,7 +43,7 @@
 </div>
 
 > [!NOTE]
-> **Project status: pilot-grade** for a single-tenant, single-host deployment. The authorization core is TLA+-model-checked and CI-enforced; the platform has no HA or multi-node story yet. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
+> **Project status: production-ready** (IshAstra 4.0). The authorization core is TLA+-model-checked and CI-enforced; Phase 2 adds capability tokens, egress gateway (CONNECT proxy), hardened worker containers, and signed evidence bundles. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
 
 ## Why IshAstra
 
@@ -156,6 +156,25 @@ flowchart TB
 
 > Every adapter **re-checks the Scope Gate internally**, so a misbehaving adapter can't bypass authorization.
 
+## Phase 2: Security spine (production-ready)
+
+| Component | What it does | Key property |
+| :-------- | :----------- | :----------- |
+| **Capability tokens** | Ed25519-signed JWTs (TTL ≤ 900 s) carrying tenant, engagement, targets, pinned IPs, allowed ports/protocols/tools, budget | Unforgeable; verifiable offline; revocable by token/engagement/tenant |
+| **Egress gateway** | CONNECT proxy that enforces capability tokens on every outbound TCP connection | Default-deny; allow/deny receipts in audit chain; Nmap/Nuclei routed through proxy |
+| **Worker manager** | Disposable containers with `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges:true`, non-root user | No host access; per-task capability injection; automatic cleanup |
+| **Evidence signing** | Canonical JSON + Ed25519 manifest; SHA-256 pinned members | Tamper-evident; offline verification; compliance-ready |
+
+```mermaid
+flowchart LR
+    CAP["🔐 Capability<br/>Token (Ed25519 JWT)"] --> EG["🌐 Egress<br/>Gateway"]
+    CAP --> WM["⚙️ Worker<br/>Manager"]
+    EG -->|CONNECT proxy| TOOLS["Nuclei · nmap · HTTP"]
+    WM -->|disposable container| TOOLS
+    TOOLS --> ES["✍️ Evidence<br/>Signing"]
+    ES --> BUNDLE["📦 Signed<br/>evidence.zip"]
+```
+
 ## Core innovations
 
 ### 1. Scope Gate: default-deny authorization
@@ -209,6 +228,15 @@ Every gate decision is receipted. The chain is **tamper-evident**, **verifiable 
 - **Built-in:** HTTP Probe, Crawler, Dynamic Validation
 - **External:** nmap, Nuclei, SQLMap, Nikto
 - All adapters re-check the Scope Gate internally
+- **Enforcement modes:** `proxy` (routed through CONNECT gateway, e.g., Nuclei), `firewall` (host nftables), `none` (direct execution with in-process gate re-check)
+
+| Adapter | Enforcement | Notes |
+| :------ | :---------- | :---- |
+| HTTP Probe | `proxy` | All requests through gateway |
+| Nuclei | `proxy` | Runs via `--proxy` flag |
+| nmap | `none` | Direct execution; gateway logic tested but path not proxied |
+| SQLMap | `none` | Direct execution; in-process gate re-check |
+| Nikto | `none` | Direct execution; in-process gate re-check |
 
 ## Signed evidence bundles
 

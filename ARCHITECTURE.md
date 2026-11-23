@@ -2,52 +2,70 @@
 
 Ishastra is an **authorized security assessment platform** that enforces authorization before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
 
-## High-Level Architecture
+## High-Level Architecture (IshAstra 4.0)
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Ishastra Platform                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │   REST API   │    │   Job Queue  │    │   Assessment Worker  │  │
-│  │  (FastAPI)   │───▶│  (In-Memory) │───▶│  (Threaded Pool)     │  │
-│  └──────────────┘    └──────────────┘    └──────────┬───────────┘  │
-│       │                                             │              │
-│       │                    ┌────────────────────────┼────────┐     │
-│       ▼                    ▼                        ▼        ▼     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    Scope Gate (Authorization)                  │  │
-│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │  │
-│  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer      │   │  │
-│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │ (Ishastra Proof)    │   │  │
-│  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                  │   │  │
-│  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│       │                    │                        │        │      │
-│       ▼                    ▼                        ▼        ▼      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                     Adapter Framework                          │  │
-│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────┐   │  │
-│  │  │  HTTP   │ │ Crawler │ │ Dynamic  │ │    External      │   │  │
-│  │  │ Probe   │ │         │ │ Validate │ │  (nmap, nuclei)  │   │  │
-│  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│       │                    │                        │        │      │
-│       ▼                    ▼                        ▼        ▼      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    Findings Engine                             │  │
-│  │  Normalize ▶ Dedupe ▶ Redact ▶ Persist (SQLite) ▶ Export     │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Ishastra Platform (v4.0)                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐          │
+│  │   REST API   │    │   Job Queue  │    │   Assessment Worker  │          │
+│  │  (FastAPI)   │───▶│ (In-Memory/  │───▶│  (Threaded Pool)     │          │
+│  └──────────────┘    │  Redis/      │    └──────────┬───────────┘          │
+│       │              │  k8s-jobs)   │               │                      │
+│       │              └──────────────┘               │                      │
+│       │                       │                     │                      │
+│       │                       ▼                     ▼                      │
+│       │  ┌────────────────────────────────────────────────────────────┐   │
+│       │  │                   CAPABILITY ISSUER                          │   │
+│       │  │  Ed25519 JWT (TTL ≤900s) — tenant, engagement, targets,     │   │
+│       │  │  pinned_ips, allowed_ports/protocols/tools, budget, RoE     │   │
+│       │  └────────────────────────────────────────────────────────────┘   │
+│       │                       │                     │                      │
+│       ▼                       ▼                     ▼                      │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                    SCOPE GATE (Authorization)                          │ │
+│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────────────┐  │ │
+│  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer (Ishastra    │  │ │
+│  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │    Proof)                │  │ │
+│  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                          │  │ │
+│  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────────────┘  │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│       │                       │                      │            │      │
+│       │                       │                      │            │      │
+│       ▼                       ▼                      ▼            ▼      │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                      PHASE 2: SECURITY SPINE                          │ │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │ │
+│  │  │  EGRESS GATEWAY  │  │  WORKER MANAGER  │  │ EVIDENCE SIGNING │   │ │
+│  │  │  (CONNECT Proxy) │  │  (Disposable     │  │  (Ed25519 Manifest│   │ │
+│  │  │  Enforces Cap    │  │   Containers)    │  │   + SHA-256 Pins)│   │ │
+│  │  │  Allow/Deny rcpts│  │  --read-only     │  │  Offline Verify  │   │ │
+│  │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘   │ │
+│  └───────────┼─────────────────────┼─────────────────────┼──────────────┘ │
+│              │                     │                     │               │
+│              ▼                     ▼                     ▼               │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                     ADAPTER FRAMEWORK                                 │ │
+│  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────────────┐  │ │
+│  │  │  HTTP   │ │ Crawler │ │ Dynamic  │ │    External              │  │ │
+│  │  │ Probe   │ │         │ │ Validate │ │  (nmap, nuclei, SQLMap,  │  │ │
+│  │  │(proxy)  │ │ (proxy) │ │ (proxy)  │ │   Nikto)                 │  │ │
+│  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────────────┘  │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│       │                       │                      │            │      │
+│       ▼                       ▼                      ▼            ▼      │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │                    FINDINGS ENGINE                                    │ │
+│  │  Normalize ▶ Dedupe ▶ Redact ▶ Persist (SQLite/PG) ▶ Export (SARIF,  │ │
+│  │  Evidence Bundle, Compliance Reports)                                 │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The queue shown as in-process is the default. `ISHASTRA_QUEUE_MODE` selects
-`inprocess` (a thread pool inside the API process), `redis-streams` (a durable
-Redis Stream shared by worker processes), or `k8s-jobs` (one Kubernetes Job per
-assessment, experimental) — see `docs/architecture/jobs.md`. These are the only
-three modes the code accepts.
+**Queue Modes** (`ISHASTRA_QUEUE_MODE`): `inprocess` (thread pool inside API), `redis-streams` (durable Redis Stream), `k8s-jobs` (one K8s Job per assessment, experimental). See `docs/architecture/jobs.md`.
 
 ## Core Components
 
@@ -236,6 +254,43 @@ POST /api/assess {target, profile}
 GET /api/assess/{id} → coverage, findings, verdict
 ```
 
+## Phase 2: Security Spine (Production-Ready)
+
+### 9. Capability Tokens (`src/ishastra/security/capabilities/`)
+
+**Purpose**: Ed25519-signed JWTs (TTL ≤ 900s) that authorize every outbound action. Tokens carry tenant, engagement, targets, pinned IPs, allowed ports/protocols/tools, budget, and Rules of Engagement hash.
+
+- **Issuer** (`issuer.py`): Generates tokens, registers them for revocation tracking, supports key rotation
+- **Verifier** (`verifier.py`): Offline verification — signature, expiration, issuer, scope compliance
+- **Revocation** (`revocation.py`): SQLite/PostgreSQL-backed revocation list; revoke by token, job, engagement, or tenant
+
+### 10. Egress Gateway (`src/ishastra/security/egress/gateway.py`)
+
+**Purpose**: CONNECT proxy that enforces capability tokens on every outbound TCP connection.
+
+- Accepts `CONNECT host:port HTTP/1.1` with `Authorization: Bearer <capability-token>`
+- Validates token via `CapabilityVerifier`; checks `pinned_ips`, `allowed_ports`, `allowed_protocols`
+- Emits `GatewayDecision` receipts (allow/deny with reason) to audit chain
+- Default-deny: unauthorized ports/IPs/protocols are rejected at the network layer
+
+**Firewall** (`firewall.py`): Renders nftables deny-by-default ruleset from `FirewallPlan` for host-level enforcement.
+
+### 11. Worker Manager (`src/ishastra/execution/worker_manager.py`)
+
+**Purpose**: Launches disposable containers with hardened defaults for each assessment task.
+
+- `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges:true`, `--user 10001:10001`
+- Per-task capability token injected via `--env-file` (never in image or env defaults)
+- Automatic cleanup on completion/cancellation/timeout; `docker stop --time=5` then `docker rm -f`
+
+### 12. Evidence Signing Service (`src/ishastra/security/signing/service.py`)
+
+**Purpose**: Produces tamper-evident evidence bundles for compliance.
+
+- Canonical JSON serialization (sorted keys, no whitespace)
+- Ed25519 signature over manifest; every member SHA-256 pinned
+- `EvidenceManifest` + `ArtifactRef` model; offline verification via `ishastra bundle --verify`
+
 ## Security Boundaries
 
 | Boundary | Enforcement |
@@ -246,6 +301,9 @@ GET /api/assess/{id} → coverage, findings, verdict
 | **Tool Output → Findings** | Bounded output (16MB), defusedxml parsing, control char stripping |
 | **Secrets → Output** | Redaction at every boundary (passwords, tokens, JWTs, AWS keys, private keys) |
 | **External Tools** | Minimal env, argument arrays, process group kill, deadline enforcement |
+| **Capability → Egress** | CONNECT proxy enforces token on every TCP connection; allow/deny receipted |
+| **Worker → Host** | Disposable containers: read-only fs, no caps, no new privileges, non-root user |
+| **Evidence → Auditor** | Ed25519 manifest + SHA-256 pins; any tampering detected offline |
 
 ## Deployment Constraints
 

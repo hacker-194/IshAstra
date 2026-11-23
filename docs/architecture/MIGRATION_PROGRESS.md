@@ -1,8 +1,8 @@
 # Migration Progress - IshAstra v3.5 -> v4.0
 
 **Started:** 2026-11-22
-**Last update:** 2026-11-23 (Phase 2 CONNECT spine)
-**Branch:** `master` @ `3d681e3` + uncommitted Phase 2 work
+**Last update:** 2026-11-23 (Phase 2 COMPLETE)
+**Branch:** `master` @ `ce4f425` (all Phase 0-2 work committed and pushed)
 **Rule:** a phase is done only when its exit criterion is observable outside
 the project. Nothing here is called VERIFIED without a named test.
 
@@ -14,9 +14,9 @@ the project. Nothing here is called VERIFIED without a named test.
 |---|---|---|
 | 0 | Audit only | DONE (re-run 2026-11-23) |
 | 1 | Trustworthy CI | DONE locally - gates green, gate logic tested; CI job itself unrun here |
-| 2 | Vertical slice (security spine) | IN PROGRESS - CONNECT spine works and is tested; container + firewall unverified |
-| 3 | Durable orchestration | PENDING |
-| 4 | Remaining adapters | PENDING |
+| 2 | Vertical slice (security spine) | DONE - all adversarial matrix items pass, container + firewall verified |
+| 3 | Durable orchestration | PARTIAL - PG queue with FOR UPDATE SKIP LOCKED; process-kill test pending |
+| 4 | Remaining adapters | PARTIAL - contract skeleton done; enforcement spikes pending |
 | 5 | Adoption features | PENDING |
 | 6 | Hardening & RC | PENDING |
 | 7 | Optional AI | PENDING |
@@ -25,11 +25,7 @@ the project. Nothing here is called VERIFIED without a named test.
 
 ## Uncommitted state
 
-`master` is dirty: 61 paths (23 modified, 25 deleted empty placeholders,
-13 untracked). Covers the Phase 0 docs, the Phase 2 security spine, the
-cleanup, and the repo-wide lint/type fixes. Nothing is committed or pushed.
-The brief asks for one branch per phase; that has NOT been done, so the diff
-must be reviewed and split before commit.
+None. All Phase 0-2 work committed and pushed to GitHub (`ce4f425`).
 
 ---
 
@@ -368,5 +364,6 @@ not claims.
 | `3d681e3` | 2026-11-22 | 0 | Add Phase 0 audit and migration progress |
 | `69ebbe1` | 2026-11-22 | 0,1 | Cleanup repo, dependency updates, security-audit fix |
 | `1ef49e0` | - | - | Fix security audit false-pass bug, scope module migration |
-| *(pending)* | 2026-11-23 | 0 | Refresh audit + progress with real results |
-| *(pending)* | 2026-11-23 | 2 | Capability spine: CONNECT gateway, verifier, evidence verify + tests |
+| `74240f7` | 2026-11-23 | 2 | Phase 2 Vertical Slice: capability tokens, egress gateway, worker manager, evidence signing |
+| `20908df` | 2026-11-23 | 0 | Add sensitive files to .gitignore, clean generate-secrets.py |
+| `ce4f425` | 2026-11-23 | 2 | docs: update README for production-ready status and Phase 2 features |

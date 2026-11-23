@@ -271,7 +271,7 @@ class DynamicValidationAdapter(BaseAdapter):
 
 External tools run as subprocesses. Ishastra wraps them with Scope Gate enforcement.
 
-### Architecture
+### Architecture (IshAstra 4.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -285,15 +285,40 @@ External tools run as subprocesses. Ishastra wraps them with Scope Gate enforcem
 │                                                │                │
 │                                                ▼                │
 │  ┌─────────────────────────────────────────────────────────┐   │
+│  │              ENFORCEMENT MODE SELECTION                  │   │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐    │   │
+│  │  │  enforcement│ │ enforcement │ │ enforcement="  │    │   │
+│  │  │  ="proxy"   │ │ ="firewall" │ │  none" (direct)│    │   │
+│  │  │  (Nuclei)   │ │  (nftables) │ │  (nmap, SQLMap,│    │   │
+│  │  │             │ │             │ │   Nikto)       │    │   │
+│  │  └─────────────┘ └─────────────┘ └─────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                │                │
+│                                                ▼                │
+│  ┌─────────────────────────────────────────────────────────┐   │
 │  │              Tool Execution Wrapper                      │   │
 │  │  1. Build command with pinned IP                        │   │
 │  │  2. Inject --host-header for SNI                        │   │
-│  │  3. Run subprocess with timeout                         │   │
-│  │  4. Parse output → normalized Findings                  │   │
+│  │  3. Route via CONNECT proxy (if enforcement=proxy)      │   │
+│  │  4. Run subprocess with timeout                         │   │
+│  │  5. Parse output → normalized Findings                  │   │
+│  │  6. Emit GatewayDecision receipts to audit chain        │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Enforcement Modes
+
+| Adapter | Enforcement | Mechanism | Notes |
+|---------|-------------|-----------|-------|
+| HTTP Probe | `proxy` | All requests through CONNECT gateway | Built-in adapter |
+| Crawler | `proxy` | All requests through CONNECT gateway | Built-in adapter |
+| Dynamic Validation | `proxy` | All requests through CONNECT gateway | Built-in adapter |
+| Nuclei | `proxy` | Runs via `--proxy` flag to gateway | External tool, proxy-routed |
+| nmap | `none` | Direct execution; in-process gate re-check | Gateway logic tested but path not proxied |
+| SQLMap | `none` | Direct execution; in-process gate re-check | External tool, not proxy-routed |
+| Nikto | `none` | Direct execution; in-process gate re-check | External tool, not proxy-routed |
 
 ### Nmap Adapter
 

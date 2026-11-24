@@ -48,7 +48,7 @@ ishastra/
 helm registry login ghcr.io
 
 # Pull chart
-helm pull oci://ghcr.io/ishastra/charts/ishastra --version 3.5.0 --untar
+helm pull oci://ghcr.io/hacker-194/charts/ishastra --version 4.0.0-rc1 --untar
 
 # Install
 cd ishastra
@@ -430,7 +430,7 @@ secrets:
 helm upgrade ishastra . -f values-prod.yaml -n ishastra-system
 
 # Upgrade chart version
-helm upgrade ishastra oci://ghcr.io/ishastra/charts/ishastra --version 3.5.1 -f values-prod.yaml -n ishastra-system
+helm upgrade ishastra oci://ghcr.io/hacker-194/charts/ishastra --version 4.0.0-rc1 -f values-prod.yaml -n ishastra-system
 
 # Check history
 helm history ishastra -n ishastra-system

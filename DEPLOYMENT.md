@@ -405,3 +405,14 @@ invitation state is stored.
 - **`database is locked` in logs** — should not happen since 0.1.0 (write
   transactions take the write lock up front and contend via `busy_timeout`); if
   you still see it, file it with the surrounding log lines.
+
+## 15. Additional Deployment Options
+
+| Option | Document |
+|--------|----------|
+| Helm (Kubernetes) | [`docs/deployment/helm.md`](docs/deployment/helm.md) |
+| Terraform (IaC) | [`docs/deployment/terraform.md`](docs/deployment/terraform.md) |
+| Free Tier (Self-Host) | [`docs/deployment/free-tier.md`](docs/deployment/free-tier.md) |
+| Pricing & Tiers | [`docs/pricing.md`](docs/pricing.md) |
+| Governance & Contributing | [`GOVERNANCE.md`](GOVERNANCE.md) |
+| Security Policy | [`SECURITY.md`](SECURITY.md) |

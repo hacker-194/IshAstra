@@ -20,6 +20,11 @@ updates:
     commit-message:
       prefix: "deps(pip)"
     groups:
+      opentelemetry:
+        patterns:
+          - "opentelemetry-*"
+        update-types:
+          - "patch"
       dev-dependencies:
         patterns:
           - "pytest*"

@@ -216,18 +216,14 @@ class PostgresAssessmentQueue:
                     self._tenants.pop(job.id, None)
                 log.info("duplicate queue message skipped", extra={"job_id": job.id})
                 return
-            queued = await conn.fetchval(
-                f"SELECT count(*) FROM {QUEUE_TABLE} WHERE state = 'queued'"
-            )
+            queued = await conn.fetchval(f"SELECT count(*) FROM {QUEUE_TABLE} WHERE state = 'queued'")
             if (queued or 0) > self.queue_max:
                 await conn.execute(f"DELETE FROM {QUEUE_TABLE} WHERE job_id = $1", job.id)
                 with self._lock:
                     self._active.pop(job.id, None)
                     self._on_finish.pop(job.id, None)
                     self._tenants.pop(job.id, None)
-                raise AssessmentQueueFull(
-                    f"assessment queue is full ({self.queue_max} waiting)"
-                )
+                raise AssessmentQueueFull(f"assessment queue is full ({self.queue_max} waiting)")
 
     def cancel(self, job_id: str) -> bool:
         """Signal a job to stop. Schedules the durable update when possible."""
@@ -296,11 +292,7 @@ class PostgresAssessmentQueue:
                 policy_id,
             )
         with self._lock:
-            local = [
-                job
-                for job in self._active.values()
-                if (job.policy or {}).get("policy_id") == policy_id
-            ]
+            local = [job for job in self._active.values() if (job.policy or {}).get("policy_id") == policy_id]
         for job in local:
             job.cancel()
         return len(rows) + len(running)
@@ -308,17 +300,11 @@ class PostgresAssessmentQueue:
     def cancel_for_policy(self, policy_id: str) -> int:
         """Signal local jobs now; schedule the durable update."""
         with self._lock:
-            local = [
-                job
-                for job in self._active.values()
-                if (job.policy or {}).get("policy_id") == policy_id
-            ]
+            local = [job for job in self._active.values() if (job.policy or {}).get("policy_id") == policy_id]
         for job in local:
             job.cancel()
         with contextlib.suppress(RuntimeError):
-            asyncio.get_running_loop().create_task(
-                self.cancel_for_policy_async(policy_id)
-            )
+            asyncio.get_running_loop().create_task(self.cancel_for_policy_async(policy_id))
         return len(local)
 
     async def _recover_orphans(self, conn: Any, now: float) -> None:
@@ -441,9 +427,7 @@ class PostgresAssessmentQueue:
             loop.run_until_complete(self._run_job(job))
         except Exception as exc:
             log.exception("job %s failed in the PostgreSQL queue", job_id)
-            loop.run_until_complete(
-                self._mark_failed(job_id, f"{type(exc).__name__}: {exc}")
-            )
+            loop.run_until_complete(self._mark_failed(job_id, f"{type(exc).__name__}: {exc}"))
         else:
             loop.run_until_complete(self._finish(job))
         finally:

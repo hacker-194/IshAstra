@@ -51,9 +51,7 @@ async def test_read_only_transaction_rejects_writes(db) -> None:
 
 async def test_verifier_checks_job_state_under_read_only(db) -> None:
     private_key, _ = new_keypair()
-    config = CapabilityIssuer.create_config(
-        signing_key_private=private_key, database=db
-    )
+    config = CapabilityIssuer.create_config(signing_key_private=private_key, database=db)
     issuer = CapabilityIssuer(config)
     await issuer.initialize()
 
@@ -94,9 +92,7 @@ async def test_verifier_checks_job_state_under_read_only(db) -> None:
             1.0,
         )
 
-    verifier = CapabilityVerifier.from_issuer_config(
-        config, database=db, require_job_running=True
-    )
+    verifier = CapabilityVerifier.from_issuer_config(config, database=db, require_job_running=True)
     result = await verifier.verify_async(token.to_dict())
     assert result.valid, result.reason
 

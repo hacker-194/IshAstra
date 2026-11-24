@@ -51,12 +51,12 @@ JOB_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 class ResourceLimits:
     """Resource limits for worker containers."""
 
-    cpu_quota: int = 100000      # CPU CFS quota (100000 = 1 CPU)
-    cpu_period: int = 100000     # CPU CFS period
-    memory_mb: int = 512         # Memory limit in MB
-    pids_limit: int = 100        # Max processes
+    cpu_quota: int = 100000  # CPU CFS quota (100000 = 1 CPU)
+    cpu_period: int = 100000  # CPU CFS period
+    memory_mb: int = 512  # Memory limit in MB
+    pids_limit: int = 100  # Max processes
     wall_clock_seconds: int = 300  # Max wall-clock time
-    disk_mb: int = 1024          # Disk limit in MB (tmpfs)
+    disk_mb: int = 1024  # Disk limit in MB (tmpfs)
 
 
 @dataclass(frozen=True)
@@ -67,7 +67,7 @@ class WorkerConfig:
     tenant_id: str
     engagement_id: str
     image: str
-    command: list[str]           # Argument array, no shell
+    command: list[str]  # Argument array, no shell
     environment: dict[str, str]  # Env vars (will include capability token)
     working_dir: str = "/workspace"
     resource_limits: ResourceLimits = field(default_factory=ResourceLimits)
@@ -75,7 +75,7 @@ class WorkerConfig:
     readonly_rootfs: bool = True
     drop_capabilities: list[str] = field(default_factory=lambda: ["ALL"])
     security_opt: list[str] = field(default_factory=lambda: ["no-new-privileges:true"])
-    user: str = "10001:10001"    # Non-root user
+    user: str = "10001:10001"  # Non-root user
 
     def __post_init__(self) -> None:
         if not JOB_ID_RE.match(self.job_id) or ".." in self.job_id:
@@ -207,24 +207,36 @@ class WorkerManager:
         """Build docker run command with security hardening."""
         cmd = [
             "docker",
-            "-H", self.docker_host,
+            "-H",
+            self.docker_host,
             "run",
-            "--name", f"{CONTAINER_PREFIX}{config.job_id}",
-            "--network", config.network_mode,
-            "--cpus", str(config.resource_limits.cpu_quota / config.resource_limits.cpu_period),
-            "--memory", f"{config.resource_limits.memory_mb}m",
-            "--memory-swap", f"{config.resource_limits.memory_mb}m",
-            "--pids-limit", str(config.resource_limits.pids_limit),
-            "--ulimit", "nofile=1024:1024",
+            "--name",
+            f"{CONTAINER_PREFIX}{config.job_id}",
+            "--network",
+            config.network_mode,
+            "--cpus",
+            str(config.resource_limits.cpu_quota / config.resource_limits.cpu_period),
+            "--memory",
+            f"{config.resource_limits.memory_mb}m",
+            "--memory-swap",
+            f"{config.resource_limits.memory_mb}m",
+            "--pids-limit",
+            str(config.resource_limits.pids_limit),
+            "--ulimit",
+            "nofile=1024:1024",
         ]
 
         if config.readonly_rootfs:
             cmd.append("--read-only")
 
-        cmd.extend([
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=100m",
-            "--mount", f"type=bind,src={workspace},dst={config.working_dir}",
-        ])
+        cmd.extend(
+            [
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=100m",
+                "--mount",
+                f"type=bind,src={workspace},dst={config.working_dir}",
+            ]
+        )
 
         for cap in config.drop_capabilities:
             cmd.extend(["--cap-drop", cap])

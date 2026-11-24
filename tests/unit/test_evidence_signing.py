@@ -72,9 +72,7 @@ async def test_unknown_key_id_fails_verification(workspace) -> None:
     assert "unknown key_id" in reason
 
 
-async def test_offline_verification_rejects_tampered_artifact(
-    workspace, tmp_path
-) -> None:
+async def test_offline_verification_rejects_tampered_artifact(workspace, tmp_path) -> None:
     service = _service()
     manifest = await service.create_evidence_from_workspace(
         tenant_id="t1", job_id="j1", engagement_id="e1", workspace_path=str(workspace)
@@ -84,22 +82,16 @@ async def test_offline_verification_rejects_tampered_artifact(
     public_path = tmp_path / "evidence.pub"
     public_path.write_text(service.get_verification_keys()[service.key_id])
 
-    ok, reason = verify_evidence_file(
-        manifest_path, public_path, artifacts_dir=workspace
-    )
+    ok, reason = verify_evidence_file(manifest_path, public_path, artifacts_dir=workspace)
     assert ok, reason
 
     (workspace / "results.json").write_text('{"findings": ["injected"]}')
-    ok, reason = verify_evidence_file(
-        manifest_path, public_path, artifacts_dir=workspace
-    )
+    ok, reason = verify_evidence_file(manifest_path, public_path, artifacts_dir=workspace)
     assert not ok
     assert "hash mismatch" in reason
 
 
-async def test_offline_verification_rejects_tampered_manifest(
-    workspace, tmp_path
-) -> None:
+async def test_offline_verification_rejects_tampered_manifest(workspace, tmp_path) -> None:
     service = _service()
     manifest = await service.create_evidence_from_workspace(
         tenant_id="t1", job_id="j1", engagement_id="e1", workspace_path=str(workspace)
@@ -153,8 +145,6 @@ async def test_missing_artifact_is_rejected(workspace, tmp_path) -> None:
     public_path.write_text(service.get_verification_keys()[service.key_id])
 
     (workspace / "report.sarif").unlink()
-    ok, reason = verify_evidence_file(
-        manifest_path, public_path, artifacts_dir=workspace
-    )
+    ok, reason = verify_evidence_file(manifest_path, public_path, artifacts_dir=workspace)
     assert not ok
     assert "missing artifact" in reason

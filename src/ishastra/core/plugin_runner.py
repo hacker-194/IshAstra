@@ -9,11 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import signal
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +23,6 @@ from ishastra.core.adapter_base import (
     AdapterNotApplicable,
     AdapterResult,
     AdapterTimeout,
-    checked_destination,
 )
 
 log = logging.getLogger(__name__)
@@ -175,7 +173,7 @@ class PluginProcess:
         try:
             response = PluginResponse.from_json(line)
         except json.JSONDecodeError as e:
-            raise PluginProtocolError(f"Invalid handshake JSON: {e}")
+            raise PluginProtocolError(f"Invalid handshake JSON: {e}") from e
 
         if response.is_error():
             code, msg = response.get_error()
@@ -187,8 +185,7 @@ class PluginProcess:
         protocol_version = response.result.get("protocol")
         if protocol_version != PLUGIN_PROTOCOL_VERSION:
             raise PluginProtocolError(
-                f"Protocol version mismatch: expected {PLUGIN_PROTOCOL_VERSION}, "
-                f"got {protocol_version}"
+                f"Protocol version mismatch: expected {PLUGIN_PROTOCOL_VERSION}, got {protocol_version}"
             )
 
     def _drain_stdout(self) -> None:
@@ -234,7 +231,7 @@ class PluginProcess:
             self.process.stdin.write(request_json)
             self.process.stdin.flush()
         except (BrokenPipeError, OSError) as e:
-            raise PluginError(f"Failed to write to plugin: {e}")
+            raise PluginError(f"Failed to write to plugin: {e}") from e
 
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -340,6 +337,8 @@ class PluginRunner:
                 self.start()
             except Exception as e:
                 return False, str(e)
+        if self._adapter_info is None:
+            return False, "plugin did not report adapter info"
         return self._adapter_info.get("available", False), self._adapter_info.get("detail", "")
 
     def assess(
@@ -352,6 +351,7 @@ class PluginRunner:
 
         if self._process is None:
             self.start()
+        assert self._process is not None
 
         params = {
             "target": target,
@@ -365,19 +365,16 @@ class PluginRunner:
         try:
             result = self._process.call("assess", params, timeout=assess_timeout)
         except PluginNotApplicable as e:
-            raise AdapterNotApplicable(str(e))
+            raise AdapterNotApplicable(str(e)) from e
         except PluginTimeout as e:
-            raise AdapterTimeout(str(e))
+            raise AdapterTimeout(str(e)) from e
         except PluginCancelled as e:
-            raise AdapterCancelled(str(e))
+            raise AdapterCancelled(str(e)) from e
         except PluginError as e:
-            raise AdapterError(str(e))
+            raise AdapterError(str(e)) from e
 
-        # Convert plugin result to AdapterResult
-        # Findings are included in the result from the plugin
-        findings_data = result.get("findings", [])
-        # We can't easily reconstruct Finding objects here, so return raw data
-        # The caller should handle findings from the plugin result directly
+        # Findings stay serialized in result["findings"]; the caller handles
+        # them via assess_with_findings() rather than AdapterResult.findings.
         return AdapterResult(
             findings=[],  # Findings are serialized separately in result["findings"]
             notes=result.get("notes", []),
@@ -394,6 +391,7 @@ class PluginRunner:
 
         if self._process is None:
             self.start()
+        assert self._process is not None
 
         params = {
             "target": target,
@@ -406,13 +404,13 @@ class PluginRunner:
         try:
             result = self._process.call("assess", params, timeout=assess_timeout)
         except PluginNotApplicable as e:
-            raise AdapterNotApplicable(str(e))
+            raise AdapterNotApplicable(str(e)) from e
         except PluginTimeout as e:
-            raise AdapterTimeout(str(e))
+            raise AdapterTimeout(str(e)) from e
         except PluginCancelled as e:
-            raise AdapterCancelled(str(e))
+            raise AdapterCancelled(str(e)) from e
         except PluginError as e:
-            raise AdapterError(str(e))
+            raise AdapterError(str(e)) from e
 
         adapter_result = AdapterResult(
             findings=[],
@@ -449,10 +447,7 @@ def run_plugin_assessment(
     runner = PluginRunner(plugin_path, timeout=timeout, cancel=cancel)
     try:
         runner.start()
-        result = runner.assess(target, context=context)
-        # Findings would be in result if plugin returns them
-        findings = result.findings if hasattr(result, "findings") else []
-        return result, findings
+        return runner.assess_with_findings(target, context=context)
     finally:
         runner.close()
 

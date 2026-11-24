@@ -26,9 +26,7 @@ def _plan(**overrides) -> FirewallPlan:
 def test_worker_may_only_reach_the_gateway_port() -> None:
     script = firewall.render_nft_script(_plan())
 
-    allow = (
-        "ip saddr 172.30.0.0/24 ip daddr 172.30.0.2 tcp dport 8080 accept"
-    )
+    allow = "ip saddr 172.30.0.0/24 ip daddr 172.30.0.2 tcp dport 8080 accept"
     drop = "ip saddr 172.30.0.0/24 drop"
     assert allow in script
     assert drop in script
@@ -41,9 +39,7 @@ def test_metadata_addresses_are_dropped() -> None:
     assert "ip daddr 169.254.170.2 drop" in script
     assert "ip daddr 100.100.100.200 drop" in script
 
-    v6 = firewall.render_nft_script(
-        _plan(worker_subnet="fd00:1::/64", gateway_ip="fd00:1::2")
-    )
+    v6 = firewall.render_nft_script(_plan(worker_subnet="fd00:1::/64", gateway_ip="fd00:1::2"))
     assert "ip6 daddr fd00:ec2::254 drop" in v6
 
 
@@ -52,18 +48,12 @@ def test_no_blanket_allow_rule() -> None:
     assert "0.0.0.0/0" not in script
     assert "::/0" not in script
     assert "tcp dport 8080 accept" in script
-    worker_accepts = [
-        line for line in script.splitlines() if "172.30.0.0/24" in line and "accept" in line
-    ]
-    assert worker_accepts == [
-        "    ip saddr 172.30.0.0/24 ip daddr 172.30.0.2 tcp dport 8080 accept"
-    ]
+    worker_accepts = [line for line in script.splitlines() if "172.30.0.0/24" in line and "accept" in line]
+    assert worker_accepts == ["    ip saddr 172.30.0.0/24 ip daddr 172.30.0.2 tcp dport 8080 accept"]
 
 
 def test_ipv6_plan_uses_ip6_selectors() -> None:
-    script = firewall.render_nft_script(
-        _plan(worker_subnet="fd00:1::/64", gateway_ip="fd00:1::2")
-    )
+    script = firewall.render_nft_script(_plan(worker_subnet="fd00:1::/64", gateway_ip="fd00:1::2"))
     assert "ip6 saddr fd00:1::/64 ip6 daddr fd00:1::2 tcp dport 8080 accept" in script
     assert "ip6 saddr fd00:1::/64 drop" in script
 

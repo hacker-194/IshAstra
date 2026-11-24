@@ -57,8 +57,7 @@ class IssuerConfig:
             raise ValueError(f"key_id {self.key_id} does not match signing key fingerprint {expected_id}")
         if self.default_ttl_seconds > MAX_TTL_SECONDS:
             raise ValueError(
-                f"default_ttl_seconds {self.default_ttl_seconds} "
-                f"exceeds maximum {MAX_TTL_SECONDS}"
+                f"default_ttl_seconds {self.default_ttl_seconds} exceeds maximum {MAX_TTL_SECONDS}"
             )
 
 

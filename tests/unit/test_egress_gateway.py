@@ -205,9 +205,7 @@ async def test_allowed_connection_relays_bytes_both_ways(
 
     ok, error = await env["chain"].verify_async()
     assert ok, error
-    receipts = [
-        e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti
-    ]
+    receipts = [e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti]
     assert receipts and receipts[-1]["decision"] == "allowed"
 
 
@@ -247,9 +245,7 @@ async def test_protocol_outside_scope_is_denied(
     await writer.wait_closed()
 
 
-async def test_expired_token_is_denied(
-    env: dict[str, Any], gateway_factory: Any, echo_server: int
-) -> None:
+async def test_expired_token_is_denied(env: dict[str, Any], gateway_factory: Any, echo_server: int) -> None:
     gateway = await gateway_factory()
     private_key = env["private_key"]
     token = CapabilityToken(
@@ -290,9 +286,7 @@ async def test_token_signed_by_unknown_key_is_denied(
     await writer.wait_closed()
 
 
-async def test_revoked_token_is_denied(
-    env: dict[str, Any], gateway_factory: Any, echo_server: int
-) -> None:
+async def test_revoked_token_is_denied(env: dict[str, Any], gateway_factory: Any, echo_server: int) -> None:
     gateway = await gateway_factory()
     token = make_token(env["private_key"], echo_server)
     assert await env["revocation"].revoke(token.jti, "cancelled", "kid")
@@ -303,9 +297,7 @@ async def test_revoked_token_is_denied(
     await writer.wait_closed()
 
 
-async def test_job_must_be_running(
-    env: dict[str, Any], gateway_factory: Any, echo_server: int
-) -> None:
+async def test_job_must_be_running(env: dict[str, Any], gateway_factory: Any, echo_server: int) -> None:
     gateway = await gateway_factory(require_job_running=True)
     token = make_token(env["private_key"], echo_server)
 
@@ -373,9 +365,7 @@ async def test_basic_proxy_auth_is_accepted(
     gateway = await gateway_factory()
     token = make_token(env["private_key"], echo_server)
 
-    status, reader, writer = await _connect(
-        gateway, token, "127.0.0.1", echo_server, scheme="basic"
-    )
+    status, reader, writer = await _connect(gateway, token, "127.0.0.1", echo_server, scheme="basic")
     assert status.startswith(b"HTTP/1.1 200"), status
     writer.write(b"ok")
     await writer.drain()
@@ -384,14 +374,10 @@ async def test_basic_proxy_auth_is_accepted(
     await writer.wait_closed()
 
 
-async def test_wrong_audience_is_denied(
-    env: dict[str, Any], gateway_factory: Any, echo_server: int
-) -> None:
+async def test_wrong_audience_is_denied(env: dict[str, Any], gateway_factory: Any, echo_server: int) -> None:
     gateway = await gateway_factory()
     base = make_token(env["private_key"], echo_server)
-    token = dataclasses.replace(
-        base, audience="some-other-service", signature=""
-    ).sign(env["private_key"])
+    token = dataclasses.replace(base, audience="some-other-service", signature="").sign(env["private_key"])
 
     status, _, writer = await _connect(gateway, token, "127.0.0.1", echo_server)
     assert status.startswith(b"HTTP/1.1 403")
@@ -404,9 +390,7 @@ async def test_unknown_token_version_is_denied(
 ) -> None:
     gateway = await gateway_factory()
     base = make_token(env["private_key"], echo_server)
-    token = dataclasses.replace(
-        base, version="ishastra-capability/0", signature=""
-    ).sign(env["private_key"])
+    token = dataclasses.replace(base, version="ishastra-capability/0", signature="").sign(env["private_key"])
 
     status, _, writer = await _connect(gateway, token, "127.0.0.1", echo_server)
     assert status.startswith(b"HTTP/1.1 403")
@@ -439,27 +423,19 @@ async def test_denied_connection_is_audited(
 
     ok, error = await env["chain"].verify_async()
     assert ok, error
-    receipts = [
-        e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti
-    ]
+    receipts = [e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti]
     assert receipts and receipts[-1]["decision"] == "denied"
     assert "approved target" in receipts[-1]["reason"]
 
 
-async def test_redirect_hop_is_authorized_again(
-    env: dict[str, Any], gateway_factory: Any
-) -> None:
+async def test_redirect_hop_is_authorized_again(env: dict[str, Any], gateway_factory: Any) -> None:
     """A redirect target is a new CONNECT and must pass authorization itself."""
 
-    async def redirect(
-        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def redirect(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
             writer.write(
-                b"HTTP/1.1 302 Found\r\n"
-                b"Location: http://127.0.0.2:8080/\r\n"
-                b"Content-Length: 0\r\n\r\n"
+                b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.2:8080/\r\nContent-Length: 0\r\n\r\n"
             )
             await writer.drain()
         finally:
@@ -468,9 +444,7 @@ async def test_redirect_hop_is_authorized_again(
     server = await asyncio.start_server(redirect, "127.0.0.1", 0)
     port: int = server.sockets[0].getsockname()[1]
     gateway = await gateway_factory()
-    token = make_token(
-        env["private_key"], port, targets=("127.0.0.1",), pinned=("127.0.0.1",)
-    )
+    token = make_token(env["private_key"], port, targets=("127.0.0.1",), pinned=("127.0.0.1",))
 
     try:
         status, reader, writer = await _connect(gateway, token, "127.0.0.1", port)
@@ -490,15 +464,11 @@ async def test_redirect_hop_is_authorized_again(
     writer.close()
     await writer.wait_closed()
 
-    receipts = [
-        e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti
-    ]
+    receipts = [e for e in await _chain_receipts(env["db"]) if e.get("token_jti") == token.jti]
     assert [r["decision"] for r in receipts] == ["allowed", "denied"]
 
 
-async def test_ipv6_loopback_pinning(
-    env: dict[str, Any], gateway_factory: Any
-) -> None:
+async def test_ipv6_loopback_pinning(env: dict[str, Any], gateway_factory: Any) -> None:
     """IPv6 targets are pinned and matched with the same rules as IPv4."""
 
     async def echo(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:

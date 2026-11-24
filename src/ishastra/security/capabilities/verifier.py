@@ -77,9 +77,7 @@ class CapabilityVerifier:
         self.require_job_running = require_job_running
         self.expected_audience = expected_audience
 
-    def _verify_crypto(
-        self, token_dict: dict[str, Any], *, now: float | None = None
-    ) -> VerificationResult:
+    def _verify_crypto(self, token_dict: dict[str, Any], *, now: float | None = None) -> VerificationResult:
         """Signature and time checks; no database access."""
         moment = time.time() if now is None else now
 
@@ -112,9 +110,7 @@ class CapabilityVerifier:
 
         public_key = self.verification_keys[key_id]
         if not token.signature:
-            return VerificationResult(
-                valid=False, reason="token not signed", token=token, key_id=key_id
-            )
+            return VerificationResult(valid=False, reason="token not signed", token=token, key_id=key_id)
         if not verify_signature(token.body(), token.signature, public_key):
             return VerificationResult(
                 valid=False,
@@ -138,17 +134,13 @@ class CapabilityVerifier:
             )
         return VerificationResult(valid=True, reason="", token=token, key_id=key_id)
 
-    def verify(
-        self, token_dict: dict[str, Any], *, now: float | None = None
-    ) -> VerificationResult:
+    def verify(self, token_dict: dict[str, Any], *, now: float | None = None) -> VerificationResult:
         """Crypto-only verification. Fails closed when DB checks are configured."""
         result = self._verify_crypto(token_dict, now=now)
         if not result.valid:
             return result
 
-        if self.revocation is not None or (
-            self.database is not None and self.require_job_running
-        ):
+        if self.revocation is not None or (self.database is not None and self.require_job_running):
             return VerificationResult(
                 valid=False,
                 reason="revocation/job-state checks require verify_async()",
@@ -168,11 +160,7 @@ class CapabilityVerifier:
         token = result.token
         assert token is not None
 
-        if (
-            self.revocation is not None
-            and token.jti
-            and await self.revocation.is_revoked(token.jti)
-        ):
+        if self.revocation is not None and token.jti and await self.revocation.is_revoked(token.jti):
             return VerificationResult(
                 valid=False,
                 reason=f"token revoked (jti: {token.jti})",
@@ -212,9 +200,7 @@ class CapabilityVerifier:
         from ishastra.security.capabilities.token import public_key
 
         verification_keys = {}
-        verification_keys[issuer_config.key_id] = public_key(
-            issuer_config.signing_key_private
-        )
+        verification_keys[issuer_config.key_id] = public_key(issuer_config.signing_key_private)
         for key_id, private_key in issuer_config.previous_keys.items():
             verification_keys[key_id] = public_key(private_key)
 

@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 from ishastra import __version__
+from ishastra.core.rate_limiter import JobRateLimiter
 from ishastra.core.scope import check as scope_check
 from ishastra.core.scope import destination as scope_destination
 from ishastra.core.urls import parse_url
@@ -195,7 +196,7 @@ class EndpointProbe:
         timeout: float = 8.0,
         max_body: int = MAX_BODY,
         rate_limit_rps: float = 0,
-        rate_limiter: "JobRateLimiter | None" = None,
+        rate_limiter: JobRateLimiter | None = None,
     ):
         self.timeout = timeout
         self.max_body = max_body

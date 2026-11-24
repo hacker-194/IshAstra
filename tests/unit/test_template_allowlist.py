@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from ishastra.core.adapters import NmapAdapter, NucleiAdapter
 from ishastra.core.template_allowlist import (
     TemplateAllowlist,
     TemplateAllowlistError,
     get_allowlist,
     reset_allowlist,
 )
-from ishastra.core.adapters import NmapAdapter, NucleiAdapter
 
 
 class TestTemplateAllowlist:
@@ -320,16 +320,12 @@ class TestDefaultAllowlistConfig:
 
     def test_default_config_exists(self):
         """Test default config file exists."""
-        config_path = (
-            Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
-        )
+        config_path = Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
         assert config_path.exists(), f"Default allowlist config not found at {config_path}"
 
     def test_default_config_valid(self):
         """Test default config is valid YAML with required keys."""
-        config_path = (
-            Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
-        )
+        config_path = Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
         import yaml
 
         with config_path.open() as f:
@@ -344,9 +340,7 @@ class TestDefaultAllowlistConfig:
 
     def test_default_config_loadable(self):
         """Test default config can be loaded by TemplateAllowlist."""
-        config_path = (
-            Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
-        )
+        config_path = Path(__file__).parent.parent.parent / "config" / "templates" / "allowlist.yaml"
         allowlist = TemplateAllowlist(config_path)
         assert len(allowlist.nuclei_patterns) > 0
         assert len(allowlist.nmap_patterns) > 0

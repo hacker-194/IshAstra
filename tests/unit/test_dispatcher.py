@@ -53,16 +53,12 @@ async def echo_server() -> Any:
 async def parts() -> Any:
     db = await store.get_database()
     private_key, _ = new_keypair()
-    config = CapabilityIssuer.create_config(
-        signing_key_private=private_key, database=db
-    )
+    config = CapabilityIssuer.create_config(signing_key_private=private_key, database=db)
     issuer = CapabilityIssuer(config)
     await issuer.initialize()
     return {
         "issuer": issuer,
-        "verifier": CapabilityVerifier.from_issuer_config(
-            config, database=db, require_job_running=False
-        ),
+        "verifier": CapabilityVerifier.from_issuer_config(config, database=db, require_job_running=False),
         "signing": EvidenceSigningService.create_service(),
         "db": db,
     }
@@ -149,15 +145,11 @@ async def test_job_runs_through_gateway_and_yields_signed_evidence(
     public_key = parts["signing"].get_verification_keys()[outcome.manifest.key_id]
     public_path = tmp_path / "evidence.pub"
     public_path.write_text(public_key)
-    ok, reason = verify_evidence_file(
-        outcome.manifest_path, public_path, artifacts_dir=workspace
-    )
+    ok, reason = verify_evidence_file(outcome.manifest_path, public_path, artifacts_dir=workspace)
     assert ok, reason
 
 
-async def test_gateway_stops_after_dispatch(
-    parts: dict[str, Any], echo_server: int, tmp_path: Path
-) -> None:
+async def test_gateway_stops_after_dispatch(parts: dict[str, Any], echo_server: int, tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
     outcome = await dispatch(

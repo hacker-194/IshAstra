@@ -97,7 +97,12 @@ class EngagementPolicy:
             and float(self.effective_at) >= float(self.expires_at)
         ):
             raise PolicyError("effective_at must be earlier than expires_at")
-        if not isinstance(self.rate_limit_rps, int) or isinstance(self.rate_limit_rps, bool) or self.rate_limit_rps < 0 or self.rate_limit_rps > 1000:
+        if (
+            not isinstance(self.rate_limit_rps, int)
+            or isinstance(self.rate_limit_rps, bool)
+            or self.rate_limit_rps < 0
+            or self.rate_limit_rps > 1000
+        ):
             raise PolicyError("rate_limit_rps must be an integer from 0 to 1000")
 
     def is_valid(self, *, now: float | None = None) -> tuple[bool, str]:

@@ -1618,9 +1618,7 @@ class PostgreSQLDatabase(Database):
             metrics.observe_db_acquire("postgres", time.monotonic() - acquire_started)
             await conn.execute("SET TRANSACTION READ ONLY")
             if tenant_id:
-                await conn.execute(
-                    "SELECT set_config('app.current_tenant', $1, true)", tenant_id
-                )
+                await conn.execute("SELECT set_config('app.current_tenant', $1, true)", tenant_id)
             yield conn
 
     @asynccontextmanager
@@ -2515,8 +2513,7 @@ async def transition_job(
         params.append(stamp)
     placeholders = ", ".join("?" for _ in from_states)
     sql = (
-        f"UPDATE jobs SET {', '.join(assignments)} "
-        f"WHERE id = ? AND tenant = ? AND state IN ({placeholders})"
+        f"UPDATE jobs SET {', '.join(assignments)} WHERE id = ? AND tenant = ? AND state IN ({placeholders})"
     )
     params.extend([job_id, tenant, *from_states])
     db = await get_database()

@@ -6,8 +6,6 @@ import threading
 import time
 from unittest.mock import patch
 
-import pytest
-
 from ishastra.core.rate_limiter import JobRateLimiter, RateLimitResult, TokenBucket
 
 
@@ -83,7 +81,7 @@ class TestTokenBucket:
                             allowed_count += 1
                         else:
                             rejected_count += 1
-            except Exception as e:
+            except Exception:
                 with lock:
                     rejected_count += 1
 
@@ -164,7 +162,7 @@ class TestRateLimiterIntegration:
 
     def test_job_creates_rate_limiter_from_roe(self) -> None:
         """Job should create rate limiter from engagement rules_of_engagement."""
-        from ishastra.core.jobs import Job, prepare
+        from ishastra.core.jobs import prepare
         from ishastra.core.scope import Scope
 
         scope = Scope(
@@ -181,9 +179,9 @@ class TestRateLimiterIntegration:
     @patch("ishastra.core.jobs.adapter_module.select")
     def test_job_passes_rate_limiter_to_adapters(self, mock_select) -> None:
         """Job should pass rate limiter in context to adapters."""
-        from ishastra.core.jobs import Job, execute, prepare
-        from ishastra.core.scope import Scope
         from ishastra.core.adapters import AdapterResult
+        from ishastra.core.jobs import execute, prepare
+        from ishastra.core.scope import Scope
 
         class MockAdapter:
             id = "mock"
@@ -227,7 +225,6 @@ class TestProbeWithRateLimiter:
         probe = EndpointProbe(timeout=1.0, rate_limiter=limiter)
 
         # Mock _fetch to avoid actual network calls
-        original_fetch = probe._fetch
         call_count = 0
 
         def mock_fetch(*args, **kwargs):
@@ -237,10 +234,8 @@ class TestProbeWithRateLimiter:
 
         probe._fetch = mock_fetch
 
-        start = time.monotonic()
         probe.probe("https://example.com")
         probe.probe("https://example.com")
-        elapsed = time.monotonic() - start
 
         # Should have been paced by rate limiter
         assert call_count == 2
@@ -251,7 +246,6 @@ class TestProbeWithRateLimiter:
 
         probe = EndpointProbe(timeout=1.0, rate_limit_rps=10)
 
-        original_fetch = probe._fetch
         call_count = 0
 
         def mock_fetch(*args, **kwargs):

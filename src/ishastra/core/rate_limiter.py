@@ -14,6 +14,7 @@ from dataclasses import dataclass
 @dataclass
 class RateLimitResult:
     """Result of a rate limit check."""
+
     allowed: bool
     limit: int
     remaining: int

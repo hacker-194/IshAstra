@@ -133,7 +133,6 @@ class AdapterBase:
 
     def on_shutdown(self) -> None:
         """Called before plugin exits. Override for cleanup."""
-        pass
 
 
 class PluginServer:
@@ -172,20 +171,20 @@ class PluginServer:
 
             try:
                 if method == "info":
-                    result = self.adapter.info()
-                    self._write_response(request_id=request_id, result=result)
+                    info = self.adapter.info()
+                    self._write_response(request_id=request_id, result=info)
 
                 elif method == "assess":
                     target = params.get("target", "")
                     timeout = params.get("timeout", 300.0)
                     context = params.get("context", {})
-                    result = self.adapter.assess(
+                    assessment = self.adapter.assess(
                         target,
                         timeout=timeout,
                         cancel=self._cancel,
                         context=context,
                     )
-                    self._write_response(request_id=request_id, result=result.to_dict())
+                    self._write_response(request_id=request_id, result=assessment.to_dict())
 
                 elif method == "shutdown":
                     self.adapter.on_shutdown()
@@ -214,7 +213,7 @@ class PluginServer:
         error: dict[str, Any] | None = None,
     ) -> None:
         """Write a response to stdout."""
-        response = {"id": request_id}
+        response: dict[str, Any] = {"id": request_id}
         if result is not None:
             response["result"] = result
         if error is not None:

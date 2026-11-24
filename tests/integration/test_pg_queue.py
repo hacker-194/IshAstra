@@ -50,9 +50,7 @@ def _job(job_id: str, key: str | None = None, policy_id: str = "pol-1") -> Job:
 async def queue():
     previous = store.current_path()
     store.configure(DSN)
-    q = PostgresAssessmentQueue(
-        concurrency=0, queue_max=2, visibility_seconds=60.0, max_attempts=2
-    )
+    q = PostgresAssessmentQueue(concurrency=0, queue_max=2, visibility_seconds=60.0, max_attempts=2)
     await q.start()
     await q.clear()
     try:
@@ -67,9 +65,7 @@ async def queue():
 async def _row(queue: PostgresAssessmentQueue, job_id: str):
     db = await store.get_database()
     async with db.transaction() as conn:
-        return await conn.fetchrow(
-            "SELECT * FROM ishastra_queue WHERE job_id = $1", job_id
-        )
+        return await conn.fetchrow("SELECT * FROM ishastra_queue WHERE job_id = $1", job_id)
 
 
 async def _count(queue: PostgresAssessmentQueue) -> int:
@@ -195,9 +191,7 @@ async def test_stale_worker_cannot_finish_a_recovered_job(queue) -> None:
     stale = await queue._claim_next()
     assert stale is not None
 
-    replacement = PostgresAssessmentQueue(
-        concurrency=0, queue_max=2, visibility_seconds=0.0, max_attempts=2
-    )
+    replacement = PostgresAssessmentQueue(concurrency=0, queue_max=2, visibility_seconds=0.0, max_attempts=2)
     await replacement.start()
     reclaimed = await replacement._claim_next()
     assert reclaimed is not None
@@ -217,9 +211,7 @@ async def test_stale_worker_cannot_finish_a_recovered_job(queue) -> None:
 async def test_queued_work_survives_a_new_queue_instance(queue) -> None:
     await queue.submit(_job("job-restart", key="restart"), on_finish=lambda job: None)
 
-    restarted = PostgresAssessmentQueue(
-        concurrency=0, queue_max=2, visibility_seconds=60.0, max_attempts=2
-    )
+    restarted = PostgresAssessmentQueue(concurrency=0, queue_max=2, visibility_seconds=60.0, max_attempts=2)
     await restarted.start()
     claimed = await restarted._claim_next()
     assert claimed is not None

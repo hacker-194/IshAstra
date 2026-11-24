@@ -279,26 +279,32 @@ class TestNmapAdapter:
         assert "tcp" in contract["protocols"]
 
     # Valid nmap XML with one open port for testing
-    NMAP_XML_WITH_PORT = """<?xml version="1.0" encoding="UTF-8"?>
-    <nmaprun scanner="nmap" args="nmap -sT -Pn -n -p 80 -oX - -- 192.0.2.1" version="7.98" xmloutputversion="1.04">
-      <scaninfo type="connect" protocol="tcp" numservices="1" services="80"/>
-      <verbose level="0"/>
-      <debugging level="0"/>
-      <host>
-        <status state="up" reason="syn-ack" reason_ttl="0"/>
-        <address addr="192.0.2.1" addrtype="ipv4"/>
-        <hostnames/>
-        <ports>
-          <port protocol="tcp" portid="80">
-            <state state="open" reason="syn-ack" reason_ttl="0"/>
-            <service name="http" product="nginx" version="1.18.0"/>
-          </port>
-        </ports>
-      </host>
-      <runstats>
-        <finished time="1700000000" timestr="Fri Nov 15 12:00:00 2024" elapsed="1.23" summary="Nmap done: 1 IP address (1 host up) scanned in 1.23 seconds" exit="success"/>
-      </runstats>
-    </nmaprun>"""
+    NMAP_XML_WITH_PORT = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<nmaprun scanner="nmap" args="nmap -sT -Pn -n -p 80 -oX - -- 192.0.2.1" '
+        'version="7.98" xmloutputversion="1.04">\n'
+        '  <scaninfo type="connect" protocol="tcp" numservices="1" services="80"/>\n'
+        '  <verbose level="0"/>\n'
+        '  <debugging level="0"/>\n'
+        "  <host>\n"
+        '    <status state="up" reason="syn-ack" reason_ttl="0"/>\n'
+        '    <address addr="192.0.2.1" addrtype="ipv4"/>\n'
+        "    <hostnames/>\n"
+        "    <ports>\n"
+        '      <port protocol="tcp" portid="80">\n'
+        '        <state state="open" reason="syn-ack" reason_ttl="0"/>\n'
+        '        <service name="http" product="nginx" version="1.18.0"/>\n'
+        "      </port>\n"
+        "    </ports>\n"
+        "  </host>\n"
+        "  <runstats>\n"
+        '    <finished time="1700000000" timestr="Fri Nov 15 12:00:00 2024" '
+        'elapsed="1.23" '
+        'summary="Nmap done: 1 IP address (1 host up) scanned in 1.23 seconds" '
+        'exit="success"/>\n'
+        "  </runstats>\n"
+        "</nmaprun>"
+    )
 
     def _destination(self) -> Destination:
         return Destination(scheme="http", host="example.com", port=80, ip="192.0.2.1")
@@ -540,25 +546,25 @@ class TestExternalScannerPinning:
         with (
             patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
+            pytest.raises(AdapterError, match="high-risk authorization"),
         ):
-            with pytest.raises(AdapterError, match="high-risk authorization"):
-                adapter.assess("https://example.com/search?q=1", timeout=20, cancel=threading.Event())
+            adapter.assess("https://example.com/search?q=1", timeout=20, cancel=threading.Event())
 
     def test_sqlmap_refuses_unproxied_https_without_gateway(self):
         adapter = SqlmapAdapter()
         adapter._version = "test"
+        # With high-risk auth but no gateway for HTTPS
         with (
             patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
+            pytest.raises(AdapterError, match="gateway proxy"),
         ):
-            # With high-risk auth but no gateway for HTTPS
-            with pytest.raises(AdapterError, match="gateway proxy"):
-                adapter.assess(
-                    "https://example.com/search?q=1",
-                    timeout=20,
-                    cancel=threading.Event(),
-                    context={"high_risk": True}
-                )
+            adapter.assess(
+                "https://example.com/search?q=1",
+                timeout=20,
+                cancel=threading.Event(),
+                context={"high_risk": True},
+            )
 
     def test_sqlmap_uses_pinned_url_and_ignores_redirects(self):
         adapter = SqlmapAdapter()
@@ -569,7 +575,12 @@ class TestExternalScannerPinning:
             patch("ishastra.core.adapters._run_tool", return_value=(0, "", "")) as run,
         ):
             # High-risk auth via context
-            adapter.assess("http://example.com/search?q=1", timeout=20, cancel=threading.Event(), context={"high_risk": True})
+            adapter.assess(
+                "http://example.com/search?q=1",
+                timeout=20,
+                cancel=threading.Event(),
+                context={"high_risk": True},
+            )
         argv = run.call_args.args[0]
         assert argv[argv.index("-u") + 1] == "http://203.0.113.10:80/search?q=1"
         assert argv[argv.index("--host") + 1] == "example.com"
@@ -590,7 +601,7 @@ class TestExternalScannerPinning:
                 "https://example.com/search?q=1",
                 timeout=20,
                 cancel=threading.Event(),
-                context={"high_risk": True, "gateway_url": "http://gateway:8080"}
+                context={"high_risk": True, "gateway_url": "http://gateway:8080"},
             )
         argv = run.call_args.args[0]
         assert argv[argv.index("-u") + 1] == "https://example.com/search?q=1"
@@ -609,7 +620,7 @@ class TestExternalScannerPinning:
                 "http://example.com/search?q=1",
                 timeout=20,
                 cancel=threading.Event(),
-                context={"high_risk": True, "gateway_url": "http://gateway:8080"}
+                context={"high_risk": True, "gateway_url": "http://gateway:8080"},
             )
         argv = run.call_args.args[0]
         assert argv[argv.index("--proxy") + 1] == "http://gateway:8080"
@@ -627,7 +638,7 @@ class TestExternalScannerPinning:
                 "http://example.com/search?q=1",
                 timeout=20,
                 cancel=threading.Event(),
-                context={"rules_of_engagement": {"high_risk_allowed": True}}
+                context={"rules_of_engagement": {"high_risk_allowed": True}},
             )
         argv = run.call_args.args[0]
         assert argv[argv.index("-u") + 1] == "http://203.0.113.10:80/search?q=1"

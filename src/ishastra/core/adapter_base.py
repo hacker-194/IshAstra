@@ -155,8 +155,7 @@ def validate_contract(adapter: Adapter) -> None:
         raise ValueError("adapter contract requires a non-empty id")
     if contract["enforcement"] not in VALID_ENFORCEMENT:
         raise ValueError(
-            f"adapter {contract['id']!r} declares unknown enforcement "
-            f"{contract['enforcement']!r}"
+            f"adapter {contract['id']!r} declares unknown enforcement {contract['enforcement']!r}"
         )
     unknown_protocols = set(contract["protocols"]) - set(VALID_PROTOCOLS)
     if unknown_protocols:

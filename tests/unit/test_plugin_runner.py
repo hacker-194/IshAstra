@@ -8,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -16,9 +15,6 @@ import pytest
 from ishastra.core.adapter_base import AdapterCancelled, AdapterError, AdapterNotApplicable, AdapterTimeout
 from ishastra.core.plugin_runner import (
     AdapterPlugin,
-    PluginCancelled,
-    PluginError,
-    PluginNotApplicable,
     PluginProcess,
     PluginProtocolError,
     PluginRunner,
@@ -501,13 +497,17 @@ class TestTCPScannerPlugin:
 
     def test_tcp_scanner_plugin_exists(self):
         """Test the example plugin exists and is executable."""
-        plugin_path = Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        plugin_path = (
+            Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        )
         assert plugin_path.exists(), f"Plugin not found at {plugin_path}"
         assert os.access(plugin_path, os.X_OK), "Plugin not executable"
 
     def test_tcp_scanner_plugin_handshake(self):
         """Test TCP scanner plugin handshake works."""
-        plugin_path = Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        plugin_path = (
+            Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        )
 
         # Run plugin and send handshake + info request
         proc = subprocess.Popen(
@@ -552,7 +552,9 @@ class TestTCPScannerPlugin:
 
     def test_tcp_scanner_plugin_assess(self):
         """Test TCP scanner plugin assess method."""
-        plugin_path = Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        plugin_path = (
+            Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        )
 
         proc = subprocess.Popen(
             [sys.executable, str(plugin_path)],
@@ -569,16 +571,21 @@ class TestTCPScannerPlugin:
             assert handshake["result"]["adapter"] == "tcp-port-scanner"
 
             # Send assess request - scan localhost on a few ports
-            assess_req = json.dumps({
-                "protocol": 1,
-                "method": "assess",
-                "params": {
-                    "target": "http://127.0.0.1/",
-                    "timeout": 5.0,
-                    "context": {"ports": [22, 80, 443]}
-                },
-                "id": 1
-            }) + "\n"
+            assess_req = (
+                json.dumps(
+                    {
+                        "protocol": 1,
+                        "method": "assess",
+                        "params": {
+                            "target": "http://127.0.0.1/",
+                            "timeout": 5.0,
+                            "context": {"ports": [22, 80, 443]},
+                        },
+                        "id": 1,
+                    }
+                )
+                + "\n"
+            )
             proc.stdin.write(assess_req)
             proc.stdin.flush()
 

@@ -57,7 +57,13 @@ MAX_BYTES = 2 * 1024 * 1024
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "ishastra api key",
-        re.compile(r"\bishastra_(?=[A-Za-z0-9_-]{32,}\b)(?=[A-Za-z0-9_-]*[A-Z0-9])[A-Za-z0-9_-]+"),
+        # Our keys come from secrets.token_urlsafe(), so they mix upper and
+        # lower case. Prometheus metric names (ishastra_scope_gate_...) are
+        # lower-case with underscores and must not be reported as credentials.
+        re.compile(
+            r"\bishastra_(?=[A-Za-z0-9_-]{32,}\b)"
+            r"(?=[A-Za-z0-9_-]*[A-Z])(?=[A-Za-z0-9_-]*[a-z])[A-Za-z0-9_-]+"
+        ),
     ),
     (
         "private key",

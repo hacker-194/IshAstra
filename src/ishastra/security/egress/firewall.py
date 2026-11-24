@@ -153,9 +153,7 @@ def apply(plan: FirewallPlan, *, dry_run: bool = False) -> FirewallResult:
     if dry_run:
         return FirewallResult(True, "dry run: rules were not applied", (script,))
     if os.name == "nt":
-        return FirewallResult(
-            False, "nftables is Linux-only; apply the plan on a Linux host", ()
-        )
+        return FirewallResult(False, "nftables is Linux-only; apply the plan on a Linux host", ())
     root = _is_root()
     if root is None:
         return FirewallResult(False, "this platform has no POSIX euid; cannot apply", ())

@@ -160,10 +160,7 @@ class RevocationList:
         parts = sql.split("?")
         if len(parts) == 1:
             return sql
-        return "".join(
-            part + (f"${i + 1}" if i < len(parts) - 1 else "")
-            for i, part in enumerate(parts)
-        )
+        return "".join(part + (f"${i + 1}" if i < len(parts) - 1 else "") for i, part in enumerate(parts))
 
     async def _run(self, conn: Any, sql: str, params: tuple[Any, ...] = ()) -> Any:
         if self.db.is_postgresql():

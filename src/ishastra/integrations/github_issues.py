@@ -93,22 +93,26 @@ class GithubIssuesConnector(BaseConnector):
         ]
 
         if finding.get("remediation"):
-            body_parts.extend([
-                "### Remediation",
-                finding["remediation"],
-                "",
-            ])
+            body_parts.extend(
+                [
+                    "### Remediation",
+                    finding["remediation"],
+                    "",
+                ]
+            )
 
         if job:
-            body_parts.extend([
-                "### Job Context",
-                f"- **Job ID:** {job.get('id', 'N/A')}",
-                f"- **Profile:** {job.get('profile', 'N/A')}",
-                f"- **Actor:** {job.get('actor', 'N/A')}",
-                f"- **Policy:** {job.get('policy', {}).get('policy_id', 'N/A')}",
-                f"- **Tenant:** {job.get('policy', {}).get('tenant_id', 'N/A')}",
-                "",
-            ])
+            body_parts.extend(
+                [
+                    "### Job Context",
+                    f"- **Job ID:** {job.get('id', 'N/A')}",
+                    f"- **Profile:** {job.get('profile', 'N/A')}",
+                    f"- **Actor:** {job.get('actor', 'N/A')}",
+                    f"- **Policy:** {job.get('policy', {}).get('policy_id', 'N/A')}",
+                    f"- **Tenant:** {job.get('policy', {}).get('tenant_id', 'N/A')}",
+                    "",
+                ]
+            )
 
         body_parts.append("---")
         body_parts.append("*Created automatically by Ishastra Security Assessment Platform*")
@@ -249,6 +253,7 @@ class GithubIssuesConnector(BaseConnector):
                     if reset_header:
                         reset_time = int(reset_header)
                         import time
+
                         wait_time = max(reset_time - int(time.time()), 0) + 1
                         log.warning(
                             "GitHub rate limit exceeded, waiting %ds (attempt %d/%d)",

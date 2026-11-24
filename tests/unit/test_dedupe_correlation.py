@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ishastra.core.findings import Finding, dedupe, correlate, correlation_fingerprint
+from ishastra.core.findings import Finding, correlate, correlation_fingerprint, dedupe
 
 
 class TestDedupe:

@@ -86,6 +86,4 @@ async def test_empty_or_unknown_from_states_are_rejected() -> None:
     with pytest.raises(ValueError, match="from_states"):
         await store.transition_job("job_x", tenant="t", from_states=(), to_state="running")
     with pytest.raises(ValueError, match="unknown job state"):
-        await store.transition_job(
-            "job_x", tenant="t", from_states=("bogus",), to_state="running"
-        )
+        await store.transition_job("job_x", tenant="t", from_states=("bogus",), to_state="running")

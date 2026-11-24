@@ -60,6 +60,6 @@ class BaseConnector(ABC):
         """Calculate exponential backoff with jitter."""
         import random
 
-        base = self.config.retry_backoff_seconds * (2 ** attempt)
+        base = self.config.retry_backoff_seconds * (2**attempt)
         jitter = random.uniform(0, base * 0.1)
         return base + jitter

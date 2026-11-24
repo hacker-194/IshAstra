@@ -111,9 +111,7 @@ async def test_revoke_by_engagement(issuer) -> None:
 async def test_rotated_key_still_verifies_existing_tokens(issuer, db) -> None:
     token = await _issue(issuer, tenant="t-rotate", job="job-rotate")
     rotated_config = issuer.rotate_key()
-    verifier = CapabilityVerifier.from_issuer_config(
-        rotated_config, database=db, require_job_running=False
-    )
+    verifier = CapabilityVerifier.from_issuer_config(rotated_config, database=db, require_job_running=False)
 
     result = await verifier.verify_async(token.to_dict())
     assert result.valid, result.reason
@@ -124,9 +122,7 @@ async def test_unknown_key_cannot_verify(issuer) -> None:
     token = await _issue(issuer, tenant="t-other", job="job-other")
     other_private, _ = new_keypair()
     other_config = CapabilityIssuer.create_config(signing_key_private=other_private)
-    verifier = CapabilityVerifier.from_issuer_config(
-        other_config, require_job_running=False
-    )
+    verifier = CapabilityVerifier.from_issuer_config(other_config, require_job_running=False)
     result = await verifier.verify_async(token.to_dict())
     assert result.valid is False
     assert "unknown issuer" in result.reason

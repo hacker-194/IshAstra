@@ -50,18 +50,13 @@ def _docker_ready() -> bool:
     if shutil.which("docker") is None:
         return False
     return (
-        subprocess.run(
-            ["docker", "image", "inspect", IMAGE], capture_output=True, text=True
-        ).returncode
-        == 0
+        subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True).returncode == 0
     )
 
 
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(
-        not _docker_ready(), reason=f"docker or worker image {IMAGE} unavailable"
-    ),
+    pytest.mark.skipif(not _docker_ready(), reason=f"docker or worker image {IMAGE} unavailable"),
 ]
 
 
@@ -86,16 +81,12 @@ async def echo_server() -> Any:
 async def parts() -> Any:
     db = await store.get_database()
     private_key, _ = new_keypair()
-    config = CapabilityIssuer.create_config(
-        signing_key_private=private_key, database=db
-    )
+    config = CapabilityIssuer.create_config(signing_key_private=private_key, database=db)
     issuer = CapabilityIssuer(config)
     await issuer.initialize()
     return {
         "issuer": issuer,
-        "verifier": CapabilityVerifier.from_issuer_config(
-            config, database=db, require_job_running=False
-        ),
+        "verifier": CapabilityVerifier.from_issuer_config(config, database=db, require_job_running=False),
         "signing": EvidenceSigningService.create_service(),
     }
 

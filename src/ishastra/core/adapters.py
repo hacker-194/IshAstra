@@ -73,7 +73,7 @@ from ishastra.core.sandbox import (
     run_in_sandbox,
 )
 from ishastra.core.signatures import match_url_signatures
-from ishastra.core.template_allowlist import TemplateAllowlist, TemplateAllowlistError, get_allowlist
+from ishastra.core.template_allowlist import TemplateAllowlistError, get_allowlist
 from ishastra.core.urls import parse_url
 
 log = logging.getLogger(__name__)
@@ -765,7 +765,10 @@ class AuthorizationDiffAdapter(Adapter):
         return result
 
     def _fetch_as(self, url: str, principal: Principal | None) -> tuple[str, int | str, str]:
-        response = self._probe._fetch(url, auth=principal)
+        probe = self._probe
+        if probe is None:
+            raise AdapterError("endpoint probe is not initialised")
+        response = probe._fetch(url, auth=principal)
         status = response.get("status")
         status = status if isinstance(status, int | str) else "error"
         body = response.get("body", "") if isinstance(response.get("body"), str) else ""
@@ -992,7 +995,10 @@ class SSRFOOBAdapter(Adapter):
         auth: Any | None = None,
     ) -> Finding | None:
         marked = self._inject(url, param, canary)
-        response = self._probe._fetch(marked, deadline=deadline, auth=auth)
+        probe = self._probe
+        if probe is None:
+            raise AdapterError("endpoint probe is not initialised")
+        response = probe._fetch(marked, deadline=deadline, auth=auth)
         body = response.get("body", "") if isinstance(response.get("body"), str) else ""
         in_band = canary in body or canary in str(response.get("redirect_to") or "")
 
@@ -1739,10 +1745,7 @@ class SqlmapAdapter(Adapter):
 
         # Check rules_of_engagement from scope snapshot
         roe = context.get("rules_of_engagement") or {}
-        if roe.get("high_risk_allowed") is True:
-            return True
-
-        return False
+        return roe.get("high_risk_allowed") is True
 
     def assess(
         self,
@@ -1958,7 +1961,9 @@ def _load_out_of_process_plugins() -> dict[str, Adapter]:
                     adapter.close()
                     continue
                 if adapter_id in ADAPTERS:
-                    logger.warning("plugin %r reuses built-in id %r; built-in wins", plugin_path.name, adapter_id)
+                    logger.warning(
+                        "plugin %r reuses built-in id %r; built-in wins", plugin_path.name, adapter_id
+                    )
                     adapter.close()
                     continue
                 loaded[adapter_id] = adapter

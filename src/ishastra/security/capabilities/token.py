@@ -108,9 +108,7 @@ def sign(payload: Any, private_key: str) -> str:
 def verify_signature(payload: Any, signature: str, public: str) -> bool:
     """Verify an Ed25519 signature."""
     try:
-        Ed25519PublicKey.from_public_bytes(_unb64(public)).verify(
-            _unb64(signature), canonical(payload)
-        )
+        Ed25519PublicKey.from_public_bytes(_unb64(public)).verify(_unb64(signature), canonical(payload))
         return True
     except (InvalidSignature, ValueError, TypeError):
         return False
@@ -128,21 +126,21 @@ class CapabilityToken:
     engagement_id: str
     job_id: str
 
-    targets: tuple[str, ...]          # Host patterns (include list)
-    pinned_ips: tuple[str, ...]       # Layer 3 pinned destination IPs
-    allowed_ports: tuple[int, ...]    # Allowed destination ports
+    targets: tuple[str, ...]  # Host patterns (include list)
+    pinned_ips: tuple[str, ...]  # Layer 3 pinned destination IPs
+    allowed_ports: tuple[int, ...]  # Allowed destination ports
     allowed_protocols: tuple[str, ...]  # e.g., ("tcp", "http", "https")
-    allowed_tools: tuple[str, ...]    # Tool names worker may invoke
+    allowed_tools: tuple[str, ...]  # Tool names worker may invoke
 
-    policy_hash: str                  # SHA-256 of the engagement policy
-    rules_of_engagement_hash: str     # SHA-256 of RoE (testing_hours, rate_limit_rps, etc.)
+    policy_hash: str  # SHA-256 of the engagement policy
+    rules_of_engagement_hash: str  # SHA-256 of RoE (testing_hours, rate_limit_rps, etc.)
 
-    request_budget: int               # Max HTTP requests worker may make
-    bandwidth_limit_mb: int           # Max MB worker may transfer
+    request_budget: int  # Max HTTP requests worker may make
+    bandwidth_limit_mb: int  # Max MB worker may transfer
 
-    issuer: str                       # Public key fingerprint of issuer
+    issuer: str  # Public key fingerprint of issuer
     version: str = CAPABILITY_VERSION  # Token version, pinned by the verifier
-    audience: str = DEFAULT_AUDIENCE   # Only the egress gateway may accept it
+    audience: str = DEFAULT_AUDIENCE  # Only the egress gateway may accept it
     signature: str = ""
 
     def __post_init__(self) -> None:

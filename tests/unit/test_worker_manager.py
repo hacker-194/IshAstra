@@ -68,9 +68,7 @@ def test_command_mounts_only_the_controlled_workspace(tmp_path) -> None:
 
 
 def test_command_carries_the_security_baseline(tmp_path) -> None:
-    cmd = WorkerManager()._build_docker_command(
-        _config(), tmp_path / ".env", tmp_path / "ws"
-    )
+    cmd = WorkerManager()._build_docker_command(_config(), tmp_path / ".env", tmp_path / "ws")
     joined = " ".join(cmd)
 
     assert "--read-only" in cmd
@@ -89,9 +87,7 @@ async def test_token_is_delivered_in_an_owner_only_env_file(tmp_path, monkeypatc
     manager = WorkerManager()
     captured: dict[str, list[str]] = {}
 
-    async def fake_run(
-        job_id, cmd, timeout_seconds, working_dir="/workspace", disk_mb=1024, **kwargs
-    ):
+    async def fake_run(job_id, cmd, timeout_seconds, working_dir="/workspace", disk_mb=1024, **kwargs):
         captured["cmd"] = cmd
         return WorkerResult(job_id=job_id, exit_code=0)
 

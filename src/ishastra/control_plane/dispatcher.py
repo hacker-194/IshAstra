@@ -23,10 +23,10 @@ import json
 import os
 import signal
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any
 
 from ishastra.execution.worker_manager import WorkerConfig, WorkerManager
 from ishastra.security.authorization.scope import Scope
@@ -110,11 +110,7 @@ class DispatchOutcome:
 
 def _proxy_authorization(token: CapabilityToken) -> str:
     """Basic ``jti:token`` header, the form a scanner proxy URL can carry."""
-    encoded = (
-        base64.urlsafe_b64encode(json.dumps(token.to_dict()).encode())
-        .decode()
-        .rstrip("=")
-    )
+    encoded = base64.urlsafe_b64encode(json.dumps(token.to_dict()).encode()).decode().rstrip("=")
     credentials = base64.b64encode(f"{token.jti}:{encoded}".encode()).decode()
     return f"Basic {credentials}"
 
@@ -125,9 +121,7 @@ def _token_from_proxy_authorization(header: str) -> CapabilityToken:
     if scheme.lower() != "basic" or not credentials:
         raise ValueError("worker runner needs the dispatcher's Basic auth header")
     try:
-        decoded = base64.b64decode(
-            credentials + "=" * (-len(credentials) % 4)
-        ).decode()
+        decoded = base64.b64decode(credentials + "=" * (-len(credentials) % 4)).decode()
         _, _, raw = decoded.partition(":")
         payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
         return CapabilityToken.from_dict(payload)
@@ -196,9 +190,7 @@ async def dispatch(
     the worker on SIGTERM/SIGINT (for subprocess deployments).
     """
     if not request.pinned_ips:
-        raise ValueError(
-            "dispatch requires pinned_ips: the gateway denies every unpinned target"
-        )
+        raise ValueError("dispatch requires pinned_ips: the gateway denies every unpinned target")
     if request.request_budget < 1:
         raise ValueError("request_budget must be at least 1")
 
@@ -252,9 +244,7 @@ async def dispatch(
                 # Cleanup and exit
                 if worker_manager:
                     await worker_manager.cancel_worker(request.job_id)
-                revoked = (
-                    await issuer.revoke_all_for_job(request.job_id, "job cancelled")
-                ) > 0
+                revoked = (await issuer.revoke_all_for_job(request.job_id, "job cancelled")) > 0
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(gateway.stop(), timeout=5)
                 os._exit(0)
@@ -288,22 +278,16 @@ async def dispatch(
         # Signal received - cancel worker and cleanup, then exit cleanly
         if worker_manager:
             await worker_manager.cancel_worker(request.job_id)
-        revoked = (
-            await issuer.revoke_all_for_job(request.job_id, "job cancelled")
-        ) > 0
+        revoked = (await issuer.revoke_all_for_job(request.job_id, "job cancelled")) > 0
         await gateway.stop()
         # Exit cleanly instead of propagating CancelledError (which may hang in subprocess)
         sys.exit(0)
     except Exception:
-        revoked = (
-            await issuer.revoke_all_for_job(request.job_id, "job failed")
-        ) > 0
+        revoked = (await issuer.revoke_all_for_job(request.job_id, "job failed")) > 0
         await gateway.stop()
         raise
     else:
-        revoked = (
-            await issuer.revoke_all_for_job(request.job_id, "job finished")
-        ) > 0
+        revoked = (await issuer.revoke_all_for_job(request.job_id, "job finished")) > 0
         await gateway.stop()
 
     return DispatchOutcome(

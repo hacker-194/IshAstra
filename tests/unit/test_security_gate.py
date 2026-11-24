@@ -45,9 +45,7 @@ def test_clean_reports_pass(tmp_path: Path) -> None:
 
 
 def test_finding_fails(tmp_path: Path) -> None:
-    result = security_gate.evaluate_report(
-        "bandit", _write(tmp_path / "bandit.json", BANDIT_HIGH)
-    )
+    result = security_gate.evaluate_report("bandit", _write(tmp_path / "bandit.json", BANDIT_HIGH))
     assert result.status == "fail"
     assert result.blocking_count == 1
 
@@ -59,9 +57,7 @@ def test_missing_required_report_fails(tmp_path: Path) -> None:
 
 
 def test_missing_optional_scanner_is_skipped(tmp_path: Path) -> None:
-    results, errors = security_gate.evaluate(
-        {"trivy": tmp_path / "absent.json"}, optional={"trivy"}
-    )
+    results, errors = security_gate.evaluate({"trivy": tmp_path / "absent.json"}, optional={"trivy"})
     assert errors == []
     assert results[0].status == "skipped"
 
@@ -149,9 +145,12 @@ def test_main_exit_codes(tmp_path: Path) -> None:
     assert (
         security_gate.main(
             [
-                "--bandit", str(clean),
-                "--pip-audit", str(_write(tmp_path / "pip.json", {"dependencies": []})),
-                "--grype", str(_write(tmp_path / "grype.json", GRYPE_CLEAN)),
+                "--bandit",
+                str(clean),
+                "--pip-audit",
+                str(_write(tmp_path / "pip.json", {"dependencies": []})),
+                "--grype",
+                str(_write(tmp_path / "grype.json", GRYPE_CLEAN)),
             ]
         )
         == 0
@@ -161,9 +160,12 @@ def test_main_exit_codes(tmp_path: Path) -> None:
     assert (
         security_gate.main(
             [
-                "--bandit", str(failing),
-                "--pip-audit", str(_write(tmp_path / "pip2.json", {"dependencies": []})),
-                "--grype", str(_write(tmp_path / "grype2.json", GRYPE_CLEAN)),
+                "--bandit",
+                str(failing),
+                "--pip-audit",
+                str(_write(tmp_path / "pip2.json", {"dependencies": []})),
+                "--grype",
+                str(_write(tmp_path / "grype2.json", GRYPE_CLEAN)),
             ]
         )
         == 1

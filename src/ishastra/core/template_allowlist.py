@@ -9,14 +9,12 @@ from __future__ import annotations
 import fnmatch
 import os
 from pathlib import Path
-from typing import Any
 
 import yaml
 
 
 class TemplateAllowlistError(Exception):
     """Raised when template allowlist validation fails."""
-    pass
 
 
 class TemplateAllowlist:
@@ -33,7 +31,7 @@ class TemplateAllowlist:
         if config_path is None:
             config_path = os.environ.get(
                 "ISHASTRA_TEMPLATE_ALLOWLIST",
-                Path(__file__).parent.parent.parent.parent / "config" / "templates" / "allowlist.yaml"
+                Path(__file__).parent.parent.parent.parent / "config" / "templates" / "allowlist.yaml",
             )
         self.config_path = Path(config_path)
         self._nuclei_patterns: list[str] = []
@@ -43,9 +41,7 @@ class TemplateAllowlist:
     def _load(self) -> None:
         """Load and parse the allowlist configuration."""
         if not self.config_path.exists():
-            raise TemplateAllowlistError(
-                f"Template allowlist config not found: {self.config_path}"
-            )
+            raise TemplateAllowlistError(f"Template allowlist config not found: {self.config_path}")
 
         with self.config_path.open() as f:
             try:
@@ -53,6 +49,7 @@ class TemplateAllowlist:
                     config = yaml.safe_load(f)
                 elif self.config_path.suffix == ".json":
                     import json
+
                     config = json.load(f)
                 else:
                     raise TemplateAllowlistError(
@@ -116,10 +113,7 @@ class TemplateAllowlist:
         Returns:
             True if the script matches an allowed pattern, False otherwise.
         """
-        for pattern in self._nmap_patterns:
-            if fnmatch.fnmatch(script_name, pattern):
-                return True
-        return False
+        return any(fnmatch.fnmatch(script_name, pattern) for pattern in self._nmap_patterns)
 
     def validate_nuclei_templates(self, template_paths: list[str]) -> tuple[list[str], list[str]]:
         """Validate a list of Nuclei template paths against the allowlist.
@@ -176,7 +170,10 @@ class TemplateAllowlist:
         return args
 
     def __repr__(self) -> str:
-        return f"TemplateAllowlist(nuclei={len(self._nuclei_patterns)} patterns, nmap={len(self._nmap_patterns)} patterns)"
+        return (
+            f"TemplateAllowlist(nuclei={len(self._nuclei_patterns)} patterns, "
+            f"nmap={len(self._nmap_patterns)} patterns)"
+        )
 
 
 # Global instance for easy access

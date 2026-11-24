@@ -102,9 +102,7 @@ class EgressGateway:
 
     async def start(self) -> None:
         """Bind the proxy and record the actual port (0 means ephemeral)."""
-        self._server = await asyncio.start_server(
-            self._handle_client, self.listen_host, self.listen_port
-        )
+        self._server = await asyncio.start_server(self._handle_client, self.listen_host, self.listen_port)
         socket = self._server.sockets[0]
         self.listen_port = socket.getsockname()[1]
         log.info(
@@ -120,9 +118,7 @@ class EgressGateway:
             self._server = None
         log.info("egress gateway stopped")
 
-    async def _handle_client(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername")
         client_ip = peer[0] if peer else "unknown"
         try:
@@ -174,9 +170,7 @@ class EgressGateway:
             await self._refuse(writer, 401, "no capability token on the request")
             return
 
-        decision = await self.authorize_connection(
-            token, client_ip, target_host, target_port, "https"
-        )
+        decision = await self.authorize_connection(token, client_ip, target_host, target_port, "https")
         if not decision.allowed:
             await self._record(decision, token, client_ip)
             await self._refuse(writer, 403, decision.reason)
@@ -222,9 +216,7 @@ class EgressGateway:
     ) -> None:
         """Copy bytes both ways until either direction closes."""
 
-        async def copy(
-            src: asyncio.StreamReader, dst: asyncio.StreamWriter
-        ) -> None:
+        async def copy(src: asyncio.StreamReader, dst: asyncio.StreamWriter) -> None:
             while True:
                 chunk = await src.read(65536)
                 if not chunk:
@@ -239,9 +231,7 @@ class EgressGateway:
             asyncio.create_task(copy(upstream_reader, client_writer)),
         }
         try:
-            done, pending = await asyncio.wait(
-                tasks, return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         finally:
             for task in tasks:
                 task.cancel()
@@ -324,25 +314,22 @@ class EgressGateway:
             )
 
         if not self._host_matches(verified.targets, target_host):
-            return self._deny(verified, target_host, target_port,
-                              f"host {target_host} is not an approved target")
+            return self._deny(
+                verified, target_host, target_port, f"host {target_host} is not an approved target"
+            )
         if target_port not in verified.allowed_ports:
-            return self._deny(verified, target_host, target_port,
-                              f"port {target_port} is not allowed")
+            return self._deny(verified, target_host, target_port, f"port {target_port} is not allowed")
         if protocol not in verified.allowed_protocols:
-            return self._deny(verified, target_host, target_port,
-                              f"protocol {protocol} is not allowed")
+            return self._deny(verified, target_host, target_port, f"protocol {protocol} is not allowed")
 
         resolved = await resolve(target_host, target_port)
         if not resolved:
-            return self._deny(verified, target_host, target_port,
-                              f"DNS resolution failed for {target_host}")
+            return self._deny(verified, target_host, target_port, f"DNS resolution failed for {target_host}")
 
         pinned = {_normalize_ip(ip) for ip in verified.pinned_ips}
         answers = {_normalize_ip(ip) for ip in resolved}
         if not pinned:
-            return self._deny(verified, target_host, target_port,
-                              "token carries no pinned IPs")
+            return self._deny(verified, target_host, target_port, "token carries no pinned IPs")
         unmatched = answers - pinned
         if unmatched:
             return self._deny(
@@ -432,16 +419,12 @@ class EgressGateway:
             log.exception("gateway receipt write failed", extra={"jti": token.jti})
 
     @staticmethod
-    async def _refuse(
-        writer: asyncio.StreamWriter, status: int, reason: str
-    ) -> None:
+    async def _refuse(writer: asyncio.StreamWriter, status: int, reason: str) -> None:
         phrases = {400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 502: "Bad Gateway"}
         phrase = phrases.get(status, "Error")
         body = reason.encode("utf-8", "replace")
         writer.write(
-            f"HTTP/1.1 {status} {phrase}\r\n"
-            f"Content-Length: {len(body)}\r\n"
-            "Connection: close\r\n\r\n".encode()
+            f"HTTP/1.1 {status} {phrase}\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
             + body
         )
         with contextlib.suppress(Exception):
@@ -455,7 +438,6 @@ async def main() -> int:
 
     from ishastra.core import store
     from ishastra.security.capabilities.issuer import CapabilityIssuer
-    from ishastra.security.capabilities.token import new_keypair
     from ishastra.security.capabilities.verifier import CapabilityVerifier
 
     # Configure database
@@ -469,13 +451,12 @@ async def main() -> int:
 
     # Load keys
     private_key_path = os.environ.get("ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH")
-    public_key_path = os.environ.get("ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH")
 
     if not private_key_path or not os.path.exists(private_key_path):
         print("ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH not set or file not found", file=sys.stderr)
         return 1
 
-    private_key = Path(private_key_path).read_bytes()
+    private_key = Path(private_key_path).read_text().strip()
 
     # Create issuer and verifier
     config = CapabilityIssuer.create_config(signing_key_private=private_key, database=db)
@@ -517,7 +498,8 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
     import asyncio
+    import sys
     from pathlib import Path
+
     sys.exit(asyncio.run(main()))

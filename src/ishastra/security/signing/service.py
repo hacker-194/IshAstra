@@ -135,7 +135,7 @@ def write_private_key(path: str | Path, private_key: str) -> None:
 def load_private_key(path: str | Path) -> str:
     text = Path(path).expanduser().read_text().strip()
     if text.startswith(PRIVATE_KEY_PREFIX):
-        text = text[len(PRIVATE_KEY_PREFIX):]
+        text = text[len(PRIVATE_KEY_PREFIX) :]
     public_key(text)  # Validate
     return text
 
@@ -211,9 +211,7 @@ class EvidenceManifest:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvidenceManifest:
         try:
-            artifacts = tuple(
-                ArtifactRef(**a) for a in data.get("artifacts", [])
-            )
+            artifacts = tuple(ArtifactRef(**a) for a in data.get("artifacts", []))
             return cls(
                 version=data.get("version", EVIDENCE_VERSION),
                 manifest_id=data["manifest_id"],
@@ -388,13 +386,15 @@ class EvidenceSigningService:
             if file_path.is_file():
                 content = file_path.read_bytes()
                 rel_path = file_path.relative_to(workspace)
-                artifacts.append(ArtifactRef(
-                    name=rel_path.name,
-                    path=str(rel_path),
-                    sha256=sha256_hash(content),
-                    size=len(content),
-                    media_type=self._guess_media_type(file_path),
-                ))
+                artifacts.append(
+                    ArtifactRef(
+                        name=rel_path.name,
+                        path=str(rel_path),
+                        sha256=sha256_hash(content),
+                        size=len(content),
+                        media_type=self._guess_media_type(file_path),
+                    )
+                )
 
         if not artifacts:
             raise ValueError("workspace contains no files")

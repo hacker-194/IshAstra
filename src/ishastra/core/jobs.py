@@ -31,7 +31,7 @@ from ishastra.core.adapters import (
     AdapterTimeout,
 )
 from ishastra.core.findings import Finding, dedupe
-from ishastra.core.rate_limiter import JobRateLimiter, RateLimitResult
+from ishastra.core.rate_limiter import JobRateLimiter
 from ishastra.core.redaction import redact, sanitize_target
 from ishastra.core.scope import Scope
 

@@ -60,9 +60,7 @@ def _pip_audit_blocking(data: dict[str, Any]) -> int:
 def _grype_blocking(data: dict[str, Any]) -> int:
     matches = data["matches"]
     return sum(
-        1
-        for match in matches
-        if str(match.get("vulnerability", {}).get("severity", "")).upper() == "HIGH"
+        1 for match in matches if str(match.get("vulnerability", {}).get("severity", "")).upper() == "HIGH"
     )
 
 
@@ -150,9 +148,7 @@ def load_exceptions(path: Path) -> tuple[dict[str, dict[str, str]], list[str]]:
     return exceptions, errors
 
 
-def apply_exceptions(
-    results: list[GateResult], exceptions: dict[str, dict[str, str]]
-) -> list[GateResult]:
+def apply_exceptions(results: list[GateResult], exceptions: dict[str, dict[str, str]]) -> list[GateResult]:
     """Turn a failure into pass_with_exception only for a valid, unexpired entry."""
     resolved: list[GateResult] = []
     for result in results:
@@ -181,10 +177,7 @@ def evaluate(
     exceptions: dict[str, dict[str, str]] | None = None,
 ) -> tuple[list[GateResult], list[str]]:
     optional = optional or set()
-    results = [
-        evaluate_report(name, path, required=name not in optional)
-        for name, path in reports.items()
-    ]
+    results = [evaluate_report(name, path, required=name not in optional) for name, path in reports.items()]
     if exceptions:
         results = apply_exceptions(results, exceptions)
     errors = [r.reason for r in results if r.status == "fail"]
@@ -210,10 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.exceptions:
         exceptions, errors = load_exceptions(Path(args.exceptions))
 
-    reports = {
-        scanner: Path(getattr(args, scanner.replace("-", "_")))
-        for scanner in DEFAULT_REPORTS
-    }
+    reports = {scanner: Path(getattr(args, scanner.replace("-", "_"))) for scanner in DEFAULT_REPORTS}
     results, _ = evaluate(
         reports,
         optional=set(args.optional),

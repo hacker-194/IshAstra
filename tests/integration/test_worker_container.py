@@ -41,9 +41,7 @@ def _docker_ready() -> bool:
 
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(
-        not _docker_ready(), reason=f"docker or worker image {IMAGE} unavailable"
-    ),
+    pytest.mark.skipif(not _docker_ready(), reason=f"docker or worker image {IMAGE} unavailable"),
 ]
 
 

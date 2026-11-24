@@ -154,7 +154,8 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # sbom-action attaches the SBOM to the GitHub release on tag pushes.
+      contents: write
       packages: write
       attestations: write
       id-token: write

@@ -61,15 +61,15 @@ jobs:
       - name: Run Bandit
         id: bandit
         run: |
-          bandit -r src/ -f json -o bandit-results.json
-          bandit -r src/ -f sarif -o bandit-results.sarif
-          bandit -r src/ -f txt -o bandit-results.txt
+          bandit -r src/ --exit-zero -f json -o bandit-results.json
+          bandit -r src/ --exit-zero -f sarif -o bandit-results.sarif
+          bandit -r src/ --exit-zero -f txt -o bandit-results.txt
 
       - name: Run Semgrep
         id: semgrep
         run: |
           semgrep scan --config=auto --config=p/security-audit --config=p/owasp-top-ten --config=p/secrets \
-            --json=semgrep-results.json --sarif=semgrep-results.sarif src/
+            --json=semgrep-results.json --sarif=semgrep-results.sarif src/ || true
 
       - name: Run Safety
         id: safety

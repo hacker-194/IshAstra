@@ -476,9 +476,12 @@ jobs:
           pip install -e ".[dev]" -c constraints.txt
           pip install "bandit[toml]" pip-audit
       - name: Bandit report
-        run: bandit -r src/ -f json -o bandit-results.json
+        # Report only: the security-gate job fails on HIGH findings. Failing
+        # here instead would skip the gate entirely.
+        run: bandit -r src/ --exit-zero -f json -o bandit-results.json
       - name: pip-audit report
-        run: pip-audit -r constraints.txt -f json -o pip-audit-results.json
+        # Report only: security-gate fails closed on the report.
+        run: pip-audit -r constraints.txt -f json -o pip-audit-results.json || true
       - name: Upload scan reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()

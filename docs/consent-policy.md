@@ -5,7 +5,7 @@
 **Scope**: Ishastra assessment platform — governs how consent is recorded, enforced, and audited for all data processing activities during authorized security assessments.
 
 > **Supersedes**: No prior consent policy document exists. This is the first version.
-> **Linked from**: Will be referenced from `docs/security-review.md` (review checklist), `docs/deployment.md` (configuration), `README.md` (compliance section), and `src/ishastra/core/scope_schema.json` (RoE data_handling).
+> **Linked from**: Will be referenced from `docs/security-review.md` (review checklist), `docs/deployment.md` (configuration), `README.md` (compliance section), and `src/ishastra/security/authorization/scope_schema.json` (RoE data_handling).
 > **User instruction**: "proceed with Workstream E: consent-policy.md draft"
 
 ---
@@ -726,7 +726,7 @@ Response includes `version` field; client handles upcast.
 
 ## 16. References
 
-- [Scope Document Schema v2](https://github.com/hacker-194/IshAstra/blob/master/src/ishastra/core/scope_schema.json) — `rules_of_engagement.data_handling`
+- [Scope Document Schema v2](https://github.com/hacker-194/IshAstra/blob/master/src/ishastra/security/authorization/scope_schema.json) — `rules_of_engagement.data_handling`
 - [Scope Gate Concepts](scope-gate/concepts.md) — Layer 1/2/3 authorization
 - [Ishastra Proof](architecture/proof-chain.md) — Ed25519 signing, audit chain
 - [GDPR Article 6](https://gdpr.eu/article-6-lawfulness/) — Lawful basis for processing

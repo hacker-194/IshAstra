@@ -95,8 +95,15 @@
 - A SQLite backup was not one file: the copy inherited WAL mode, so its tail sat
   in `-wal`/`-shm` sidecars that an `rsync` or `kubectl cp` of the `.db` would
   silently drop. The artifact is now self-contained.
-- A built wheel would not have shipped `ishastra/core/scope_schema.json`, so every
-  v2 scope document failed to load in an installed artifact.
+- An installed wheel and the container image could not start: the template
+  allowlist lived in `config/templates/allowlist.yaml`, outside the package and
+  never copied into the image, and `PyYAML` was imported without being declared.
+  The allowlist now ships as package data (still overridable with
+  `ISHASTRA_TEMPLATE_ALLOWLIST`), and `pyyaml` is a declared dependency.
+- An installed wheel shipped a stale `ishastra/core/scope_schema.json`, while
+  the loader reads `ishastra/security/authorization/scope_schema.json`; the
+  stale duplicate is gone and the schema the loader uses is packaged, so v2
+  scope documents validate from a pip install.
 - A scope document requiring ASN/geo data with no lookup configured denied every
   request silently; startup now names the missing lookup.
 - `benchmark.yml` embedded unindented Python inside a YAML block scalar, so the

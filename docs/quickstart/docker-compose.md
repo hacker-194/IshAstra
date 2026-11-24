@@ -273,4 +273,4 @@ docker compose --profile sso --profile firewall up -d
 - [Local Development](local-dev.md) — Development workflow, debugging, tests
 - [Free Tier Deployment](free-tier.md) — $0/month on Oracle Cloud + Coolify
 - [Production Deployment](production.md) — Kubernetes, Helm, managed services
-- [Architecture Overview](../architecture/README.md) — System design docs
+- [Architecture Overview](../architecture/overview.md) — System design docs

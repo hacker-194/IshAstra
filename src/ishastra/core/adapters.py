@@ -1145,7 +1145,8 @@ class NmapAdapter(Adapter):
     Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
     blocked at the egress gateway.
 
-    NSE scripts are restricted by the template allowlist (config/templates/allowlist.yaml).
+    NSE scripts are restricted by the bundled template allowlist (override with
+    ISHASTRA_TEMPLATE_ALLOWLIST).
     """
 
     id = "nmap"
@@ -1326,7 +1327,8 @@ class NucleiAdapter(Adapter):
     Enforcement: gateway CONNECT proxy - allowed targets reachable, denied targets
     blocked at the egress gateway.
 
-    Templates are restricted by the template allowlist (config/templates/allowlist.yaml).
+    Templates are restricted by the bundled template allowlist (override with
+    ISHASTRA_TEMPLATE_ALLOWLIST).
     """
 
     id = "nuclei"

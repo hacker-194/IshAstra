@@ -12,6 +12,8 @@ from pathlib import Path
 
 import yaml
 
+DEFAULT_ALLOWLIST_PATH = Path(__file__).resolve().parents[1] / "data" / "template_allowlist.yaml"
+
 
 class TemplateAllowlistError(Exception):
     """Raised when template allowlist validation fails."""
@@ -25,14 +27,11 @@ class TemplateAllowlist:
 
         Args:
             config_path: Path to the allowlist config file. If None, uses
-                ISHASTRA_TEMPLATE_ALLOWLIST env var or defaults to
-                config/templates/allowlist.yaml relative to the project root.
+                ISHASTRA_TEMPLATE_ALLOWLIST env var or defaults to the copy
+                bundled with the installed package.
         """
         if config_path is None:
-            config_path = os.environ.get(
-                "ISHASTRA_TEMPLATE_ALLOWLIST",
-                Path(__file__).parent.parent.parent.parent / "config" / "templates" / "allowlist.yaml",
-            )
+            config_path = os.environ.get("ISHASTRA_TEMPLATE_ALLOWLIST", DEFAULT_ALLOWLIST_PATH)
         self.config_path = Path(config_path)
         self._nuclei_patterns: list[str] = []
         self._nmap_patterns: list[str] = []

@@ -110,7 +110,7 @@ $ pytest -q                     # full suite
 - [x] SQLMap behind explicit high-risk flag (`high_risk_allowed` in RoE, `high_risk` in job config)
 - [x] Out-of-process plugin runner (`PluginProcess`, `PluginRunner`, `AdapterPlugin`)
 - [x] In-process adapter deprecation warnings
-- [x] **Nuclei/NSE template allow-list** (`config/templates/allowlist.yaml`, glob patterns)
+- [x] **Nuclei/NSE template allow-list** (`src/ishastra/data/template_allowlist.yaml`, glob patterns)
 - [x] Dedupe and correlation (existing `Finding.dedupe()` in core/findings.py)
 
 ---

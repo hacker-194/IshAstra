@@ -7,6 +7,60 @@ All notable changes to Ishastra are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.0.0-rc1] - 2025-11-24
+
+### Added
+- **Capability Tokens**: Ed25519-signed JWTs with TTL ≤900s for worker→gateway auth
+- **Egress Gateway**: CONNECT proxy with nftables deny-by-default firewall
+- **Worker Manager**: Disposable containers with hardened Docker flags (no-new-privs, seccomp, drop caps)
+- **Evidence Signing Service**: RFC 9530 manifests with per-artifact Ed25519 + SHA-256
+- **Out-of-Process Plugin Framework**: JSON-over-stdio protocol with plugin template
+- **Template Allowlist**: Nuclei/Nmap NSE glob-pattern allowlist for safe custom templates
+- **Rate Limiting**: Per-engagement RPS from Rules of Engagement (JobRateLimiter)
+- **High-Risk Authorization**: Explicit `high_risk_allowed` in RoE, `high_risk` in job config
+- **Import/Export Pipeline**: SARIF, Nuclei, ZAP import; SARIF/HTML/PDF/CSV/JSON/DefectDojo export
+- **GitHub Action**: `ishastra/assess@v1` for CI/CD pipeline integration
+- **SBOM Generation**: SPDX JSON with cyclonedx-python, cosign signing, SLSA provenance
+- **Multi-Arch Images**: linux/amd64 + linux/arm64 with Docker manifest
+- **Optional Local AI Advisor**: Ollama-powered finding triage (privacy-first, no cloud)
+- **Demo Lab Seeding**: `scripts/seed_demo_lab.py` for instant evaluation
+
+### Changed
+- **Scope Gate Enforcement**: Mandatory at every boundary (dispatch, adapter, worker)
+- **Redaction**: Credentials stripped from evidence, SARIF, logs, webhooks
+- **Queue Modes**: Added `k8s-jobs` alongside `in-process`, `redis-streams`, `sqlite`
+- **Organizations v2**: Org/Team/Membership hierarchy with RBAC roles
+- **Pricing Tiers**: FREE/STARTER/PRO/ENTERPRISE with feature flags
+- **Dispatch Reliability**: Synchronous SIGTERM handling, `os._exit(0)` cleanup
+- **CLI**: Added `worker gateway` subcommand for standalone gateway
+- **Deployment**: SQLite default, PostgreSQL experimental, hardened compose
+
+### Deprecated
+- In-process plugin execution (use out-of-process framework)
+- Legacy Strix naming (fully removed)
+
+### Removed
+- AI Analyst provider abstraction (was never production-ready)
+- 25 empty v4.0 skeleton modules
+- `strix-*` metric/cookie/key prefixes (all `ishastra-*`)
+
+### Fixed
+- **Critical**: Crashed scanners (pip-audit, safety) no longer report false clean passes
+- CI security gates hardened: removed `|| true` and `continue-on-error: true`
+- Git history cleaned: removed 5 Co-Authored-By: Claude Fable 5 trailers
+- Process-kill test flakiness: dispatcher now exits cleanly on SIGTERM
+- Vulnerable dependencies updated: mitmproxy 12.1.3→12.3.1, kubernetes 30.1.0
+- Template allowlist glob patterns with fnmatch
+
+### Security
+- Capability token revocation with in-memory + Redis-backed RevocationList
+- Egress firewall deny-by-default with nftables script rendering
+- Worker containers: read-only rootfs, tmpfs /tmp, no NET_RAW/NET_ADMIN
+- Evidence signing: per-artifact signatures + manifest verification
+- Supply chain: SBOM, cosign, SLSA provenance, reproducible builds
+
+---
+
 ## [Unreleased]
 
 ### Added

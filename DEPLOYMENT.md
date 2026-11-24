@@ -203,7 +203,49 @@ If a release introduces regressions:
 3. **Audit chain continuity:** The chain is append-only. Rolling back code does
    not truncate it — verify with `GET /api/audit/verify` after restart.
 
-## 9. RTO / RPO and Warm Standby Promotion
+## 9. Upgrading from 3.5 to 4.0
+
+**Read the full migration guide: `docs/migration/3.5-to-4.0.md`**
+
+### Breaking Changes Summary
+
+1. **All `STRIX_*` env vars → `ISHASTRA_*`** — update `.env.production`, Kubernetes secrets, monitoring dashboards
+2. **Scope Gate now mandatory at every boundary** — existing scope documents must add Layer 2/3 config or all targets rejected
+3. **AI Analyst Provider removed** — replace with optional local AI advisor (Ollama)
+4. **Queue mode renamed** — `redis` → `redis-streams`, new modes: `k8s-jobs`, `sqlite`, `in-process`
+5. **Database migrations** — run `alembic upgrade head` for new tables (capability_tokens, capability_revocations, evidence_signatures, organizations, teams, memberships)
+6. **RoE extended** — add `rate_limit_rps`, `high_risk_allowed`, `testing_hours`, `required_notifications`, `data_handling`
+7. **Deployment defaults** — SQLite now default, PostgreSQL experimental
+
+### Quick Upgrade Commands
+
+```bash
+# 1. Backup database
+sqlite3 /var/lib/ishastra/ishastra.db ".backup '/backups/ishastra-pre-4.0-$(date +%F).db'"
+
+# 2. Update env vars (STRIX_* → ISHASTRA_*)
+# Edit .env.production and /etc/ishastra/ishastra.env
+
+# 3. Upgrade code
+pip install -c constraints.txt . --break-system-packages
+
+# 4. Run migrations
+alembic upgrade head
+
+# 5. Migrate scope documents
+ishastra scope migrate --add-layer2 --add-layer3
+
+# 6. Restart service
+systemctl restart ishastra
+
+# 7. Verify
+curl -s localhost:8000/api/ready
+ishastra evidence verify  # check evidence signing works
+```
+
+---
+
+## 10. RTO / RPO and Warm Standby Promotion
 
 Ishastra is single-host by design. High availability is achieved by promoting a
 warm standby, not by clustering.

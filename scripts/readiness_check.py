@@ -31,6 +31,15 @@ ROOT = Path(__file__).resolve().parent.parent
 PY = sys.executable
 
 
+def generate_hmac_key() -> str:
+    """Return an argparse-safe audit-chain HMAC key.
+
+    A urlsafe token can start with "-", which argparse reads as an option
+    (the readiness drill passes this key to operational_check on argv).
+    """
+    return secrets.token_hex(32)
+
+
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -105,8 +114,7 @@ def main() -> int:
     api_port = free_port()
     gate_port = free_port()
     api_key = secrets.token_urlsafe(32)
-    # Hex: a urlsafe token can start with "-", which argparse reads as an option.
-    hmac_key = secrets.token_hex(32)
+    hmac_key = generate_hmac_key()
     encryption_key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     processes: list[subprocess.Popen] = []
 

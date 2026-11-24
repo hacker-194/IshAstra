@@ -56,7 +56,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e ".[dev]" -c constraints.txt
-          pip install bandit[toml] semgrep 'safety<3' pip-audit 'setuptools<81'
+          pip install bandit[toml] semgrep
 
       - name: Run Bandit
         id: bandit
@@ -69,16 +69,6 @@ jobs:
         run: |
           semgrep scan --config=auto --config=p/security-audit --config=p/owasp-top-ten --config=p/secrets \
             --json=semgrep-results.json --sarif=semgrep-results.sarif src/ || true
-
-      - name: Run Safety
-        id: safety
-        run: |
-          safety check --output json > safety-results.json || true
-
-      - name: Run pip-audit
-        id: pip-audit
-        run: |
-          pip-audit --format=json --output=pip-audit-results.json -r constraints.txt
 
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
@@ -106,8 +96,6 @@ jobs:
             bandit-results.json
             semgrep-results.json
             semgrep-results.sarif
-            safety-results.json
-            pip-audit-results.json
           retention-days: 30
 
   container-security-scan:

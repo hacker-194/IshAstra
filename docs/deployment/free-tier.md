@@ -1,6 +1,115 @@
 # Free Tier Deployment
 
-Run **Ishastra** for **$0/month** using Oracle Cloud Free Tier + **Coolify** (self-hosted PaaS).
+Run **Ishastra** for **$0/month**:
+
+- **Option A** — Oracle Cloud Free Tier + **Coolify** (self-hosted PaaS) — documented below
+- **Option B** — **Pure self-host** on your own hardware (laptop, RPi 4/5, desktop, home server) — **recommended for full control, zero dependencies, no card needed**
+
+---
+
+## Option B: Pure Self-Host (Recommended)
+
+### Why Self-Host?
+
+| Factor | Oracle + Coolify | Pure Self-Host |
+|--------|------------------|----------------|
+| **Credit card** | Required (verification) | ❌ None |
+| **Internet dependency** | Must stay online | ✅ Works offline/LAN only |
+| **Data sovereignty** | Oracle's infrastructure | ✅ Your hardware, your data |
+| **Reclamation risk** | Oracle reclaims idle ARM | ✅ Never |
+| **Hardware choice** | Fixed ARM/AMD | ✅ Any x86/ARM box |
+| **Portability** | Cloud-specific | ✅ Move anywhere |
+
+### Hardware Requirements (Minimum)
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **CPU** | 2 cores (x86_64 or ARM64) | 4+ cores |
+| **RAM** | 4 GB | 8+ GB |
+| **Disk** | 10 GB free | 50+ GB SSD |
+| **OS** | Linux (Debian/Ubuntu/Fedora/Arch) | Linux + Docker |
+
+> **Raspberry Pi 4/5 (4-8GB)** runs IshAstra comfortably with SQLite + in-process queue. RPi 5 8GB handles ~10 concurrent light assessments.
+
+### One-Command Bootstrap (Linux/macOS)
+
+```bash
+# Clone and run — creates .ishastra-selfhost/ with SQLite, scope, keys
+git clone https://github.com/hacker-194/IshAstra
+cd IshAstra
+./scripts/selfhost-bootstrap.sh
+```
+
+**What it does:**
+1. Creates `.ishastra-selfhost/` in your home directory
+2. Generates `scope.json` (localhost only — safe by default)
+3. Creates admin API key + audit HMAC key
+4. Starts API on `http://localhost:8000` + worker
+5. Prints the API key — paste into UI top bar
+
+### Manual Setup (Docker Compose)
+
+```bash
+git clone https://github.com/hacker-194/IshAstra
+cd IshAstra
+
+# Copy env template, edit passwords
+cp .env.example .env
+# Edit: POSTGRES_PASSWORD, GRAFANA_PASSWORD, KEYCLOAK_ADMIN_PASSWORD
+
+# For pure SQLite (no PostgreSQL needed):
+# Edit .env: ISHASTRA_DATABASE_URL=sqlite:///var/lib/ishastra/ishastra.db
+# Comment out postgres service in docker-compose.yml
+
+docker compose up -d
+```
+
+### Access Remotely (Tailscale — Free)
+
+```bash
+# On self-host machine
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+
+# On your laptop
+tailscale up
+
+# Now access: http://<tailscale-ip>:8000 from anywhere
+# No port forwarding, no public IP, no Cloudflare needed
+```
+
+### Scope for Real Targets
+
+Edit `.ishastra-selfhost/scope.json` or `config/scope.json`:
+
+```json
+{
+  "program": "My Home Lab",
+  "authorized_by": "You",
+  "authorization_ref": "SELF-HOST-2024",
+  "include": ["*.yourdomain.com", "192.168.1.0/24", "10.0.0.0/8"],
+  "exclude": ["router.yourdomain.com"],
+  "authorized_networks": ["192.168.1.0/24", "10.0.0.0/8"],
+  "allowed_ports": [80, 443, 8080, 8443],
+  "allow_broad_networks": false
+}
+```
+
+Restart: `docker compose restart ishastra` (or `systemctl restart ishastra` if using systemd).
+
+### Upgrade Path
+
+| Need | Self-Host Solution |
+|------|-------------------|
+| More RAM/CPU | Add hardware / upgrade box |
+| HA / Multi-node | Add 2nd box → PostgreSQL + Redis + `ISHASTRA_QUEUE_MODE=redis-streams` |
+| Public access | Tailscale Funnel / Cloudflare Tunnel / ngrok (all free) |
+| Monitoring | Add Prometheus/Grafana stack (docker-compose.monitoring.yml) |
+| Backups | `sqlite3 ishastra.db ".backup backup-$(date +%F).db"` + rsync to NAS |
+
+---
+
+## Option A: Oracle Cloud Free Tier + Coolify
 
 > **Always Free limits, checked November 2026.** The Arm allowance is **2 OCPU / 12 GB
 > of memory in total** (1,500 OCPU-hours + 9,000 GB-hours per month). Oracle halved it

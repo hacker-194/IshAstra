@@ -775,6 +775,10 @@ body {
 .status-cancelled { background: var(--bg-hover); color: var(--text-tertiary); }
 .status-pending { background: var(--color-info-light); color: var(--color-info); }
 .status-queued { background: var(--color-gold-light); color: #92400E; }
+.status-partial { background: var(--color-warning-light); color: var(--color-warning); }
+.status-succeeded { background: var(--color-success-light); color: var(--color-success); }
+.status-skipped { background: var(--bg-hover); color: var(--text-secondary); }
+.status-unavailable { background: var(--color-warning-light); color: var(--color-warning); }
 
 /* ===== TABLE SYSTEM ===== */
 .table-wrapper {
@@ -2643,6 +2647,10 @@ body {
 .status-cancelled { background: var(--bg-hover); color: var(--text-tertiary); }
 .status-pending { background: var(--color-info-light); color: var(--color-info); }
 .status-queued { background: var(--color-gold-light); color: #92400E; }
+.status-partial { background: var(--color-warning-light); color: var(--color-warning); }
+.status-succeeded { background: var(--color-success-light); color: var(--color-success); }
+.status-skipped { background: var(--bg-hover); color: var(--text-secondary); }
+.status-unavailable { background: var(--color-warning-light); color: var(--color-warning); }
 
 /* ===== TABLE SYSTEM ===== */
 .table-wrapper {

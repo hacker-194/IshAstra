@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 4.0.0-rc1 - 2026-11-24
+
+### Added
+
+- `ishastra export --job` renders a stored assessment as SARIF, JSON, CSV,
+  HTML, PDF or a DefectDojo Generic Findings Import payload. Exports read
+  the database and never start a scan.
+- `ishastra advise` adds optional, advisory-only notes from a local
+  OpenAI-compatible model. It is off unless `ISHASTRA_AI_ENABLED=1`, refuses
+  non-local endpoints, and cannot touch scope, capabilities or job state.
+- Scanner output can be imported with `ishastra import-sarif`, `import-nuclei`
+  and `import-zap`.
+- Release artifacts include an SPDX SBOM (`scripts/generate_sbom.py`), and
+  container images are signed keylessly with cosign in the publish workflow.
+- `scripts/seed_demo_lab.py` seeds a demo database with a job in every
+  dashboard state.
+
+### Changed
+
+- Version bumped to 4.0.0-rc1.
 
 ### Security
 

@@ -58,6 +58,9 @@ jobs:
           /tmp/wheel/bin/ishastra --version
           /tmp/wheel/bin/python -c "from ishastra.proof import VERSION as proof_version; print(proof_version)"
 
+      - name: Generate SBOM (SPDX)
+        run: python scripts/generate_sbom.py --output dist/ishastra.spdx.json
+
       - name: Generate checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS

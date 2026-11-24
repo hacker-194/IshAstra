@@ -512,6 +512,21 @@ def _run_assess_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _close_store_after(operation: Any) -> Any:
+    """Run one async store operation, then release the pool.
+
+    aiosqlite keeps a worker thread for the connection, so without this a
+    one-shot CLI process prints its result and then hangs at interpreter
+    shutdown waiting for that thread.
+    """
+    try:
+        return await operation
+    finally:
+        from ishastra.core import store
+
+        await store.close_database()
+
+
 def _run_assess_status(args: argparse.Namespace) -> int:
     """Check status of a submitted assessment job. Returns exit code."""
     settings = get_settings()
@@ -528,7 +543,7 @@ def _run_assess_status(args: argparse.Namespace) -> int:
             job = await store.get_job(args.job_id, tenant=args.tenant or None)
             return job
 
-        job = asyncio.run(get_status())
+        job = asyncio.run(_close_store_after(get_status()))
     except Exception as exc:
         print(f"error: failed to get job status: {exc}", file=sys.stderr)
         return 3
@@ -542,11 +557,11 @@ def _run_assess_status(args: argparse.Namespace) -> int:
     print(f"  profile: {job['profile']}")
     print(f"  state: {job['state']}")
     print(f"  verdict: {job['verdict']}")
-    if job['started_at']:
+    if job["started_at"]:
         print(f"  started: {datetime.fromtimestamp(job['started_at']).isoformat()}")
-    if job['finished_at']:
+    if job["finished_at"]:
         print(f"  finished: {datetime.fromtimestamp(job['finished_at']).isoformat()}")
-    if job['error']:
+    if job["error"]:
         print(f"  error: {job['error']}")
     print(f"  coverage: {job['coverage']}")
     print(f"  findings: {len(job['findings'])}")
@@ -568,7 +583,7 @@ def _run_assess_list(args: argparse.Namespace) -> int:
             await store.get_database()
             return await store.list_jobs(tenant=args.tenant, limit=args.limit, offset=args.offset)
 
-        jobs = asyncio.run(list_jobs())
+        jobs = asyncio.run(_close_store_after(list_jobs()))
     except Exception as exc:
         print(f"error: failed to list jobs: {exc}", file=sys.stderr)
         return 3
@@ -989,9 +1004,8 @@ def _run_gateway(args: argparse.Namespace) -> int:
     """Run the egress gateway (CONNECT proxy) for worker network."""
     from ishastra.security.egress.gateway import main as gateway_main
     import asyncio
+
     return asyncio.run(gateway_main())
-
-
 
 
 def _run_vault(args: argparse.Namespace) -> int:
@@ -1534,7 +1548,7 @@ def _run_bundle(args: argparse.Namespace) -> int:
         return job, findings, [row async for row in store.chain_rows()]
 
     try:
-        job, findings, audit = asyncio.run(_collect())
+        job, findings, audit = asyncio.run(_close_store_after(_collect()))
     except Exception as exc:  # noqa: BLE001 - surfaced as a CLI error, not swallowed
         print(f"error: cannot read job {args.job}: {exc}", file=sys.stderr)
         return 4
@@ -1891,6 +1905,85 @@ def _run_import(args: argparse.Namespace) -> int:
     else:
         print(output)
 
+    return 0
+
+
+def _run_export(args: argparse.Namespace) -> int:
+    """Export a stored job's findings. Read-only: never starts a scan."""
+    import asyncio
+
+    from ishastra.core import store
+    from ishastra.core.exports import build_export
+
+    settings = get_settings()
+    store.configure(settings.db_path)
+    tenant = args.tenant or None
+
+    async def _load() -> tuple[dict[str, Any] | None, list[Any]]:
+        await store.get_database()
+        return (
+            await store.get_job(args.job, tenant=tenant),
+            await store.get_findings(args.job, tenant=tenant),
+        )
+
+    try:
+        job, findings = asyncio.run(_close_store_after(_load()))
+    except Exception as exc:  # noqa: BLE001 - reported as a CLI error
+        print(f"error: cannot read job {args.job}: {exc}", file=sys.stderr)
+        return 3
+    if job is None:
+        print(f"error: job {args.job} not found", file=sys.stderr)
+        return 3
+
+    try:
+        output = build_export(job, findings, args.format)
+    except (RuntimeError, ValueError) as exc:
+        print(f"error: {args.format} export failed: {exc}", file=sys.stderr)
+        return 3
+
+    target = Path(args.output).expanduser().resolve() if args.output else None
+    if isinstance(output, bytes):
+        if target:
+            target.write_bytes(output)
+        else:
+            sys.stdout.buffer.write(output)
+    elif target:
+        target.write_text(output)
+    else:
+        print(output)
+    if target:
+        print(f"{args.format.upper()} written to {target}", file=sys.stderr)
+    return 0
+
+
+def _run_advise(args: argparse.Namespace) -> int:
+    """Advisory notes from a local model. It cannot change scope or run scans."""
+    import asyncio
+
+    from ishastra.core import ai, store
+
+    settings = get_settings()
+    store.configure(settings.db_path)
+
+    async def _load() -> dict[str, Any] | None:
+        await store.get_database()
+        return await store.get_job(args.job, tenant=args.tenant or None)
+
+    try:
+        job = asyncio.run(_close_store_after(_load()))
+    except Exception as exc:  # noqa: BLE001 - reported as a CLI error
+        print(f"error: cannot read job {args.job}: {exc}", file=sys.stderr)
+        return 3
+    if job is None:
+        print(f"error: job {args.job} not found", file=sys.stderr)
+        return 3
+
+    try:
+        print(ai.advise(job, job.get("findings", []), model=args.model))
+    except ai.AIError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+    print("advisory only: nothing was changed and no scan was started", file=sys.stderr)
     return 0
 
 
@@ -2751,9 +2844,7 @@ def main(argv: list[str] | None = None) -> None:
         "evidence-verify", help="Verify a signed evidence manifest offline"
     )
     evidence_verify_parser.add_argument("manifest", help="Path to the signed evidence JSON")
-    evidence_verify_parser.add_argument(
-        "--key", required=True, help="Trusted Ed25519 public key file"
-    )
+    evidence_verify_parser.add_argument("--key", required=True, help="Trusted Ed25519 public key file")
     evidence_verify_parser.add_argument(
         "--artifacts-dir", default="", help="Re-hash artifacts from this directory"
     )
@@ -3046,7 +3137,9 @@ def main(argv: list[str] | None = None) -> None:
     # assess list - list assessment jobs
     list_parser = assess_subparsers.add_parser("list", help="List assessment jobs for a tenant")
     list_parser.add_argument("--tenant", required=True, help="Tenant ID to list jobs for")
-    list_parser.add_argument("--limit", type=int, default=20, help="Maximum number of jobs to return (default: 20)")
+    list_parser.add_argument(
+        "--limit", type=int, default=20, help="Maximum number of jobs to return (default: 20)"
+    )
     list_parser.add_argument("--offset", type=int, default=0, help="Offset for pagination (default: 0)")
 
     evidence_parser = subparsers.add_parser(
@@ -3162,7 +3255,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     worker_subparsers = worker_parser.add_subparsers(dest="worker_command", required=False)
 
-    gateway_parser = worker_subparsers.add_parser("gateway", help="Run the egress gateway (CONNECT proxy) for worker network")
+    gateway_parser = worker_subparsers.add_parser(
+        "gateway", help="Run the egress gateway (CONNECT proxy) for worker network"
+    )
     gateway_parser.add_argument("--listen-host", default="0.0.0.0", help="Listen address (default: 0.0.0.0)")
     gateway_parser.add_argument("--listen-port", type=int, default=8080, help="Listen port (default: 8080)")
     gateway_parser.set_defaults(func=_run_gateway)
@@ -3245,6 +3340,22 @@ def main(argv: list[str] | None = None) -> None:
     import_zap_parser.add_argument("--engagement", help="Engagement reference")
     import_zap_parser.add_argument("--job", help="Job ID")
     import_zap_parser.add_argument("--output", "-o", help="Output SARIF file (default: stdout)")
+
+    export_parser = subparsers.add_parser("export", help="Export a stored job's findings")
+    export_parser.add_argument("--job", required=True, help="Job ID to export")
+    export_parser.add_argument("--tenant", help="Tenant ID (default: administrator view)")
+    export_parser.add_argument(
+        "--format",
+        choices=["sarif", "json", "csv", "html", "pdf", "defectdojo"],
+        default="sarif",
+        help="Output format (default: sarif)",
+    )
+    export_parser.add_argument("--output", "-o", help="Output file (default: stdout)")
+
+    advise_parser = subparsers.add_parser("advise", help="Advisory notes from a local model (off by default)")
+    advise_parser.add_argument("--job", required=True, help="Job ID to advise on")
+    advise_parser.add_argument("--tenant", help="Tenant ID (default: administrator view)")
+    advise_parser.add_argument("--model", help="Model served by the local endpoint")
 
     scope_keygen_parser = subparsers.add_parser(
         "scope-keygen", help="Create an Ed25519 scope signing key and publish its public JWK"
@@ -3703,6 +3814,10 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(_run_scope_import(args))
     elif args.command in ("import-sarif", "import-nuclei", "import-zap"):
         sys.exit(_run_import(args))
+    elif args.command == "export":
+        sys.exit(_run_export(args))
+    elif args.command == "advise":
+        sys.exit(_run_advise(args))
     elif args.command == "scope-keygen":
         sys.exit(_run_scope_keygen(args))
     elif args.command == "scope-key-rotate":

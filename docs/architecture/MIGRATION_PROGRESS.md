@@ -17,9 +17,9 @@ the project. Nothing here is called VERIFIED without a named test.
 | 2 | Vertical slice (security spine) | DONE - all adversarial matrix items pass |
 | 3 | Durable orchestration | DONE - PG queue, process-kill test passes |
 | 4 | Remaining adapters | DONE - template allowlist, proxy enforcement |
-| 5 | Adoption features | IN PROGRESS |
-| 6 | Hardening & RC | PENDING |
-| 7 | Optional AI | PENDING |
+| 5 | Adoption features | DONE - exports, Action, dashboard states, demo data |
+| 6 | Hardening & RC | DONE - SBOM, signing, provenance, docs, 4.0.0-rc1 |
+| 7 | Optional AI | DONE - off by default, local only, advisory |
 
 ---
 
@@ -115,33 +115,33 @@ $ pytest -q                     # full suite
 
 ---
 
-## Phase 5: Adoption features - IN PROGRESS
+## Phase 5: Adoption features - DONE
 
 - [x] `docker compose up` first scan < 5 min (docker-compose.yml with egress-gateway, worker-manager)
 - [x] `ishastra` CLI: submit, status, list, evidence-verify
 - [x] Import SARIF / Nuclei JSON / ZAP (`core/imports.py`, `ishastra import-sarif|import-nuclei|import-zap`)
-- [ ] Export SARIF, HTML, PDF, CSV, JSON, DefectDojo
-- [ ] GitHub Action
-- [ ] Dashboard: failed/skipped/pending/succeeded shown distinctly
-- [ ] Demo lab data
+- [x] Export SARIF, HTML, PDF, CSV, JSON, DefectDojo (`ishastra export --job`, `core/exports.py`)
+- [x] GitHub Action (`action.yml`, `.github/workflows/assess.yml`)
+- [x] Dashboard: failed/skipped/pending/succeeded shown distinctly (state badges + filters)
+- [x] Demo lab data (`scripts/seed_demo_lab.py`)
 
 ---
 
-## Phase 6: Hardening & RC - PENDING
+## Phase 6: Hardening & RC - DONE
 
-- [ ] SBOM in release artifacts; signed images; provenance; checksums
-- [ ] Tag-to-commit verification; release gated on required checks
-- [ ] Alembic (or documented equivalent) for the duplicated schema
-- [ ] Docs: quickstart, threat model, limitations, backup/recovery
-- [ ] Version bump out of 3.5.0; local tag `4.0.0-rc1` only
+- [x] SBOM in release artifacts (`scripts/generate_sbom.py`); images signed with cosign; provenance and checksums in `release.yml`/`publish.yml`
+- [x] Tag-to-commit verification; release gated on required checks
+- [x] Documented migration equivalent for the duplicated schema (`docs/architecture/schema-migrations.md`)
+- [x] Docs: quickstart, threat model, limitations, backup/recovery
+- [x] Version bump to `4.0.0-rc1`
 
 ---
 
-## Phase 7: Optional AI - PENDING
+## Phase 7: Optional AI - DONE
 
-- [ ] Off by default, local/user-supplied models only
-- [ ] Advisory output; cannot touch scope, capabilities, gateway, job creation
-- [ ] Follow-up scans require human approval and a new authorized job
+- [x] Off by default, local/user-supplied models only (`core/ai.py`, `ishastra advise`)
+- [x] Advisory output; cannot touch scope, capabilities, gateway, job creation
+- [x] Follow-up scans require human approval and a new authorized job
 
 ---
 

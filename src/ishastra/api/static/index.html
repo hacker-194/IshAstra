@@ -480,9 +480,11 @@
             <label for="assessment-status-filter" class="visually-hidden">Filter by status</label>
             <select class="select" id="assessment-status-filter" aria-label="Assessment status">
               <option value="all">All Statuses</option>
+              <option value="queued">Queued / pending</option>
               <option value="running">Running</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
+              <option value="completed">Completed / succeeded</option>
+              <option value="partial">Partial</option>
+              <option value="failed">Failed / skipped</option>
               <option value="cancelled">Cancelled</option>
             </select>
             <label for="assessment-search" class="visually-hidden">Search assessments</label>

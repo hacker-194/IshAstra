@@ -95,6 +95,10 @@ nav:
       - Adapters: architecture/adapters.md
       - Job Orchestration: architecture/jobs.md
       - Proof Chain: architecture/proof-chain.md
+      - Schema Migrations: architecture/schema-migrations.md
+  - Operations:
+      - Limitations: operations/limitations.md
+      - Backup and Recovery: operations/backup-and-recovery.md
   - Scope Gate:
       - Concepts: scope-gate/concepts.md
       - Configuration: scope-gate/configuration.md
@@ -133,6 +137,7 @@ nav:
       - PCI DSS: compliance/pci-dss.md
   - Security:
       - Security Review: security-review.md
+      - Threat Model: security/threat-model.md
   - Security Audit: security/audit-report.md
   - Contributing:
       - Development: contributing/development.md

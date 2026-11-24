@@ -1,0 +1,39 @@
+name: Authorized assessment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target URL, which must be listed in the signed scope document
+        required: true
+      profile:
+        description: Assessment profile
+        required: false
+        default: web
+        type: choice
+        options: [web, web-deep, api, api-deep, network]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Run Ishastra assessment
+        id: assess
+        uses: ./
+        with:
+          target: ${{ inputs.target }}
+          profile: ${{ inputs.profile }}
+          scope-file: scope.json
+
+      - name: Keep the SARIF report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: ishastra-sarif
+          path: ${{ steps.assess.outputs.sarif }}

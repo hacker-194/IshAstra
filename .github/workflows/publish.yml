@@ -35,6 +35,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            # PEP 440 release tags (v4.0.0rc1) are not SemVer, so the semver
+            # handlers above skip them; keep the version tag for those refs.
+            type=match,pattern=v(.*),group=1
             type=raw,value=latest
 
       - id: build
@@ -54,4 +57,8 @@ jobs:
       - name: Sign the published image (keyless, Sigstore)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          # Registry references must be lowercase; github.repository is not.
+          image="$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')"
+          cosign sign --yes "${image}@${DIGEST}"

@@ -4,11 +4,11 @@
 global:
   image:
     repository: ghcr.io/hacker-194/ishastra
-    tag: "3.5.0"
+    tag: "4.0.0rc1"
     pullPolicy: IfNotPresent
   labels:
     app.kubernetes.io/name: ishastra
-    app.kubernetes.io/version: "3.5.0"
+    app.kubernetes.io/version: "4.0.0rc1"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: security-assessment
   podSecurityStandard: restricted

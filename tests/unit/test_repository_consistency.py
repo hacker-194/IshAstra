@@ -98,4 +98,5 @@ def test_package_and_chart_versions_match() -> None:
     pyproject = re.search(r'^version = "([^"]+)"', _read("pyproject.toml"), re.MULTILINE)
     chart = re.search(r"^version: (\S+)", _read("deploy/helm/ishastra/Chart.yaml"), re.MULTILINE)
     assert pyproject and chart
-    assert pyproject.group(1) == chart.group(1) == __version__
+    # Helm requires SemVer (4.0.0-rc1); the package reports PEP 440 (4.0.0rc1).
+    assert pyproject.group(1) == chart.group(1).replace("-", "") == __version__

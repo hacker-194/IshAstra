@@ -119,7 +119,7 @@ $ pytest -q                     # full suite
 
 - [x] `docker compose up` first scan < 5 min (docker-compose.yml with egress-gateway, worker-manager)
 - [x] `ishastra` CLI: submit, status, list, evidence-verify
-- [ ] Import SARIF / Nuclei JSON / ZAP
+- [x] Import SARIF / Nuclei JSON / ZAP (`core/imports.py`, `ishastra import-sarif|import-nuclei|import-zap`)
 - [ ] Export SARIF, HTML, PDF, CSV, JSON, DefectDojo
 - [ ] GitHub Action
 - [ ] Dashboard: failed/skipped/pending/succeeded shown distinctly

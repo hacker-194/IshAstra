@@ -1869,6 +1869,31 @@ def _run_scope_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_import(args: argparse.Namespace) -> int:
+    """Import findings from ``import-<format>`` and output normalized SARIF."""
+    from ishastra.core.findings import to_sarif
+    from ishastra.core.imports import import_findings
+
+    fmt = args.command.removeprefix("import-")
+    try:
+        findings = import_findings(args.file, fmt, args.engagement or "", args.job or "")
+    except Exception as exc:
+        print(f"error: failed to import {fmt}: {exc}", file=sys.stderr)
+        return 3
+
+    sarif_doc = to_sarif(findings, tool_version="ishastra-import")
+    output = json.dumps(sarif_doc, indent=2)
+
+    if args.output:
+        output_path = Path(args.output).expanduser().resolve()
+        output_path.write_text(output)
+        print(f"SARIF written to {output_path}", file=sys.stderr)
+    else:
+        print(output)
+
+    return 0
+
+
 def _import_from_openapi(content: str, suffix: str) -> dict | None:
     """Extract scope from OpenAPI spec."""
     try:
@@ -3197,6 +3222,30 @@ def main(argv: list[str] | None = None) -> None:
         help="Override allowed ports (comma-separated, e.g., 80,443,8443)",
     )
 
+    import_sarif_parser = subparsers.add_parser(
+        "import-sarif", help="Import findings from SARIF file and output as SARIF"
+    )
+    import_sarif_parser.add_argument("file", help="Path to SARIF file")
+    import_sarif_parser.add_argument("--engagement", help="Engagement reference")
+    import_sarif_parser.add_argument("--job", help="Job ID")
+    import_sarif_parser.add_argument("--output", "-o", help="Output SARIF file (default: stdout)")
+
+    import_nuclei_parser = subparsers.add_parser(
+        "import-nuclei", help="Import findings from Nuclei JSONL output and output as SARIF"
+    )
+    import_nuclei_parser.add_argument("file", help="Path to Nuclei JSONL file")
+    import_nuclei_parser.add_argument("--engagement", help="Engagement reference")
+    import_nuclei_parser.add_argument("--job", help="Job ID")
+    import_nuclei_parser.add_argument("--output", "-o", help="Output SARIF file (default: stdout)")
+
+    import_zap_parser = subparsers.add_parser(
+        "import-zap", help="Import findings from ZAP JSON report and output as SARIF"
+    )
+    import_zap_parser.add_argument("file", help="Path to ZAP JSON file")
+    import_zap_parser.add_argument("--engagement", help="Engagement reference")
+    import_zap_parser.add_argument("--job", help="Job ID")
+    import_zap_parser.add_argument("--output", "-o", help="Output SARIF file (default: stdout)")
+
     scope_keygen_parser = subparsers.add_parser(
         "scope-keygen", help="Create an Ed25519 scope signing key and publish its public JWK"
     )
@@ -3652,6 +3701,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(_run_scope_wizard(args))
     elif args.command == "scope-import":
         sys.exit(_run_scope_import(args))
+    elif args.command in ("import-sarif", "import-nuclei", "import-zap"):
+        sys.exit(_run_import(args))
     elif args.command == "scope-keygen":
         sys.exit(_run_scope_keygen(args))
     elif args.command == "scope-key-rotate":

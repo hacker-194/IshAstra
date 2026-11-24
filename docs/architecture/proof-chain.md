@@ -8,8 +8,8 @@ Tamper-evident, offline-verifiable audit trail for every Scope Gate decision.
 
 Ishastra Proof creates a cryptographic chain linking every authorization decision back to the original signed scope document.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
+```text
+ ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Ishastra Proof Chain                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
@@ -58,7 +58,7 @@ class GrantReceipt:
 
 ### 2. Gate Receipt (Per-Check Decision)
 
-**File**: `src/ishastra/core/scope.py` — `GateObserver.on_check()`
+**File**: `src/ishastra/security/authorization/scope.py` — `GateObserver.on_check()`
 
 ```python
 @dataclass
@@ -118,21 +118,19 @@ class ProofReceipt:
         # 2. Verify each gate receipt
         for receipt in self.gate_receipts:
             if not receipt.verify(jwks):
-                return VerificationResult(valid=False, reason=f"gate_receipt_invalid: {receipt.task_id}")
+                return VerificationResult.valid=False, reason=f"gate_receipt_invalid: {receipt.task_id}")
 
         # 3. Verify Merkle root
         computed_root = compute_merkle_root([r.to_canonical_bytes() for r in self.gate_receipts])
         if computed_root != self.merkle_root:
-            return VerificationResult(valid=False, reason="merkle_root_mismatch")
+            return VerificationResult.valid=False, reason="merkle_root_mismatch"
 
         # 4. Verify revocation freshness
         if not self._check_revocation_freshness(jwks):
-            return VerificationResult(valid=False, reason="revocation_stale")
+            return VerificationResult.valid=False, reason="revocation_stale"
 
-        return VerificationResult(valid=True)
+        return VerificationResult.valid=True
 ```
-
----
 
 ## Cryptographic Primitives
 
@@ -200,13 +198,11 @@ def compute_merkle_root(leaves: list[bytes]) -> str:
     return level[0].hex()
 ```
 
----
-
 ## Observer Implementation
 
 ### GateObserver Protocol
 
-**File**: `src/ishastra/core/scope.py` — `GateObserver`
+**File**: `src/ishastra/security/authorization/scope.py` — `GateObserver`
 
 ```python
 @runtime_checkable
@@ -299,8 +295,6 @@ class IshastraProofObserver:
         return proof
 ```
 
----
-
 ## Verification (Offline)
 
 ### CLI Verification
@@ -365,8 +359,6 @@ def verify_proof(proof: ProofReceipt, jwks: JWKS) -> VerificationResult:
     return VerificationResult(True, "compliant")
 ```
 
----
-
 ## Revocation Freshness
 
 ### Requirements
@@ -406,8 +398,6 @@ def _check_revocation_freshness(proof: ProofReceipt, jwks: JWKS) -> bool:
     return True
 ```
 
----
-
 ## Storage
 
 ### ProofStorage Interface
@@ -436,33 +426,29 @@ class PostgresProofStorage:
 
     async def append_gate_receipt(self, task_id: str, receipt: GateReceipt):
         async with self.pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO gate_receipts (task_id, scope_id, url, layer, decision, reason,
-                                          timestamp, ip_addresses, pinned_destination,
-                                          metadata, signature)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            """, task_id, receipt.scope_id, receipt.url, receipt.layer,
+            await conn.execute("""INSERT INTO gate_receipts (task_id, scope_id, url, layer, decision, reason,
+                                              timestamp, ip_addresses, pinned_destination,
+                                              metadata, signature)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+                task_id, receipt.scope_id, receipt.url, receipt.layer,
                 receipt.decision.value, receipt.reason, receipt.timestamp,
                 receipt.ip_addresses, receipt.pinned_destination,
                 receipt.metadata, receipt.signature)
 
     async def store_proof(self, proof: ProofReceipt):
         async with self.pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO proof_receipts (assessment_id, scope_id, grant_receipt,
+            await conn.execute("""INSERT INTO proof_receipts (assessment_id, scope_id, grant_receipt,
                                            gate_receipts, merkle_root, started_at,
                                            completed_at, total_checks, allowed_checks,
                                            denied_checks, signature)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            """, proof.assessment_id, proof.scope_id,
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+                proof.assessment_id, proof.scope_id,
                 proof.grant_receipt.model_dump_json(),
                 json.dumps([r.model_dump() for r in proof.gate_receipts]),
                 proof.merkle_root, proof.started_at, proof.completed_at,
                 proof.total_checks, proof.allowed_checks, proof.denied_checks,
                 proof.signature)
 ```
-
----
 
 ## Compliance Mapping
 
@@ -562,8 +548,6 @@ Response:
 }
 ```
 
----
-
 ## Key Rotation
 
 ### Automatic Rotation
@@ -600,8 +584,6 @@ def verify_with_jwks(receipt: SignedReceipt, jwks: JWKS) -> bool:
     return False  # Key not found
 ```
 
----
-
 ## Performance
 
 | Operation | Latency (p99) | Throughput |
@@ -627,7 +609,7 @@ def verify_with_jwks(receipt: SignedReceipt, jwks: JWKS) -> bool:
 
 ## Related
 
-- [Scope Gate](../scope-gate/concepts.md)
-- [Scope Signing](../scope-gate/configuration.md#signing)
-- [API: Proof Verification](../api/scope-management.md#proof-verification)
-- [Compliance Mapping](../compliance/overview.md)
+- [Scope Gate](scope-gate/concepts.md)
+- [Scope Signing](scope-gate/configuration.md#signing)
+- [API: Proof Verification](api/scope-management.md#proof-verification)
+- [Compliance Mapping](compliance/overview.md)

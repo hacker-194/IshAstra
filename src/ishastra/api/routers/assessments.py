@@ -14,7 +14,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from ishastra.core.ai import AIError, advise, is_enabled
 from ishastra.api import deps
 from ishastra.api.csrf import validate_csrf_token
 from ishastra.api.deps import (
@@ -38,6 +37,7 @@ from ishastra.api.schemas import (
 )
 from ishastra.core import jobs, store
 from ishastra.core.adapters import PROFILES
+from ishastra.core.ai import AIError, advise, is_enabled
 from ishastra.core.auth import EncryptedAuthConfig, create_authenticator_from_dict
 from ishastra.core.findings import to_sarif
 from ishastra.core.object_storage import (
@@ -788,7 +788,7 @@ async def triage_assessment(
         await audit_async(tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": True})
         return {"prose": prose, "job_id": job_id, "findings_count": len(job["findings"])}
     except AIError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from None
 
 
 @router.get(

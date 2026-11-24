@@ -7,7 +7,7 @@ Production-grade Kubernetes deployment for Ishastra - Authorized Security Assess
 ```
 ishastra/
 ├── Chart.yaml              # Chart metadata and dependencies
-├── values.yaml             # Default values (production-ready)
+├── values.yaml             # Default values (pilot-ready)
 ├── values-dev.yaml         # Development environment
 ├── values-staging.yaml     # Staging environment
 ├── values-prod.yaml        # Production environment

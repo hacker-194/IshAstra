@@ -489,11 +489,10 @@ class AssetUpdate(BaseModel):
 
 
 class OrganizationCreateRequest(BaseModel):
-    """Create a new organization."""
+    """Create a new organization. All organizations are free/unlimited."""
 
     name: str = Field(..., min_length=1, max_length=128)
     slug: str | None = Field(default=None, max_length=64, pattern=r"^[a-z0-9-]+$")
-    tier: str = Field(default="standard", description="standard | elevated | unlimited")
     settings: dict[str, Any] | None = Field(
         default=None,
         description="Organization settings: billing_email, support_email, custom_domain, sso_config",
@@ -501,11 +500,10 @@ class OrganizationCreateRequest(BaseModel):
 
 
 class OrganizationUpdateRequest(BaseModel):
-    """Update an organization."""
+    """Update an organization. Tier is fixed to 'free' (all features unlimited)."""
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     slug: str | None = Field(default=None, max_length=64, pattern=r"^[a-z0-9-]+$")
-    tier: str | None = Field(default=None, description="standard | elevated | unlimited")
     settings: dict[str, Any] | None = Field(
         default=None,
         description=(

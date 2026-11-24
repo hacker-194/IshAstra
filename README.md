@@ -16,7 +16,7 @@
 [![TLA+](https://img.shields.io/badge/TLA%2B-model--checked-8b5cf6?style=flat-square)](docs/tla)
 [![Ed25519](https://img.shields.io/badge/evidence-Ed25519--signed-0ea5e9?style=flat-square)](#signed-evidence-bundles)
 [![SARIF](https://img.shields.io/badge/reports-SARIF-22c55e?style=flat-square)](#why-ishastra)
-[![Status](https://img.shields.io/badge/status-production--ready-22c55e?style=flat-square)](docs/quickstart/production.md)
+[![Status](https://img.shields.io/badge/status-pilot-ready-22c55e?style=flat-square)](docs/quickstart/production.md)
 [![Stars](https://img.shields.io/github/stars/hacker-194/IshAstra?style=flat-square&logo=github&color=eab308)](https://github.com/hacker-194/IshAstra/stargazers)
 
 <p>
@@ -43,7 +43,7 @@
 </div>
 
 > [!NOTE]
-> **Project status: production-ready** (IshAstra 4.0). The authorization core is TLA+-model-checked and CI-enforced; Phase 2 adds capability tokens, egress gateway (CONNECT proxy), hardened worker containers, and signed evidence bundles. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
+> **Project status: pilot-ready** (IshAstra 4.0). The authorization core is TLA+-model-checked and CI-enforced; Phase 2 adds capability tokens, egress gateway (CONNECT proxy), hardened worker containers, and signed evidence bundles. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
 
 ## Why IshAstra
 
@@ -156,7 +156,7 @@ flowchart TB
 
 > Every adapter **re-checks the Scope Gate internally**, so a misbehaving adapter can't bypass authorization.
 
-## Phase 2: Security spine (production-ready)
+## Phase 2: Security spine (pilot-ready)
 
 | Component | What it does | Key property |
 | :-------- | :----------- | :----------- |

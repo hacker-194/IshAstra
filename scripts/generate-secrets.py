@@ -1,5 +1,5 @@
 """
-Generate production-ready secrets for Ishastra Helm deployment.
+Generate pilot-ready secrets for Ishastra Helm deployment.
 
 Usage:
     python3 scripts/generate-secrets.py [--output-dir OUTPUT_DIR] [--values-file VALUES_FILE]

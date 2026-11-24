@@ -1,5 +1,4 @@
 # CODEOWNERS — who must review what.
-#
 # Review is required because CI can prove a change compiles and passes tests;
 # it cannot prove the change did not widen the authorization boundary.
 
@@ -9,11 +8,17 @@
 # The authorization core is the product's moat and is TLA+-verified. Changes
 # here can silently widen what the platform is willing to connect to, so they
 # never ship on a green test run alone.
-/src/ishastra/core/scope.py @hacker-194
+/src/ishastra/security/authorization/scope.py @hacker-194
 /src/ishastra/core/scope_signing.py @hacker-194
 /src/ishastra/core/scope_breakglass.py @hacker-194
 /src/ishastra/core/authz.py @hacker-194
 /docs/tla/ @hacker-194
+
+# Additional security-critical modules
+/src/ishastra/execution/worker_manager.py @hacker-194
+/src/ishastra/security/egress/gateway.py @hacker-194
+/src/ishastra/security/capabilities/ @hacker-194
+/src/ishastra/control_plane/ @hacker-194
 
 # Supply chain and release plumbing.
 /.github/ @hacker-194

@@ -907,7 +907,7 @@ class Scope:
         ambiguity = _ambiguous(url, parsed)
         if ambiguity:
             return "invalid_target", ambiguity, "", None
-        host = parsed.hostname.lower()
+        host = parsed.hostname.lower().rstrip(".")
         if self._listed(host, self.exclude):
             return (
                 "out_of_scope",

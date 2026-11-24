@@ -1,10 +1,9 @@
-"""Unit tests for Ishastra MSSP Partner Program.
+"""Unit tests for Ishastra MSSP Partner Program - Free/Open Source Model.
 
 Tests cover:
-- Partner tier limits
+- Partner tier limits (MSSP partner tiers still exist for management)
 - Partner/customer/invitation models
-- Tier limit validation
-- Customer effective limits
+- Customer effective limits - all free/unlimited
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ class TestMSSPTierOrdering:
 
 
 class TestMSSPTierLimits:
-    """Tests for MSSP tier limits."""
+    """Tests for MSSP tier limits (partner management tiers)."""
 
     def test_registered_tier_limits(self):
         """Test REGISTERED tier limits."""
@@ -126,14 +125,14 @@ class TestMSSPModels:
         assert partner.status == MSSPPartnerStatus.PENDING
 
     def test_mssp_customer_model(self):
-        """Test MSSPCustomer model creation."""
+        """Test MSSPCustomer model creation - all customers are FREE tier."""
         customer = MSSPCustomer(
             customer_id="cust_abc123",
             partner_id="mssp_abc123",
             tenant_id="tenant_123",
             name="Test Customer",
             status=CustomerStatus.ACTIVE,
-            tier=PricingTier.STARTER,
+            tier=PricingTier.FREE,  # All customers are FREE
             billing_contact_email="billing@customer.com",
             technical_contact_email="tech@customer.com",
             settings={},
@@ -141,7 +140,7 @@ class TestMSSPModels:
             updated_at=1000.0,
         )
         assert customer.customer_id == "cust_abc123"
-        assert customer.tier == PricingTier.STARTER
+        assert customer.tier == PricingTier.FREE
         assert customer.status == CustomerStatus.ACTIVE
 
     def test_mssp_usage_record_model(self):
@@ -163,13 +162,13 @@ class TestMSSPModels:
         assert record.assessments_run == 100
 
     def test_mssp_invitation_model(self):
-        """Test MSSPPartnerInvitation model creation."""
+        """Test MSSPPartnerInvitation model creation - all free tier."""
         invitation = MSSPPartnerInvitation(
             invitation_id="inv_abc123",
             partner_id="mssp_abc123",
             email="customer@test.com",
             customer_name="New Customer",
-            tier=PricingTier.FREE,
+            tier=PricingTier.FREE,  # All invitations are FREE tier
             status="pending",
             token="token123",
             expires_at=2000.0,
@@ -181,10 +180,10 @@ class TestMSSPModels:
 
 
 class TestCustomerEffectiveLimits:
-    """Tests for customer effective limits calculation."""
+    """Tests for customer effective limits calculation - all free/unlimited."""
 
     def test_registered_partner_free_customer(self):
-        """Test effective limits for FREE customer under REGISTERED partner."""
+        """Test effective limits for FREE customer under REGISTERED partner - all unlimited."""
 
         class MockPartner:
             tier = MSSPTier.REGISTERED
@@ -198,71 +197,62 @@ class TestCustomerEffectiveLimits:
         limits = get_customer_effective_limits(customer, partner)
         assert limits["customer_tier"] == "free"
         assert limits["partner_tier"] == "registered"
-        assert limits["assessments_per_month"] == 10
-        assert limits["max_users"] == 1
+        # All limits are 0 (unlimited) for FREE tier
+        assert limits["assessments_per_month"] == 0
+        assert limits["max_users"] == 0
+        assert limits["max_concurrent_assessments"] == 0
+        assert limits["retention_days"] == 0
+        assert limits["api_rate_limit_rpm"] == 0
+        assert limits["max_projects"] == 0
+        assert limits["max_webhooks"] == 0
+        assert limits["max_schedules"] == 0
+        assert limits["max_finding_records"] == 0
 
-    def test_registered_partner_starter_customer(self):
-        """Test effective limits for STARTER customer under REGISTERED partner."""
-
-        class MockPartner:
-            tier = MSSPTier.REGISTERED
-
-        class MockCustomer:
-            tier = PricingTier.STARTER
-
-        partner = MockPartner()
-        customer = MockCustomer()
-
-        limits = get_customer_effective_limits(customer, partner)
-        assert limits["customer_tier"] == "starter"
-        assert limits["partner_tier"] == "registered"
-        assert limits["assessments_per_month"] == 100
-        assert limits["max_users"] == 5
-
-    def test_authorized_partner_pro_customer(self):
-        """Test effective limits for PRO customer under AUTHORIZED partner."""
+    def test_authorized_partner_free_customer(self):
+        """Test effective limits for FREE customer under AUTHORIZED partner - all unlimited."""
 
         class MockPartner:
             tier = MSSPTier.AUTHORIZED
 
         class MockCustomer:
-            tier = PricingTier.PRO
+            tier = PricingTier.FREE
 
         partner = MockPartner()
         customer = MockCustomer()
 
         limits = get_customer_effective_limits(customer, partner)
-        assert limits["customer_tier"] == "pro"
+        assert limits["customer_tier"] == "free"
         assert limits["partner_tier"] == "authorized"
-        assert limits["assessments_per_month"] == 1000
-        assert limits["max_users"] == 25
+        # All limits are 0 (unlimited)
+        assert limits["assessments_per_month"] == 0
+        assert limits["max_users"] == 0
 
-    def test_premier_partner_enterprise_customer(self):
-        """Test effective limits for ENTERPRISE customer under PREMIER partner."""
+    def test_premier_partner_free_customer(self):
+        """Test effective limits for FREE customer under PREMIER partner - all unlimited."""
 
         class MockPartner:
             tier = MSSPTier.PREMIER
 
         class MockCustomer:
-            tier = PricingTier.ENTERPRISE
+            tier = PricingTier.FREE
 
         partner = MockPartner()
         customer = MockCustomer()
 
         limits = get_customer_effective_limits(customer, partner)
-        assert limits["customer_tier"] == "enterprise"
+        assert limits["customer_tier"] == "free"
         assert limits["partner_tier"] == "premier"
         assert limits["assessments_per_month"] == 0
         assert limits["max_users"] == 0
 
     def test_features_included(self):
-        """Test that features are included in effective limits."""
+        """Test that features are included in effective limits - all enabled."""
 
         class MockPartner:
             tier = MSSPTier.AUTHORIZED
 
         class MockCustomer:
-            tier = PricingTier.STARTER
+            tier = PricingTier.FREE
 
         partner = MockPartner()
         customer = MockCustomer()
@@ -270,10 +260,12 @@ class TestCustomerEffectiveLimits:
         limits = get_customer_effective_limits(customer, partner)
         assert "features" in limits
         features = limits["features"]
-        assert features["web_assessment"] is True
-        assert features["agent_assessment"] is True
-        assert features["oidc_sso"] is True
-        assert features["saml_sso"] is False
+        # All features should be True (except dedicated_support)
+        for feature_name, value in features.items():
+            if feature_name == "dedicated_support":
+                assert value is False
+            else:
+                assert value is True, f"Feature {feature_name} should be enabled"
 
 
 class TestMSSPStatusEnums:
@@ -301,22 +293,7 @@ class TestMSSPStatusEnums:
 
 
 class TestMSSPTierLimitConstraints:
-    """Tests for tier limit constraint validation logic."""
-
-    def test_registered_partner_cannot_have_pro_customer(self):
-        """Test that REGISTERED partners cannot have PRO customers."""
-
-        customer_tier = PricingTier.PRO
-
-        allowed_tiers = [PricingTier.FREE, PricingTier.STARTER]
-        assert customer_tier not in allowed_tiers
-
-    def test_authorized_partner_can_have_all_tiers(self):
-        """Test that AUTHORIZED partners can have all customer tiers."""
-
-        allowed_tiers = [PricingTier.FREE, PricingTier.STARTER, PricingTier.PRO, PricingTier.ENTERPRISE]
-        for tier in allowed_tiers:
-            assert tier in allowed_tiers
+    """Tests for MSSP tier limit constraint validation logic."""
 
     def test_premier_partner_unlimited(self):
         """Test that PREMIER partners have unlimited customers."""

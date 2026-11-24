@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 
 from ishastra.core import store
-from ishastra.core.pricing import PricingTier, get_tier_features, get_tier_limits
+from ishastra.core.pricing import PricingTier
 
 
 class MSSPTier(str, Enum):
@@ -743,27 +743,21 @@ async def add_customer(
     partner_id: str,
     tenant_id: str,
     name: str,
-    tier: PricingTier = PricingTier.FREE,
     billing_contact_email: str | None = None,
     technical_contact_email: str | None = None,
     settings: dict[str, Any] | None = None,
     trial_days: int = 30,
 ) -> MSSPCustomer:
-    """Add a customer to an MSSP partner."""
+    """Add a customer to an MSSP partner. All customers are free/unlimited."""
     partner = await get_partner(partner_id)
     if partner is None:
         raise ValueError(f"Partner {partner_id} not found")
-
-    limits = MSSP_TIER_LIMITS[partner.tier]
-    if limits.max_customers > 0:
-        current_count = await count_partner_customers(partner_id)
-        if current_count >= limits.max_customers:
-            raise ValueError(f"Partner has reached maximum customer limit ({limits.max_customers})")
 
     customer_id = _generate_id("cust")
     now = time.time()
     trial_ends_at = now + (trial_days * 86400) if trial_days > 0 else None
     settings_json = json.dumps(settings or {})
+    tier = PricingTier.FREE  # All customers are free
 
     db = await store.get_database()
     async with db.transaction() as conn:
@@ -864,28 +858,17 @@ async def update_customer(
     *,
     name: str | None = None,
     status: CustomerStatus | None = None,
-    tier: PricingTier | None = None,
     billing_contact_email: str | None = None,
     technical_contact_email: str | None = None,
     settings: dict[str, Any] | None = None,
     contract_ends_at: float | None = None,
 ) -> MSSPCustomer | None:
-    """Update a customer."""
+    """Update a customer. All customers are on free tier (unlimited)."""
     db = await store.get_database()
     async with db.transaction() as conn:
         row = await store._fetchone(conn, "SELECT * FROM mssp_customers WHERE customer_id = ?", customer_id)
         if row is None:
             return None
-
-        changed_tier = tier is not None and tier != PricingTier(row["tier"])
-        partner = await get_partner(row["partner_id"]) if changed_tier else None
-
-        if (
-            partner is not None
-            and partner.tier == MSSPTier.REGISTERED
-            and tier in (PricingTier.PRO, PricingTier.ENTERPRISE)
-        ):
-            raise ValueError(f"Registered partners cannot have {tier.value} customers")
 
         updates: list[str] = []
         params: list[Any] = []
@@ -896,9 +879,6 @@ async def update_customer(
         if status is not None:
             updates.append("status = ?")
             params.append(status.value)
-        if tier is not None:
-            updates.append("tier = ?")
-            params.append(tier.value)
         if billing_contact_email is not None:
             updates.append("billing_contact_email = ?")
             params.append(billing_contact_email)
@@ -1083,10 +1063,9 @@ async def create_invitation(
     partner_id: str,
     email: str,
     customer_name: str,
-    tier: PricingTier = PricingTier.FREE,
     expires_in_days: int = 7,
 ) -> MSSPPartnerInvitation:
-    """Create an invitation for a customer to join an MSSP."""
+    """Create an invitation for a customer to join an MSSP. All customers are free."""
     partner = await get_partner(partner_id)
     if partner is None:
         raise ValueError(f"Partner {partner_id} not found")
@@ -1095,6 +1074,7 @@ async def create_invitation(
     token = secrets.token_urlsafe(32)
     now = time.time()
     expires_at = now + (expires_in_days * 86400)
+    tier = PricingTier.FREE
 
     db = await store.get_database()
     async with db.transaction() as conn:
@@ -1155,7 +1135,6 @@ async def accept_invitation(token: str, tenant_id: str) -> MSSPCustomer:
         partner_id=invitation.partner_id,
         tenant_id=tenant_id,
         name=invitation.customer_name,
-        tier=invitation.tier,
     )
 
     await update_invitation_status(invitation.invitation_id, "accepted")
@@ -1221,12 +1200,14 @@ def get_mssp_tier_limits(tier: MSSPTier) -> MSSPTierLimits:
 
 
 def get_customer_effective_limits(customer: MSSPCustomer, partner: MSSPPartner) -> dict[str, Any]:
-    """Get effective limits for a customer (minimum of customer tier and partner tier)."""
-    customer_limits = get_tier_limits(customer.tier)
-    customer_features = get_tier_features(customer.tier)
+    """Get effective limits for a customer - all unlimited (free tier)."""
+    from ishastra.core.pricing import get_tier_features, get_tier_limits
+
+    customer_limits = get_tier_limits(PricingTier.FREE)
+    customer_features = get_tier_features(PricingTier.FREE)
 
     return {
-        "customer_tier": customer.tier.value,
+        "customer_tier": "free",
         "partner_tier": partner.tier.value,
         "assessments_per_month": customer_limits.assessments_per_month,
         "max_concurrent_assessments": customer_limits.max_concurrent_assessments,

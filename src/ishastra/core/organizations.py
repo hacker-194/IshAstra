@@ -37,9 +37,6 @@ VALID_ROLES = frozenset(ROLE_ORDER.keys())
 VALID_STATUSES = frozenset({"active", "pending", "suspended", "removed"})
 
 
-ORG_TIER_ORDER = {"standard": 0, "elevated": 1, "unlimited": 2}
-
-
 def role_rank(role: str) -> int:
     """Get numeric rank for a role (higher = more permissions)."""
     return ROLE_ORDER.get(role, -1)
@@ -296,13 +293,9 @@ async def create_org(
     *,
     name: str,
     slug: str | None = None,
-    tier: str = "standard",
     settings: dict[str, Any] | None = None,
 ) -> Organization:
-    """Create a new organization."""
-    if tier not in ORG_TIER_ORDER:
-        raise ValueError(f"Invalid tier. Must be one of: {list(ORG_TIER_ORDER)}")
-
+    """Create a new organization. All organizations are free/unlimited."""
     final_slug = slug or _slugify(name)
     if len(final_slug) > 64:
         raise ValueError("Slug too long (max 64 characters)")
@@ -310,6 +303,7 @@ async def create_org(
     org_id = _generate_id("org")
     now = time.time()
     settings_json = json.dumps(settings or {})
+    tier = "free"  # Only tier - all features unlimited
 
     db = await store.get_database()
     async with db.transaction() as conn:
@@ -376,10 +370,9 @@ async def update_org(
     *,
     name: str | None = None,
     slug: str | None = None,
-    tier: str | None = None,
     settings: dict[str, Any] | None = None,
 ) -> Organization | None:
-    """Update an organization."""
+    """Update an organization. Tier is fixed to 'free' (all features unlimited)."""
     db = await store.get_database()
     async with db.transaction() as conn:
         row = await store._fetchone(conn, "SELECT * FROM organizations WHERE org_id = ?", org_id)
@@ -402,11 +395,6 @@ async def update_org(
                 raise ValueError(f"Organization with slug '{slug}' already exists")
             updates.append("slug = ?")
             params.append(slug)
-        if tier is not None:
-            if tier not in ORG_TIER_ORDER:
-                raise ValueError(f"Invalid tier. Must be one of: {list(ORG_TIER_ORDER)}")
-            updates.append("tier = ?")
-            params.append(tier)
         if settings is not None:
             updates.append("settings = ?")
             params.append(json.dumps(settings))

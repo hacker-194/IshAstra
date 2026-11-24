@@ -64,7 +64,6 @@ from ishastra.core.mssp import (
     update_partner,
     validate_partner_admin_key,
 )
-from ishastra.core.pricing import PricingTier
 
 router = APIRouter(prefix="/api/mssp", tags=["mssp"])
 
@@ -320,30 +319,15 @@ async def add_mssp_customer(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    try:
-        tier = PricingTier(req.tier.value)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
-
-    if partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
-        raise HTTPException(
-            status_code=400,
-            detail="Registered partners cannot have Pro or Enterprise customers",
-        )
-
-    try:
-        customer = await add_customer(
-            partner_id=partner_id,
-            tenant_id=req.tenant_id,
-            name=req.name,
-            tier=tier,
-            billing_contact_email=req.billing_contact_email,
-            technical_contact_email=req.technical_contact_email,
-            settings=req.settings,
-            trial_days=req.trial_days,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    customer = await add_customer(
+        partner_id=partner_id,
+        tenant_id=req.tenant_id,
+        name=req.name,
+        billing_contact_email=req.billing_contact_email,
+        technical_contact_email=req.technical_contact_email,
+        settings=req.settings,
+        trial_days=req.trial_days,
+    )
 
     effective_limits = get_customer_effective_limits(customer, partner)
 
@@ -354,7 +338,6 @@ async def add_mssp_customer(
             "partner_id": partner_id,
             "customer_id": customer.customer_id,
             "tenant_id": req.tenant_id,
-            "tier": req.tier.value,
         },
     )
 
@@ -416,27 +399,10 @@ async def update_mssp_customer(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    try:
-        tier = PricingTier(req.tier.value) if req.tier else None
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
-
-    try:
-        status = MSSPCustomerStatus(req.status.value) if req.status else None
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {req.status}") from None
-
-    if tier and partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
-        raise HTTPException(
-            status_code=400,
-            detail="Registered partners cannot have Pro or Enterprise customers",
-        )
-
     updated = await update_customer(
         customer_id,
         name=req.name,
-        status=status,
-        tier=tier,
+        status=MSSPCustomerStatus(req.status) if req.status else None,
         billing_contact_email=req.billing_contact_email,
         technical_contact_email=req.technical_contact_email,
         settings=req.settings,
@@ -508,22 +474,10 @@ async def create_mssp_invitation(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    try:
-        tier = PricingTier(req.tier.value)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
-
-    if partner.tier == MSSPTier.REGISTERED and tier in (PricingTier.PRO, PricingTier.ENTERPRISE):
-        raise HTTPException(
-            status_code=400,
-            detail="Registered partners cannot invite Pro or Enterprise customers",
-        )
-
     invitation = await create_invitation(
         partner_id=partner_id,
         email=req.email,
         customer_name=req.customer_name,
-        tier=tier,
         expires_in_days=req.expires_in_days,
     )
 
@@ -534,7 +488,6 @@ async def create_mssp_invitation(
             "partner_id": partner_id,
             "invitation_id": invitation.invitation_id,
             "email": req.email,
-            "tier": req.tier.value,
         },
     )
 

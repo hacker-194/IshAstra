@@ -1,10 +1,7 @@
-"""Pricing tier API endpoints.
+"""Pricing tier API endpoints - simplified for free/open-source.
 
-Provides endpoints for:
-- Listing available pricing tiers
-- Getting current tier info and limits
-- Upgrading/downgrading tiers
-- Usage reporting
+All features are free and unlimited. This module provides informational endpoints
+for compatibility, but no tier gating or upgrade functionality.
 """
 
 from __future__ import annotations
@@ -12,34 +9,30 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
-from ishastra.api.csrf import validate_csrf_token
-from ishastra.api.deps import Tenant, audit_async, require_admin, require_auth
+from ishastra.api.deps import Tenant, require_auth
 from ishastra.api.schemas import (
     FeatureFlagsModel,
     PricingTierEnum,
     TierInfoModel,
     TierLimitsModel,
-    TierUpgradeRequest,
-    TierUpgradeResponse,
     UsageReportModel,
 )
 from ishastra.core import store
 from ishastra.core.pricing import (
     FeatureFlags,
     PricingTier,
+    TierLimits,
     get_tier_info,
     get_tier_limits,
-    is_downgrade,
-    is_upgrade,
     list_all_tiers,
 )
 
 router = APIRouter(prefix="/api", tags=["pricing"])
 
 
-def _convert_tier_limits(limits) -> TierLimitsModel:
+def _convert_tier_limits(limits: TierLimits) -> TierLimitsModel:
     """Convert core TierLimits to API model."""
     return TierLimitsModel(
         assessments_per_month=limits.assessments_per_month,
@@ -109,20 +102,18 @@ def _convert_tier_info(info) -> TierInfoModel:
 
 @router.get("/pricing/tiers")
 async def list_tiers() -> dict[str, Any]:
-    """List all available pricing tiers with their limits and features."""
+    """List available pricing tier - only FREE exists (all features unlimited)."""
     tiers = [_convert_tier_info(t) for t in list_all_tiers()]
     return {"tiers": tiers}
 
 
 @router.get("/pricing/tiers/{tier}")
 async def get_tier(tier: PricingTierEnum) -> TierInfoModel:
-    """Get detailed information for a specific pricing tier."""
-    try:
-        pricing_tier = PricingTier(tier.value)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=f"Tier '{tier}' not found") from exc
+    """Get detailed information for the free pricing tier."""
+    if tier != PricingTierEnum.FREE:
+        raise HTTPException(status_code=404, detail=f"Tier '{tier}' not found. Only 'free' tier exists.")
 
-    info = get_tier_info(pricing_tier)
+    info = get_tier_info(PricingTier.FREE)
     return _convert_tier_info(info)
 
 
@@ -130,15 +121,8 @@ async def get_tier(tier: PricingTierEnum) -> TierInfoModel:
 async def get_current_tier(
     tenant: Tenant = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Get current tenant's tier information and limits."""
-    tenant_tier = tenant.get("tier", "free")
-    try:
-        pricing_tier = PricingTier(tenant_tier)
-    except ValueError:
-        pricing_tier = PricingTier.FREE
-
-    info = get_tier_info(pricing_tier)
-
+    """Get current tenant's tier information - always FREE with all features."""
+    info = get_tier_info(PricingTier.FREE)
     return {
         "tier": _convert_tier_info(info),
         "current_usage": await _get_current_usage(tenant["tenant_id"]),
@@ -149,34 +133,14 @@ async def get_current_tier(
 async def get_usage_report(
     tenant: Tenant = Depends(require_auth),
 ) -> UsageReportModel:
-    """Get current usage report for the authenticated tenant."""
+    """Get current usage report - all limits are unlimited (0)."""
     tenant_id = tenant["tenant_id"]
-    tenant_tier = tenant.get("tier", "free")
-
-    try:
-        pricing_tier = PricingTier(tenant_tier)
-    except ValueError:
-        pricing_tier = PricingTier.FREE
-
-    limits = get_tier_limits(pricing_tier)
+    limits = get_tier_limits(PricingTier.FREE)
     usage = await _get_current_usage(tenant_id)
-
-    overages = {}
-    if limits.assessments_per_month > 0 and usage["assessments_used"] >= limits.assessments_per_month:
-        overages["assessments"] = usage["assessments_used"] - limits.assessments_per_month
-    if (
-        limits.max_concurrent_assessments > 0
-        and usage["concurrent_assessments"] >= limits.max_concurrent_assessments
-    ):
-        overages["concurrent"] = usage["concurrent_assessments"] - limits.max_concurrent_assessments
-    if limits.max_users > 0 and usage["users_count"] >= limits.max_users:
-        overages["users"] = usage["users_count"] - limits.max_users
-    if limits.api_rate_limit_rpm > 0 and usage["api_calls_used"] >= limits.api_rate_limit_rpm:
-        overages["api_calls"] = usage["api_calls_used"] - limits.api_rate_limit_rpm
 
     return UsageReportModel(
         tenant_id=tenant_id,
-        current_tier=PricingTierEnum(pricing_tier.value),
+        current_tier=PricingTierEnum.FREE,
         period_start=usage["period_start"],
         period_end=usage["period_end"],
         assessments_used=usage["assessments_used"],
@@ -197,103 +161,7 @@ async def get_usage_report(
         webhooks_limit=limits.max_webhooks,
         schedules_count=usage["schedules_count"],
         schedules_limit=limits.max_schedules,
-        overages=overages,
-    )
-
-
-@router.post("/pricing/upgrade")
-async def upgrade_tier(
-    request: Request,
-    req: TierUpgradeRequest,
-    tenant: Tenant = Depends(require_admin),
-    _csrf: bool = Depends(validate_csrf_token),
-) -> TierUpgradeResponse:
-    """Upgrade or downgrade the tenant's pricing tier.
-
-    Requires admin privileges. In a production system, this would integrate
-    with a billing provider (Stripe, etc.). For now, it updates the tier
-    in the database immediately.
-    """
-    tenant_id = tenant["tenant_id"]
-    current_tier_str = tenant.get("tier", "free")
-
-    try:
-        current_tier = PricingTier(current_tier_str)
-    except ValueError:
-        current_tier = PricingTier.FREE
-
-    try:
-        new_tier = PricingTier(req.tier.value)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {req.tier}") from None
-
-    if current_tier == new_tier:
-        raise HTTPException(status_code=400, detail="Already on this tier")
-
-    upgrade = is_upgrade(current_tier, new_tier)
-    downgrade = is_downgrade(current_tier, new_tier)
-
-    if downgrade:
-        limits = get_tier_limits(new_tier)
-        usage = await _get_current_usage(tenant_id)
-
-        violations = []
-        assessments_used = usage["assessments_used"]
-        if limits.assessments_per_month > 0 and assessments_used > limits.assessments_per_month:
-            violations.append(
-                f"Assessments used ({assessments_used}) exceeds limit ({limits.assessments_per_month})"
-            )
-        if limits.max_users > 0 and usage["users_count"] > limits.max_users:
-            violations.append(f"Users ({usage['users_count']}) exceeds limit ({limits.max_users})")
-        if limits.max_projects > 0 and usage["projects_count"] > limits.max_projects:
-            projects_used = usage["projects_count"]
-            violations.append(f"Projects ({projects_used}) exceeds limit ({limits.max_projects})")
-
-        if violations:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Cannot downgrade: current usage exceeds {new_tier.value} limits: "
-                    f"{'; '.join(violations)}"
-                ),
-            )
-
-    db = await store.get_database()
-    now = time.time()
-    async with db.transaction() as conn:
-        await store._execute(
-            conn,
-            "UPDATE api_keys SET tier = ?, updated_at = ? WHERE tenant_id = ?",
-            new_tier.value,
-            now,
-            tenant_id,
-        )
-
-    if downgrade:
-        effective_date = now + 30 * 86400
-        prorated = False
-    else:
-        effective_date = now
-        prorated = True
-
-    await audit_async(
-        tenant,
-        {
-            "event": "tier_changed",
-            "tenant_id": tenant_id,
-            "from_tier": current_tier.value,
-            "to_tier": new_tier.value,
-            "billing_cycle": req.billing_cycle,
-            "upgrade": upgrade,
-        },
-    )
-
-    return TierUpgradeResponse(
-        previous_tier=PricingTierEnum(current_tier.value),
-        new_tier=PricingTierEnum(new_tier.value),
-        effective_date=effective_date,
-        billing_cycle=req.billing_cycle,
-        prorated=prorated,
+        overages={},
     )
 
 
@@ -302,23 +170,17 @@ async def check_feature_access(
     feature: str,
     tenant: Tenant = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Check if current tenant has access to a specific feature."""
-    tenant_tier = tenant.get("tier", "free")
-    try:
-        pricing_tier = PricingTier(tenant_tier)
-    except ValueError:
-        pricing_tier = PricingTier.FREE
-
+    """Check if current tenant has access to a specific feature - always True."""
     from ishastra.core.pricing import FEATURE_DESCRIPTIONS, can_access_feature
 
-    has_access = can_access_feature(pricing_tier, feature)
+    has_access = can_access_feature(PricingTier.FREE, feature)
     description = FEATURE_DESCRIPTIONS.get(feature, "Unknown feature")
 
     return {
         "feature": feature,
         "description": description,
         "has_access": has_access,
-        "current_tier": pricing_tier.value,
+        "current_tier": "free",
     }
 
 

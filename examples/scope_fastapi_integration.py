@@ -37,9 +37,6 @@ from ishastra.core.scope import Scope, ScopeGate, load, configure, bound
 from ishastra.metrics import init_metrics
 
 
-
-
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -47,7 +44,11 @@ logger = logging.getLogger(__name__)
 SCOPE_DIR = Path(os.environ.get("ISHASTRA_SCOPE_DIR", "/etc/ishastra/scopes"))
 DEFAULT_SCOPE_PATH = SCOPE_DIR / "default.json"
 JWKS_PATH = Path(os.environ.get("ISHASTRA_SCOPE_JWKS", "/etc/ishastra/scope-jwks.json"))
-ALLOWED_ORIGINS = os.environ.get("ISHASTRA_ALLOWED_ORIGINS", "").split(",") if os.environ.get("ISHASTRA_ALLOWED_ORIGINS") else []
+ALLOWED_ORIGINS = (
+    os.environ.get("ISHASTRA_ALLOWED_ORIGINS", "").split(",")
+    if os.environ.get("ISHASTRA_ALLOWED_ORIGINS")
+    else []
+)
 API_KEYS_JSON = os.environ.get("ISHASTRA_API_KEYS_JSON", "{}")
 RATE_LIMIT_REQUESTS = int(os.environ.get("ISHASTRA_RATE_LIMIT_RPS", "100"))
 APP_VERSION = os.environ.get("ISHASTRA_APP_VERSION", "3.5.0")
@@ -63,24 +64,14 @@ except json.JSONDecodeError:
 init_metrics()
 
 SCOPE_DECISIONS = Counter(
-    "ishastra_scope_gate_decisions_total",
-    "Scope gate decisions",
-    ["decision", "reason", "tenant"]
+    "ishastra_scope_gate_decisions_total", "Scope gate decisions", ["decision", "reason", "tenant"]
 )
 SCOPE_LATENCY = Histogram(
-    "ishastra_scope_gate_latency_seconds",
-    "Scope gate validation latency",
-    ["operation"]
+    "ishastra_scope_gate_latency_seconds", "Scope gate validation latency", ["operation"]
 )
-HTTP_REQUESTS = Counter(
-    "ishastra_http_requests_total",
-    "HTTP requests",
-    ["method", "endpoint", "status"]
-)
+HTTP_REQUESTS = Counter("ishastra_http_requests_total", "HTTP requests", ["method", "endpoint", "status"])
 HTTP_LATENCY = Histogram(
-    "ishastra_http_request_duration_seconds",
-    "HTTP request latency",
-    ["method", "endpoint"]
+    "ishastra_http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"]
 )
 
 
@@ -88,19 +79,17 @@ _rate_limit_buckets: dict[str, tuple[float, int]] = {}
 _RATE_LIMIT_LOCK = asyncio.Lock()
 
 
-
-
-
-
 class AssessRequest(BaseModel):
     target: HttpUrl = Field(..., description="Target URL to assess")
     profile: str = Field("web", description="Assessment profile")
     debug: bool = Field(False, description="Include scope decision details (admin only)")
 
+
 class AssessResponse(BaseModel):
     job_id: str
     status: str
     scope_decision: Optional[dict] = None
+
 
 class ScopeValidationResponse(BaseModel):
     allowed: bool
@@ -110,18 +99,16 @@ class ScopeValidationResponse(BaseModel):
     port: int
     resolved_ips: list[str]
 
+
 class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
     version: str
 
+
 class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
-
-
-
-
 
 
 class ScopeManager:
@@ -158,7 +145,6 @@ class ScopeManager:
             if self._default_scope is None:
                 raise ValueError(f"No scope found for tenant {tenant_id} and no default configured")
             return self._default_scope
-
 
         try:
             mtime = await asyncio.to_thread(lambda p: p.stat().st_mtime, scope_path)
@@ -198,11 +184,8 @@ class ScopeManager:
                 pass
 
 
-
-
-
-
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+
 
 async def get_tenant(api_key: str = Security(API_KEY_HEADER)) -> str:
     """Resolve tenant from API key."""
@@ -230,15 +213,13 @@ async def get_key_info(api_key: str = Security(API_KEY_HEADER)) -> dict:
 
 def require_role(required_role: str):
     """Dependency factory for role-based access control."""
+
     async def check_role(key_info: dict = Depends(get_key_info)) -> dict:
         if key_info.get("role") != required_role:
             raise HTTPException(status_code=403, detail=f"Requires {required_role} role")
         return key_info
+
     return check_role
-
-
-
-
 
 
 async def rate_limit(tenant_id: str = Depends(get_tenant)):
@@ -247,24 +228,17 @@ async def rate_limit(tenant_id: str = Depends(get_tenant)):
         now = time.time()
         last_refill, tokens = _rate_limit_buckets.get(tenant_id, (now, RATE_LIMIT_REQUESTS))
 
-
         elapsed = now - last_refill
         tokens = min(RATE_LIMIT_REQUESTS, tokens + elapsed * RATE_LIMIT_REQUESTS)
 
         if tokens < 1:
             retry_after = int((1 - tokens) / RATE_LIMIT_REQUESTS) + 1
             raise HTTPException(
-                status_code=429,
-                detail="Rate limit exceeded",
-                headers={"Retry-After": str(retry_after)}
+                status_code=429, detail="Rate limit exceeded", headers={"Retry-After": str(retry_after)}
             )
 
         tokens -= 1
         _rate_limit_buckets[tenant_id] = (now, tokens)
-
-
-
-
 
 
 async def validate_target_url(target: str, tenant_id: str, scope_manager: ScopeManager) -> tuple:
@@ -272,24 +246,16 @@ async def validate_target_url(target: str, tenant_id: str, scope_manager: ScopeM
     start = time.time()
 
     async with scope_manager.bound_scope(tenant_id) as scope:
-
-        result = await asyncio.wait_for(
-            ScopeGate.validate_outbound_async(target, scope),
-            timeout=5.0
-        )
+        result = await asyncio.wait_for(ScopeGate.validate_outbound_async(target, scope), timeout=5.0)
 
     SCOPE_LATENCY.labels(operation="validate").observe(time.time() - start)
     SCOPE_DECISIONS.labels(
         decision="allowed" if result.allowed else "blocked",
         reason=result.denial_code or "allowed",
-        tenant=tenant_id
+        tenant=tenant_id,
     ).inc()
 
     return result
-
-
-
-
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
@@ -301,21 +267,15 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         duration = time.time() - start
 
         HTTP_REQUESTS.labels(
-            method=request.method,
-            endpoint=request.url.path,
-            status=response.status_code
+            method=request.method, endpoint=request.url.path, status=response.status_code
         ).inc()
-        HTTP_LATENCY.labels(
-            method=request.method,
-            endpoint=request.url.path
-        ).observe(duration)
+        HTTP_LATENCY.labels(method=request.method, endpoint=request.url.path).observe(duration)
 
         return response
 
 
 class ScopeValidationMiddleware(BaseHTTPMiddleware):
     """Validate all outbound proxy requests through ScopeGate with SSRF protection."""
-
 
     PRIVATE_RANGES = [
         "10.0.0.0/8",
@@ -335,6 +295,7 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
     def _is_private_ip(self, ip: str) -> bool:
         """Check if IP is in private ranges."""
         import ipaddress
+
         try:
             addr = ipaddress.ip_address(ip)
             for private_range in self.PRIVATE_RANGES:
@@ -350,66 +311,60 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
             tenant = request.headers.get("X-Tenant-ID")
             if not tenant:
                 return JSONResponse(
-                    status_code=400,
-                    content={"error": "X-Tenant-ID header required for proxy"}
+                    status_code=400, content={"error": "X-Tenant-ID header required for proxy"}
                 )
 
             target_url = request.headers.get("X-Target-URL")
             if not target_url:
                 return JSONResponse(
-                    status_code=400,
-                    content={"error": "X-Target-URL header required for proxy"}
+                    status_code=400, content={"error": "X-Target-URL header required for proxy"}
                 )
-
 
             try:
                 from ishastra.core.urls import parse_url
+
                 parsed = parse_url(target_url)
                 if not parsed:
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": "Invalid target URL"}
-                    )
+                    return JSONResponse(status_code=400, content={"error": "Invalid target URL"})
 
                 host = parsed.host
                 if not host:
-                    return JSONResponse(
-                        status_code=400,
-                        content={"error": "Target URL must have a host"}
-                    )
-
+                    return JSONResponse(status_code=400, content={"error": "Target URL must have a host"})
 
                 if host.lower() in ("localhost", "localhost.localdomain"):
                     return JSONResponse(
                         status_code=403,
-                        content={"error": "scope_violation", "reason": "localhost not allowed", "code": "internal_host"}
+                        content={
+                            "error": "scope_violation",
+                            "reason": "localhost not allowed",
+                            "code": "internal_host",
+                        },
                     )
-
 
                 if host in ("169.254.169.254", "metadata.google.internal", "metadata.azure.com"):
                     return JSONResponse(
                         status_code=403,
-                        content={"error": "scope_violation", "reason": "metadata endpoint blocked", "code": "internal_host"}
+                        content={
+                            "error": "scope_violation",
+                            "reason": "metadata endpoint blocked",
+                            "code": "internal_host",
+                        },
                     )
 
             except Exception as e:
                 logger.warning(f"URL parse failed for {target_url}: {e}")
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "Invalid target URL format"}
-                )
+                return JSONResponse(status_code=400, content={"error": "Invalid target URL format"})
 
             with SCOPE_LATENCY.labels(operation="middleware").time():
                 async with self.scope_manager.bound_scope(tenant) as scope:
                     result = await asyncio.wait_for(
-                        ScopeGate.validate_outbound_async(target_url, scope),
-                        timeout=5.0
+                        ScopeGate.validate_outbound_async(target_url, scope), timeout=5.0
                     )
 
             SCOPE_DECISIONS.labels(
                 decision="allowed" if result.allowed else "blocked",
                 reason=result.denial_code or "allowed",
-                tenant=tenant
+                tenant=tenant,
             ).inc()
 
             if not result.allowed:
@@ -419,9 +374,8 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                         "error": "scope_violation",
                         "reason": result.reason,
                         "code": result.denial_code,
-                    }
+                    },
                 )
-
 
             for ip in result.resolved_ips:
                 if self._is_private_ip(ip):
@@ -431,18 +385,11 @@ class ScopeValidationMiddleware(BaseHTTPMiddleware):
                         content={
                             "error": "scope_violation",
                             "reason": f"Resolved IP {ip} is in private range",
-                            "code": "private_ip_blocked"
-                        }
+                            "code": "private_ip_blocked",
+                        },
                     )
 
-
-
-
         return await call_next(request)
-
-
-
-
 
 
 def create_app() -> FastAPI:
@@ -466,15 +413,13 @@ def create_app() -> FastAPI:
         description="Production ScopeGate authorization service",
         version=APP_VERSION,
         lifespan=lifespan,
-
         responses={
             401: {"model": ErrorResponse, "description": "Authentication required"},
             403: {"model": ScopeValidationResponse, "description": "Scope violation or forbidden"},
             429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
             500: {"model": ErrorResponse, "description": "Internal server error"},
-        }
+        },
     )
-
 
     if ALLOWED_ORIGINS and ALLOWED_ORIGINS != [""]:
         app.add_middleware(
@@ -485,7 +430,6 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
     else:
-
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -495,30 +439,16 @@ def create_app() -> FastAPI:
         )
     app.add_middleware(MetricsMiddleware)
 
-
-
-
-
-
-
     @app.get("/health", response_model=HealthResponse)
     async def health():
-        return HealthResponse(
-            status="healthy",
-            timestamp=datetime.now(timezone.utc),
-            version=APP_VERSION
-        )
+        return HealthResponse(status="healthy", timestamp=datetime.now(timezone.utc), version=APP_VERSION)
 
     @app.get("/ready", response_model=HealthResponse)
     async def ready():
 
         try:
             await scope_manager.get_scope("readiness-check")
-            return HealthResponse(
-                status="ready",
-                timestamp=datetime.now(timezone.utc),
-                version=APP_VERSION
-            )
+            return HealthResponse(status="ready", timestamp=datetime.now(timezone.utc), version=APP_VERSION)
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Not ready: {e}")
 
@@ -534,7 +464,7 @@ def create_app() -> FastAPI:
             401: {"model": ErrorResponse},
             403: {"model": ScopeValidationResponse},
             429: {"model": ErrorResponse},
-        }
+        },
     )
     async def validate_target(
         request: AssessRequest,
@@ -560,7 +490,7 @@ def create_app() -> FastAPI:
             401: {"model": ErrorResponse},
             403: {"model": ScopeValidationResponse},
             429: {"model": ErrorResponse},
-        }
+        },
     )
     async def create_assessment(
         request: AssessRequest,
@@ -576,25 +506,18 @@ def create_app() -> FastAPI:
                     "error": "scope_violation",
                     "reason": result.reason,
                     "code": result.denial_code,
-                }
+                },
             )
-
 
         job_id = f"job_{int(time.time() * 1000)}"
 
-
         scope_decision = None
         if request.debug:
-
             key_info = API_KEYS.get(request.headers.get("X-API-Key", ""))
             if key_info and key_info.get("role") == "admin":
                 scope_decision = result.model_dump()
 
-        response = AssessResponse(
-            job_id=job_id,
-            status="queued",
-            scope_decision=scope_decision
-        )
+        response = AssessResponse(job_id=job_id, status="queued", scope_decision=scope_decision)
 
         return response
 
@@ -604,7 +527,7 @@ def create_app() -> FastAPI:
         responses={
             401: {"model": ErrorResponse},
             403: {"model": ErrorResponse},
-        }
+        },
     )
     async def get_tenant_scope(
         tenant_id: str,
@@ -631,7 +554,7 @@ def create_app() -> FastAPI:
         responses={
             401: {"model": ErrorResponse},
             403: {"model": ErrorResponse},
-        }
+        },
     )
     async def invalidate_scope(
         tenant_id: str,
@@ -644,14 +567,11 @@ def create_app() -> FastAPI:
     return app
 
 
-
-
-
-
 app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "scope_fastapi_integration:app",
         host="0.0.0.0",

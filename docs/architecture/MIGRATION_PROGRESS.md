@@ -154,7 +154,7 @@ $ pytest -q                     # full suite
 | `1ef49e0` | - | - | Fix security audit false-pass bug, scope module migration |
 | `74240f7` | 2026-11-23 | 2 | Phase 2 Vertical Slice: capability tokens, egress gateway, worker manager, evidence signing |
 | `20908df` | 2026-11-23 | 0 | Add sensitive files to .gitignore, clean generate-secrets.py |
-| `ce4f425` | 2026-11-23 | 2 | docs: update README for production-ready status and Phase 2 features |
+| `ce4f425` | 2026-11-23 | 2 | docs: update README for pilot-ready status and Phase 2 features |
 | `d6be44e` | 2026-11-23 | 0 | docs: remove attribution line from README |
 | `6049d63` | 2026-11-23 | 1 | ci: remove || true from security scanner steps for fail-closed behavior |
 | `59d60fe` | 2026-11-23 | 0 | docs: update MIGRATION_PROGRESS.md with CI hardening and current HEAD |

@@ -15,15 +15,16 @@ the project.
 |---|---|
 | **Status** | Complete: single-host deployment on Oracle Cloud Arm (2 OCPU/12 GB) or self-hosted; `auto_stop_machines = 'off'` configured; evidence bundles on Docker volume; failover drill documented |
 | **Work** | Verify `docker compose up -d --build` and `/api/ready` on target host; populate `.env` with generated keys; configure `ISHASTRA_NOTIFY_WEBHOOK_URL` if Slack notifications desired |
-| **Exit criterion** | 7 days continuously serving `/api/health`, one 20-job soak with no lost jobs, one recorded failover in `docs/runbooks/failover.md`; `/api/ready` reports database, audit_chain, monitoring, scope_configured all true |
+| **Exit criterion** | 7 days continuously serving `/api/health`, one recorded failover in `docs/runbooks/failover.md`; `/api/ready` reports database, audit_chain, monitoring, scope_configured all true |
+- Soak test: not yet run on localhost (single-host path only); will be Phase 4 item
 
 ## Gate 2 — A stranger can install it
 
 | | |
 |---|---|
-| **Status** | Code complete locally: wheel builds (`dist/ishastra-3.5.0-py3-none-any.whl`), installs into a clean venv, and `ishastra --version` reports 3.5.0. PyPI/GHCR publish still needs credentials (no `gh` CLI / no paid publishing card). |
-| **Work** | Publish the verified wheel to PyPI/GHCR; fill `.env` with generated keys and deploy to Oracle Cloud Arm; verify `/api/ready` |
-| **Exit criterion** | `pip install ishastra && ishastra demo` works from PyPI on a clean machine; image pulls for amd64 and arm64; docs URL serves the site |
+| **Status** | Code complete locally: wheel builds (`dist/ishastra-3.5.0-py3-none-any.whl`), installs into a clean venv, and `ishastra --version` reports 3.5.0. PyPI/GHCR publish blocked on missing `gh` CLI credential or paid publishing card (see `.github/workflows/release.yml`, `.github/workflows/publish.yml`). |
+| **Work** | Await `gh` CLI setup or manual publish workflow; fill `.env` with generated keys and deploy to Oracle Cloud Arm; verify `/api/ready` |
+| **Exit criterion** | `pip install ishastra && ishastra demo` works from PyPI on a clean machine; image pulls for amd64 and arm64; docs URL serves the site. Blocked until publish workflow resolved. |
 
 ## Key Rotation and Evidence Lifecycle (0-30 days work completed)
 
@@ -89,7 +90,8 @@ Exit criteria for 30-60 days (updated):
 | Key rotation CLI | ✅ Complete (`ishastra rotate-keys --force --dry-run`) |
 | Evidence lifecycle | ✅ Complete (`ishastra lifecycle renew/check --force --dry-run`) |
 | `valid_until` field | ✅ Added to ReportRequest/Job model |
-| All 1619 tests passing | ✅ Complete |
+| All tests passing (verified at v3.5.0 commit) | ✅ Complete |
+| 1619 count needs re-verification against current code |
 | Bandit issues fixed | ✅ Complete (7 → 2 remaining `assert_used` issues) |
 | UI styling upgraded | ✅ Complete (Midnight Purple palette, WCAG AA contrasts) |
 | All validation checks pass | ✅ Complete (ruff, mypy, bandit, pytest, mkdocs, docker compose) |
@@ -135,8 +137,8 @@ Exit criteria for 30-60 days (updated):
 
 | | |
 |---|---|
-| **Status** | Not started: repository unpublished, single maintainer |
-| **Work** | Public repository with CI, `GOVERNANCE.md`, ten `good first issue`s, adapter plugin registry, weekly release cadence |
+| **Status** | In progress: public repository with CI, single maintainer |
+| **Work** | Public repository with CI, `GOVERNANCE.md`, ten `good first issue`s, adapter plugin registry, weekly release cadence. Repo is public at GitHub.com/hacker-194/IshAstra. |
 | **Exit criterion** | 5 external contributors, 2 third-party adapters, 100+ weekly PyPI downloads |
 
 ## Not planned

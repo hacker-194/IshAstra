@@ -8,7 +8,7 @@ Deep dive into the authorization engine that makes Ishastra unique.
 
 The Scope Gate is a **default-deny authorization layer** that validates every outbound connection before it leaves your infrastructure. It sits between your assessment workers and target systems, enforcing policy at three layers.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Assessment Worker                           │
 │  ┌────────────────────────────────────────────────────────────┐ │
@@ -36,7 +36,7 @@ The Scope Gate is a **default-deny authorization layer** that validates every ou
 
 ## Layer 1: URL/Host Gate
 
-**File**: `src/ishastra/core/scope.py` — `_authorize_sync()` lines 504-543
+**File**: `src/ishastra/security/authorization/scope.py` — `_authorize_sync()` lines
 
 ### Checks Performed
 
@@ -62,17 +62,17 @@ The Scope Gate is a **default-deny authorization layer** that validates every ou
 ### Decision Logic
 
 ```python
-def _authorize_sync(url: str, scope: ScopeDocument) -> AuthResult:
+def _authorize_sync(url: str, scope: Scope) -> AuthResult:
     # 1. Parse URL
     parsed = parse_url(url)
     if not parsed:
         return DENY("malformed_url")
 
     # 2. Check host against include/exclude
-    if scope.include_hosts and not _host_matches(parsed.host, scope.include_hosts):
+    if scope.include and not _listed(parsed.host, scope.include):
         return DENY("host_not_in_include_list")
 
-    if scope.exclude_hosts and _host_matches(parsed.host, scope.exclude_hosts):
+    if scope.exclude and _listed(parsed.host, scope.exclude):
         return DENY("host_in_exclude_list")
 
     # 3. Check port
@@ -97,7 +97,7 @@ def _authorize_sync(url: str, scope: ScopeDocument) -> AuthResult:
 
 ## Layer 2: DNS/IP Policy
 
-**File**: `src/ishastra/core/scope.py` — `_authorize()` lines 558-600
+**File**: `src/ishastra/security/authorization/scope.py` — `_authorize()` lines
 
 ### Checks Performed
 
@@ -131,7 +131,7 @@ def _authorize_sync(url: str, scope: ScopeDocument) -> AuthResult:
 ### Decision Logic
 
 ```python
-async def _authorize(url: str, scope: ScopeDocument) -> AuthResult:
+async def _authorize(url: str, scope: Scope) -> AuthResult:
     # Layer 1 checks first (sync)
     layer1 = _authorize_sync(url, scope)
     if layer1.is_final:
@@ -180,7 +180,7 @@ If any IP fails → entire host DENIED.
 
 ## Layer 3: Pinned Destination
 
-**File**: `src/ishastra/core/scope.py` — `ScopeGate.validate_outbound()` lines 1128-1172
+**File**: `src/ishastra/security/authorization/scope.py` — `ScopeGate.validate_outbound()` lines
 
 ### Purpose
 
@@ -234,7 +234,7 @@ def _select_destination(addresses: list[str], parsed: ParsedURL) -> Destination:
 
 ```python
 # Correct adapter usage
-async def fetch(url: str, scope: ScopeDocument) -> Response:
+async def fetch(url: str, scope: Scope) -> Response:
     dest = await gate.validate_outbound(url, scope)
 
     # Connect to PINNED IP
@@ -253,7 +253,7 @@ async def fetch(url: str, scope: ScopeDocument) -> Response:
 
 ## ContextVar Isolation (Multi-Tenancy)
 
-**File**: `src/ishastra/core/scope.py` — `ScopeContext` class lines 200-280
+**File**: `src/ishastra/security/authorization/scope.py` — `ScopeContext` class
 
 ### Problem
 
@@ -263,10 +263,10 @@ Workers run multiple assessments concurrently. Scope documents must not leak bet
 
 ```python
 # ContextVar holds current task's scope
-_current_scope: ContextVar[ScopeDocument | None] = ContextVar("_current_scope", default=None)
+_current_scope: ContextVar[Scope | None] = ContextVar("_current_scope", default=None)
 
 class ScopeContext:
-    def __init__(self, scope: ScopeDocument):
+    def __init__(self, scope: Scope):
         self.scope = scope
         self.token = None
 
@@ -298,7 +298,7 @@ async def run_assessment(assessment: Assessment):
 
 ## Observer Pattern (Ishastra Proof)
 
-**File**: `src/ishastra/core/scope.py` — `GateObserver` protocol lines 100-150
+**File**: `src/ishastra/security/authorization/scope.py` — `GateObserver` protocol
 
 ### Purpose
 
@@ -516,7 +516,7 @@ Tests real DNS resolution, network policy enforcement, and adapter integration.
 
 ## Performance Benchmarks
 
-```
+```text
 Scope Gate Check (Layer 1 only):     12,000 ops/s  p99 < 0.1ms
 Scope Gate Check (Layer 1+2, cached): 11,000 ops/s  p99 < 0.5ms
 Scope Gate Check (Layer 1+2+3):       10,000 ops/s  p99 < 1ms
@@ -546,7 +546,7 @@ pytest tests/benchmarks/test_scope_gate_bench.py --benchmark-only
 
 ```python
 import logging
-logging.getLogger("ishastra.core.scope").setLevel(logging.DEBUG)
+logging.getLogger("ishastra.security.authorization.scope").setLevel(logging.DEBUG)
 
 # Or via env
 ISHASTRA_LOG_LEVEL=DEBUG
@@ -558,8 +558,8 @@ Shows: Layer decisions, DNS resolution, IP matching, pinned destination selectio
 
 ## Related
 
-- [Scope Gate Configuration](../scope-gate/configuration.md)
-- [Policy-as-Code](../scope-gate/policies.md)
-- [Break Glass](../scope-gate/break-glass.md)
-- [TLA+ Verification](../scope-gate/tla-verification.md)
-- [API: Scope Management](../api/scope-management.md)
+- [Scope Gate Configuration](scope-gate/configuration.md)
+- [Policy-as-Code](scope-gate/policies.md)
+- [Break Glass](scope-gate/break-glass.md)
+- [TLA+ Verification](scope-gate/tla-verification.md)
+- [API: Scope Management](api/scope-management.md)

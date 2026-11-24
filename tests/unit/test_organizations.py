@@ -1,7 +1,7 @@
-"""Unit tests for Ishastra Organization Hierarchy.
+"""Unit tests for Ishastra Organization Hierarchy - Free/Open Source Model.
 
 Tests cover:
-- Org CRUD operations
+- Org CRUD operations (no tier parameter - all free)
 - Team CRUD within org
 - Membership add/remove/update
 - Role-based access checks
@@ -115,39 +115,33 @@ class TestRoleHierarchy:
 
 
 class TestOrgCRUD:
-    """Tests for organization create, read, update, delete."""
+    """Tests for organization create, read, update, delete - no tier."""
 
     @pytest_asyncio.fixture(autouse=True)
     async def setup(self, db):
         pass
 
     async def test_create_org_minimal(self):
-        """Create org with minimal params."""
+        """Create org with minimal params - no tier needed."""
         org = await create_org(name="Test Org")
         assert org.org_id.startswith("org_")
         assert org.name == "Test Org"
         assert org.slug == "test-org"
-        assert org.tier == "standard"
+        assert org.tier == "free"  # All orgs are free
         assert org.settings == {}
         assert org.created_at > 0
 
     async def test_create_org_with_all_params(self):
-        """Create org with all params."""
+        """Create org with all params - no tier parameter."""
         org = await create_org(
             name="Custom Org",
             slug="custom-org",
-            tier="elevated",
             settings={"key": "value"},
         )
         assert org.name == "Custom Org"
         assert org.slug == "custom-org"
-        assert org.tier == "elevated"
+        assert org.tier == "free"
         assert org.settings == {"key": "value"}
-
-    async def test_create_org_invalid_tier(self):
-        """Invalid tier raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid tier"):
-            await create_org(name="Test", tier="invalid")
 
     async def test_create_org_duplicate_slug(self):
         """Duplicate slug raises ValueError."""
@@ -202,18 +196,6 @@ class TestOrgCRUD:
         org2 = await create_org(name="Org Two", slug="org-two")
         with pytest.raises(ValueError, match="already exists"):
             await update_org(org2.org_id, slug="org-one")
-
-    async def test_update_org_tier(self):
-        """Update org tier."""
-        org = await create_org(name="Test", tier="standard")
-        updated = await update_org(org.org_id, tier="unlimited")
-        assert updated.tier == "unlimited"
-
-    async def test_update_org_invalid_tier(self):
-        """Update with invalid tier raises ValueError."""
-        org = await create_org(name="Test")
-        with pytest.raises(ValueError, match="Invalid tier"):
-            await update_org(org.org_id, tier="invalid")
 
     async def test_update_org_settings(self):
         """Update org settings."""
@@ -823,8 +805,8 @@ class TestFullHierarchyFlow:
     async def test_complete_org_hierarchy(self):
         """Test creating org, teams, members and checking permissions."""
 
-        org = await create_org(name="Acme Corp", slug="acme", tier="elevated")
-        assert org.tier == "elevated"
+        org = await create_org(name="Acme Corp", slug="acme")
+        assert org.tier == "free"
 
         eng_team = await create_team(org_id=org.org_id, name="Engineering", slug="eng")
         sec_team = await create_team(org_id=org.org_id, name="Security", slug="sec")

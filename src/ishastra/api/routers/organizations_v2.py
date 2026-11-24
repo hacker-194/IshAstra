@@ -36,7 +36,6 @@ from ishastra.api.schemas import (
 from ishastra.config import get_settings
 from ishastra.core import invitations
 from ishastra.core.organizations import (
-    ORG_TIER_ORDER,
     VALID_ROLES,
     VALID_STATUSES,
     add_member,
@@ -123,14 +122,10 @@ async def create_organization_v2(
     tenant: Tenant = Depends(require_auth),
     _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
-    """Create a new organization. The creator becomes org_admin."""
-    if req.tier not in ORG_TIER_ORDER:
-        raise HTTPException(status_code=400, detail=f"Invalid tier. Must be one of: {list(ORG_TIER_ORDER)}")
-
+    """Create a new organization. The creator becomes org_admin. All orgs are free/unlimited."""
     org = await create_org(
         name=req.name,
         slug=req.slug,
-        tier=req.tier,
         settings=req.settings or {},
     )
 
@@ -139,7 +134,7 @@ async def create_organization_v2(
 
     await audit_async(
         tenant,
-        {"event": "org_created", "org_id": org.org_id, "name": req.name, "tier": req.tier},
+        {"event": "org_created", "org_id": org.org_id, "name": req.name},
     )
 
     return _org_to_response(org)
@@ -213,7 +208,7 @@ async def update_organization_v2(
     caller: Tenant = Depends(require_auth),
     _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
-    """Update organization. Requires org_admin."""
+    """Update organization. Requires org_admin. Tier is fixed to 'free' (all features unlimited)."""
 
     settings = req.settings
     if settings is not None:
@@ -226,7 +221,6 @@ async def update_organization_v2(
         org_id,
         name=req.name,
         slug=req.slug,
-        tier=req.tier,
         settings=settings,
     )
 

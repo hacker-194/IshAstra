@@ -1,4 +1,3 @@
-
 """
 Ishastra Integration Connectors - Usage Examples
 
@@ -37,13 +36,11 @@ SAMPLE_FINDING = {
         "confidence": "high",
         "verification": "verified",
         "evidence": (
-            "Parameter 'username' vulnerable to boolean-based blind SQL injection. "
-            "Payload: ' OR '1'='1"
+            "Parameter 'username' vulnerable to boolean-based blind SQL injection. Payload: ' OR '1'='1"
         ),
         "fingerprint": "a1b2c3d4e5f6",
         "remediation": (
-            "Use parameterized queries / prepared statements. "
-            "Validate and sanitize all user inputs."
+            "Use parameterized queries / prepared statements. Validate and sanitize all user inputs."
         ),
     },
     "job": {
@@ -64,7 +61,6 @@ def create_siem_payloads():
     """Create sample payloads for SIEM connectors."""
 
     single = SAMPLE_FINDING.copy()
-
 
     batch = {
         "findings": [
@@ -94,7 +90,6 @@ async def example_siem_connectors():
     single, batch = create_siem_payloads()
     cancel = threading.Event()
 
-
     print("1. Splunk HEC:")
     splunk_config = SplunkHECConfig(
         enabled=True,
@@ -108,7 +103,6 @@ async def example_siem_connectors():
     )
     splunk = get_connector("splunk_hec")
     if splunk:
-
         splunk.config = splunk_config
         try:
             result = splunk.send(batch, timeout=30.0, cancel=cancel)
@@ -117,7 +111,6 @@ async def example_siem_connectors():
             print(f"   Details: {result.details}")
         except Exception as e:
             print(f"   Error (expected without real Splunk): {e}")
-
 
     print("\n2. Elasticsearch (ECS format):")
     elastic_config = ElasticConfig(
@@ -135,7 +128,6 @@ async def example_siem_connectors():
             print(f"   Result: {result.message}")
         except Exception as e:
             print(f"   Error (expected without real Elastic): {e}")
-
 
     print("\n3. Datadog Logs:")
     datadog_config = DatadogConfig(
@@ -155,9 +147,9 @@ async def example_siem_connectors():
         except Exception as e:
             print(f"   Error (expected without real Datadog): {e}")
 
-
     print("\n4. Azure Sentinel:")
     import base64
+
     sentinel_config = SentinelConfig(
         enabled=True,
         workspace_id="your-workspace-id",
@@ -181,7 +173,6 @@ async def example_ticketing_connectors():
     single, batch = create_siem_payloads()
     cancel = threading.Event()
 
-
     print("1. Jira:")
     jira_config = JiraConfig(
         enabled=True,
@@ -203,7 +194,6 @@ async def example_ticketing_connectors():
         except Exception as e:
             print(f"   Error (expected without real Jira): {e}")
 
-
     print("\n2. GitHub Issues:")
     github_config = GitHubIssuesConfig(
         enabled=True,
@@ -223,7 +213,6 @@ async def example_ticketing_connectors():
         except Exception as e:
             print(f"   Error (expected without real GitHub): {e}")
 
-
     print("\n3. GitLab Issues:")
     gitlab_config = GitLabIssuesConfig(
         enabled=True,
@@ -242,7 +231,6 @@ async def example_ticketing_connectors():
             print(f"   Issue: {result.details}")
         except Exception as e:
             print(f"   Error (expected without real GitLab): {e}")
-
 
     print("\n4. ServiceNow (with CMDB linking):")
     servicenow_config = ServiceNowConfig(
@@ -276,7 +264,6 @@ async def example_chatops_connectors():
     single, _ = create_siem_payloads()
     cancel = threading.Event()
 
-
     print("1. Slack (Webhook):")
     slack_config = SlackConfig(
         enabled=True,
@@ -294,7 +281,6 @@ async def example_chatops_connectors():
         except Exception as e:
             print(f"   Error (expected without real Slack): {e}")
 
-
     print("\n2. Microsoft Teams:")
     teams_config = TeamsConfig(
         enabled=True,
@@ -308,7 +294,6 @@ async def example_chatops_connectors():
             print(f"   Result: {result.message}")
         except Exception as e:
             print(f"   Error (expected without real Teams): {e}")
-
 
     print("\n3. Mattermost:")
     mattermost_config = MattermostConfig(
@@ -333,19 +318,20 @@ async def example_cicd_connectors():
 
     cancel = threading.Event()
 
-
     cicd_payload = {
-        "findings": [{
-            "category": "sql_injection",
-            "severity": "critical",
-            "title": "SQL Injection in Login",
-            "location": "https://api.example.com/v1/login",
-            "cwe": "CWE-89",
-            "confidence": "high",
-            "verification": "verified",
-            "evidence": "Test finding for CI/CD trigger",
-            "fingerprint": "test123",
-        }],
+        "findings": [
+            {
+                "category": "sql_injection",
+                "severity": "critical",
+                "title": "SQL Injection in Login",
+                "location": "https://api.example.com/v1/login",
+                "cwe": "CWE-89",
+                "confidence": "high",
+                "verification": "verified",
+                "evidence": "Test finding for CI/CD trigger",
+                "fingerprint": "test123",
+            }
+        ],
         "job": {
             "id": "job-2024-001",
             "profile": "owasp-top-10",
@@ -355,7 +341,6 @@ async def example_cicd_connectors():
         "target": "https://api.example.com",
         "timestamp": 1700000000.0,
     }
-
 
     print("1. GitHub Actions:")
     gh_actions_config = GitHubActionsConfig(
@@ -379,7 +364,6 @@ async def example_cicd_connectors():
         except Exception as e:
             print(f"   Error (expected without real GitHub): {e}")
 
-
     print("\n2. GitLab CI:")
     gitlab_ci_config = GitLabCIConfig(
         enabled=True,
@@ -400,4 +384,3 @@ async def example_cicd_connectors():
             print(f"   Result: {result.message}")
         except Exception as e:
             print(f"   Error (expected without real GitLab): {e}")
-

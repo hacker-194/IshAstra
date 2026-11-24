@@ -172,7 +172,7 @@ warn_unused_ignores = true
 
 
 source_paths = ["src"]
-only_mutate = ["src/ishastra/core/scope.py"]
+only_mutate = ["src/ishastra/security/authorization/scope.py"]
 pytest_add_cli_args = ["-o", "addopts=", "-q", "-p", "no:cacheprovider"]
 pytest_add_cli_args_test_selection = [
     "tests/unit/test_scope.py",

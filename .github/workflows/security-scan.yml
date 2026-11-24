@@ -62,7 +62,6 @@ jobs:
         id: bandit
         run: |
           bandit -r src/ --exit-zero -f json -o bandit-results.json
-          bandit -r src/ --exit-zero -f sarif -o bandit-results.sarif
           bandit -r src/ --exit-zero -f txt -o bandit-results.txt
 
       - name: Run Semgrep
@@ -80,13 +79,6 @@ jobs:
         id: pip-audit
         run: |
           pip-audit --format=json --output=pip-audit-results.json -r constraints.txt
-
-      - name: Upload Bandit SARIF
-        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
-        if: always() && hashFiles('bandit-results.sarif') != ''
-        with:
-          sarif_file: bandit-results.sarif
-          category: bandit
 
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d  # v3
@@ -112,7 +104,6 @@ jobs:
           path: |
             security-reports/
             bandit-results.json
-            bandit-results.sarif
             semgrep-results.json
             semgrep-results.sarif
             safety-results.json

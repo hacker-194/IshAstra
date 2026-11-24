@@ -480,8 +480,15 @@ jobs:
         # here instead would skip the gate entirely.
         run: bandit -r src/ --exit-zero -f json -o bandit-results.json
       - name: pip-audit report
-        # Report only: security-gate fails closed on the report.
-        run: pip-audit -r constraints.txt -f json -o pip-audit-results.json || true
+        # Audit the runtime set the image actually installs. Resolving
+        # constraints.txt as a requirements file pulls in optional extras
+        # (angr, selenium, mitmproxy) and exceeds pip's resolver depth.
+        run: |
+          python -m venv /tmp/audit-venv
+          /tmp/audit-venv/bin/pip install -q --upgrade pip
+          /tmp/audit-venv/bin/pip install -q -c constraints.txt ".[postgres,k8s-jobs]"
+          /tmp/audit-venv/bin/pip install -q pip-audit
+          /tmp/audit-venv/bin/pip-audit --format=json --output=pip-audit-results.json || true
       - name: Upload scan reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()

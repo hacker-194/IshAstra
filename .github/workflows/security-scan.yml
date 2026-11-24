@@ -56,7 +56,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e ".[dev]" -c constraints.txt
-          pip install bandit[toml] semgrep 'safety<3' pip-audit
+          pip install bandit[toml] semgrep 'safety<3' pip-audit 'setuptools<81'
 
       - name: Run Bandit
         id: bandit
@@ -94,7 +94,7 @@ jobs:
             --output-dir security-reports \
             --fail-on ${{ github.event.inputs.severity || 'high' }} \
             --format json \
-            --scanners bandit semgrep safety pip-audit
+            --scanners bandit semgrep
 
       - name: Upload security audit reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

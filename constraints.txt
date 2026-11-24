@@ -75,7 +75,7 @@ opentelemetry-exporter-prometheus==0.65b0
 kubernetes==30.1.0
 
 # Tornado (transitive from mitmproxy)
-tornado==6.6.1
+tornado==6.5.10
 
 # Test and development
 pytest==9.1.1

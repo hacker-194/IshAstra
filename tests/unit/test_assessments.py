@@ -1487,27 +1487,21 @@ class TestTriageAssessment:
     ):
         """Test AI triage on finished job."""
 
-        mock_triage = MagicMock()
-        mock_triage.ai_enriched = False
-        mock_triage.to_dict.return_value = {
-            "findings": [],
-            "ai_enriched": False,
-        }
-
         with (
             patch(
                 "ishastra.api.routers.assessments.store.get_job",
                 new_callable=AsyncMock,
                 return_value=mock_completed_job.to_dict(),
             ),
-            patch("ishastra.api.routers.assessments.analyst.analyze_findings", return_value=mock_triage),
+            patch("ishastra.api.routers.assessments.is_enabled", return_value=True),
+            patch("ishastra.api.routers.assessments.advise", return_value="Advisory prose for findings"),
             patch("ishastra.api.routers.assessments.audit_async", new_callable=AsyncMock),
         ):
             result = await assessments.triage_assessment("job_completed_1", mock_tenant)
 
             assert result["job_id"] == "job_completed_1"
             assert result["findings_count"] == 2
-            assert result["ai_enriched"] is False
+            assert result["prose"] == "Advisory prose for findings"
 
     @pytest.mark.asyncio
     async def test_triage_assessment_wrong_state(
@@ -1516,10 +1510,13 @@ class TestTriageAssessment:
         mock_job: Job,
     ):
         """Test triage on active job raises 409."""
-        with patch(
-            "ishastra.api.routers.assessments.store.get_job",
-            new_callable=AsyncMock,
-            return_value=mock_job.to_dict(),
+        with (
+            patch(
+                "ishastra.api.routers.assessments.store.get_job",
+                new_callable=AsyncMock,
+                return_value=mock_job.to_dict(),
+            ),
+            patch("ishastra.api.routers.assessments.is_enabled", return_value=True),
         ):
             with pytest.raises(HTTPException) as exc:
                 await assessments.triage_assessment("job_abc123", mock_tenant)

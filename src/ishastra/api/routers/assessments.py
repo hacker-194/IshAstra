@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from ishastra import analyst
+from ishastra.core.ai import AIError, advise, is_enabled
 from ishastra.api import deps
 from ishastra.api.csrf import validate_csrf_token
 from ishastra.api.deps import (
@@ -774,22 +774,21 @@ async def triage_assessment(
     tenant: Tenant = Depends(require_auth),
     _csrf: bool = Depends(validate_csrf_token),
 ) -> dict[str, Any]:
-    """AI-analyst triage for a finished job's findings (advisory only).
+    """Local-model advisory triage for a finished job's findings (advisory only).
 
-    The analyst can only attach priorities, rationales and next steps to
-    fingerprints that exist. Without a configured provider the deterministic
-    findings are returned unchanged.
+    Returns prioritization and remediation questions. Requires ISHASTRA_AI_ENABLED=1.
     """
+    if not is_enabled():
+        raise HTTPException(status_code=503, detail="AI advisory disabled; set ISHASTRA_AI_ENABLED=1")
     job = await _get_job_or_404(job_id, tenant)
     if job["state"] not in ("completed", "partial"):
         raise HTTPException(status_code=409, detail=f"Job is {job['state']}; triage needs findings")
-    triage = analyst.analyze_findings(job["findings"])
-    await audit_async(tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": triage.ai_enriched})
-    return {
-        **triage.to_dict(),
-        "job_id": job_id,
-        "findings_count": len(job["findings"]),
-    }
+    try:
+        prose = advise(job, job["findings"])
+        await audit_async(tenant, {"event": "ai_triage", "job": job_id, "ai_enriched": True})
+        return {"prose": prose, "job_id": job_id, "findings_count": len(job["findings"])}
+    except AIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @router.get(

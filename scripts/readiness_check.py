@@ -105,7 +105,8 @@ def main() -> int:
     api_port = free_port()
     gate_port = free_port()
     api_key = secrets.token_urlsafe(32)
-    hmac_key = secrets.token_urlsafe(32)
+    # Hex: a urlsafe token can start with "-", which argparse reads as an option.
+    hmac_key = secrets.token_hex(32)
     encryption_key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     processes: list[subprocess.Popen] = []
 

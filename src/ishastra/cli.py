@@ -400,13 +400,12 @@ def _run_assess_submit(args: argparse.Namespace) -> int:
             print(f"error: invalid auth configuration: {exc}", file=sys.stderr)
             return 3
 
-    gate: proof.Gate | None = None
     grant: proof.Grant | None = None
     loaded_scope: scope_module.Scope | None
     if args.grant:
         try:
             grant = proof.load_grant(args.grant)
-            gate = proof.Gate(
+            proof.Gate(
                 grant,
                 signing_key=_gate_key(args.gate_key) if args.gate_key else "",
                 actor=args.actor,
@@ -491,6 +490,7 @@ def _run_assess_submit(args: argparse.Namespace) -> int:
     # Submit to queue
     try:
         import asyncio
+
         from ishastra.core.queue import get_assessment_queue
 
         queue = get_assessment_queue()
@@ -507,7 +507,7 @@ def _run_assess_submit(args: argparse.Namespace) -> int:
     print(f"job submitted: {job.id}")
     print(f"  target: {args.target}")
     print(f"  profile: {args.profile}")
-    print(f"  status: queued")
+    print("  status: queued")
     print(f"  check status with: ishastra assess status --job-id {job.id}")
     return 0
 
@@ -534,14 +534,14 @@ def _run_assess_status(args: argparse.Namespace) -> int:
 
     try:
         import asyncio
+
         from ishastra.core import store
 
         store.configure(settings.db_path)
 
         async def get_status():
             await store.get_database()
-            job = await store.get_job(args.job_id, tenant=args.tenant or None)
-            return job
+            return await store.get_job(args.job_id, tenant=args.tenant or None)
 
         job = asyncio.run(_close_store_after(get_status()))
     except Exception as exc:
@@ -575,6 +575,7 @@ def _run_assess_list(args: argparse.Namespace) -> int:
 
     try:
         import asyncio
+
         from ishastra.core import store
 
         store.configure(settings.db_path)
@@ -1002,8 +1003,9 @@ def _run_worker(args: argparse.Namespace) -> int:
 
 def _run_gateway(args: argparse.Namespace) -> int:
     """Run the egress gateway (CONNECT proxy) for worker network."""
-    from ishastra.security.egress.gateway import main as gateway_main
     import asyncio
+
+    from ishastra.security.egress.gateway import main as gateway_main
 
     return asyncio.run(gateway_main())
 

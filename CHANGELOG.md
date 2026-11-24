@@ -23,6 +23,8 @@
 
 ### Security
 
+- Runtime dependencies moved to OpenTelemetry 1.45.2 / 0.66b2, clearing
+  CVE-2026-114603 and CVE-2026-126360 in `opentelemetry-api` 1.44.0.
 - Rules of engagement are now enforced instead of merely validated:
   - An unparseable `testing_hours` schedule is rejected when the scope loads,
     and enforcement fails closed (a scan is denied) rather than allowing every

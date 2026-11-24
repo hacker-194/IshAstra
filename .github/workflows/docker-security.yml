@@ -70,6 +70,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+                        # PEP 440 refs (v4.0.0rc1) are not SemVer; treat them as raw tags
+            type=match,pattern=v(.*),group=1
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha

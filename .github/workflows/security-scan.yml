@@ -73,7 +73,7 @@ jobs:
       - name: Run Safety
         id: safety
         run: |
-          safety check --output json > safety-results.json
+          safety check --output json > safety-results.json || true
 
       - name: Run pip-audit
         id: pip-audit

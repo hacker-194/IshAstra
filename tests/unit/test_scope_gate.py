@@ -394,7 +394,7 @@ class TestScopeGateValidateOutbound:
         with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com/", scope)
 
-        assert result.allowed is True, "URL without trailing dot should match scope with trailing dot after normalization"
+        assert result.allowed is True, "URL without trailing dot matches scope with trailing dot"
 
     def test_validate_outbound_trailing_dot_scope_without_dot(self):
         """Scope without trailing dot matches URL with trailing dot (normalization)."""
@@ -410,7 +410,7 @@ class TestScopeGateValidateOutbound:
         with patch("ishastra.security.authorization.scope.resolve_sync", return_value=["93.184.216.34"]):
             result = ScopeGate.validate_outbound("https://example.com./", scope)
 
-        assert result.allowed is True, "Scope without trailing dot should match URL with trailing dot after normalization"
+        assert result.allowed is True, "Scope without trailing dot matches URL with trailing dot"
 
     def test_validate_outbound_http_default_port_80(self):
         """HTTP defaults to port 80."""

@@ -747,5 +747,3 @@ class UsageReportModel(BaseModel):
     schedules_count: int
     schedules_limit: int
     overages: dict[str, int] = Field(default_factory=dict)
-
-

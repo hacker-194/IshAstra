@@ -100,7 +100,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The base stack starts the API (`http://127.0.0.1:8000`), PostgreSQL, Redis, Prometheus (`:9090`), Grafana (`:3000`), Jaeger and nginx. Keycloak is behind the `sso` profile, and the host firewall is behind the `firewall` profile. See [Docker Compose](docker-compose.md) for ports, profiles, and the first-scan walkthrough.
+The base stack starts the API (`http://127.0.0.1:8000`), PostgreSQL, Redis, Prometheus (`:9090`), Grafana (`:3000`), Jaeger and nginx. Keycloak is behind the `sso` profile, and the host firewall is behind the `firewall` profile. See [Docker Compose](../deployment/docker-compose.md) for ports, profiles, and the first-scan walkthrough.
 
 ## Kubernetes
 

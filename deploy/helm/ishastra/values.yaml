@@ -908,9 +908,18 @@ rbac:
       verbs: ["get", "list", "watch"]
 
   roleRules:
+    # Read-only discovery. The API never writes services or endpoints, and write
+    # access there would allow traffic interception (Trivy KSV-0056).
     - apiGroups: [""]
-      resources: ["configmaps", "secrets", "pods", "services", "endpoints"]
-      verbs: ["get", "list", "watch", "create", "update", "patch"]
+      resources: ["configmaps", "secrets", "pods"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources: ["pods/log"]
+      verbs: ["get"]
+    # k8s-jobs mode creates one Job per assessment and deletes it on completion.
+    - apiGroups: ["batch"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "delete"]
     - apiGroups: ["apps"]
       resources: ["deployments", "replicasets", "statefulsets"]
       verbs: ["get", "list", "watch"]

@@ -1,6 +1,6 @@
 # Schema migrations
 
-Ishastra documents its schema-migration equivalent rather than depending on
+IshAstra documents its schema-migration equivalent rather than depending on
 Alembic. This is the deliberate choice for a self-contained deployment: no
 migration toolchain to pin, no separate `alembic upgrade` step to forget.
 

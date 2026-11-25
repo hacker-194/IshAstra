@@ -214,7 +214,7 @@ The command is implemented in `src/ishastra/cli.py` under the `standby-promote` 
 | `Worker lease held by another process` | `pgrep -af ishastra` on standby; kill stale process |
 | `Audit chain verification failed` | Wrong `ISHASTRA_AUDIT_HMAC_KEY` in standby's `.env` |
 | `Scope document not loaded` | Copy `scope.json` from primary; check path in `.env` |
-| `Schema version mismatch` | Run `alembic upgrade head` on standby before promotion |
+| `Schema version mismatch` | Start the standby once so the schema upgrades automatically, then re-run promotion |
 
 ---
 

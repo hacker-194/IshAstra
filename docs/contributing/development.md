@@ -2,7 +2,7 @@
 
 # Development Guide
 
-Complete guide for contributing to Ishastra.
+Complete guide for contributing to IshAstra.
 
 ## Quick Start
 
@@ -43,7 +43,7 @@ ishastra/
 ├── src/
 │   ├── ishastra/
 │   │   ├── api/           # FastAPI REST API
-│   │   ├── core/          # Scope Gate, Ishastra Proof, auth
+│   │   ├── core/          # Scope Gate, IshAstra Proof, auth
 │   │   ├── workers/       # Celery workers
 │   │   ├── adapters/      # Built-in & external adapters
 │   │   ├── models/        # SQLAlchemy + Pydantic
@@ -181,9 +181,9 @@ volumes:
 ```
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
-docker compose -f docker-compose.dev.yml exec api alembic upgrade head
-curl http://localhost:8000/health
+# The repository ships one compose stack; there is no docker-compose.dev.yml.
+docker compose up -d
+curl http://localhost:8000/api/health
 ```
 
 ### Native Python (Alternative)
@@ -199,15 +199,14 @@ pip install -e ".[dev]"
 # Install Rust core
 cd src/ishastra-rust && cargo build --release && cd ../..
 
-# Run migrations
-alembic upgrade head
+# Schema upgrades run automatically at startup; no separate migration command exists.
 
 # Run API
-uvicorn ishastra.api.main:app --reload --port 8000
+ishastra serve --reload --port 8000
 
 # Run worker (separate terminal)
 ```bash
-# Ishastra worker uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
+# IshAstra worker uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
 ishastra worker --worker-count 3
 ```
 
@@ -215,16 +214,16 @@ ishastra worker --worker-count 3
 
 ```bash
 # Create new migration
-alembic revision --autogenerate -m "add finding status index"
+# Edit src/ishastra/core/store.py (MIGRATIONS / MIGRATIONS_PG) and bump schema_version.
 
 # Apply migrations
-alembic upgrade head
+# The store applies the schema chain at startup.
 
 # Rollback
-alembic downgrade -1
+# Forward-only schema: restore a backup to roll back.
 
 # Show history
-alembic history
+# See the ordered statement lists in src/ishastra/core/store.py.
 ```
 
 ## Adding a New Adapter
@@ -311,7 +310,7 @@ export ISHASTRA_LOG_LEVEL=DEBUG
 ```bash
 # Run worker with debug
 # Run worker with debug (uses Redis Streams queue when ISHASTRA_QUEUE_MODE=redis-streams)
-# Ishastra worker now uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
+# IshAstra worker now uses the durable Redis Streams queue (configured via ISHASTRA_QUEUE_MODE=redis-streams)
 ishastra worker --worker-count 3
 # or with celery pool (Redis required):
 # celery -A ishastra.workers.celery_app worker -l info

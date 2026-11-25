@@ -1,11 +1,11 @@
-# Fly.io Deployment Guide for Ishastra (Testing)
+# Fly.io Deployment Guide for IshAstra (Testing)
 
-Deploy Ishastra to Fly.io for free testing — no credit card required.
+Deploy IshAstra to Fly.io for free testing — no credit card required.
 
 ## Prerequisites
 
 - Fly.io account: `fly auth signup` (email only)
-- GitHub repo with Ishastra code
+- GitHub repo with IshAstra code
 - Domain name (optional, for custom domain)
 
 ---
@@ -171,7 +171,7 @@ file survives redeploys, and image builds stay reproducible in CI.
 cat > scope.json << 'EOF'
 {
   "version": 2,
-  "program": "Ishastra Test Program",
+  "program": "IshAstra Test Program",
   "authorized_by": "Your Name",
   "authorization_ref": "TEST-2026-001",
   "include": ["ishatra.fly.dev"],

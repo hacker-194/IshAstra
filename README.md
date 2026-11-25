@@ -11,9 +11,9 @@
 [![License](https://img.shields.io/github/license/hacker-194/IshAstra?style=for-the-badge&color=2563eb)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/hacker-194/IshAstra/ci.yml?style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/hacker-194/IshAstra/actions)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Kubernetes](https://img.shields.io/badge/kubernetes-1.28%2B-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-1.25%2B-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io)
 
-[![TLA+](https://img.shields.io/badge/TLA%2B-model--checked-8b5cf6?style=flat-square)](docs/tla)
+[![TLA+](https://img.shields.io/badge/TLA%2B-model--checked-8b5cf6?style=flat-square)](docs/scope-gate/tla-verification.md)
 [![Ed25519](https://img.shields.io/badge/evidence-Ed25519--signed-0ea5e9?style=flat-square)](#signed-evidence-bundles)
 [![SARIF](https://img.shields.io/badge/reports-SARIF-22c55e?style=flat-square)](#why-ishastra)
 [![Status](https://img.shields.io/badge/status-pilot-ready-22c55e?style=flat-square)](docs/quickstart/production.md)
@@ -105,7 +105,7 @@ Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch th
 > The package is not yet published to PyPI, so install from the repository.
 
 ```bash
-git clone https://github.com/hacker-194/IshAstra
+git clone https://github.com/hacker-194/IshAstra.git
 cd IshAstra
 python3 -m venv .venv && . .venv/bin/activate
 pip install -c constraints.txt -e .
@@ -119,7 +119,7 @@ The demo writes its own **Ed25519-signed scope** (localhost only), generates an 
 The bundled GitHub Action runs a scoped assessment and uploads SARIF:
 
 ```yaml
-- uses: hacker-194/IshAstra@master  # pin to a commit SHA in production
+- uses: hacker-194/IshAstra@main  # pin to a commit SHA in production
   with:
     target: https://staging.example.com
     scope-file: scope.json          # signed; the gate refuses anything else
@@ -268,7 +268,7 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 | **Free tier (Oracle)**     | `./scripts/bootstrap-free.sh`                                  | $0/month |
 | **Single-host production** | systemd or Compose, one writer                                 |   Low    |
 | **Local dev**              | `docker compose up -d` (after setting the required passwords)  |   Free   |
-| **Kind / Minikube**        | `./scripts/bootstrap-kind.sh`                                  |   Free   |
+| **Kubernetes (Helm)**      | `helm install ishastra ./deploy/helm/ishastra -n ishastra --create-namespace` | Varies |
 
 <details>
 <summary><b>☁️ Free tier: $0/month on Oracle Cloud Always Free</b></summary>
@@ -277,7 +277,7 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 
 ```bash
 # One-shot bootstrap on Oracle Cloud Always Free
-git clone https://github.com/hacker-194/IshAstra
+git clone https://github.com/hacker-194/IshAstra.git
 cd IshAstra
 chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
@@ -304,7 +304,7 @@ chmod +x scripts/bootstrap-free.sh
 
 ```bash
 cp .env.example .env
-# Set POSTGRES_PASSWORD, GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD in .env
+# Set POSTGRES_PASSWORD and GRAFANA_PASSWORD in .env
 docker compose up -d
 # API     → http://localhost:8000
 # Grafana → http://localhost:3000  (log in with GRAFANA_PASSWORD)
@@ -383,7 +383,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 - 🔒 [Security Policy](SECURITY.md): vulnerability disclosure
 - 🔍 [Security Review](docs/security-review.md)
-- 📐 [TLA+ Verification](docs/tla)
+- 📐 [TLA+ Verification](docs/scope-gate/tla-verification.md)
 
 > [!IMPORTANT]
 > IshAstra is built for authorized testing. Only assess systems you own or have explicit permission to test.

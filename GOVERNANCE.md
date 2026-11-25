@@ -191,7 +191,7 @@ Tracked quarterly and reported in maintainer meetings:
 
 ## Appendix E: Funding & Sustainability
 
-Ishastra is **completely free** (Apache-2.0, single FREE tier with all features).
+IshAstra is **completely free** (Apache-2.0, single FREE tier with all features).
 No commercial tiers, no revenue share, no feature gating.
 
 Sustainability model:
@@ -231,7 +231,7 @@ Mitigations:
 
 ## Appendix G: Compliance Mapping
 
-| Requirement | Ishastra Feature | Evidence |
+| Requirement | IshAstra Feature | Evidence |
 |-------------|------------------|----------|
 | SOC 2 CC6.1 (access control) | Capability tokens, RLS | `security/capabilities/`, `core/pg_rls.py` |
 | SOC 2 CC7.2 (monitoring) | Audit chain, monitoring | `core/audit_chain.py`, `core/monitor.py` |

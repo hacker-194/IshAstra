@@ -2,7 +2,7 @@
 
 # Release Process
 
-Ishastra release workflow from development to production.
+IshAstra release workflow from development to production.
 
 ## Versioning
 
@@ -201,11 +201,11 @@ helm rollback ishastra 3 -n ishastra
 kubectl rollout undo deployment/ishastra-api -n ishastra
 kubectl rollout undo deployment/ishastra-worker -n ishastra
 
-# Database rollback (if migration)
-alembic downgrade -1  # or specific revision
+# Database rollback (schema is forward-only)
+# Restore the pre-deploy backup; there is no downgrade command.
 
 # Verify
-curl https://api.ishastra.dev/health
+curl https://api.example.com/health
 ```
 
 ## Release Artifacts
@@ -238,7 +238,7 @@ cosign verify oci://ghcr.io/ishastra/charts/ishastra:v3.6.0
 ## Communication Template
 
 ```markdown
-# Ishastra v3.6.0 Released 🎉
+# IshAstra v3.6.0 Released 🎉
 
 ## Highlights
 - ✨ New feature: Custom adapter SDK

@@ -2,9 +2,9 @@
 
 # Helm Deployment
 
-Deploy Ishastra using the official Helm chart.
+Deploy IshAstra using the official Helm chart.
 
-> **Scaling warning:** Ishastra is single-writer. Run one API/worker process per
+> **Scaling warning:** IshAstra is single-writer. Run one API/worker process per
 > database and leave `hpa.enabled` / `autoscaling.enabled` off. Values files
 > that raise `replicaCount` or enable autoscaling describe an unsupported
 > topology; see [Production deployment](../quickstart/production.md).
@@ -353,7 +353,7 @@ externalRedis:
 
 ### Database Connections
 
-Each Ishastra process keeps its own asyncpg pool, so the pool size has to fit the
+Each IshAstra process keeps its own asyncpg pool, so the pool size has to fit the
 whole fleet:
 
 | Env var | Default | Meaning |

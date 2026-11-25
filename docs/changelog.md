@@ -2,7 +2,7 @@
 
 # Changelog
 
-All notable changes to Ishastra are documented here.
+All notable changes to IshAstra are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Project adheres to [Semantic Versioning](https://semver.org/).
@@ -94,7 +94,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 ## [3.5.0] - 2024-01-15
 
 ### Added
-- **Ishastra Proof**: Cryptographic audit chain (Grant → Gate → Proof → Verify)
+- **IshAstra Proof**: Cryptographic audit chain (Grant → Gate → Proof → Verify)
 - **TLA+ Formal Verification**: 6 invariants model-checked over 21.4M states
 - **Break-Glass Dual Approval**: Emergency access with MFA and audit trail
 - **Free Tier Deployment**: Oracle Cloud ARM + Neon PostgreSQL + Upstash Redis

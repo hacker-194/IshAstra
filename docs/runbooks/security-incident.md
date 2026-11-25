@@ -4,10 +4,10 @@
 
 | Alert | Severity | Source |
 |-------|----------|--------|
-| `IshastraAuditChainVerificationFailed` | critical | Audit chain tampering detected |
-| `IshastraAuditChainLengthAnomaly` | warning | Audit chain length decreased |
-| `IshastraAuthFailureBurst` | critical | Authentication failure burst |
-| `IshastraCriticalFindingsNew` | warning | New critical findings detected |
+| `IshAstraAuditChainVerificationFailed` | critical | Audit chain tampering detected |
+| `IshAstraAuditChainLengthAnomaly` | warning | Audit chain length decreased |
+| `IshAstraAuthFailureBurst` | critical | Authentication failure burst |
+| `IshAstraCriticalFindingsNew` | warning | New critical findings detected |
 | Manual report | - | Tenant report, external researcher |
 
 ---
@@ -22,7 +22,7 @@
 | **Audit Tampering** | Modified/deleted audit logs | SEV-1 |
 | **Infrastructure Compromise** | Container escape, node access | SEV-1 |
 | **Data Exfiltration** | Bulk findings download | SEV-1 |
-| **Vulnerability in Ishastra** | RCE, SQLi, auth bypass in platform | SEV-1 |
+| **Vulnerability in IshAstra** | RCE, SQLi, auth bypass in platform | SEV-1 |
 | **Denial of Service** | Resource exhaustion, queue saturation | SEV-2 |
 
 ---
@@ -188,7 +188,7 @@ kubectl get secret ishastra-secrets -n ishastra \
 
 ### Internal SEV-1 Alert
 ```
-[SEV-1] Ishastra Security Incident
+[SEV-1] IshAstra Security Incident
 Time: <ISO8601 timestamp>
 Type: <Findings Exposure / Scope Bypass / Credential Compromise / etc.>
 Impact: <Number of tenants affected, data exposed>
@@ -202,7 +202,7 @@ War Room: <Video conference link>
 
 ### Customer Notification (If Data Exposed)
 ```
-Subject: Security Incident Notification - Ishastra Assessment Platform
+Subject: Security Incident Notification - IshAstra Assessment Platform
 
 Date: <Date>
 Incident ID: INC-YYYYMMDD-XXX

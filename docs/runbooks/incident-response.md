@@ -1,7 +1,7 @@
 # Incident Response Runbook
 
 ## Overview
-This runbook covers incident response procedures for Ishastra platform incidents.
+This runbook covers incident response procedures for IshAstra platform incidents.
 
 ---
 
@@ -123,7 +123,7 @@ systemctl restart ishastra
 4. Check Redis connectivity (if used)
 
 **Recovery**:
-- Restart Ishastra service
+- Restart IshAstra service
 - Re-queue cancelled jobs if needed
 - Increase `ISHASTRA_QUEUE_MAX` if queue saturation
 
@@ -144,7 +144,7 @@ redis-cli ping
 # 2. Check Redis logs
 journalctl -u redis -f
 
-# 3. If ISHASTRA_REDIS_REQUIRED=false, Ishastra falls back to in-memory
+# 3. If ISHASTRA_REDIS_REQUIRED=false, IshAstra falls back to in-memory
 #    Verify: grep "RateLimitMiddleware" /var/log/ishastra.log
 
 # 4. Restart Redis
@@ -247,7 +247,7 @@ curl -X POST https://your-webhook-endpoint.com/ishastra-webhook \
 
 ### SEV-1 Internal Alert
 ```
-[SEV-1] Ishastra Platform Incident
+[SEV-1] IshAstra Platform Incident
 Time: <timestamp>
 Issue: <brief description>
 Impact: <customer impact>
@@ -258,7 +258,7 @@ War Room: <link>
 
 ### Customer Notification (if data exposed)
 ```
-Subject: Security Incident Notification - Ishastra Assessment Platform
+Subject: Security Incident Notification - IshAstra Assessment Platform
 
 We detected an unauthorized access attempt on <date>. 
 Your assessment data for target <target> may have been accessed.

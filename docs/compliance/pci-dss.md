@@ -1,6 +1,6 @@
-> **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
+> **Status: control mapping, not certification.** IshAstra has no SOC 2, ISO 27001,
 > or PCI DSS attestation and no paid bug bounty. MFA at IdP is enforced by an external
-> identity provider when configured; Ishastra does not implement MFA at IdP. API
+> identity provider when configured; IshAstra does not implement MFA at IdP. API
 > authentication is API keys plus OIDC/SAML browser sessions; there is no
 > API-key-to-OIDC session exchange. TLS is terminated by the operator. PostgreSQL RLS is
 > tested at the database layer and is not a substitute for application tenant
@@ -10,7 +10,7 @@
 
 # PCI DSS 4.0.1 Control Mapping
 
-Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.0.1.
+Mapping of IshAstra controls to Payment Card Industry Data Security Standard v4.0.1.
 
 ## Control Summary
 
@@ -25,13 +25,13 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | Req 7: Access Control | 6 | 0 | 0 | 0 | RBAC, Scope Gate, break-glass |
 | Req 8: Identity & Authentication | 8 | 0 | 0 | 0 | API keys, OIDC session, MFA at IdP |
 | Req 9: Physical Access | 0 | 0 | 0 | 5 | Cloud provider responsibility |
-| Req 10: Logging & Monitoring | 10 | 1 | 0 | 0 | Ishastra Proof, immutable audit |
+| Req 10: Logging & Monitoring | 10 | 1 | 0 | 0 | IshAstra Proof, immutable audit |
 | Req 11: Testing | 8 | 0 | 0 | 0 | Automated + manual pentest |
 | Req 12: Information Security Policy | 6 | 0 | 1 | 0 | Policy-as-Code, documented |
 
 ## Requirement 1: Network Security Controls
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 1.1.1 | Network security controls | ✅ | Scope Gate default-deny, network policies |
 | 1.1.2 | Network diagram | ✅ | Architecture docs, data flow diagrams |
@@ -49,7 +49,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 2: Secure Configurations
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 2.1.1 | Default passwords | ✅ | No defaults, generated secrets |
 | 2.1.2 | Unnecessary services | ✅ | Distroless, minimal attack surface |
@@ -62,10 +62,10 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 3: Protect Stored Cardholder Data
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 3.1.1 | Data retention | ✅ | Configurable, crypto erase |
-| 3.2.1 | No CHD storage | ✅ | **Ishastra does not store CHD** - assessment platform only |
+| 3.2.1 | No CHD storage | ✅ | **IshAstra does not store CHD** - assessment platform only |
 | 3.2.2 | No SAD storage | ✅ | No sensitive authentication data |
 | 3.3.1 | Masking | ✅ | Finding sanitization, PII redaction |
 | 3.4.1 | Encryption at rest | ✅ | AES-256-GCM, sealed secrets |
@@ -73,11 +73,11 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 | 3.6.1 | Key procedures | ✅ | Documented, automated rotation |
 | 3.7.1 | Key storage | ✅ | HSM/KMS backed, never in code |
 
-*Note: Ishastra is a security assessment platform, not a payment processor. It does not store, process, or transmit cardholder data. This mapping shows how Ishastra's architecture supports PCI DSS requirements for systems that DO handle CHD.*
+*Note: IshAstra is a security assessment platform, not a payment processor. It does not store, process, or transmit cardholder data. This mapping shows how IshAstra's architecture supports PCI DSS requirements for systems that DO handle CHD.*
 
 ## Requirement 4: Encrypt Transmission
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 4.1.1 | Strong cryptography | ✅ | TLS at proxy, AES-256-GCM, ChaCha20-Poly1305 |
 | 4.1.2 | TLS at proxy | ✅ | Minimum TLS at proxy everywhere |
@@ -86,7 +86,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 5: Malware Protection
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 5.1.1 | Anti-malware | ✅ | Trivy, Grype, ClamAV in CI |
 | 5.1.2 | Periodic scans | ✅ | Per-commit, daily scheduled |
@@ -96,7 +96,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 6: Secure Development
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 6.1.1 | Secure SDLC | ✅ | TDD, threat modeling, TLA+ |
 | 6.2.1 | Vulnerability management | ✅ | Dependabot, Trivy, Grype, nuclei |
@@ -121,7 +121,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 7: Restrict Access by Business Need
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 7.1.1 | Need-to-know | ✅ | Scoped API keys, per-assessment tokens |
 | 7.1.2 | Least privilege | ✅ | RBAC roles, minimal scopes |
@@ -131,7 +131,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 8: Identify Users & Authenticate Access
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 8.1.1 | Unique IDs | ✅ | API key IDs, OIDC session subjects |
 | 8.1.2 | MFA at IdP | ✅ | Required for break-glass, admin |
@@ -151,9 +151,9 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 10: Log & Monitor All Access
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
-| 10.1.1 | Audit trails | ✅ | Ishastra Proof, immutable chain |
+| 10.1.1 | Audit trails | ✅ | IshAstra Proof, immutable chain |
 | 10.2.1 | Automated audit | ✅ | Per-request Scope Gate logging |
 | 10.2.2 | Log all access | ✅ | Every grant/gate/proof/verify |
 | 10.2.3 | Log admin | ✅ | All admin actions audited |
@@ -166,7 +166,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 11: Test Security Regularly
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 11.1.1 | Wireless | ❌ N/A | Cloud provider |
 | 11.2.1 | Internal vuln scan | ✅ | Trivy, Grype daily |
@@ -179,7 +179,7 @@ Mapping of Ishastra controls to Payment Card Industry Data Security Standard v4.
 
 ## Requirement 12: Information Security Policy
 
-| Sub-req | Title | Status | Ishastra Implementation |
+| Sub-req | Title | Status | IshAstra Implementation |
 |---------|-------|--------|---------------------|
 | 12.1.1 | Policy | ✅ | Policy-as-Code, documented |
 | 12.2.1 | Risk assessment | ✅ | Annual + per-release |
@@ -222,7 +222,7 @@ pci-evidence/
 
 ## SAQ Applicability
 
-For organizations using Ishastra as part of their assessment pipeline:
+For organizations using IshAstra as part of their assessment pipeline:
 
 | SAQ Type | Applicable? | Notes |
 |----------|-------------|-------|
@@ -232,10 +232,10 @@ For organizations using Ishastra as part of their assessment pipeline:
 | SAQ B-IP | ❌ | Not standalone terminal |
 | SAQ C | ❌ | Not payment application |
 | SAQ C-VT | ❌ | Not virtual terminal |
-| SAQ D | ✅ | Service provider - Ishastra as assessment tool |
+| SAQ D | ✅ | Service provider - IshAstra as assessment tool |
 | SAQ P2PE | ❌ | Not P2PE solution |
 
-**As a service provider**: Ishastra supports your SAQ D completion by providing:
+**As a service provider**: IshAstra supports your SAQ D completion by providing:
 - Network segmentation evidence (Req 1)
 - Secure configuration baselines (Req 2)
 - Encryption in transit/at rest (Req 3, 4)

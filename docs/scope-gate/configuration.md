@@ -1,4 +1,4 @@
-# NOTE: Ishastra does not implement MFA; enforce it at your identity provider.
+# NOTE: IshAstra does not implement MFA; enforce it at your identity provider.
 
 # Scope Gate Configuration
 
@@ -238,7 +238,7 @@ gate = ScopeGate(
     scope=scope,
     cache_ttl=300,
     max_cache_size=10000,
-    observers=[IshastraProofObserver(signer, key_id, storage, jwks_manager)],
+    observers=[IshAstraProofObserver(signer, key_id, storage, jwks_manager)],
 )
 
 # Or load from file

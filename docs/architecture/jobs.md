@@ -2,7 +2,7 @@
 
 # Job Orchestration Architecture
 
-How Ishastra manages assessment workflows, scheduling, and worker pools.
+How IshAstra manages assessment workflows, scheduling, and worker pools.
 
 ## Overview
 
@@ -368,7 +368,7 @@ curl -X POST -H "Authorization: Bearer $KEY" \
 
 ### Scaling
 
-Ishastra does not support autoscaling. One process owns the database's worker lease,
+IshAstra does not support autoscaling. One process owns the database's worker lease,
 so a second replica exits instead of sharing work. Raise `ISHASTRA_WORKERS`
 (adapter threads) and add CPU/RAM on the same host; do not apply the HPA
 manifests that older revisions of this page suggested.

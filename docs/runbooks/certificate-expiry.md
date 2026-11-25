@@ -2,7 +2,7 @@
 
 # Runbook: TLS Certificate Expiring Soon
 
-**Alert**: `IshastraCertExpiringSoon`
+**Alert**: `IshAstraCertExpiringSoon`
 **Severity**: Warning
 **Team**: Platform
 
@@ -73,7 +73,7 @@ cmctl renew ishastra-tls -n ishastra-system
 # Or create temporary self-signed (last resort)
 openssl req -x509 -nodes -days 30 -newkey rsa:2048 \
   -keyout /tmp/tls.key -out /tmp/tls.crt \
-  -subj "/CN=api.ishastra.dev"
+  -subj "/CN=api.example.com"
 kubectl create secret tls ishastra-tls-temp \
   --cert=/tmp/tls.crt --key=/tmp/tls.key \
   -n ishastra-system --dry-run=client -o yaml | kubectl apply -f -
@@ -91,19 +91,19 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: security@ishastra.dev
+    email: security@example.com
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
     - dns01:
         cloudflare:
-          email: dns@ishastra.dev
+          email: dns@example.com
           apiTokenSecretRef:
             name: cloudflare-api-token
             key: api-token
       selector:
         dnsZones:
-        - "ishastra.dev"
+        - "example.com"
 ```
 
 ```yaml
@@ -120,10 +120,10 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: api.ishastra.dev
+  commonName: api.example.com
   dnsNames:
-  - api.ishastra.dev
-  - grafana.ishastra.dev
+  - api.example.com
+  - grafana.example.com
   renewBefore: 720h  # 30 days
   privateKey:
     algorithm: ECDSA

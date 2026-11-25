@@ -1,6 +1,6 @@
 # Free Tier Deployment — $0/month Production
 
-Deploy **Ishastra** to Oracle Cloud Always Free + **Coolify** (self-hosted PaaS) with zero monthly cost.
+Deploy **IshAstra** to Oracle Cloud Always Free + **Coolify** (self-hosted PaaS) with zero monthly cost.
 
 > Sizes below use the **2 OCPU / 12 GB** Always Free Arm allowance (halved from
 > 4 OCPU / 24 GB in June 2026). Sign-up, reclamation and home-region rules are in
@@ -16,7 +16,7 @@ Deploy **Ishastra** to Oracle Cloud Always Free + **Coolify** (self-hosted PaaS)
 │  │  ┌─────────────────────────────────────────────────────────────┐   │    │
 │  │  │                      Coolify (Port 8000)                     │   │    │
 │  │  │  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────┐  │   │    │
-│  │  │  │PostgreSQL│  │  Redis   │  │   Ishastra │  │  Cloud-  │  │   │    │
+│  │  │  │PostgreSQL│  │  Redis   │  │   IshAstra │  │  Cloud-  │  │   │    │
 │  │  │  │(managed) │  │(managed) │  │  API/Worker│  │  flared  │  │   │    │
 │  │  │  └──────────┘  └──────────┘  └────────────┘  └──────────┘  │   │    │
 │  │  └─────────────────────────────────────────────────────────────┘   │    │
@@ -131,7 +131,7 @@ open https://ishastra.yourdomain.com
 
 ## Cost Breakdown
 
-| Service | Free Tier Limit | Ishastra Usage |
+| Service | Free Tier Limit | IshAstra Usage |
 |---------|----------------|----------------|
 | Oracle ARM Compute | 2 OCPU, 12 GB | Coolify + DB + API + Worker |
 | Oracle AMD Compute | 1/8 OCPU, 6 GB | Optional CI runner |

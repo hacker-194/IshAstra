@@ -205,10 +205,10 @@ limitations under the License.
 
 ---
 
-## Ishastra Copyright
+## IshAstra Copyright
 
 ```
-Copyright 2026 Ishastra Security, Inc.
+Copyright 2026 IshAstra Security, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -227,7 +227,7 @@ limitations under the License.
 
 ## Third-Party Licenses
 
-Ishastra includes components from the following projects. Licenses are included in their respective source directories and reproduced below.
+IshAstra includes components from the following projects. Licenses are included in their respective source directories and reproduced below.
 
 ### Runtime Dependencies
 
@@ -278,15 +278,15 @@ Ishastra includes components from the following projects. Licenses are included 
 
 ## NOTICE
 
-This product includes software developed by the Ishastra Project (https://ishastra.dev).
+This product includes software developed by the IshAstra Project (https://example.com).
 
-The Ishastra name and logo are trademarks of Ishastra Security, Inc.
+The IshAstra name and logo are trademarks of IshAstra Security, Inc.
 
 ---
 
 ## Contributor License Agreement
 
-By contributing to Ishastra, you agree that your contributions will be licensed under the Apache License 2.0. See [CONTRIBUTING.md](contributing/development.md) for details.
+By contributing to IshAstra, you agree that your contributions will be licensed under the Apache License 2.0. See [CONTRIBUTING.md](contributing/development.md) for details.
 
 ---
 
@@ -300,7 +300,7 @@ All source files should include this header:
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Ishastra Security, Inc.
+# Copyright 2026 IshAstra Security, Inc.
 ```
 
 ---

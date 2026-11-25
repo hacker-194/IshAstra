@@ -2,7 +2,7 @@
 
 # Scope Gate Architecture
 
-Deep dive into the authorization engine that makes Ishastra unique.
+Deep dive into the authorization engine that makes IshAstra unique.
 
 ## Overview
 
@@ -21,7 +21,7 @@ The Scope Gate is a **default-deny authorization layer** that validates every ou
 │  │        │                │                     │               │ │
 │  │        ▼                ▼                     ▼               │ │
 │  │  ┌─────────────────────────────────────────────────────────┐  │ │
-│  │  │              Observer (Ishastra Proof)                      │  │ │
+│  │  │              Observer (IshAstra Proof)                      │  │ │
 │  │  │  Receipts: grant → gate → proof → verify                │  │ │
 │  │  └─────────────────────────────────────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────────┘ │
@@ -166,7 +166,7 @@ Attacker controls example.com DNS:
   T=60: example.com → 169.254.169.254 (AWS metadata - DENIED by special-use)
   T=120: example.com → 127.0.0.1 (loopback - DENIED)
 
-Ishastra resolves ONCE at Layer 2, pins ALL IPs, validates ALL.
+IshAstra resolves ONCE at Layer 2, pins ALL IPs, validates ALL.
 If any IP fails → entire host DENIED.
 ```
 
@@ -296,7 +296,7 @@ async def run_assessment(assessment: Assessment):
 
 ---
 
-## Observer Pattern (Ishastra Proof)
+## Observer Pattern (IshAstra Proof)
 
 **File**: `src/ishastra/security/authorization/scope.py` — `GateObserver` protocol
 
@@ -332,10 +332,10 @@ class CheckContext:
     metadata: dict         # Custom fields
 ```
 
-### Built-in Observer: IshastraProofObserver
+### Built-in Observer: IshAstraProofObserver
 
 ```python
-class IshastraProofObserver:
+class IshAstraProofObserver:
     def __init__(self, signer: Ed25519Signer, storage: ProofStorage):
         self.signer = signer
         self.storage = storage

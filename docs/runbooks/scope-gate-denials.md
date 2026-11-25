@@ -2,7 +2,7 @@
 
 # Runbook: High Scope Gate Denial Rate
 
-**Alert**: `IshastraScopeGateDenialsHigh`
+**Alert**: `IshAstraScopeGateDenialsHigh`
 **Severity**: Warning
 **Team**: Platform
 

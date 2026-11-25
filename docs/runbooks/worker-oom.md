@@ -2,7 +2,7 @@
 
 # Runbook: Worker OOM Killed
 
-**Alert**: `IshastraWorkerOOMKilled`
+**Alert**: `IshAstraWorkerOOMKilled`
 **Severity**: Critical
 **Team**: Platform
 

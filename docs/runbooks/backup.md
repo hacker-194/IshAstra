@@ -2,7 +2,7 @@
 
 ## Overview
 
-This runbook covers automated backup procedures for Ishastra platform components including SQLite database, configurations, and secrets.
+This runbook covers automated backup procedures for IshAstra platform components including SQLite database, configurations, and secrets.
 
 **Backup Schedule:**
 - Database: Hourly WAL + Daily full snapshots
@@ -288,9 +288,9 @@ age -d -i /path/to/private-key s3://ishastra-backups/secrets/.../ishastra-secret
 
 | Alert | Condition | Severity |
 |-------|-----------|----------|
-| `IshastraBackupMissing` | No daily backup in 25h | critical |
-| `IshastraBackupVerificationFailed` | Verification cron exits non-zero | critical |
-| `IshastraBackupSizeAnomaly` | Backup size deviates >50% from 7-day avg | warning |
+| `IshAstraBackupMissing` | No daily backup in 25h | critical |
+| `IshAstraBackupVerificationFailed` | Verification cron exits non-zero | critical |
+| `IshAstraBackupSizeAnomaly` | Backup size deviates >50% from 7-day avg | warning |
 
 ---
 

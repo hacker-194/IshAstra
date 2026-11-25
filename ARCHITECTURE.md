@@ -1,12 +1,12 @@
-# Ishastra Architecture
+# IshAstra Architecture
 
-Ishastra is an **authorized security assessment platform** that enforces authorization before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
+IshAstra is an **authorized security assessment platform** that enforces authorization before every outbound connection. It runs real security tools against authorized targets, normalizes findings into a common model, and exports results as SARIF or evidence reports.
 
 ## High-Level Architecture (IshAstra 4.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Ishastra Platform (v4.0)                              │
+│                           IshAstra Platform (v4.0)                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐          │
@@ -27,7 +27,7 @@ Ishastra is an **authorized security assessment platform** that enforces authori
 │  ┌──────────────────────────────────────────────────────────────────────┐ │
 │  │                    SCOPE GATE (Authorization)                          │ │
 │  │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────────────────┐  │ │
-│  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer (Ishastra    │  │ │
+│  │  │ Layer 1 │ │ Layer 2 │ │  Layer 3 │ │    Observer (IshAstra    │  │ │
 │  │  │ URL/Host│ │  DNS/IP │ │ Pinned   │ │    Proof)                │  │ │
 │  │  │  Gate   │ │ Policy  │ │ Dest.    │ │                          │  │ │
 │  │  └─────────┘ └─────────┘ └──────────┘ └──────────────────────────┘  │ │
@@ -80,7 +80,7 @@ Ishastra is an **authorized security assessment platform** that enforces authori
 
 **Key Features**:
 - ContextVar-based per-task scope binding for multi-tenant isolation (`bound` context manager)
-- Observer pattern for Ishastra Proof receipting every gate decision
+- Observer pattern for IshAstra Proof receipting every gate decision
 - Atomic configuration reload — invalid documents never replace active policy
 - Signed documents: Ed25519 over canonical JSON, verified against a JWKS key set
   (`configure_signing`), plus a signed `issued_at` freshness bound
@@ -204,17 +204,17 @@ Ishastra is an **authorized security assessment platform** that enforces authori
 - `assessments` — job submission, polling, SARIF export, finding triage
 - `policies` — admin-only engagement policy CRUD
 - `monitoring` — target registration, scheduler, webhook alerts
-- `proof` — Ishastra Proof grant/verify endpoints
+- `proof` — IshAstra Proof grant/verify endpoints
 - `probe` — single-request security header grading
 
-### 8. Ishastra Proof (`src/ishastra/proof.py`)
+### 8. IshAstra Proof (`src/ishastra/proof.py`)
 
 **Artifacts**:
 - **Grant** — Ed25519-signed authorization record (who authorized what, hosts/networks/ports, validity window)
 - **Receipt** — hash-chained record of every gate decision (`{seq, grant_id, url, decision, reason, previous, hash}`)
 - **Proof Pack** — grant + receipts + gate public key + summary
 
-**Verification** (offline, no Ishastra install):
+**Verification** (offline, no IshAstra install):
 - `grant_signature` — grant signed by issuer
 - `issuer_trusted` — pinned issuer key
 - `chain` — receipts hash-chain intact
@@ -311,4 +311,4 @@ GET /api/assess/{id} → coverage, findings, verdict
 - **In-process queue by default** — `redis-streams` adds a durable queue shared by workers; `k8s-jobs` adds one Job per assessment and durable cancellation, but remains experimental
 - **PostgreSQL is experimental** — loop-aware pools and a single-host worker path are tested; no HA or multi-node support
 - **No multi-node guarantee** — multi-node scheduling, exactly-once execution and automated failover are not supported
-- **TLS termination** — Ishastra speaks HTTP; put behind reverse proxy, set `ISHASTRA_TRUSTED_PROXIES`
+- **TLS termination** — IshAstra speaks HTTP; put behind reverse proxy, set `ISHASTRA_TRUSTED_PROXIES`

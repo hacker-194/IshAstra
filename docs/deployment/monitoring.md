@@ -2,7 +2,7 @@
 
 # Monitoring & Observability
 
-Complete monitoring stack for Ishastra deployments.
+Complete monitoring stack for IshAstra deployments.
 
 ## Overview
 
@@ -12,7 +12,7 @@ Complete monitoring stack for Ishastra deployments.
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐  │
-│  │  Ishastra Pods  │───▶│  Prometheus  │───▶│  Alertmanager│───▶│  PagerDuty│  │
+│  │  IshAstra Pods  │───▶│  Prometheus  │───▶│  Alertmanager│───▶│  PagerDuty│  │
 │  │  /metrics    │    │  (scrape)    │    │  (route)     │    │  / Slack │  │
 │  └──────────────┘    └──────┬───────┘    └──────────────┘    └──────────┘  │
 │                             │                                               │
@@ -86,18 +86,18 @@ spec:
   - name: ishastra.rules
     rules:
     # API Availability
-    - alert: IshastraAPIDown
+    - alert: IshAstraAPIDown
       expr: up{job="ishastra-api",namespace="ishastra-system"} == 0
       for: 2m
       labels:
         severity: critical
         team: platform
       annotations:
-        summary: "Ishastra API is down"
+        summary: "IshAstra API is down"
         description: "API pod {{ $labels.pod }} has been down for 2 minutes"
-        runbook_url: "https://docs.ishastra.dev/runbooks/api-down"
+        runbook_url: "https://docs.example.com/runbooks/api-down"
 
-    - alert: IshastraAPIHighLatency
+    - alert: IshAstraAPIHighLatency
       expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="ishastra-api"}[5m])) > 2
       for: 5m
       labels:
@@ -107,7 +107,7 @@ spec:
         description: "p95 latency is {{ $value }}s"
 
     # Scope Gate
-    - alert: IshastraScopeGateDenialsHigh
+    - alert: IshAstraScopeGateDenialsHigh
       expr: rate(scope_gate_denials_total{namespace="ishastra-system"}[5m]) > 10
       for: 5m
       labels:
@@ -116,7 +116,7 @@ spec:
         summary: "High Scope Gate denial rate"
         description: "{{ $value }} denials/sec - possible misconfigured scope"
 
-    - alert: IshastraScopeGateResolutionFailures
+    - alert: IshAstraScopeGateResolutionFailures
       expr: rate(scope_gate_resolution_failures_total[5m]) > 5
       for: 2m
       labels:
@@ -126,7 +126,7 @@ spec:
         description: "{{ $value }} failures/sec - check DNS config"
 
     # Assessment Queue
-    - alert: IshastraQueueDepthHigh
+    - alert: IshAstraQueueDepthHigh
       expr: ishastra_queue_depth > 1000
       for: 10m
       labels:
@@ -135,7 +135,7 @@ spec:
         summary: "Assessment queue backing up"
         description: "Queue depth: {{ $value }} - consider scaling workers"
 
-    - alert: IshastraQueueProcessingSlow
+    - alert: IshAstraQueueProcessingSlow
       expr: rate(ishastra_assessment_duration_seconds_sum[5m]) / rate(ishastra_assessment_duration_seconds_count[5m]) > 600
       for: 15m
       labels:
@@ -145,16 +145,16 @@ spec:
         description: "Avg duration: {{ $value }}s"
 
     # Worker Health
-    - alert: IshastraWorkerDown
+    - alert: IshAstraWorkerDown
       expr: up{job="ishastra-worker",namespace="ishastra-system"} == 0
       for: 3m
       labels:
         severity: critical
       annotations:
-        summary: "Ishastra Worker down"
+        summary: "IshAstra Worker down"
         description: "Worker pod {{ $labels.pod }} down for 3 minutes"
 
-    - alert: IshastraWorkerOOMKilled
+    - alert: IshAstraWorkerOOMKilled
       expr: increase(container_oom_kills_total{namespace="ishastra-system",container="worker"}[10m]) > 0
       labels:
         severity: critical
@@ -163,16 +163,16 @@ spec:
         description: "Worker {{ $labels.pod }} was OOM killed - increase memory limit"
 
     # Scheduler
-    - alert: IshastraSchedulerDown
+    - alert: IshAstraSchedulerDown
       expr: up{job="ishastra-scheduler",namespace="ishastra-system"} == 0
       for: 2m
       labels:
         severity: critical
       annotations:
-        summary: "Ishastra Scheduler down"
+        summary: "IshAstra Scheduler down"
         description: "Scheduler pod {{ $labels.pod }} down"
 
-    - alert: IshastraSchedulerLeaderElectionFailures
+    - alert: IshAstraSchedulerLeaderElectionFailures
       expr: rate(ishastra_scheduler_leader_election_failures_total[5m]) > 0.1
       for: 5m
       labels:
@@ -182,7 +182,7 @@ spec:
         description: "Frequent leader changes detected"
 
     # Database
-    - alert: IshastraDatabaseConnectionsHigh
+    - alert: IshAstraDatabaseConnectionsHigh
       expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
       for: 5m
       labels:
@@ -191,7 +191,7 @@ spec:
         summary: "Database connections near limit"
         description: "{{ $value | humanizePercentage }} of max connections used"
 
-    - alert: IshastraDatabaseReplicationLag
+    - alert: IshAstraDatabaseReplicationLag
       expr: pg_replication_lag_seconds > 30
       for: 5m
       labels:
@@ -201,7 +201,7 @@ spec:
         description: "Replica lag: {{ $value }}s"
 
     # Redis
-    - alert: IshastraRedisMemoryHigh
+    - alert: IshAstraRedisMemoryHigh
       expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
       for: 5m
       labels:
@@ -210,7 +210,7 @@ spec:
         summary: "Redis memory usage high"
         description: "{{ $value | humanizePercentage }} of max memory used"
 
-    - alert: IshastraRedisDown
+    - alert: IshAstraRedisDown
       expr: up{job="redis",namespace="ishastra-system"} == 0
       for: 1m
       labels:
@@ -220,7 +220,7 @@ spec:
         description: "Redis pod {{ $labels.pod }} down"
 
     # Kubernetes
-    - alert: IshastraPodNotReady
+    - alert: IshAstraPodNotReady
       expr: kube_pod_status_ready{namespace="ishastra-system",condition="true"} == 0
       for: 5m
       labels:
@@ -229,7 +229,7 @@ spec:
         summary: "Pod not ready"
         description: "Pod {{ $labels.pod }} not ready for 5 minutes"
 
-    - alert: IshastraHPAReplicasMaxed
+    - alert: IshAstraHPAReplicasMaxed
       expr: kube_horizontalpodautoscaler_status_desired_replicas{namespace="ishastra-system"} == kube_horizontalpodautoscaler_spec_max_replicas{namespace="ishastra-system"}
       for: 10m
       labels:
@@ -239,7 +239,7 @@ spec:
         description: "{{ $labels.horizontalpodautoscaler }} at max ({{ $value }}) - check if scaling is working"
 
     # Certificates
-    - alert: IshastraCertExpiringSoon
+    - alert: IshAstraCertExpiringSoon
       expr: certmanager_certificate_expiration_timestamp_seconds - time() < 86400 * 30
       for: 1h
       labels:
@@ -258,11 +258,11 @@ spec:
 # Dashboard IDs: 1860, 1861, 1862, 1863
 ```
 
-### Ishastra Overview Dashboard
+### IshAstra Overview Dashboard
 
 ```json
 {
-  "title": "Ishastra Overview",
+  "title": "IshAstra Overview",
   "panels": [
     {
       "title": "API Request Rate",
@@ -320,7 +320,7 @@ spec:
 
 ```json
 {
-  "title": "Ishastra Scope Gate",
+  "title": "IshAstra Scope Gate",
   "panels": [
     {
       "title": "Layer 1 Decisions (URL/Host)",
@@ -405,7 +405,7 @@ data:
 ### Log Queries
 
 ```logql
-# All Ishastra logs
+# All IshAstra logs
 {namespace="ishastra-system", app=~"ishastra-.*"}
 
 # API errors
@@ -502,7 +502,7 @@ route:
 receivers:
 - name: 'default'
   email_configs:
-  - to: 'alerts@ishastra.dev'
+  - to: 'alerts@example.com'
     send_resolved: true
   slack_configs:
   - api_url: 'https://hooks.slack.com/services/<WORKSPACE_ID>/<CHANNEL_ID>/<TOKEN>'
@@ -540,7 +540,7 @@ inhibit_rules:
 # In deployment templates
 livenessProbe:
   httpGet:
-    path: /health/live
+    path: /api/health
     port: 8000
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -549,7 +549,7 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /health/ready
+    path: /api/ready
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 5
@@ -558,7 +558,7 @@ readinessProbe:
 
 startupProbe:
   httpGet:
-    path: /health/startup
+    path: /api/health
     port: 8000
   initialDelaySeconds: 5
   periodSeconds: 5
@@ -570,31 +570,27 @@ startupProbe:
 
 ```bash
 # Liveness - process is alive
-curl https://api.ishastra.dev/health/live
-# {"status": "alive"}
+curl https://api.example.com/api/health
+# {"status": "healthy", "service": "ishastra", "version": "...", "uptime_seconds": 12.3}
 
 # Readiness - ready to serve traffic
-curl https://api.ishastra.dev/health/ready
-# {"status": "ready", "checks": {"database": "ok", "redis": "ok", "scope_gate": "ok"}}
+curl https://api.example.com/api/ready
+# {"ready": true, "database": true, "audit_chain": true, ...}
 
-# Startup - initial initialization complete
-curl https://api.ishastra.dev/health/startup
-# {"status": "started"}
-
-# Detailed - all dependency checks
-curl https://api.ishastra.dev/health/detailed
+# Startup uses the same liveness endpoint
+curl https://api.example.com/api/health
 ```
 
 ## Runbook Links
 
 | Alert | Runbook |
 |-------|---------|
-| IshastraAPIDown | [API Down](../runbooks/api-down.md) |
-| IshastraScopeGateDenialsHigh | [Scope Gate Denials](../runbooks/scope-gate-denials.md) |
-| IshastraQueueDepthHigh | [Queue Backlog](../runbooks/queue-backlog.md) |
-| IshastraWorkerOOMKilled | [Worker OOM](../runbooks/worker-oom.md) |
-| IshastraDatabaseConnectionsHigh | [DB Connections](../runbooks/db-connections.md) |
-| IshastraCertExpiringSoon | [Cert Expiry](../runbooks/certificate-expiry.md) |
+| IshAstraAPIDown | [API Down](../runbooks/api-down.md) |
+| IshAstraScopeGateDenialsHigh | [Scope Gate Denials](../runbooks/scope-gate-denials.md) |
+| IshAstraQueueDepthHigh | [Queue Backlog](../runbooks/queue-backlog.md) |
+| IshAstraWorkerOOMKilled | [Worker OOM](../runbooks/worker-oom.md) |
+| IshAstraDatabaseConnectionsHigh | [DB Connections](../runbooks/db-connections.md) |
+| IshAstraCertExpiringSoon | [Cert Expiry](../runbooks/certificate-expiry.md) |
 
 ## Related
 

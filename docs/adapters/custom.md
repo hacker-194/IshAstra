@@ -6,7 +6,7 @@ Build your own security adapters with automatic Scope Gate integration.
 
 ## Overview
 
-Custom adapters integrate seamlessly with Ishastra's adapter framework:
+Custom adapters integrate seamlessly with IshAstra's adapter framework:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -81,7 +81,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"ciphers": weak},
-                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://example.com/findings/SSH-WEAK-CIPHER"],
                 metadata={}
             )
 ```
@@ -99,7 +99,7 @@ adapter_registry.register(SSHAuditAdapter)
 ### 3. Use via API
 
 ```bash
-curl -X POST https://api.ishastra.dev/api/v1/assessments \
+curl -X POST https://api.example.com/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -308,7 +308,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_ciphers": weak, "all_ciphers": ciphers},
-                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://example.com/findings/SSH-WEAK-CIPHER"],
                 metadata={"check": "ciphers"}
             )
 
@@ -324,7 +324,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_macs": weak, "all_macs": macs},
-                references=["https://ishastra.dev/findings/SSH-WEAK-MAC"],
+                references=["https://example.com/findings/SSH-WEAK-MAC"],
                 metadata={"check": "macs"}
             )
 
@@ -340,7 +340,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"weak_kex": weak, "all_kex": kex},
-                references=["https://ishastra.dev/findings/SSH-WEAK-KEX"],
+                references=["https://example.com/findings/SSH-WEAK-KEX"],
                 metadata={"check": "kex"}
             )
 
@@ -359,7 +359,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"key_type": key_type, "key_bits": key_bits},
-                references=["https://ishastra.dev/findings/SSH-WEAK-HOST-KEY"],
+                references=["https://example.com/findings/SSH-WEAK-HOST-KEY"],
                 metadata={"check": "host_key"}
             )
 
@@ -374,7 +374,7 @@ class SSHAuditAdapter(BaseAdapter):
                 category="auth",
                 location=self.config.target,
                 evidence={"auth_methods": auth_methods},
-                references=["https://ishastra.dev/findings/SSH-PASSWORD-AUTH"],
+                references=["https://example.com/findings/SSH-PASSWORD-AUTH"],
                 metadata={"check": "auth_methods"}
             )
 
@@ -591,7 +591,7 @@ my-ishastra-adapters/
 [project]
 name = "my-ishastra-adapters"
 version = "1.0.0"
-description = "Custom Ishastra security adapters"
+description = "Custom IshAstra security adapters"
 requires-python = ">=3.12"
 dependencies = [
     "ishastra-core>=3.5.0",
@@ -684,7 +684,7 @@ async def _check_something(self):
 references=[
     "https://cwe.mitre.org/data/definitions/326.html",
     "https://owasp.org/www-community/attacks/...",
-    "https://ishastra.dev/findings/SSH-WEAK-CIPHER",
+    "https://example.com/findings/SSH-WEAK-CIPHER",
 ]
 ```
 

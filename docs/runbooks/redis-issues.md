@@ -4,7 +4,7 @@
 
 | Alert | Severity | Threshold | Duration |
 |-------|----------|-----------|----------|
-| `IshastraRedisDown` | critical | Redis up == 0 | 1m |
+| `IshAstraRedisDown` | critical | Redis up == 0 | 1m |
 | `KubePodOOMKilled` (Redis pod) | critical | OOMKilled == 1 | 1m |
 | `KubeNodeMemoryPressure` | critical | MemoryPressure == 1 | 5m |
 
@@ -65,7 +65,7 @@ kubectl get pvc -n ishastra -l app.kubernetes.io/name=redis
 
 ### 3. Application-Level Redis Checks
 ```bash
-# Test from Ishastra API pod
+# Test from IshAstra API pod
 kubectl exec -n ishastra ishastra-api-xxx -- redis-cli -u redis://redis-master:6379/0 ping
 
 # Check rate limiter keys
@@ -183,7 +183,7 @@ kubectl exec -n ishastra redis-master-0 -- redis-cli BGSAVE
 # Check network policy
 kubectl get networkpolicy -n ishastra
 
-# Allow Ishastra pods to connect to Redis
+# Allow IshAstra pods to connect to Redis
 kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -223,7 +223,7 @@ kubectl exec -n ishastra ishastra-api-xxx -- env REDISCLI_AUTH="$REDIS_PASSWORD"
 # Check time sync on Redis node
 kubectl exec -n ishastra redis-master-0 -- date
 
-# Check time sync on Ishastra pods
+# Check time sync on IshAstra pods
 kubectl exec -n ishastra ishastra-api-xxx -- date
 
 # Fix: Ensure NTP running on all nodes

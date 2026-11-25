@@ -2,7 +2,7 @@
 
 # Testing Guide
 
-Comprehensive testing strategy for Ishastra.
+Comprehensive testing strategy for IshAstra.
 
 ## Test Pyramid
 
@@ -288,7 +288,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'docker compose -f docker-compose.e2e.yml up',
-    url: 'http://localhost:8000/health',
+    url: 'http://localhost:8000/api/health',
     reuseExistingServer: !process.env.CI,
   },
 });
@@ -371,7 +371,7 @@ class AssessmentFactory(factory.Factory):
 
 | Component | Minimum | Target |
 |-----------|---------|--------|
-| Core (Scope Gate, Ishastra Proof) | 90% | 95% |
+| Core (Scope Gate, IshAstra Proof) | 90% | 95% |
 | API | 80% | 90% |
 | Adapters | 70% | 85% |
 | Workers | 75% | 85% |

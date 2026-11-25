@@ -15,7 +15,7 @@ off, not an undiscovered bug.
 ## Coverage
 
 - Detection quality is bounded by the adapters (probe, nuclei, nmap, nikto,
-  sqlmap). Ishastra correlates and normalizes; it does not invent findings.
+  sqlmap). IshAstra correlates and normalizes; it does not invent findings.
 - Authenticated scans need a working auth config; multi-step MFA flows are not
   automated through the CLI (`multi_step` requires an auth config file).
 - Nuclei and Nmap scripts are restricted to the template allowlist. A template

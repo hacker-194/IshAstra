@@ -1,4 +1,4 @@
-# Deploying Ishastra for real-world use
+# Deploying IshAstra for real-world use
 
 The short version of this file is in `README.md` under *Deploying*; this page is
 the operator runbook: a concrete systemd setup, the first-run checklist, and the
@@ -24,10 +24,10 @@ recurring maintenance tasks (backups, key rotation, retention, upgrades).
 ```bash
 cp .env.production.example .env.production   # edit: keys, retention, scope mode
 # Generate each secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-docker compose --env-file .env.production run --rm ishastra ishastra scope-wizard --output /etc/ishastra/scope.json
+docker compose --env-file .env.production run --rm scope-gate ishastra scope-wizard --output /etc/ishastra/scope.json
 # OR manually: cp config/scope.example.json config/scope.json  # edit: what you may test
 docker compose --env-file .env.production up -d --build
-docker compose ps                              # ishastra/nginx/redis must be healthy
+docker compose ps                              # scope-gate/nginx/redis must be healthy
 curl -s http://127.0.0.1:8000/api/ready        # loopback bootstrap port
 ```
 
@@ -35,13 +35,12 @@ The container is healthy only when the database/audit chain answer **and** a
 scope document (or managed policy) is loaded. Keep `config/scope.json` out of
 git. The bundled nginx serves port 80; enable TLS with
 `deploy/nginx/conf.d/tls.conf.example` before exposing it to the internet.
-Optional Prometheus/Grafana:
+Prometheus and Grafana are part of `docker-compose.yml`; set `GRAFANA_PASSWORD` and start the stack:
 
 ```bash
 mkdir -p secrets
 printf '%s' "$ISHASTRA_API_KEY" > secrets/ishastra_api_key && chmod 600 secrets/ishastra_api_key
-docker compose --env-file .env.production \
-  -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+docker compose --env-file .env.production up -d
 ```
 
 ## 3. Install and configure without containers
@@ -80,7 +79,7 @@ tamper-evident against naive edits, not unforgeable).
 ```ini
 # /etc/systemd/system/ishastra.service
 [Unit]
-Description=Ishastra authorized assessment platform
+Description=IshAstra authorized assessment platform
 After=network-online.target
 
 [Service]
@@ -212,8 +211,8 @@ If a release introduces regressions:
 1. **All `STRIX_*` env vars → `ISHASTRA_*`** — update `.env.production`, Kubernetes secrets, monitoring dashboards
 2. **Scope Gate now mandatory at every boundary** — existing scope documents must add Layer 2/3 config or all targets rejected
 3. **AI Analyst Provider removed** — replace with optional local AI advisor (Ollama)
-4. **Queue mode renamed** — `redis` → `redis-streams`, new modes: `k8s-jobs`, `sqlite`, `in-process`
-5. **Database migrations** — run `alembic upgrade head` for new tables (capability_tokens, capability_revocations, evidence_signatures, organizations, teams, memberships)
+4. **Queue mode renamed** — `redis` → `redis-streams`; the accepted modes are `inprocess`, `redis-streams` and `k8s-jobs`
+5. **Database schema** — new tables are applied automatically at startup; there is no Alembic step (capability_tokens, capability_revocations, evidence_signatures, organizations, teams, memberships)
 6. **RoE extended** — add `rate_limit_rps`, `high_risk_allowed`, `testing_hours`, `required_notifications`, `data_handling`
 7. **Deployment defaults** — SQLite now default, PostgreSQL experimental
 
@@ -227,27 +226,21 @@ sqlite3 /var/lib/ishastra/ishastra.db ".backup '/backups/ishastra-pre-4.0-$(date
 # Edit .env.production and /etc/ishastra/ishastra.env
 
 # 3. Upgrade code
-pip install -c constraints.txt . --break-system-packages
+pip install -c constraints.txt .
 
-# 4. Run migrations
-alembic upgrade head
-
-# 5. Migrate scope documents
-ishastra scope migrate --add-layer2 --add-layer3
-
-# 6. Restart service
+# 4. Restart the service (schema upgrades run automatically at startup)
 systemctl restart ishastra
 
-# 7. Verify
+# 5. Verify
 curl -s localhost:8000/api/ready
-ishastra evidence verify  # check evidence signing works
+# Existing v2 scope documents already include the Layer 2/3 fields.
 ```
 
 ---
 
 ## 10. RTO / RPO and Warm Standby Promotion
 
-Ishastra is single-host by design. High availability is achieved by promoting a
+IshAstra is single-host by design. High availability is achieved by promoting a
 warm standby, not by clustering.
 
 Take a backup with `ishastra backup`. The artifact is verified immediately, with
@@ -291,9 +284,9 @@ Typical RTO on a modern SSD host with a 2 GB database: **< 5 seconds** (verify ~
 
 The promoted database is immediately operational — interrupted jobs are marked `failed — interrupted` at startup, never resumed silently. The audit chain verifies end-to-end, proving the restored state is tamper-free.
 
-## 10. Scaling model and limits
+## 11. Scaling model and limits
 
-Ishastra is deliberately single-writer per database:
+IshAstra is deliberately single-writer per database:
 
 1. **One process per `ISHASTRA_DB`.** `AssessmentWorker.start()` takes an exclusive
    lease; a second process pointed at the same database exits with
@@ -331,7 +324,7 @@ Ishastra is deliberately single-writer per database:
    or supported failover; use SQLite for a pilot unless you accept and test
    the single-host limitation.
 
-## 11. Nepal launch readiness
+## 12. Nepal launch readiness
 
 The NRB, NTA and NCSP control mappings are produced from assessment evidence, not
 from a separate document: `src/ishastra/compliance/nrb.py`, `nta.py` and
@@ -343,7 +336,7 @@ for an in-country target.
 Licensing, in-country hosting approval and regulatory filing are outside this
 repository and are not claimed here.
 
-## 12. Database migrations and row-level security
+## 13. Database migrations and row-level security
 
 There is no separate migration step to forget: the store applies its schema
 chain on every connection.
@@ -352,11 +345,9 @@ chain on every connection.
   `src/ishastra/core/store.py` (`MIGRATIONS`, `MIGRATIONS_PG`), keyed by a
   `schema_version` row in `settings`. Starting the service upgrades an existing
   database to the current schema.
-- On PostgreSQL the MSSP tables are created from `MIGRATIONS_MSSP_PG`, and the
-  RLS step (`src/ishastra/core/pg_rls.py`, tracked as `rls_applied`) creates the
-  tenant helper functions, the policies and their indexes.
-- `migrations/028_rls_enable.py` remains as the historical entry point and
-  applies whatever is still pending.
+- On PostgreSQL the RLS step (`src/ishastra/core/pg_rls.py`, tracked as
+  `rls_applied`) creates the tenant helper functions, the policies and their
+  indexes.
 
 Connect the application with a **non-superuser role**. PostgreSQL lets a
 superuser bypass row-level security entirely, so a superuser connection
@@ -369,7 +360,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ishastra_
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ishastra_app;
 ```
 
-## 13. Email invitations for organizations
+## 14. Email invitations for organizations
 
 Invitations are signed with `ISHASTRA_AUDIT_HMAC_KEY` and expire after 7 days; no
 invitation state is stored.
@@ -382,9 +373,9 @@ invitation state is stored.
    `POST /api/v2/orgs/invitations/accept?token=...`, which creates the
    membership for the calling API key's tenant.
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
-- **`another Ishastra worker process already owns …worker-lock`** — a second
+- **`another IshAstra worker process already owns …worker-lock`** — a second
   process was pointed at the same `ISHASTRA_DB`, or a stale lock survived an
   unclean kill. Verify no `ishastra` process runs (`pgrep -af ishastra`), then remove
   the lock file before starting.
@@ -406,7 +397,7 @@ invitation state is stored.
   transactions take the write lock up front and contend via `busy_timeout`); if
   you still see it, file it with the surrounding log lines.
 
-## 15. Additional Deployment Options
+## 16. Additional Deployment Options
 
 | Option | Document |
 |--------|----------|

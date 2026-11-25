@@ -2,7 +2,7 @@
 
 # Runbook: High Database Connections
 
-**Alert**: `IshastraDatabaseConnectionsHigh`
+**Alert**: `IshAstraDatabaseConnectionsHigh`
 **Severity**: Warning
 **Team**: Platform
 

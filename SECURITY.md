@@ -2,7 +2,7 @@
 
 **Version:** 3.5.x · **Last updated:** 2026-11-19
 
-Ishastra runs security tools, so the platform itself is held to the same standard:
+IshAstra runs security tools, so the platform itself is held to the same standard:
 default-deny authorization, tamper-evident audit, and no silent failure paths.
 This page states what is supported, how to report a problem, and what we do and
 do not claim.

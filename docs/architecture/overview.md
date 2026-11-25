@@ -16,7 +16,7 @@ High-level system design and data flows.
           │                 │                 │                 │
           ▼                 ▼                 ▼                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Ishastra Platform (v4.0)                          │
+│                              IshAstra Platform (v4.0)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
@@ -46,7 +46,7 @@ High-level system design and data flows.
 │  │                    Scope Gate (Authorization)                     │  │
 │  │  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌──────────────────┐   │  │
 │  │  │ Layer 1 │  │ Layer 2 │  │ Layer 3  │  │    Observer      │   │  │
-│  │  │URL/Host │  │ DNS/IP  │  │ Pinned   │  │ (Ishastra Proof)    │   │  │
+│  │  │URL/Host │  │ DNS/IP  │  │ Pinned   │  │ (IshAstra Proof)    │   │  │
 │  │  └─────────┘  └─────────┘  └──────────┘  └──────────────────┘   │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │           │                      │                      │             │
@@ -111,7 +111,7 @@ The **authorization engine** — default-deny for every outbound connection.
 
 **Key Properties:**
 - **ContextVar isolation**: Per-task scope binding prevents cross-tenant leakage
-- **Observer pattern**: Every decision receipted for Ishastra Proof audit chain
+- **Observer pattern**: Every decision receipted for IshAstra Proof audit chain
 - **TLA+ model-checked**: 6 invariants, 21.4M states explored; this is not a formal proof
 
 ### 3. Job Orchestration (`src/ishastra/core/scheduler.py`, `worker.py`)
@@ -142,7 +142,7 @@ Pipeline: `Raw Finding → Normalize → Dedupe → Redact → Enrich → Persis
 
 **Output Formats:** SARIF 2.1, JSON, PDF, HTML, Jira, GitHub Issues
 
-### 6. Ishastra Proof (`src/ishastra/core/proof.py`)
+### 6. IshAstra Proof (`src/ishastra/core/proof.py`)
 Cryptographic audit chain for every gate decision:
 ```
 Grant (scope doc signed) → Gate (decision) → Proof (receipt) → Verify (offline)
@@ -189,13 +189,12 @@ Grant (scope doc signed) → Gate (decision) → Proof (receipt) → Verify (off
 ## Multi-Tenancy Model
 
 ```
-Partner (MSSP)
-  └── Organization (Customer)
-       ├── Project A (Team 1)
-       │    ├── Assessment 1
-       │    └── Assessment 2
-       └── Project B (Team 2)
-            └── Assessment 3
+Organization (Customer)
+  ├── Project A (Team 1)
+  │    ├── Assessment 1
+  │    └── Assessment 2
+  └── Project B (Team 2)
+       └── Assessment 3
 ```
 
 **Isolation Mechanisms:**
@@ -225,7 +224,7 @@ Partner (MSSP)
 
 ## Scaling Characteristics
 
-Ishastra is single-writer by design. These are the real limits, not aspirational
+IshAstra is single-writer by design. These are the real limits, not aspirational
 capacity numbers:
 
 | Component | Scaling approach | Tested |

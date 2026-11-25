@@ -6,7 +6,7 @@
 
 
 ## Overview
-Guidance for sizing, monitoring, and scaling Ishastra deployments.
+Guidance for sizing, monitoring, and scaling IshAstra deployments.
 
 ---
 

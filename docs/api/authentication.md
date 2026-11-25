@@ -1,6 +1,6 @@
 # API Authentication
 
-Ishastra authenticates API requests with **Bearer API keys**. Browser sessions
+IshAstra authenticates API requests with **Bearer API keys**. Browser sessions
 can use OIDC or SAML when an operator configures an identity provider. There is
 no API-key-to-JWT exchange and no public JWKS endpoint for API authentication.
 
@@ -9,40 +9,62 @@ no API-key-to-JWT exchange and no public JWKS endpoint for API authentication.
 Create a key with the CLI (admin only):
 
 ```bash
-ishastra auth create-key --name "CI/CD Pipeline" --expires 90d
+ishastra create-api-key --tenant default
 ```
 
-Or with an existing admin key:
+Options: `--tier {free,pro,enterprise}`, `--scope {read,write}`, `--admin`,
+`--ttl-days N`. The key is printed once; store it in a secret manager.
 
-```bash
-curl -X POST https://your-host/api/v1/auth/keys \
-  -H "Authorization: Bearer $ADMIN_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "CI/CD Pipeline", "expires_in_days": 90}'
+The same operation over HTTP (admin key required):
+
+```http
+POST /api/keys/create
+Authorization: Bearer $ADMIN_KEY
+Content-Type: application/json
 ```
-
-The response contains the key once. Store it in a secret manager.
 
 ```json
 {
-  "id": "key_abc123",
-  "name": "CI/CD Pipeline",
-  "key": "ishastra_abc123...",
-  "created_at": "2026-01-15T10:00:00Z",
-  "expires_at": "2026-04-15T10:00:00Z"
+  "tenant": "default",
+  "tier": "standard",
+  "scope": "write",
+  "scope_type": "tenant",
+  "ttl_days": 90
 }
 ```
 
-Use it as a Bearer token:
+| Field | Description |
+|-------|-------------|
+| `tenant` | Tenant identifier (`^[A-Za-z0-9_.-]+$`, max 64) |
+| `scope` | `read` for safe methods only, `write` to manage jobs, findings and keys |
+| `scope_type` | `tenant` for every project, `project` for one project |
+| `project_id` | Required when `scope_type` is `project` |
+| `ttl_days` | Lifetime in days, 1–3650; omitted means no expiry |
+
+Use the key as a Bearer token:
 
 ```bash
 curl -H "Authorization: Bearer $ISHASTRA_API_KEY" \
-  https://your-host/api/v1/assessments
+  https://your-host/api/assess
 ```
 
-Keys are stored as SHA-256 hashes, never in plaintext. The `ishastra_` prefix is a
-legacy wire-format prefix retained for compatibility; it does not grant any
-additional privilege.
+Keys are stored as SHA-256 hashes, never in plaintext. The `ishastra_` prefix is
+a legacy wire-format prefix retained for compatibility; it grants no additional
+privilege.
+
+### Inspect, rotate and revoke
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/keys/status` | Caller's key metadata |
+| `POST /api/keys/rotate/{tenant_id}` | Rotate a tenant key |
+| `POST /api/keys/revoke/{tenant_id}` | Revoke a tenant key |
+| `GET /api/keys/projects` | List project-scoped keys |
+| `POST /api/keys/projects/{project_id}/rotate` | Rotate a project key |
+| `POST /api/keys/projects/{project_id}/revoke` | Revoke a project key |
+
+Revocation takes effect on the next request; there is no long-lived JWT to
+expire.
 
 ### Key scope
 
@@ -50,25 +72,20 @@ A key is either read-only or write-scoped, and may be an admin key. Read-only
 keys can call `GET`/`HEAD`/`OPTIONS`; any write method requires a write-scoped
 key. Admin-only routes additionally require the admin flag.
 
-### Rotation and revocation
-
-Rotate a key by creating a replacement and revoking the old one. Revocation
-takes effect on the next request; there is no long-lived JWT to expire.
-
-```bash
-ishastra auth rotate-key --help
-ishastra auth revoke-key --help
-```
-
 ## Browser sessions (OIDC/SAML)
 
-When `ISHASTRA_OIDC_*` or the SAML settings are configured, `/auth/login`
-redirects to the identity provider and creates a signed session cookie. The
-cookie is `HttpOnly`, `Secure` in production, and `SameSite=Strict`. State-
-changing browser requests also require the CSRF token issued with the session.
+When `ISHASTRA_OIDC_*` or the SAML settings are configured, `/auth/oidc/login`
+or `/auth/saml/login` redirects to the identity provider and creates a signed
+session cookie. The cookie is `HttpOnly`, `Secure` in production, and
+`SameSite=Strict`. State-changing browser requests also require the CSRF token
+issued with the session.
 
 Tenant identity is derived from the validated API key or the identity-provider
-subject. It is never read from `X-Tenant-ID` or any other caller-supplied header.
+subject. It is never read from `X-Tenant-ID` or any other caller-supplied
+header.
+
+Auth routes: `/auth/status`, `/auth/logout`, `/auth/oidc/{login,callback,logout}`,
+`/auth/saml/{login,acs,slo}`.
 
 ## Middleware and failures
 
@@ -85,4 +102,5 @@ subject. It is never read from `X-Tenant-ID` or any other caller-supplied header
   key scopes instead.
 - mTLS between application components.
 
-See [`SECURITY.md`](https://github.com/hacker-194/IshAstra/blob/master/SECURITY.md) for the supported security posture.
+See [`SECURITY.md`](https://github.com/hacker-194/IshAstra/blob/main/SECURITY.md)
+for the supported security posture.

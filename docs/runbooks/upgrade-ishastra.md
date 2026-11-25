@@ -1,8 +1,8 @@
-# Ishastra Upgrade Runbook
+# IshAstra Upgrade Runbook
 
 ## Overview
 
-Step-by-step procedure for upgrading Ishastra platform with zero-downtime where possible.
+Step-by-step procedure for upgrading IshAstra platform with zero-downtime where possible.
 
 **Related Alerts:** None directly, but upgrades may trigger transient alerts
 
@@ -169,7 +169,7 @@ curl -s http://ishastra.example.com/api/ready
 ## Database Migrations
 
 ### Automatic Migrations
-Ishastra uses SQLite with automatic schema evolution via `store.py`. Most upgrades are backward-compatible.
+IshAstra uses SQLite with automatic schema evolution via `store.py`. Most upgrades are backward-compatible.
 
 ### Manual Migration Steps (If Required)
 
@@ -234,7 +234,7 @@ curl -s -H "Authorization: Bearer $ADMIN_KEY" http://ishastra.example.com/api/mo
 ### 2. Functional Tests
 ```bash
 # CLI test
-kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/ishastra assess --target https://example.com --profile web --wait
+kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/ishastra assess run --target https://example.com --profile web
 
 # API test
 curl -X POST http://ishastra.example.com/api/assess \

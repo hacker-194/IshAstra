@@ -1,417 +1,154 @@
 # Assessments API
 
-# Assessments API
-
-REST API for creating, managing, and monitoring security assessments.
+REST API for queueing, running and retrieving authorized assessments. The live
+schema is always authoritative: fetch `/openapi.json` from your instance or open
+`/docs` for the interactive reference.
 
 ## Base URL
 
-```
-https://api.ishastra.dev/api/v1
-```
+All routes are under `/api`:
 
-## Assessment Object
-
-```json
-{
-  "id": "asm_abc123def456",
-  "scope_id": "scope_prod_001",
-  "status": "running",
-  "targets": ["https://api.example.com", "https://app.example.com"],
-  "adapters": ["http_probe", "crawler", "nuclei"],
-  "options": {
-    "http_probe": {"timeout": 10},
-    "nuclei": {"severity": ["critical", "high"]}
-  },
-  "created_at": "2024-01-15T10:00:00Z",
-  "started_at": "2024-01-15T10:00:05Z",
-  "completed_at": null,
-  "progress": {
-    "total_targets": 2,
-    "completed_targets": 1,
-    "current_target": "https://app.example.com"
-  },
-  "summary": {
-    "findings_total": 0,
-    "findings_by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-  },
-  "created_by": "key_abc123"
-}
+```
+https://your-host/api
 ```
 
-## Status Values
+Authenticate with a Bearer API key (`Authorization: Bearer <key>`). See
+[Authentication](authentication.md).
 
-| Status | Description |
-|--------|-------------|
-| `pending` | Queued, waiting for worker |
-| `running` | Actively executing |
-| `completed` | Finished successfully |
-| `failed` | Execution failed |
-| `cancelled` | Cancelled by user |
-| `partial` | Some targets failed |
+## Create an assessment
 
-## Create Assessment
-
-```bash
-POST /assessments
+```http
+POST /api/assess
+Idempotency-Key: <optional-uuid>
 ```
 
-### Request
+The target must fall inside the caller's authorized scope. The Scope Gate rejects
+out-of-scope targets before any network contact.
 
-```json
-{
-  "scope_id": "scope_prod_001",
-  "targets": [
-    "https://api.example.com",
-    "https://app.example.com"
-  ],
-  "adapters": ["http_probe", "crawler", "dynamic_validation", "nuclei"],
-  "options": {
-    "http_probe": {
-      "timeout": 10,
-      "follow_redirects": true
-    },
-    "crawler": {
-      "max_pages": 100,
-      "max_depth": 3
-    },
-    "dynamic_validation": {
-      "test_auth_bypass": true,
-      "test_idor": true
-    },
-    "nuclei": {
-      "severity": ["critical", "high", "medium"],
-      "rate_limit": 100
-    }
-  },
-  "priority": "normal",
-  "callback_url": "https://your-app.com/webhooks/assessment-complete"
-}
-```
-
-### Field Reference
+### Request body
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `scope_id` | string | Yes | Scope document ID |
-| `targets` | string[] | Yes | Target URLs (1-100) |
-| `adapters` | string[] | Yes | Adapter names to run |
-| `options` | object | No | Per-adapter configuration |
-| `priority` | enum | No | `low`, `normal`, `high` (default: `normal`) |
-| `callback_url` | string | No | Webhook on completion |
-
-### Response (202 Accepted)
+| `target` | string | Yes | Authorized `http(s)` target |
+| `profile` | string | No | `web` (default), `web-deep`, `api`, `api-deep`, `network`, `agent` |
+| `timeout` | number | No | Overall deadline in seconds, 5–900 (default `120`) |
+| `wait` | boolean | No | Run inline and return the finished job with `200`. Default queues the job and returns `202` |
+| `policy_id` | string \| null | No | Pin a specific engagement policy (managed mode). Omitted: the tenant's newest valid policy |
+| `hybrid_components` | object \| null | No | `{"native": true, "ishastra": true}` for hybrid assessments |
+| `auth` | object \| null | No | Per-assessment auth: `token`, `session`, `form_login`, `multi_step` |
 
 ```json
 {
-  "id": "asm_abc123def456",
-  "scope_id": "scope_prod_001",
-  "status": "pending",
-  "targets": ["https://api.example.com", "https://app.example.com"],
-  "adapters": ["http_probe", "crawler", "nuclei"],
-  "options": {...},
-  "created_at": "2024-01-15T10:00:00Z",
+  "target": "https://app.example.com",
+  "profile": "web",
+  "timeout": 300,
+  "wait": false
+}
+```
+
+### Queued response (`202 Accepted`)
+
+```json
+{
+  "id": "job_...",
+  "target": "https://app.example.com",
+  "profile": "web",
+  "actor": "analyst",
+  "policy": {},
+  "state": "queued",
   "started_at": null,
-  "completed_at": null,
-  "progress": {"total_targets": 2, "completed_targets": 0},
-  "summary": {"findings_total": 0, "findings_by_severity": {...}},
-  "created_by": "key_abc123"
+  "finished_at": null,
+  "runs": [],
+  "findings": [],
+  "error": "",
+  "attempts": 0,
+  "worker": "",
+  "idempotency_key": null,
+  "coverage": {},
+  "verdict": "",
+  "poll_url": "/api/assess/job_...",
+  "cancel_url": "/api/assess/job_.../cancel",
+  "sarif_url": "/api/assess/job_.../sarif",
+  "report_url": "/api/assess/job_.../report.html",
+  "audit_chain_hash": "...",
+  "deduplicated": false
 }
 ```
 
-## Get Assessment
+With `"wait": true` the same object is returned once the job finishes, with
+`state`, `runs`, `findings`, `coverage` and `verdict` populated.
 
-```bash
-GET /assessments/{assessment_id}
+Sending the same `Idempotency-Key` again returns the existing job with
+`"deduplicated": true` instead of starting a second assessment.
+
+## Get an assessment
+
+```http
+GET /api/assess/{job_id}
 ```
 
-### Response (200 OK)
+Returns the job object, including findings and the audit-chain hash.
+
+## List assessments
+
+```http
+GET /api/assess?page=1&page_size=50
+```
 
 ```json
 {
-  "id": "asm_abc123def456",
-  "scope_id": "scope_prod_001",
-  "status": "completed",
-  "targets": ["https://api.example.com", "https://app.example.com"],
-  "adapters": ["http_probe", "crawler", "nuclei"],
-  "options": {...},
-  "created_at": "2024-01-15T10:00:00Z",
-  "started_at": "2024-01-15T10:00:05Z",
-  "completed_at": "2024-01-15T10:15:30Z",
-  "progress": {"total_targets": 2, "completed_targets": 2},
-  "summary": {
-    "findings_total": 23,
-    "findings_by_severity": {"critical": 1, "high": 5, "medium": 10, "low": 4, "info": 3}
-  },
-  "created_by": "key_abc123"
-}
-```
-
-## List Assessments
-
-```bash
-GET /assessments
-```
-
-### Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `scope_id` | string | - | Filter by scope |
-| `status` | string | - | Filter by status |
-| `from` | datetime | - | Created after |
-| `to` | datetime | - | Created before |
-| `limit` | int | 50 | Max results (1-500) |
-| `offset` | int | 0 | Pagination offset |
-| `sort` | string | `-created_at` | Sort field (prefix `-` for desc) |
-
-### Response (200 OK)
-
-```json
-{
-  "assessments": [
-    {"id": "asm_abc123...", "status": "completed", ...},
-    {"id": "asm_def456...", "status": "running", ...}
+  "items": [
+    {
+      "id": "job_...",
+      "target": "https://app.example.com",
+      "profile": "web",
+      "state": "completed",
+      "verdict": "pass",
+      "findings_count": 3,
+      "poll_url": "/api/assess/job_..."
+    }
   ],
-  "pagination": {
-    "total": 142,
-    "limit": 50,
-    "offset": 0,
-    "has_more": true
-  }
+  "total": 1,
+  "page": 1,
+  "page_size": 50,
+  "has_next": false
 }
 ```
 
-## Cancel Assessment
+## Cancel and retry
 
-```bash
-POST /assessments/{assessment_id}/cancel
-```
+| Route | Description |
+|-------|-------------|
+| `POST /api/assess/{job_id}/cancel` | Cancel a queued or running job |
+| `POST /api/assess/{job_id}/retry` | Re-queue a failed job |
 
-### Response (200 OK)
+## Outputs and triage
 
-```json
-{
-  "id": "asm_abc123def456",
-  "status": "cancelled",
-  "cancelled_at": "2024-01-15T10:05:00Z"
-}
-```
+| Route | Returns |
+|-------|---------|
+| `GET /api/assess/{job_id}/sarif` | SARIF 2.1.0 report |
+| `GET /api/assess/{job_id}/report.html` | HTML report |
+| `GET /api/assess/{job_id}/report.pdf` | PDF report |
+| `GET /api/assess/{job_id}/findings/{fingerprint}` | One finding from the job |
+| `GET /api/assess/{job_id}/findings/{fingerprint}/history` | Finding history |
+| `GET /api/assess/{job_id}/findings/{fingerprint}/remediation` | Remediation guidance |
+| `PATCH /api/assess/{job_id}/triage` | Triage findings for the job |
 
-## Get Assessment Progress (Streaming)
+## Errors
 
-```bash
-GET /assessments/{assessment_id}/progress
-```
+| Status | Meaning |
+|--------|---------|
+| `401` | Missing or invalid API key |
+| `403` | Key lacks write scope or admin rights |
+| `422` | Invalid body, or target rejected by the Scope Gate |
+| `429` | Rate limited (`Retry-After` header) |
+| `503` | Worker or dependency unavailable |
 
-### Response (Server-Sent Events)
-
-```
-event: progress
-data: {"completed_targets": 1, "current_target": "https://app.example.com", "findings_so_far": 12}
-
-event: progress
-data: {"completed_targets": 2, "current_target": null, "findings_so_far": 23}
-
-event: complete
-data: {"status": "completed", "summary": {...}}
-```
-
-## Retry Failed Assessment
-
-```bash
-POST /assessments/{assessment_id}/retry
-```
-
-### Request
-
-```json
-{
-  "targets": ["https://failed-target.example.com"],  // Optional: retry specific targets
-  "adapters": ["nuclei"]  // Optional: retry specific adapters
-}
-```
-
-### Response (202 Accepted)
-
-```json
-{
-  "id": "asm_new789ghi012",
-  "parent_assessment_id": "asm_abc123def456",
-  "status": "pending",
-  ...
-}
-```
-
-## Export Assessment Report
-
-```bash
-GET /assessments/{assessment_id}/report
-```
-
-### Query Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `format` | enum | `json` | `json`, `html`, `pdf`, `sarif` |
-| `include_evidence` | bool | `false` | Include raw evidence in report |
-
-### Response (200 OK)
-
-```json
-{
-  "assessment_id": "asm_abc123def456",
-  "generated_at": "2024-01-15T10:16:00Z",
-  "format": "json",
-  "report": {
-    "metadata": {...},
-    "summary": {...},
-    "findings": [...],
-    "targets": [...],
-    "adapters_run": [...]
-  }
-}
-```
-
-## Error Responses
-
-### 400 Bad Request
-
-```json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid request",
-    "details": {
-      "field_errors": {
-        "targets": "At least one target required",
-        "adapters": "Unknown adapter: 'invalid_adapter'"
-      }
-    }
-  }
-}
-```
-
-### 404 Not Found
-
-```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Assessment not found",
-    "details": {"assessment_id": "asm_abc123def456"}
-  }
-}
-```
-
-### 409 Conflict
-
-```json
-{
-  "error": {
-    "code": "CONFLICT",
-    "message": "Assessment already running for this scope",
-    "details": {"existing_assessment_id": "asm_existing123"}
-  }
-}
-```
-
-### 422 Unprocessable Entity
-
-```json
-{
-  "error": {
-    "code": "SCOPE_GATE_DENIED",
-    "message": "Target not authorized by scope",
-    "details": {
-      "target": "https://internal.example.com",
-      "scope_id": "scope_prod_001",
-      "reason": "Host not in include_hosts list"
-    }
-  }
-}
-```
-
-## Adapter-Specific Options
-
-### HTTP Probe
-
-```json
-{
-  "http_probe": {
-    "follow_redirects": true,
-    "max_redirects": 10,
-    "timeout": 10,
-    "check_security_headers": true,
-    "check_cookies": true,
-    "check_methods": true,
-    "tech_detection": true
-  }
-}
-```
-
-### Crawler
-
-```json
-{
-  "crawler": {
-    "max_pages": 100,
-    "max_depth": 3,
-    "max_concurrent": 5,
-    "respect_robots_txt": true,
-    "follow_external_links": false,
-    "extract_forms": true,
-    "extract_js_endpoints": true,
-    "check_sensitive_paths": true
-  }
-}
-```
-
-### Dynamic Validation
-
-```json
-{
-  "dynamic_validation": {
-    "test_auth_bypass": true,
-    "test_idor": true,
-    "idor_endpoints": ["/api/users/{id}"],
-    "test_xss": true,
-    "test_sqli": true,
-    "test_rate_limit": true
-  }
-}
-```
-
-### Nuclei
-
-```json
-{
-  "nuclei": {
-    "templates": ["cves/", "vulnerabilities/"],
-    "severity": ["critical", "high", "medium"],
-    "rate_limit": 150,
-    "timeout": 10,
-    "headless": false
-  }
-}
-```
-
-## Rate Limits
-
-| Endpoint | Limit |
-|----------|-------|
-| `POST /assessments` | 10/min per key |
-| `GET /assessments` | 100/min per key |
-| `GET /assessments/{id}` | 200/min per key |
-| `GET /assessments/{id}/progress` | 10 concurrent per key |
+Error bodies are `{"detail": "<message>"}`.
 
 ## Related
 
-- [Authentication](../api/authentication.md)
-- [Findings API](../api/findings.md)
-- [Scope Management](../api/scope-management.md)
-- [Webhooks](../api/webhooks.md)
-- [Built-in Adapters](../adapters/built-in.md)
-- [External Adapters](../adapters/external.md)
-- [Custom Adapters](../adapters/custom.md)
-- [Adapter SDK](../adapters/sdk.md)
+- [Authentication](authentication.md)
+- [Findings API](findings.md)
+- [Scope Management](scope-management.md)
+- [Webhooks](webhooks.md)

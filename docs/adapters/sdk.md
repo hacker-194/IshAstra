@@ -220,10 +220,10 @@ class CheckContext:
     metadata: dict                # Custom fields
 ```
 
-### IshastraProofObserver
+### IshAstraProofObserver
 
 ```python
-class IshastraProofObserver:
+class IshAstraProofObserver:
     def __init__(
         self,
         signer: Ed25519PrivateKey,
@@ -345,7 +345,7 @@ references = [
     "https://cwe.mitre.org/data/definitions/XXX.html",  # CWE
     "https://owasp.org/www-community/...",               # OWASP
     "https://nvd.nist.gov/vuln/detail/CVE-XXXX-XXXX",   # CVE
-    "https://ishastra.dev/findings/ADAPTER-TYPE-VULN",     # Ishastra finding docs
+    "https://example.com/findings/ADAPTER-TYPE-VULN",     # IshAstra finding docs
 ]
 ```
 
@@ -555,7 +555,7 @@ def create_test_config(
 
 ## Version Compatibility
 
-| Ishastra Version | SDK Version | Notes |
+| IshAstra Version | SDK Version | Notes |
 |---------------|-------------|-------|
 | 3.5.x | 1.0.x | Current |
 | 3.4.x | 0.9.x | Legacy |

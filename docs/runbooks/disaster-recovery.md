@@ -2,7 +2,7 @@
 
 ## Overview
 
-This runbook covers full disaster recovery procedures for Ishastra platform.
+This runbook covers full disaster recovery procedures for IshAstra platform.
 
 **RTO (Recovery Time Objective): 4 hours**
 **RPO (Recovery Point Objective): 1 hour**
@@ -14,7 +14,7 @@ This runbook covers full disaster recovery procedures for Ishastra platform.
 | Scenario | Severity | Detection |
 |----------|----------|-----------|
 | Regional outage | SEV-1 | Cloud provider status, monitoring alerts |
-| Database corruption/loss | SEV-1 | `IshastraAuditChainVerificationFailed`, data integrity checks |
+| Database corruption/loss | SEV-1 | `IshAstraAuditChainVerificationFailed`, data integrity checks |
 | Kubernetes cluster loss | SEV-1 | All `up{job=~"ishastra|prometheus|redis"}` == 0 |
 | Ransomware/encryption | SEV-1 | Unusual file encryption, ransom notes |
 | Data center destruction | SEV-1 | Physical loss, cloud region unavailable |
@@ -190,7 +190,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
 ```
 
-#### Step 3: Deploy Ishastra via ArgoCD / Helm
+#### Step 3: Deploy IshAstra via ArgoCD / Helm
 ```bash
 # Option A: ArgoCD (preferred - declarative)
 # ArgoCD applications already point to Git repo

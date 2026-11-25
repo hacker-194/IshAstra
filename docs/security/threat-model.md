@@ -1,6 +1,6 @@
 # Threat model
 
-What Ishastra protects, from whom, and where the trust boundaries sit. This
+What IshAstra protects, from whom, and where the trust boundaries sit. This
 describes the shipped code, not an aspiration.
 
 ## Assets

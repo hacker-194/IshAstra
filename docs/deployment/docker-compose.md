@@ -12,7 +12,7 @@ horizontal scale.
 
 | Service | Purpose | Port (loopback) |
 |---------|---------|-----------------|
-| `scope-gate` | The Ishastra API/worker process (FastAPI + in-process queue) | `127.0.0.1:8000` |
+| `scope-gate` | The IshAstra API/worker process (FastAPI + in-process queue) | `127.0.0.1:8000` |
 | `postgres` | Database (`ISHASTRA_DATABASE_URL`) | `127.0.0.1:5432` |
 | `redis` | Shared rate-limit counters | `127.0.0.1:6379` |
 | `nginx` | Reverse proxy on 80/443 | public |
@@ -21,7 +21,7 @@ horizontal scale.
 | `jaeger` | OTLP tracing UI | `127.0.0.1:16686` |
 | `keycloak` | Optional local IdP (`--profile sso`) | `127.0.0.1:8180` |
 
-There is deliberately **one** Ishastra process: the worker takes an exclusive
+There is deliberately **one** IshAstra process: the worker takes an exclusive
 lease on the database, so a second process would refuse to start. Scale with
 `ISHASTRA_WORKERS`, not replicas.
 
@@ -83,4 +83,4 @@ afterwards.
 
 For the production checklist and topology table, read
 [Production deployment](../quickstart/production.md). For the operator runbook, read
-[`DEPLOYMENT.md`](https://github.com/hacker-194/IshAstra/blob/master/DEPLOYMENT.md).
+[`DEPLOYMENT.md`](https://github.com/hacker-194/IshAstra/blob/main/DEPLOYMENT.md).

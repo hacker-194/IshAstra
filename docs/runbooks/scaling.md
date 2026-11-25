@@ -7,7 +7,7 @@
 
 ## Overview
 
-This runbook covers horizontal and vertical scaling procedures for Ishastra platform components.
+This runbook covers horizontal and vertical scaling procedures for IshAstra platform components.
 
 **Current Architecture:**
 - **Queue Mode:** In-process (default) or Kubernetes Jobs (distributed)
@@ -324,7 +324,7 @@ kubectl patch configmap ishastra-config -n ishastra -p '{
 groups:
 - name: ishastra-scaling
   rules:
-  - alert: IshastraQueueDepthHigh
+  - alert: IshAstraQueueDepthHigh
     expr: ishastra_queue_depth > 20
     for: 5m
     labels:
@@ -333,7 +333,7 @@ groups:
       summary: "Queue depth high ({{ $value }})"
       description: "Consider scaling workers or increasing ISHASTRA_WORKERS"
 
-  - alert: IshastraJobDurationHigh
+  - alert: IshAstraJobDurationHigh
     expr: histogram_quantile(0.95, rate(ishastra_job_duration_seconds_bucket[5m])) > 300
     for: 5m
     labels:
@@ -341,7 +341,7 @@ groups:
     annotations:
       summary: "Job duration p95 > 5 minutes"
 
-  - alert: IshastraWorkerDown
+  - alert: IshAstraWorkerDown
     expr: time() - ishastra_worker_heartbeat_timestamp > 120
     for: 1m
     labels:
@@ -349,7 +349,7 @@ groups:
     annotations:
       summary: "Worker {{ $labels.worker_id }} heartbeat lost"
 
-  - alert: IshastraRateLimitExceeded
+  - alert: IshAstraRateLimitExceeded
     expr: rate(ishastra_rate_limit_exceeded_total[5m]) > 0.16
     for: 2m
     labels:

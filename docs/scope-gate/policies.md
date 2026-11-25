@@ -6,7 +6,7 @@ Advanced policy engine for network authorization using CIDR, ASN, and geographic
 
 ## Overview
 
-Ishastra Scope Gate supports three policy dimensions for `authorized_networks`:
+IshAstra Scope Gate supports three policy dimensions for `authorized_networks`:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

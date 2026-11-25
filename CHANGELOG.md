@@ -225,7 +225,7 @@
 First tagged release. The assessment core was already in place; this release
 adds the proof-of-authorization layer and freezes a installable baseline.
 
-### Ishastra Proof (new)
+### IshAstra Proof (new)
 
 - **Signed grants** (`ishastra grant`): an Ed25519-signed document naming the
   program, the authorizing person, the reference, the hosts/CIDRs and the
@@ -250,7 +250,7 @@ adds the proof-of-authorization layer and freezes a installable baseline.
   retention.
 - Adapters for HTTP, Nuclei, Nmap and agent profiles; SARIF, JSON, CSV, OSCAL
   and printable HTML reports.
-- Docker Compose stack (Ishastra + Redis + nginx), Prometheus/Grafana overlay,
+- Docker Compose stack (IshAstra + Redis + nginx), Prometheus/Grafana overlay,
   and a tag-driven release workflow.
 
 ### Known limits

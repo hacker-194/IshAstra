@@ -1,8 +1,8 @@
 
 
 
-REGISTRY ?= ghcr.io/your-org
-TAG ?= v4.0.0
+REGISTRY ?= ghcr.io/hacker-194
+TAG ?= v4.0.0rc1
 NAMESPACE ?= ishastra-system
 RELEASE ?= ishastra
 PLATFORM ?= linux/amd64,linux/arm64
@@ -12,18 +12,13 @@ PLATFORM ?= linux/amd64,linux/arm64
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' Makefile | awk 'BEGIN {FS = ":.*?##"}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-build: ## Build multi-arch Docker image locally
+build: ## Build a Docker image for the host platform
 	docker buildx create --name ishastra-builder --use 2>/dev/null || docker buildx use ishastra-builder
-	docker buildx build --platform $(PLATFORM) -t $(REGISTRY)/ishastra:$(TAG) -f Dockerfile --load .
+	docker buildx build -t $(REGISTRY)/ishastra:$(TAG) -f Dockerfile --load .
 
-push: ## Build and push multi-arch Docker images to registry
+push: ## Build and push the multi-arch image
 	docker buildx create --name ishastra-builder --use 2>/dev/null || docker buildx use ishastra-builder
 	docker buildx build --platform $(PLATFORM) -t $(REGISTRY)/ishastra:$(TAG) -f Dockerfile --push .
-	docker tag $(REGISTRY)/ishastra:$(TAG) $(REGISTRY)/ishastra-operator:$(TAG)
-	docker tag $(REGISTRY)/ishastra:$(TAG) $(REGISTRY)/ishastra-api:$(TAG)
-	docker tag $(REGISTRY)/ishastra:$(TAG) $(REGISTRY)/ishastra-worker:$(TAG)
-	docker tag $(REGISTRY)/ishastra:$(TAG) $(REGISTRY)/ishastra-scheduler:$(TAG)
-	docker push $(REGISTRY)/ishastra-operator:$(TAG) $(REGISTRY)/ishastra-api:$(TAG) $(REGISTRY)/ishastra-worker:$(TAG) $(REGISTRY)/ishastra-scheduler:$(TAG)
 
 build-and-push: push ## Alias for push
 
@@ -85,7 +80,7 @@ dr-failover: ## Initiate DR failover (with confirmation)
 	kubectl exec -n $(NAMESPACE) deploy/$(RELEASE)-operator -- ishastra standby-promote --verify
 
 test: ## Run full test suite with coverage
-	python3 -m pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=50
+	python3 -m pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=60
 
 test-unit: ## Run unit tests only
 	python3 -m pytest tests/unit/ -v

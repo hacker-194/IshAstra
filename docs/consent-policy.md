@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Status**: Draft — not yet implemented  
-**Scope**: Ishastra assessment platform — governs how consent is recorded, enforced, and audited for all data processing activities during authorized security assessments.
+**Scope**: IshAstra assessment platform — governs how consent is recorded, enforced, and audited for all data processing activities during authorized security assessments.
 
 > **Supersedes**: No prior consent policy document exists. This is the first version.
 > **Linked from**: Will be referenced from `docs/security-review.md` (review checklist), `docs/deployment.md` (configuration), `README.md` (compliance section), and `src/ishastra/security/authorization/scope_schema.json` (RoE data_handling).
@@ -12,7 +12,7 @@
 
 ## 1. Purpose
 
-This policy defines the machine-readable consent framework for Ishastra. It ensures that:
+This policy defines the machine-readable consent framework for IshAstra. It ensures that:
 
 - Every data processing action during an assessment has a **verifiable consent record** tied to a specific scope document
 - Consent is **purpose-bound**: data collected for one assessment purpose cannot be repurposed without new consent
@@ -46,8 +46,8 @@ This policy extends the existing **Rules of Engagement (RoE)** `data_handling` o
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://ishastra.dev/schemas/consent-record/v1",
-  "title": "Ishastra Consent Record",
+  "$id": "https://example.com/schemas/consent-record/v1",
+  "title": "IshAstra Consent Record",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -499,9 +499,9 @@ Content-Type: application/json
 Each line is a self-contained JSON object with schema version:
 
 ```jsonl
-{"schema": "https://ishastra.dev/schemas/export/finding/v1", "type": "finding", "consent_id": "...", "data": {...}}
-{"schema": "https://ishastra.dev/schemas/export/evidence/v1", "type": "evidence", "consent_id": "...", "data": {...}}
-{"schema": "https://ishastra.dev/schemas/export/audit_log/v1", "type": "audit_log", "consent_id": "...", "data": {...}}
+{"schema": "https://example.com/schemas/export/finding/v1", "type": "finding", "consent_id": "...", "data": {...}}
+{"schema": "https://example.com/schemas/export/evidence/v1", "type": "evidence", "consent_id": "...", "data": {...}}
+{"schema": "https://example.com/schemas/export/audit_log/v1", "type": "audit_log", "consent_id": "...", "data": {...}}
 ```
 
 ### 9.3 Export Delivery
@@ -555,7 +555,7 @@ Every consent-relevant action produces an **immutable audit log entry**.
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://ishastra.dev/schemas/consent-audit/v1",
+  "$id": "https://example.com/schemas/consent-audit/v1",
   "title": "Consent Audit Log Entry",
   "type": "object",
   "additionalProperties": false,
@@ -728,7 +728,7 @@ Response includes `version` field; client handles upcast.
 
 - [Scope Document Schema v2](https://github.com/hacker-194/IshAstra/blob/master/src/ishastra/security/authorization/scope_schema.json) — `rules_of_engagement.data_handling`
 - [Scope Gate Concepts](scope-gate/concepts.md) — Layer 1/2/3 authorization
-- [Ishastra Proof](architecture/proof-chain.md) — Ed25519 signing, audit chain
+- [IshAstra Proof](architecture/proof-chain.md) — Ed25519 signing, audit chain
 - [GDPR Article 6](https://gdpr.eu/article-6-lawfulness/) — Lawful basis for processing
 - [NIST SP 800-53 Rev. 5](https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final) — CA-2, CA-6, CA-7, AU-2, AU-3, AU-6, AU-12, SC-28
 - [ISO/IEC 27001:2022](https://www.iso.org/standard/27001) — A.5.10, A.5.12, A.5.13, A.8.10, A.8.11

@@ -24,7 +24,7 @@ backup of the encryption key separate from the database backups.
    in terminal output or process arguments.
 3. Update the Kubernetes Secret through the secret manager or External Secrets
    Operator and verify its sync status without reading its values.
-4. Restart the Ishastra Deployments so they reload environment variables:
+4. Restart the IshAstra Deployments so they reload environment variables:
 
    ```bash
    NAMESPACE=your-namespace
@@ -57,7 +57,7 @@ it immediately invalidates clients still using the old value.
   post-migration chain verification.
 - **Database and Redis credentials:** use a backend-supported overlap (for
   example, a second database role) where available. Update the managed secret,
-  restart Ishastra, verify connections and job processing, then revoke the old
+  restart IshAstra, verify connections and job processing, then revoke the old
   credential. A single-password change may require coordinated downtime.
 - **`ISHASTRA_WEBHOOK_SECRET`:** coordinate the change with every webhook receiver;
   signatures made with the old value will no longer validate.

@@ -1,11 +1,11 @@
-# Ishastra Observability Stack
+# IshAstra Observability Stack
 
-This directory contains the complete observability configuration for Ishastra, including:
+This directory contains the complete observability configuration for IshAstra, including:
 
 ## Components
 
 ### Prometheus (`prometheus.yml`)
-- Scrapes `/api/metrics` from Ishastra API (requires admin key)
+- Scrapes `/api/metrics` from IshAstra API (requires admin key)
 - Scrapes node-exporter for host-level metrics (disk, CPU, memory)
 - Loads alerting rules from `alerting.yml`
 - Sends alerts to Alertmanager
@@ -31,7 +31,7 @@ Key alert categories:
 - **Service Health**: Component uptime
 
 ### Grafana Dashboards (`grafana/dashboards/`)
-- **Ishastra Overview** (`ishastra-overview.json`): High-level service health, latency, success rates
+- **IshAstra Overview** (`ishastra-overview.json`): High-level service health, latency, success rates
 - **Job Latency** (`ishastra-job-latency.json`): HTTP request and job duration percentiles
 - **Adapter Success Rates** (`ishastra-adapter-success-rates.json`): Per-adapter error rates and invocations
 - **Queue Depth** (`ishastra-queue-depth.json`): Active jobs, backlog, throughput by tenant
@@ -62,9 +62,9 @@ echo "SLACK_WEBHOOK_URL_CRITICAL=https://hooks.slack.com/..." >> .env.production
 echo "SLACK_WEBHOOK_URL_SECURITY=https://hooks.slack.com/..." >> .env.production
 echo "PAGERDUTY_SERVICE_KEY=your-pagerduty-key" >> .env.production
 
-# Start monitoring stack with production
-docker compose --env-file .env.production \
-  -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# Prometheus, Grafana and Jaeger are part of docker-compose.yml. Set
+# GRAFANA_PASSWORD in .env.production, then start the stack.
+docker compose --env-file .env.production up -d
 ```
 
 ## Access
@@ -72,7 +72,7 @@ docker compose --env-file .env.production \
 - **Prometheus**: http://localhost:9090 (SSH tunnel)
 - **Alertmanager**: http://localhost:9093 (SSH tunnel)
 - **Grafana**: http://localhost:3000 (admin / $GRAFANA_PASSWORD)
-- **Ishastra Metrics**: http://localhost:8000/api/metrics (requires admin key)
+- **IshAstra Metrics**: http://localhost:8000/api/metrics (requires admin key)
 
 ## Exported Metrics
 
@@ -151,21 +151,17 @@ pip install -e ".[otel]"
 
 ## Alert Runbooks
 
-Each alert includes a `runbook_url` annotation pointing to documentation. Create runbooks at:
+Each alert includes a `runbook_url` annotation. The operator runbooks live in
+`docs/runbooks/`:
+
+- `docs/runbooks/api-down.md`
 - `docs/runbooks/queue-backlog.md`
-- `docs/runbooks/job-latency.md`
-- `docs/runbooks/adapter-errors.md`
-- `docs/runbooks/auth-failures.md`
-- `docs/runbooks/audit-chain.md`
-- `docs/runbooks/http-errors.md`
-- `docs/runbooks/rate-limiting.md`
-- `docs/runbooks/db-pool.md`
-- `docs/runbooks/disk-pressure.md`
-- `docs/runbooks/webhook-failures.md`
-- `docs/runbooks/findings-volume.md`
-- `docs/runbooks/service-down.md`
-- `docs/runbooks/prometheus-down.md`
-- `docs/runbooks/redis-down.md`
+- `docs/runbooks/scope-gate-denials.md`
+- `docs/runbooks/db-connections.md`
+- `docs/runbooks/worker-oom.md`
+- `docs/runbooks/certificate-expiry.md`
+- `docs/runbooks/redis-issues.md`
+- `docs/runbooks/security-incident.md`
 
 ## Adding New Dashboards
 

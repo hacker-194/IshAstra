@@ -4,8 +4,8 @@
 
 | Alert | Severity | Source |
 |-------|----------|--------|
-| `IshastraAuthFailureRateHigh` | warning | Auth failures > 10/s |
-| `IshastraAuthFailureBurst` | critical | Auth failures > 50/min |
+| `IshAstraAuthFailureRateHigh` | warning | Auth failures > 10/s |
+| `IshAstraAuthFailureBurst` | critical | Auth failures > 50/min |
 | No direct alert | - | Scope violations logged in application |
 
 ---
@@ -211,7 +211,7 @@ DELETE FROM sessions WHERE tenant_id = 'acme-corp';
 
 #### Cause 3: Scope Validation Bug
 ```bash
-# Check Ishastra version for known scope bugs
+# Check IshAstra version for known scope bugs
 kubectl exec -n ishastra ishastra-api-xxx -- /usr/local/bin/ishastra --version
 
 # Test edge cases
@@ -289,7 +289,7 @@ curl -X POST http://ishastra.example.com/api/assess \
 
 ## Grafana Dashboard Links
 
-- **Ishastra Security**: `https://grafana.example.com/d/ishastra-security/security-overview`
+- **IshAstra Security**: `https://grafana.example.com/d/ishastra-security/security-overview`
 - **Auth Failures**: `https://grafana.example.com/d/ishastra-auth/auth-failures`
 
 **Key Panels:**

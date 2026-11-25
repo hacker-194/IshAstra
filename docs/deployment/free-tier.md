@@ -1,6 +1,6 @@
 # Free Tier Deployment
 
-Run **Ishastra** for **$0/month**:
+Run **IshAstra** for **$0/month**:
 
 - **Option A** — Oracle Cloud Free Tier + **Coolify** (self-hosted PaaS) — documented below
 - **Option B** — **Pure self-host** on your own hardware (laptop, RPi 4/5, desktop, home server) — **recommended for full control, zero dependencies, no card needed**
@@ -136,7 +136,7 @@ Restart: `docker compose restart ishastra` (or `systemctl restart ishastra` if u
 │  │  ┌─────────────────────────────────────────────────────────────┐   │    │
 │  │  │                      Coolify (Port 8000)                     │   │    │
 │  │  │  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────┐  │   │    │
-│  │  │  │PostgreSQL│  │  Redis   │  │   Ishastra │  │  Cloud-  │  │   │    │
+│  │  │  │PostgreSQL│  │  Redis   │  │   IshAstra │  │  Cloud-  │  │   │    │
 │  │  │  │(managed) │  │(managed) │  │  API/Worker│  │  flared  │  │   │    │
 │  │  │  └──────────┘  └──────────┘  └────────────┘  └──────────┘  │   │    │
 │  │  └─────────────────────────────────────────────────────────────┘   │    │
@@ -150,7 +150,7 @@ Restart: `docker compose restart ishastra` (or `systemctl restart ishastra` if u
 
 ## Resource Limits (Free Tier)
 
-| Resource | Limit | Ishastra Usage |
+| Resource | Limit | IshAstra Usage |
 |----------|-------|----------------|
 | Oracle ARM | 2 OCPU, 12GB RAM total | Coolify + Postgres + Redis + API (1C/2G) + Worker (1C/2G) |
 | Oracle AMD | 1/8 OCPU, 6GB RAM | Optional: CI, monitoring |
@@ -160,7 +160,7 @@ Restart: `docker compose restart ishastra` (or `systemctl restart ishastra` if u
 
 ## Resource Limits (Free Tier)
 
-| Resource | Limit | Ishastra Usage |
+| Resource | Limit | IshAstra Usage |
 |----------|-------|-------------|
 | Oracle ARM | 2 OCPU, 12GB RAM total | API (1C/2G), Worker (1C/3G), Scheduler (0.25C/0.5G) |
 | Neon PostgreSQL | 512MB storage | ~100MB for assessments |
@@ -262,7 +262,7 @@ CNAME   www     yourdomain.com           Proxied
 1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
 2. Name: `ishastra-ci`
 3. Resource owner: your user/org
-4. Repository access: Select your Ishastra fork
+4. Repository access: Select your IshAstra fork
 5. Permissions: `Packages` → Read/Write, `Contents` → Read
 6. Generate token → Copy!
 

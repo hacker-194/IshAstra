@@ -2,7 +2,7 @@
 
 # Built-in Adapters
 
-Ishastra's built-in adapters for passive and active security assessment.
+IshAstra's built-in adapters for passive and active security assessment.
 
 ## Overview
 
@@ -46,7 +46,7 @@ Passive analysis of HTTP responses for security headers, technology fingerprints
       "follow_redirects": true,
       "max_redirects": 10,
       "timeout": 10,
-      "user_agent": "Ishastra/3.5.0 (+https://ishastra.dev)",
+      "user_agent": "IshAstra/3.5.0 (+https://example.com)",
       "check_security_headers": true,
       "check_cookies": true,
       "check_methods": true,
@@ -345,7 +345,7 @@ Yield Finding objects
 
 ```bash
 # Submit assessment with built-in adapters
-curl -X POST https://api.ishastra.dev/api/v1/assessments \
+curl -X POST https://api.example.com/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{

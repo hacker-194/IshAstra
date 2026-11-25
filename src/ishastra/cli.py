@@ -1829,7 +1829,7 @@ def _run_scope_wizard(args: argparse.Namespace) -> int:
         output_file.write_text(json.dumps(scope_doc, indent=2))
         print(f"\n✓ Scope document written to {output_file}")
         print("\nYou can now run assessments with:")
-        print(f"  ishastra assess --target https://example.com --scope {output_file}")
+        print(f"  ishastra assess run --target https://example.com --scope {output_file}")
     except OSError as exc:
         print(f"error: cannot write {output_path}: {exc}", file=sys.stderr)
         return 3
@@ -2268,7 +2268,7 @@ def _run_init(args: argparse.Namespace) -> int:
 
     print("\nNext steps:")
     print(f"  1. Review {scope_output} before using it")
-    print(f"  2. Run an assessment: ishastra assess --target <URL> --scope {scope_output}")
+    print(f"  2. Run an assessment: ishastra assess run --target <URL> --scope {scope_output}")
     if args.github_action:
         print("  3. Push to GitHub — the workflow will run SARIF scans on PRs")
     return 0
@@ -2766,7 +2766,7 @@ jobs:
       - name: Run Ishastra assessment
         id: ishastra
         run: |
-          ishastra assess \\
+          ishastra assess run \\
             --target "{target}" \\
             --scope "{scope_file}" \\
             --profile "{profile}" \\

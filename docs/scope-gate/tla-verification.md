@@ -6,7 +6,7 @@ Formal specification and model checking of Scope Gate authorization logic.
 
 ## Overview
 
-Ishastra Scope Gate's core authorization logic is formally specified in TLA+ and verified with the TLC model checker.
+IshAstra Scope Gate's core authorization logic is formally specified in TLA+ and verified with the TLC model checker.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐

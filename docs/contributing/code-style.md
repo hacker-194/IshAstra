@@ -2,7 +2,7 @@
 
 # Code Style Guide
 
-Consistent code style across all Ishastra components.
+Consistent code style across all IshAstra components.
 
 ## General Principles
 
@@ -104,7 +104,7 @@ async def run_adapters(target: str, adapters: list[str]) -> list[Finding]:
 
 ```python
 # Custom exceptions with context
-class ScopeGateError(IshastraError):
+class ScopeGateError(IshAstraError):
     def __init__(self, target: str, layer: int, reason: str):
         self.target = target
         self.layer = layer

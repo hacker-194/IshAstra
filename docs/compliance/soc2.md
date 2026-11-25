@@ -1,6 +1,6 @@
-> **Status: control mapping, not certification.** Ishastra has no SOC 2, ISO 27001,
+> **Status: control mapping, not certification.** IshAstra has no SOC 2, ISO 27001,
 > or PCI DSS attestation and no paid bug bounty. MFA at IdP is enforced by an external
-> identity provider when configured; Ishastra does not implement MFA at IdP. API
+> identity provider when configured; IshAstra does not implement MFA at IdP. API
 > authentication is API keys plus OIDC/SAML browser sessions; there is no
 > API-key-to-OIDC session exchange. TLS is terminated by the operator. PostgreSQL RLS is
 > tested at the database layer and is not a substitute for application tenant
@@ -10,7 +10,7 @@
 
 # SOC 2 Type II Control Mapping
 
-Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availability, Confidentiality, Processing Integrity, Privacy).
+Mapping of IshAstra controls to SOC 2 Trust Services Criteria (Security, Availability, Confidentiality, Processing Integrity, Privacy).
 
 ## Control Summary
 
@@ -26,17 +26,17 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC1.0 - Control Environment
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC1.1 | ✅ | Code of conduct, contributor agreement, security policy |
 | CC1.2 | ✅ | RBAC, separation of duties, break-glass dual approval |
 | CC1.3 | ✅ | Threat modeling, risk assessment, TLA+ verification |
 | CC1.4 | ✅ | Competency requirements, onboarding, security training |
-| CC1.5 | ✅ | Accountability via audit trail, Ishastra Proof, key rotation |
+| CC1.5 | ✅ | Accountability via audit trail, IshAstra Proof, key rotation |
 
 ### CC2.0 - Communication & Information
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC2.1 | ✅ | API docs, runbooks, incident communication plan |
 | CC2.2 | ✅ | Security.txt, responsible disclosure, webhook events |
@@ -44,7 +44,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC3.0 - Risk Assessment
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC3.1 | ✅ | Annual risk assessment, per-release threat modeling |
 | CC3.2 | ✅ | Supply chain risk: SBOM, Dependabot, Trivy, cosign |
@@ -53,7 +53,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC4.0 - Monitoring Activities
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC4.1 | ✅ | Prometheus, Grafana, health checks, alerting |
 | CC4.2 | ✅ | Log aggregation, correlation IDs, structured JSON |
@@ -61,7 +61,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC5.0 - Control Activities
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC5.1 | ✅ | Policy-as-Code, GitOps, CI/CD gates |
 | CC5.2 | ✅ | Scope Gate (default-deny), adapter sandboxing |
@@ -69,7 +69,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC6.0 - Logical & Physical Access
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC6.1 | ✅ | API keys, OIDC session, scoped tokens, 90-day rotation |
 | CC6.2 | ✅ | Break-glass dual approval, MFA at IdP, audit trail |
@@ -82,17 +82,17 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC7.0 - System Operations
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC7.1 | ✅ | Vulnerability scanning: Trivy, Grype, nuclei in CI |
 | CC7.2 | 🔄 | No annual third-party test; continuous automated scans only |
 | CC7.3 | ✅ | Incident response: runbooks, break-glass, escalation |
 | CC7.4 | ✅ | Monitoring: real-time findings, PagerDuty, webhooks |
-| CC7.5 | ✅ | Forensics: Ishastra Proof, immutable audit trail, correlation IDs |
+| CC7.5 | ✅ | Forensics: IshAstra Proof, immutable audit trail, correlation IDs |
 
 ### CC8.0 - Change Management
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC8.1 | ✅ | GitFlow, PR required, CI validation, ArgoCD |
 | CC8.2 | ✅ | Automated testing: unit, integration, contract, E2E |
@@ -102,14 +102,14 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ### CC9.0 - Risk Mitigation
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | CC9.1 | ✅ | Business continuity: multi-region, RTO 1hr, RPO 5min |
 | CC9.2 | ✅ | Disaster recovery: documented runbooks, automated restore |
 
 ## Availability (A)
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | A1.1 | ✅ | k0s multi-cluster, multi-AZ, HPA, PDBs |
 | A1.2 | ✅ | Health checks, readiness/liveness probes, circuit breakers |
@@ -117,14 +117,14 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ## Confidentiality (C)
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | C1.1 | ✅ | Data classification: finding severity, PII tags, scope tags |
 | C1.2 | ✅ | Encryption at rest, TLS at proxy, sealed secrets, key rotation |
 
 ## Processing Integrity (PI)
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | PI1.1 | ✅ | Scope Gate validation per request, default-deny |
 | PI1.2 | ✅ | Idempotent assessment operations, deduplication |
@@ -134,7 +134,7 @@ Mapping of Ishastra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ## Privacy (P)
 
-| Criterion | Status | Ishastra Implementation |
+| Criterion | Status | IshAstra Implementation |
 |-----------|--------|---------------------|
 | P1.1 | ✅ | Privacy notice in API docs, data processing agreement |
 | P1.2 | ✅ | Data minimization: only assessment targets, no PII collection |

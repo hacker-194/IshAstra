@@ -4,12 +4,12 @@
 
 | Alert | Severity | Component | Duration |
 |-------|----------|-----------|----------|
-| `IshastraPrometheusDown` | critical | Prometheus | 1m |
-| `IshastraAlertmanagerDown` | critical | Alertmanager | 1m |
-| `IshastraGrafanaDown` | warning | Grafana | 1m |
-| `IshastraLokiDown` | warning | Loki | 1m |
-| `IshastraTempoDown` | warning | Tempo | 1m |
-| `IshastraOTelCollectorDown` | warning | OTel Collector | 1m |
+| `IshAstraPrometheusDown` | critical | Prometheus | 1m |
+| `IshAstraAlertmanagerDown` | critical | Alertmanager | 1m |
+| `IshAstraGrafanaDown` | warning | Grafana | 1m |
+| `IshAstraLokiDown` | warning | Loki | 1m |
+| `IshAstraTempoDown` | warning | Tempo | 1m |
+| `IshAstraOTelCollectorDown` | warning | OTel Collector | 1m |
 
 ---
 
@@ -17,7 +17,7 @@
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Ishastra     │────▶│ OTel Collector │────▶│  Tempo      │
+│   IshAstra     │────▶│ OTel Collector │────▶│  Tempo      │
 │   (API)     │     │  (Agent)      │     │  (Traces)   │
 └─────────────┘     └─────────────┘     └─────────────┘
        │                    │                    │
@@ -184,9 +184,9 @@ kubectl patch statefulset prometheus -n monitoring -p '{"spec":{"template":{"spe
 kubectl exec -n monitoring prometheus-0 -- find /prometheus -type f -mtime +15 -delete
 ```
 
-#### 2. Prometheus Target Down (Ishastra)
+#### 2. Prometheus Target Down (IshAstra)
 ```bash
-# Check if Ishastra metrics endpoint accessible
+# Check if IshAstra metrics endpoint accessible
 kubectl exec -n monitoring prometheus-0 -- wget -qO- http://ishastra-api.ishastra.svc.cluster.local:8000/api/metrics
 
 # Check ServiceMonitor
@@ -295,13 +295,13 @@ kubectl exec -n monitoring tempo-0 -- du -sh /tempo
 
 #### 1. Collector Not Receiving Traces
 ```bash
-# Check Ishastra OTel config
+# Check IshAstra OTel config
 kubectl exec -n ishastra ishastra-api-0 -- env | grep OTEL
 
 # Check collector receiver config
 kubectl get configmap otel-collector-config -n monitoring -o yaml | grep -A20 "receivers:"
 
-# Test trace export from Ishastra
+# Test trace export from IshAstra
 kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/python -c "
 from opentelemetry import trace
 tracer = trace.get_tracer(__name__)

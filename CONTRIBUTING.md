@@ -1,10 +1,10 @@
-# Contributing to Ishastra
+# Contributing to IshAstra
 
-Ishastra is an authorized security assessment platform. All contributions must preserve the **default-deny authorization model** — every outbound connection is validated against an authorization document before any network contact.
+IshAstra is an authorized security assessment platform. All contributions must preserve the **default-deny authorization model** — every outbound connection is validated against an authorization document before any network contact.
 
 ## License
 
-Ishastra is fully open source under the **Apache License 2.0** (`LICENSE`). Every
+IshAstra is fully open source under the **Apache License 2.0** (`LICENSE`). Every
 feature is in the open-source project; there is no proprietary edition or
 feature gated behind a commercial plan. By contributing, you agree that your
 contribution is licensed under the same Apache-2.0 terms. There is no
@@ -43,7 +43,7 @@ export ISHASTRA_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsaf
 ishastra serve --host 0.0.0.0 --port 8000
 
 # Or run inline assessment (for testing)
-ishastra assess --target https://example.com --profile web
+ishastra assess run --target https://example.com --profile web
 ```
 
 ## Code Quality Gates
@@ -229,6 +229,6 @@ Version in `src/ishastra/__init__.py`. Tagged releases build Docker image and pu
 | Engagement Policies | `src/ishastra/core/policies.py` |
 | API Routes | `src/ishastra/api/routers/` |
 | Auth/Rate Limit | `src/ishastra/api/security.py` |
-| Ishastra Proof | `src/ishastra/proof.py` |
+| IshAstra Proof | `src/ishastra/proof.py` |
 | CLI Entry | `src/ishastra/cli.py` |
 | Config | `src/ishastra/config.py` |

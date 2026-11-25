@@ -2,7 +2,7 @@
 
 ## Overview
 
-This runbook covers point-in-time restore procedures for Ishastra platform components from automated backups.
+This runbook covers point-in-time restore procedures for IshAstra platform components from automated backups.
 
 **RTO Targets:**
 - Database restore: < 30 minutes

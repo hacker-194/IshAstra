@@ -1,18 +1,18 @@
 # Production deployment
 
-This page describes the production topology Ishastra actually supports today, the
+This page describes the production topology IshAstra actually supports today, the
 go-live checklist, and the limits you must accept. It replaces earlier guidance
 that described clustering, leader election and autoscaling that the code does
 not implement.
 
 ## Status
 
-Ishastra is **pilot-grade for a single-tenant, single-host deployment**. The
+IshAstra is **pilot-grade for a single-tenant, single-host deployment**. The
 authorization core is mature (TLA+-checked, 95% covered, property and
 adversarial tests in CI); the platform around it is deliberately single-writer
 and has no HA story.
 
-Use this page as the go/no-go reference before pointing Ishastra at production
+Use this page as the go/no-go reference before pointing IshAstra at production
 infrastructure.
 
 ## Supported topologies

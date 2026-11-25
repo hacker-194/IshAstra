@@ -1,6 +1,6 @@
-# Ishastra Helm Chart
+# IshAstra Helm Chart
 
-Production-grade Kubernetes deployment for Ishastra - Authorized Security Assessment Platform.
+Production-grade Kubernetes deployment for IshAstra - Authorized Security Assessment Platform.
 
 ## Chart Structure
 
@@ -13,7 +13,7 @@ ishastra/
 ├── values-prod.yaml        # Production environment
 ├── templates/
 │   ├── _helpers.tpl        # Template helpers
-│   ├── deployment-api.yaml # Ishastra API deployment
+│   ├── deployment-api.yaml # IshAstra API deployment
 │   ├── deployment-scheduler.yaml # Scheduler deployment
 │   ├── deployment-worker.yaml    # worker deployment (one writer per database)
 │   ├── service-api.yaml        # API service
@@ -35,7 +35,7 @@ ishastra/
 
 ## Prerequisites
 
-- Kubernetes 1.24+
+- Kubernetes 1.25+
 - Helm 3.10+
 - cert-manager (for TLS)
 - external-dns (optional, for DNS automation)
@@ -75,7 +75,7 @@ helm install ishastra ./deploy/helm/ishastra \
 Before deploying to staging/production, create the following secrets:
 
 ```bash
-# Ishastra API secrets
+# IshAstra API secrets
 kubectl create secret generic ishastra-secrets \
   --from-literal=ISHASTRA_API_KEY="$(openssl rand -base64 32)" \
   --from-literal=ISHASTRA_AUDIT_HMAC_KEY="$(openssl rand -base64 32)" \
@@ -173,7 +173,7 @@ The chart includes ServiceMonitors for Prometheus scraping:
 - Redis and PostgreSQL metrics (via bitnami charts)
 
 Default dashboards available in Grafana:
-- Ishastra Overview
+- IshAstra Overview
 - API Latency & Errors
 - Assessment Queue Depth
 - Resource Utilization
@@ -257,4 +257,4 @@ one execution).
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](../../../LICENSE).

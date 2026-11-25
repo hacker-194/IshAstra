@@ -4,14 +4,14 @@
 
 
 
-site_name: Ishastra Documentation
-site_description: Authorization-First Security Assessment Platform
-site_url: https://ishastra.dev
-site_author: Ishastra Contributors
+site_name: IshAstra Documentation
+site_description: Authorization-first security assessment platform
+site_url: https://hacker-194.github.io/IshAstra/
+site_author: IshAstra Contributors
 repo_url: https://github.com/hacker-194/IshAstra
 repo_name: hacker-194/IshAstra
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2024 Ishastra Contributors — Apache-2.0
+copyright: Copyright &copy; 2024–2026 IshAstra Contributors — Apache-2.0
 
 theme:
   name: material
@@ -151,15 +151,6 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/hacker-194/IshAstra
-    - icon: fontawesome/brands/discord
-      link: https://discord.gg/ishastra
-    - icon: fontawesome/brands/slack
-      link: https://slack.ishastra.dev
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/strix_security
-  analytics:
-    provider: google
-    property: G-XXXXXXXXXX
   version:
     provider: mike
 

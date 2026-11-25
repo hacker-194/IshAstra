@@ -24,14 +24,14 @@ provider "ishastra" {
 
 # Example: Create an API key for a tenant
 # resource "ishastra_api_key" "example" {
-#   tenant_id = ishatra_tenant.example.id
+#   tenant_id = ishastra_tenant.example.id
 #   name      = "terraform-key"
 #   role      = "analyst"
 # }
 
 # Example: Create an assessment job
 # resource "ishastra_assessment" "example" {
-#   tenant_id = ishatra_tenant.example.id
+#   tenant_id = ishastra_tenant.example.id
 #   target    = "https://api.example.com"
 #   profile   = "web-deep"
 #   scope     = data.ishastra_scope.example.json
@@ -46,6 +46,7 @@ provider "ishastra" {
 # resource "ishastra_scope" "example" {
 #   name = "production-scope"
 #   json = jsonencode({
+#     version = 2
 #     program = "Production Assessment"
 #     authorized_by = "Security Team"
 #     authorization_ref = "CONTRACT-2024-001"

@@ -2,11 +2,11 @@
 
 # Adapter Framework Architecture
 
-How Ishastra runs real security tools with normalized output and Scope Gate enforcement.
+How IshAstra runs real security tools with normalized output and Scope Gate enforcement.
 
 ## Overview
 
-The Adapter Framework is Ishastra's plugin system for security tools. Every adapter — built-in or external — **re-checks Scope Gate before each connection**.
+The Adapter Framework is IshAstra's plugin system for security tools. Every adapter — built-in or external — **re-checks Scope Gate before each connection**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -269,7 +269,7 @@ class DynamicValidationAdapter(BaseAdapter):
 
 ## External Tool Adapters
 
-External tools run as subprocesses. Ishastra wraps them with Scope Gate enforcement.
+External tools run as subprocesses. IshAstra wraps them with Scope Gate enforcement.
 
 ### Architecture (IshAstra 4.0)
 
@@ -479,7 +479,7 @@ class CustomSSHAdapter(BaseAdapter):
                 category="crypto",
                 location=self.config.target,
                 evidence={"ciphers": weak},
-                references=["https://ishastra.dev/findings/SSH-WEAK-CIPHER"],
+                references=["https://example.com/findings/SSH-WEAK-CIPHER"],
                 metadata={}
             )
 ```
@@ -561,8 +561,8 @@ Raw Tool Output
        │
        ▼
 ┌─────────────┐
-│ Map         │  Tool severity → Ishastra severity
-│ Severity    │  Tool IDs → Ishastra finding IDs
+│ Map         │  Tool severity → IshAstra severity
+│ Severity    │  Tool IDs → IshAstra finding IDs
 └──────┬──────┘
        │
        ▼

@@ -1,6 +1,6 @@
-name: Ishastra authorized assessment
+name: IshAstra authorized assessment
 description: Run a scope-authorized assessment and upload SARIF to GitHub code scanning.
-author: Ishastra
+author: IshAstra
 
 branding:
   icon: shield
@@ -15,7 +15,7 @@ inputs:
     required: false
     default: scope.json
   profile:
-    description: Assessment profile (web, web-crawl, web-deep, api, api-deep, network, ports).
+    description: Assessment profile (web, web-deep, api, api-deep, network).
     required: false
     default: web
   fail-on-findings:
@@ -65,7 +65,7 @@ runs:
         FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
       run: |
         set -euo pipefail
-        ishastra assess --target "$TARGET" --profile "$PROFILE" --scope "$SCOPE_FILE" \
+        ishastra assess run --target "$TARGET" --profile "$PROFILE" --scope "$SCOPE_FILE" \
           --output ishastra.sarif
         echo "sarif=ishastra.sarif" >> "$GITHUB_OUTPUT"
         if [ "$FAIL_ON_FINDINGS" = "true" ]; then

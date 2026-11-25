@@ -2,7 +2,7 @@
 
 # Runbook: Assessment Queue Backlog
 
-**Alert**: `IshastraQueueDepthHigh`
+**Alert**: `IshAstraQueueDepthHigh`
 **Severity**: Warning
 **Team**: Platform
 

@@ -1,4 +1,4 @@
-# NOTE: Ishastra does not implement MFA; enforce it at your identity provider.
+# NOTE: IshAstra does not implement MFA; enforce it at your identity provider.
 
 # Break-Glass Dual Approval
 
@@ -28,7 +28,7 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
 │     Temporary scope extension created                                       │
 │     → Signed with break-glass key                                           │
 │     → Time-bounded (max 4h default)                                         │
-│     → Audited in Ishastra Proof chain                                          │
+│     → Audited in IshAstra Proof chain                                          │
 │                                                                              │
 │  4. USE                                                                      │
 │     Worker uses extended scope                                              │
@@ -82,41 +82,28 @@ Break-Glass provides controlled emergency access when legitimate targets fall ou
 ### 1. Create Request
 
 ```bash
-# API
-curl -X POST https://api.ishastra.dev/api/v1/break-glass \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scope_id": "scope-prod-123",
-    "target": "https://169.254.169.254/latest/meta-data/",
-    "reason": "Incident response: need AWS metadata for compromised instance",
-    "duration": "2h"
-  }'
+ishastra scope-breakglass \
+  --scope scope.json \
+  --tenant default \
+  --hosts app.example.com \
+  --duration 2h \
+  --approver1-key approver1.pem --approver1-kid approver-1 \
+  --approver2-key approver2.pem --approver2-kid approver-2 \
+  --jwks approvers-jwks.json \
+  --reason "Incident response: verify the exposed metadata endpoint" \
+  --output scope-breakglass.json
 
-# Response
-{
-  "request_id": "bg-req-456",
-  "status": "PENDING_APPROVAL",
-  "approvals_needed": 2,
-  "approvals_received": 0,
-  "expires_at": "2024-01-15T14:00:00Z"
-}
+# The command writes a signed document with a short expires_at.
+# Pass it to the gate/assessment with --scope scope-breakglass.json.
 ```
 
 ### 2. Approve Request
 
 ```bash
-# First approver
-curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/approve \
-  -H "Authorization: Bearer $APPROVER1_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"mfa_token": "123456"}'
-
-# Second approver
-curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/approve \
-  -H "Authorization: Bearer $APPROVER2_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"mfa_token": "654321"}'
+Both approvals are cryptographic. `--approver1-key` and `--approver2-key` must
+sign with keys whose IDs (`--approver1-kid`, `--approver2-kid`) are present in
+`--jwks`. The command refuses to produce a document unless both signatures
+verify.
 ```
 
 ### 3. Use Extended Scope
@@ -303,7 +290,7 @@ async def run_assessment(assessment: Assessment):
 
 ## Audit & Compliance
 
-### Ishastra Proof Integration
+### IshAstra Proof Integration
 
 Every break-glass action creates signed receipts:
 
@@ -449,11 +436,9 @@ async def _expiry_check(self):
 ### Manual Revocation
 
 ```bash
-# Any approver can revoke
-curl -X POST https://api.ishastra.dev/api/v1/break-glass/bg-req-456/revoke \
-  -H "Authorization: Bearer $APPROVER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"reason": "Incident resolved"}'
+Revocation is expiry. The signed document carries a short `expires_at` (maximum
+four hours); stop passing it as `--scope` and let it expire. No network call is
+involved.
 ```
 
 ### Revocation Propagation

@@ -2,7 +2,7 @@
 
 # External Tool Adapters
 
-Ishastra wraps industry-standard security tools with Scope Gate enforcement.
+IshAstra wraps industry-standard security tools with Scope Gate enforcement.
 
 ## Overview
 
@@ -496,7 +496,7 @@ class NiktoAdapter(BaseAdapter):
 ### Via API
 
 ```bash
-curl -X POST https://api.ishastra.dev/api/v1/assessments \
+curl -X POST https://api.example.com/api/v1/assessments \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -523,7 +523,7 @@ ishastra adapter run-external --target https://example.com --scope scope.json
 ### Docker (Recommended)
 
 ```dockerfile
-# All tools pre-installed in Ishastra worker image
+# All tools pre-installed in IshAstra worker image
 FROM ghcr.io/ishastra/worker:3.5.0
 # Includes: nmap, nuclei, sqlmap, nikto, and dependencies
 ```
@@ -624,7 +624,7 @@ Third-party adapters (published under the `ishastra.adapters` entry-point group)
 
 ### Why Plugins Bypass Automatic Scope Gate Re-Checks
 
-Built-in and external adapters are developed within the Ishastra codebase and **explicitly call** the Scope Gate (`scope.check()` / `scope.destination()`) before every outbound connection. Third-party plugins:
+Built-in and external adapters are developed within the IshAstra codebase and **explicitly call** the Scope Gate (`scope.check()` / `scope.destination()`) before every outbound connection. Third-party plugins:
 
 1. **Run in the same process** — no sandbox isolation
 2. **Can open arbitrary network connections** — no syscall filtering

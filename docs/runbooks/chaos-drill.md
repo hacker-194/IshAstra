@@ -1,4 +1,4 @@
-# Ishastra Chaos Engineering & Disaster Recovery Drill
+# IshAstra Chaos Engineering & Disaster Recovery Drill
 
 **Version:** 1.0  
 **Last updated:** 2026-11-18  
@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Validate that Ishastra survives infrastructure failures without data loss, maintains audit chain integrity, and recovers automatically within RTO/RPO targets.
+Validate that IshAstra survives infrastructure failures without data loss, maintains audit chain integrity, and recovers automatically within RTO/RPO targets.
 
 ---
 

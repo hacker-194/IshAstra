@@ -101,10 +101,10 @@ ishastra-operator = "ishastra.operator.main:run_operator"
 
 [project.urls]
 Homepage = "https://github.com/hacker-194/IshAstra"
-Documentation = "https://github.com/hacker-194/IshAstra/tree/master/docs"
+Documentation = "https://github.com/hacker-194/IshAstra/tree/main/docs"
 Repository = "https://github.com/hacker-194/IshAstra"
 Issues = "https://github.com/hacker-194/IshAstra/issues"
-Changelog = "https://github.com/hacker-194/IshAstra/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/hacker-194/IshAstra/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -74,7 +74,7 @@ resource "ishastra_tenant" "prod" {
 
 # 2. Create API key for CI/CD
 resource "ishastra_api_key" "ci" {
-  tenant_id = ishatra_tenant.prod.id
+  tenant_id = ishastra_tenant.prod.id
   name      = "github-actions"
   role      = "analyst"
 }
@@ -83,6 +83,7 @@ resource "ishastra_api_key" "ci" {
 resource "ishastra_scope" "prod" {
   name = "production-scope"
   json = jsonencode({
+    version = 2
     program = "Production Security Assessment"
     authorized_by = "Security Team"
     authorization_ref = "CONTRACT-2024-001"
@@ -96,10 +97,10 @@ resource "ishastra_scope" "prod" {
 
 # 4. Run assessment on every deploy
 resource "ishastra_assessment" "deploy_scan" {
-  tenant_id = ishatra_tenant.prod.id
+  tenant_id = ishastra_tenant.prod.id
   target    = "https://api.example.com"
   profile   = "web-deep"
-  scope     = ishatra_scope.prod.json
+  scope     = ishastra_scope.prod.json
   # Trigger on changes to target or scope
   triggers = {
     target_hash = sha256("https://api.example.com")
@@ -109,7 +110,7 @@ resource "ishastra_assessment" "deploy_scan" {
 
 # 5. Output findings for downstream use
 data "ishastra_findings" "critical" {
-  assessment_id = ishatra_assessment.deploy_scan.id
+  assessment_id = ishastra_assessment.deploy_scan.id
   severity      = "critical"
 }
 
@@ -122,6 +123,7 @@ output "critical_findings_count" {
 
 ```json
 {
+  "version": 2,
   "program": "string",
   "authorized_by": "string",
   "authorization_ref": "string",
@@ -137,12 +139,11 @@ output "critical_findings_count" {
 
 | Profile | Description |
 |---------|-------------|
-| `web-quick` | Fast HTTP header + TLS check |
-| `web-standard` | Standard web app scan |
-| `web-deep` | Deep scan with auth, JS analysis |
-| `api-standard` | OpenAPI-driven API scan |
-| `network-quick` | Port scan + service detection |
-| `network-deep` | Full network enumeration |
+| `web` | HTTP probe + git exposure check |
+| `web-deep` | Crawl, dynamic validation, Nuclei |
+| `api` | HTTP probe + OpenAPI discovery |
+| `api-deep` | Crawl, OpenAPI, authz, SSRF, dynamic validation, Nuclei |
+| `network` | HTTP probe + native TCP + nmap |
 
 ## Development
 

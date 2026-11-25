@@ -1,8 +1,8 @@
 # Runbook: API Down
 
-# Runbook: Ishastra API Down
+# Runbook: IshAstra API Down
 
-**Alert**: `IshastraAPIDown`
+**Alert**: `IshAstraAPIDown`
 **Severity**: Critical
 **Team**: Platform
 
@@ -10,7 +10,7 @@
 
 - API health endpoint returns 5xx or times out
 - `up{job="ishastra-api"} == 0` for > 2 minutes
-- Users report unable to access Ishastra API
+- Users report unable to access IshAstra API
 - Dashboard shows API pods as NotReady
 
 ## Investigation Steps
@@ -41,7 +41,7 @@ kubectl describe node | grep -A 5 "Allocated resources"
 
 ```bash
 # Database connectivity
-kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s http://localhost:8000/health/detailed
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s http://localhost:8000/api/health
 
 # Redis connectivity
 kubectl exec -n ishastra-system deploy/ishastra-api -- redis-cli -h ishastra-redis ping

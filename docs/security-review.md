@@ -1,6 +1,6 @@
 # Security Review Process
 
-Ishastra is a community project. This page describes the reviews that actually
+IshAstra is a community project. This page describes the reviews that actually
 happen in the repository; it is not a claim of a staffed security team, a paid
 bug bounty, or an independent audit.
 
@@ -70,4 +70,4 @@ an address that is not listed there.
 
 `docs/compliance/*` contains control mappings. It is **not** a certification,
 attestation, or independent audit. MFA, TLS termination, and high availability
-are deployment responsibilities, not features Ishastra implements itself.
+are deployment responsibilities, not features IshAstra implements itself.

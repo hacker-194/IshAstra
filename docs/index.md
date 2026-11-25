@@ -1,106 +1,83 @@
-# Ishastra Documentation
+# IshAstra Documentation
 
-# Ishastra
+**Authorization-first security assessment.** IshAstra asks *"am I allowed to touch this?"* before it scans, then leaves a verifiable receipt of every decision.
 
-**Authorization-First Security Assessment Platform**
+## Quick start
 
-Ishastra is a security assessment platform built on a **default-deny authorization engine** (Scope Gate) that prevents unauthorized outbound connections during security testing.
+```bash
+git clone https://github.com/hacker-194/IshAstra.git
+cd IshAstra
+python3 -m venv .venv && . .venv/bin/activate
+pip install -c constraints.txt -e .
+ishastra demo
+```
 
-## Core Features
+`ishastra demo` starts a self-contained instance at `http://127.0.0.1:8000` with a generated admin key, an Ed25519-signed localhost-only scope, and a SQLite database. It prints the API key to paste into the UI; nothing outside `./.ishastra-demo/` is modified.
 
-### Scope Gate (Default-Deny Authorization)
-- **Layer 1**: URL/Host/Port validation against allowlists
-- **Layer 2**: DNS resolution + IP CIDR policy enforcement
-- **Layer 3**: Destination pinning (IPv6-first, deterministic selection)
-- **Formally verified**: 6 TLA+ invariants, 21.4M states model-checked
+## Run your first assessment
 
-### Adapter Framework
-- **Built-in**: HTTP Probe, Crawler, Dynamic Validation
-- **External**: Nmap, Nuclei, SQLMap, Nikto (wrapped with Scope Gate)
-- **Custom**: SDK for building your own adapters
+```bash
+ishastra scope-wizard --output scope.json
+ishastra assess run \
+  --target https://app.example.com/ \
+  --scope scope.json \
+  --profile web \
+  --output result.sarif
+```
 
-### Ishastra Proof (Cryptographic Audit Chain)
-- **Grant** → **Gate** → **Proof** → **Verify**
-- Ed25519 signatures with JWKS rotation
-- Tamper-evident assessment receipts
+The scope document is the authorization record: it lists the hosts, networks, ports and expiry the assessment may touch. The gate denies everything else before a connection is opened.
 
-### Multi-Tenancy
-- ContextVar-based isolation
-- Per-tenant API keys (hashed at rest)
-- Row-Level Security (PostgreSQL backend)
+## What IshAstra provides
 
-## Quick Links
-
-| Section | Description |
-|---------|-------------|
-| [Quick Start Overview](quickstart/overview.md) | Get running in 5 minutes |
-| [Free Tier Deployment](quickstart/free-tier.md) | $0/month on Oracle Cloud |
-| [Local Development](quickstart/local-dev.md) | Docker Compose setup |
-| [Production Deployment](quickstart/production.md) | Supported topology and go-live checklist |
+- **Scope Gate** — three default-deny layers: URL/host/port, every resolved IP against `authorized_networks`, then a pinned destination to prevent DNS rebinding.
+- **Adapters** — HTTP probe, crawler, dynamic validation, and wrapped Nuclei, nmap, SQLMap and Nikto. Every adapter re-checks the gate.
+- **IshAstra Proof** — Ed25519-signed grants and a hash-chained receipt for every allow/deny decision.
+- **Evidence bundles** — `ishastra bundle` packages the job, findings, report, audit entries and exact scope into one signed, SHA-256-pinned zip that verifies offline.
+- **Multi-tenancy** — API-key tenant isolation, per-tenant keys, and optional PostgreSQL row-level security.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Ishastra Platform                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌────────────────────────┐  │
-│  │   API       │  │  Worker     │  │  Scheduler             │  │
-│  │  (FastAPI)  │  │  (inproc)   │  │  (APScheduler)         │  │
-│  └──────┬──────┘  └──────┬──────┘  └───────────┬────────────┘  │
-│         │                │                     │               │
-│         └────────────────┼─────────────────────┘               │
-│                          ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    Scope Gate                            │   │
-│  │  Layer 1: URL/Host  │  Layer 2: DNS/IP  │  Layer 3: Pin │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                          │                                     │
-│         ┌────────────────┼────────────────┐                   │
-│         ▼                ▼                ▼                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │ PostgreSQL  │  │   Redis     │  │  Reports    │           │
-│  │ (RLS)       │  │  (limits)   │  │  (local)    │           │
-│  └─────────────┘  └─────────────┘  └─────────────┘           │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    API["REST API"] --> Q["Queue<br/>in-process · Redis Streams"]
+    Q --> W["Assessment worker"]
+    W --> G["Scope Gate<br/>3 default-deny layers"]
+    G --> A["Adapters<br/>HTTP · crawler · nmap · Nuclei · SQLMap · Nikto"]
+    A --> F["Findings + SARIF"]
+    G -.-> P["IshAstra Proof<br/>audit chain"]
 ```
 
-## Documentation Structure
+- **Database:** SQLite is the supported single-host default. PostgreSQL is available and tested single-host, but remains experimental (no HA or multi-node failover).
+- **Queue:** in-process is the default (a restart loses queued jobs). Redis Streams is the durable option for multiple workers.
+- **Formal verification:** 6 TLA+ invariants across 21,458,641 states.
 
-- **Quick Start** - Installation and first assessment
-- **Architecture** - System design and component details
-- **Scope Gate** - Authorization engine deep dive
-- **Adapters** - Built-in, external, and custom adapters
-- **Deployment** - Kubernetes, Helm, Docker Compose, Free Tier
-- **API Reference** - REST API endpoints
-- **Compliance** - NIST, ISO 27001, SOC 2, PCI DSS mappings
-- **Contributing** - Development, testing, release process
+## Deployment
 
-## Get Started
+| Target | Start here |
+| :----- | :--------- |
+| Local evaluation | `ishastra demo` |
+| Full local stack | `docker compose up -d` (set `POSTGRES_PASSWORD` and `GRAFANA_PASSWORD`) |
+| Single-host production | [Production deployment](quickstart/production.md) |
+| Kubernetes / Helm | [Helm guide](deployment/helm.md) |
+| Free tier | [Free-tier deployment](deployment/free-tier.md) |
 
-```bash
-# Quick start with Docker Compose
-git clone https://github.com/hacker-194/IshAstra.git
-cd ishastra
-cp .env.example .env
-docker compose up -d
-docker compose exec api alembic upgrade head
-curl http://localhost:8000/health
-```
+## Documentation map
 
-## Community
+| Section | Contents |
+| :------ | :------- |
+| Quick Start | Install, scope, assess, serve |
+| Architecture | Components, Scope Gate, adapters, jobs, proof chain |
+| Scope Gate | Concepts, configuration, policies, break-glass, TLA+ |
+| Deployment | Kubernetes, Helm, Compose, monitoring, runbooks |
+| API Reference | Authentication, assessments, findings, scope, webhooks |
+| Compliance | NIST 800-53, ISO 27001, SOC 2, PCI DSS mappings |
 
-- **GitHub**: [github.com/hacker-194/IshAstra](https://github.com/hacker-194/IshAstra)
-- **Discord**: [discord.gg/ishastra](https://discord.gg/ishastra)
-- **Slack**: [slack.ishastra.dev](https://slack.ishastra.dev)
-- **Twitter**: [@ishastra_security](https://twitter.com/ishastra_security)
+## Project status
 
-## License
+IshAstra 4.0 is pilot-ready: the authorization core is model-checked, the test suite and security scans run in CI, and the documented limits are explicit. Read [Production deployment](quickstart/production.md) before promising uptime, and [SECURITY.md](https://github.com/hacker-194/IshAstra/blob/main/SECURITY.md) for the threat model.
 
-Apache-2.0 — See [LICENSE](license.md)
+## Community and license
 
----
-
-*Built with security-first principles. Every outbound connection is authorized, pinned, and audited.*
+- Questions and ideas: [GitHub Discussions](https://github.com/hacker-194/IshAstra/discussions)
+- Bugs and feature requests: [GitHub Issues](https://github.com/hacker-194/IshAstra/issues)
+- License: [Apache-2.0](license.md)

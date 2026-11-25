@@ -1,6 +1,6 @@
 # ishastra-adapter-hello
 
-Minimal Ishastra adapter example — demonstrates the complete adapter contract.
+Minimal IshAstra adapter example — demonstrates the complete adapter contract.
 
 ## Install
 
@@ -18,7 +18,7 @@ pip install -e examples/adapter-hello
 
 ## Verify Installation
 
-After installing, the adapter appears in the Ishastra adapter registry:
+After installing, the adapter appears in the IshAstra adapter registry:
 
 ```bash
 # List all registered adapters
@@ -40,7 +40,7 @@ python -m ishastra_adapter_hello
 
 Output:
 ```
-Finding(id='HELLO-REACHABLE', title='Target reachable via Scope Gate', severity=<Severity.INFO: 'info'>, category='network', location='https://httpbin.org/get', evidence={'pinned_ip': '...', 'port': 443, 'scheme': 'https', 'resolved_at': ...}, references=['https://ishastra.dev/docs/adapters/sdk'], metadata={'adapter_version': '0.1.0', 'gate_layer': 3})
+Finding(id='HELLO-REACHABLE', title='Target reachable via Scope Gate', severity=<Severity.INFO: 'info'>, category='network', location='https://httpbin.org/get', evidence={'pinned_ip': '...', 'port': 443, 'scheme': 'https', 'resolved_at': ...}, references=['https://example.com/docs/adapters/sdk'], metadata={'adapter_version': '0.1.0', 'gate_layer': 3})
 ```
 
 ## Use in an Assessment
@@ -97,4 +97,4 @@ This example demonstrates the minimal required implementation:
 - Add pagination handling for API targets
 - Write unit tests using `create_mock_gate()` and `create_test_config()` from SDK docs
 
-See [Adapter SDK Reference](https://ishastra.dev/docs/adapters/sdk) for full API.
+See [Adapter SDK Reference](https://example.com/docs/adapters/sdk) for full API.

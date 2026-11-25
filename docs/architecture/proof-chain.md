@@ -1,16 +1,16 @@
-# Ishastra Proof — Cryptographic Audit Chain
+# IshAstra Proof — Cryptographic Audit Chain
 
-# Ishastra Proof — Cryptographic Audit Chain
+# IshAstra Proof — Cryptographic Audit Chain
 
 Tamper-evident, offline-verifiable audit trail for every Scope Gate decision.
 
 ## Overview
 
-Ishastra Proof creates a cryptographic chain linking every authorization decision back to the original signed scope document.
+IshAstra Proof creates a cryptographic chain linking every authorization decision back to the original signed scope document.
 
 ```text
  ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Ishastra Proof Chain                                     │
+│                        IshAstra Proof Chain                                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐               │
@@ -217,12 +217,12 @@ class GateObserver(Protocol):
         """Called on resolution/validation errors"""
 ```
 
-### IshastraProofObserver
+### IshAstraProofObserver
 
-**File**: `src/ishastra/core/proof.py` — `IshastraProofObserver`
+**File**: `src/ishastra/core/proof.py` — `IshAstraProofObserver`
 
 ```python
-class IshastraProofObserver:
+class IshAstraProofObserver:
     def __init__(
         self,
         signer: Ed25519PrivateKey,
@@ -317,7 +317,7 @@ ishastra proof verify proof-receipt.json --jwks jwks.json
 from ishastra.core.proof import verify_proof
 from ishastra.core.scope_signing import load_jwks
 
-jwks = load_jwks("https://api.ishastra.dev/.well-known/jwks.json")
+jwks = load_jwks("https://api.example.com/.well-known/jwks.json")
 
 with open("proof-receipt.json") as f:
     proof = ProofReceipt.model_validate_json(f.read())
@@ -454,7 +454,7 @@ class PostgresProofStorage:
 
 ### NIST 800-53
 
-| Control | Ishastra Proof Coverage |
+| Control | IshAstra Proof Coverage |
 |---------|---------------------|
 | AU-2 (Audit Events) | Every gate decision logged |
 | AU-3 (Audit Content) | Full context in receipt |
@@ -498,7 +498,7 @@ Response:
   "verification": {
     "valid": true,
     "checked_at": "2024-01-15T10:30:00Z",
-    "jwks_source": "https://api.ishastra.dev/.well-known/jwks.json"
+    "jwks_source": "https://api.example.com/.well-known/jwks.json"
   }
 }
 ```
@@ -532,7 +532,7 @@ Content-Type: application/json
 
 {
   "proof": { ... },
-  "jwks_url": "https://api.ishastra.dev/.well-known/jwks.json"
+  "jwks_url": "https://api.example.com/.well-known/jwks.json"
 }
 
 Response:

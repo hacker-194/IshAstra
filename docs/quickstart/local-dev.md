@@ -14,7 +14,7 @@ docker-compose up -d
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Ishastra API | http://localhost:8000 | API key from `.env` |
+| IshAstra API | http://localhost:8000 | API key from `.env` |
 | Grafana | http://localhost:3000 | admin / admin |
 | Prometheus | http://localhost:9090 | — |
 | PostgreSQL | localhost:5432 | ishastra / ishastra |
@@ -91,7 +91,7 @@ Changes to Python files auto-reload the API.
 ### VS Code Debug Config
 ```json
 {
-  "name": "Ishastra API",
+  "name": "IshAstra API",
   "type": "python",
   "request": "attach",
   "connect": {"host": "localhost", "port": 5678},
@@ -110,13 +110,13 @@ debugpy.wait_for_client()  # Blocks until debugger attaches
 
 ```bash
 # Create migration
-alembic revision --autogenerate -m "description"
+# Edit src/ishastra/core/store.py (MIGRATIONS / MIGRATIONS_PG) and bump schema_version.
 
 # Apply migrations
-alembic upgrade head
+# The store applies the schema chain at startup.
 
 # Rollback
-alembic downgrade -1
+# Forward-only schema: restore a backup to roll back.
 ```
 
 ## Custom Scope Document
@@ -125,7 +125,7 @@ alembic downgrade -1
 # Use your own scope
 cp scope.example.json scope.json
 # Edit scope.json
-docker-compose restart api
+docker compose restart scope-gate
 ```
 
 ## Troubleshooting

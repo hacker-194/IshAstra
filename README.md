@@ -43,7 +43,7 @@
 </div>
 
 > [!NOTE]
-> **Project status: pilot-ready** (IshAstra 4.0). The authorization core is TLA+-model-checked and CI-enforced; Phase 2 adds capability tokens, egress gateway (CONNECT proxy), hardened worker containers, and signed evidence bundles. Read [Production deployment](docs/quickstart/production.md) before promising uptime, and [SECURITY.md](SECURITY.md) for the honest security posture.
+> **Project status: pilot-ready** (IshAstra 4.0.0rc1). The authorization core is TLA+-model-checked and CI-enforced; capability tokens, the egress gateway, hardened workers and signed evidence bundles are implemented. "Pilot-ready" means suitable for authorized, single-tenant testing with operator supervision — it is not a certification, a security guarantee, or a multi-node scale claim. Read [Production deployment](docs/quickstart/production.md), [SECURITY.md](SECURITY.md) and [Limitations](#limitations) before promising uptime.
 
 ## Why IshAstra
 
@@ -61,7 +61,7 @@ Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch th
     </td>
     <td width="33%" valign="top">
       <h3>⛓️ Audit chain</h3>
-      Every gate decision is receipted in a cryptographic chain that is tamper-evident, verifiable offline and compliance-ready.
+      Every gate decision is receipted in a cryptographic chain that is tamper-evident and verifiable offline. It supports evidence collection for control mapping; it is not a certification.
     </td>
   </tr>
   <tr>
@@ -160,10 +160,10 @@ flowchart TB
 
 | Component | What it does | Key property |
 | :-------- | :----------- | :----------- |
-| **Capability tokens** | Ed25519-signed JWTs (TTL ≤ 900 s) carrying tenant, engagement, targets, pinned IPs, allowed ports/protocols/tools, budget | Unforgeable; verifiable offline; revocable by token/engagement/tenant |
+| **Capability tokens** | Ed25519-signed JWTs (TTL ≤ 900 s) carrying tenant, engagement, targets, pinned IPs, allowed ports/protocols/tools, budget | Signed; forgery requires the private key. Verifiable offline; revocable by token/engagement/tenant |
 | **Egress gateway** | CONNECT proxy that enforces capability tokens on every outbound TCP connection | Default-deny; allow/deny receipts in audit chain; Nmap/Nuclei routed through proxy |
 | **Worker manager** | Disposable containers with `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges:true`, non-root user | No host access; per-task capability injection; automatic cleanup |
-| **Evidence signing** | Canonical JSON + Ed25519 manifest; SHA-256 pinned members | Tamper-evident; offline verification; compliance-ready |
+| **Evidence signing** | Canonical JSON + Ed25519 manifest; SHA-256 pinned members | Tamper-evident; offline verification; supports control-mapping evidence |
 
 ```mermaid
 flowchart LR
@@ -221,7 +221,7 @@ flowchart LR
     G["🔑 Grant<br/>authorized scope"] --> GT["🛡️ Gate<br/>allow / deny"] --> P["⛓️ Proof<br/>receipt in chain"] --> V["✅ Verify<br/>offline"]
 ```
 
-Every gate decision is receipted. The chain is **tamper-evident**, **verifiable offline** and **compliance-ready**.
+Every gate decision is receipted. The chain is **tamper-evident** and **verifiable offline**. It supports evidence collection for control mapping; it is not a certification.
 
 ### 4. Adapter framework: real tools, normalized output
 
@@ -388,9 +388,34 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 > [!IMPORTANT]
 > IshAstra is built for authorized testing. Only assess systems you own or have explicit permission to test.
 
+## Limitations
+
+These are stated so nobody builds against guarantees that do not exist. The
+full list lives in [SECURITY.md](SECURITY.md#deliberate-limitations).
+
+- **Single writer per database.** One worker lease holder; no clustering or
+  automated failover.
+- **SQLite is the pilot backend.** PostgreSQL is supported single-host, not as
+  a multi-node database.
+- **No third-party audit or certification.** The TLA+ model and adversarial
+  tests are evidence, not a penetration test.
+- **Compliance pages are mappings.** `docs/compliance/*` is not a SOC 2, ISO
+  27001 or PCI DSS certificate.
+- **External tools require the egress gateway.** nmap, nikto and sqlmap refuse
+  to run without it; plugin adapters may declare `enforcement="none"`.
+- **Performance figures are single-machine baselines.** See
+  [docs/reliability.md](docs/reliability.md); no soak or multi-node numbers.
+- **`k8s-jobs` is experimental.** The default and pilot queue is `inprocess`
+  or a durable single-host mode.
+- **Not on PyPI yet.** Install from the repository or build the wheel.
+
+Baseline findings, alert dispositions and release evidence are public:
+[AUDIT.md](AUDIT.md), [alert triage](docs/security/alert-triage.md),
+[supply chain](docs/supply-chain.md), [TLA+ invariant map](docs/tla/invariant-test-map.md).
+
 ## License
 
-Released under the **Apache-2.0** license. See [LICENSE](LICENSE).
+Released under the **Apache-2.0** license. See [LICENSE](LICENSE). Use is limited to authorized testing; see [ACCEPTABLE_USE.md](ACCEPTABLE_USE.md). Community support policy: [SUPPORT.md](SUPPORT.md).
 
 ## Community
 
@@ -403,7 +428,7 @@ Released under the **Apache-2.0** license. See [LICENSE](LICENSE).
 
 <img src="./assets/divider.svg" alt="" width="100%">
 
-*Authorization-first. Audit-ready. Free forever.*
+*Authorization-first. Audit-ready. Open source under Apache-2.0.*
 
 <br>
 

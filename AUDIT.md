@@ -137,7 +137,7 @@ reword the claim.
 | Location | Claim | Reality |
 |----------|-------|---------|
 | `README.md` headline | "before any connection is made" | external tools fall back to direct connections without a gateway context (section 5) |
-| `README.md` footer | "Free forever" | `free`, `pro` and `enterprise` tiers and a pricing API exist |
+| `README.md` footer | "Free forever" | Not contradicted by tiers: `pricing.py` defines one FREE tier with no feature gating. Reworded to a licence statement so it is not a perpetual promise. |
 | `README.md` capability table | capability tokens are "Unforgeable" | they are Ed25519-signed; forgery requires the private key, not impossible |
 | `README.md`, `docs/index.md` | "compliance-ready" | mappings and evidence packs exist; there is no certification or audit opinion |
 | `docs/security/audit-report.md` | queue accepts `inprocess`, `redis-streams`, `k8s-jobs` | code also supports `sqlite` and `postgres` |

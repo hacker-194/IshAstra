@@ -280,11 +280,11 @@ Add to [Adapters Reference](../adapters/external.md) and [Custom Adapter SDK](..
 ## Running Adapters in Development
 
 ```bash
-# Run single adapter against target
-ishastra adapter run my_adapter --target https://example.com --options '{}'
+# Adapters are exercised through an assessment profile
+ishastra assess run --target https://example.com --profile web
 
-# Run with scope validation
-ishastra adapter run my_adapter --target https://example.com --scope scope_dev_001
+# The scope document is always enforced by the gate
+ishastra assess run --target https://example.com --profile web --scope scope.json
 ```
 
 ## Debugging

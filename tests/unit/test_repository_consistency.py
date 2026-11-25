@@ -158,8 +158,6 @@ def test_docs_do_not_advertise_removed_cli_commands() -> None:
             continue
         text = path.read_text(encoding="utf-8")
         offenders.extend(
-            f"{path.relative_to(ROOT)}: {command}"
-            for command in _DEAD_CLI_COMMANDS
-            if command in text
+            f"{path.relative_to(ROOT)}: {command}" for command in _DEAD_CLI_COMMANDS if command in text
         )
     assert not offenders, offenders

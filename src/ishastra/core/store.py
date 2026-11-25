@@ -1853,7 +1853,6 @@ async def get_database() -> Database:
                 _database_creating = True
                 generation = _generation
         if create:
-            stale: Database | None = None
             try:
                 db = _create_database()
 
@@ -1864,9 +1863,9 @@ async def get_database() -> Database:
                     if generation == _generation:
                         _database = db
                         return db
-                    stale, db = db, None
-                if stale is not None:
-                    await stale.close()
+                # configure()/close_database() ran while this pool was being
+                # built; discard it and build against the current target.
+                await db.close()
             finally:
                 with _database_lock:
                     _database_creating = False

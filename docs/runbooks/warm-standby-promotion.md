@@ -224,4 +224,4 @@ The command is implemented in `src/ishastra/cli.py` under the `standby-promote` 
 - [Restore Runbook](restore.md) — Full disaster recovery
 - [Disaster Recovery](disaster-recovery.md) — Multi-region DR
 - [Upgrade Runbook](upgrade-ishastra.md) — Blue-green upgrades
-- [DEPLOYMENT.md](../deployment.md) — Standby promotion RTO/RPO details
+- [Deployment: Kubernetes](../deployment/kubernetes.md) — Standby promotion RTO/RPO details

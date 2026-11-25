@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ishastra"
-version = "4.0.0rc1"
+version = "4.0.0"
 description = "Authorized security assessment platform: scope gate, adapters, findings and evidence"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = "Apache-2.0"
@@ -131,7 +131,7 @@ addopts = [
     "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=json",
-    "--cov-fail-under=50",
+    "--cov-fail-under=60",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -146,6 +146,25 @@ markers = [
     "scope: marks tests as requiring scope configuration",
     "external: marks tests requiring external tools (nmap, nuclei)",
     "asyncio: marks tests as async",
+]
+
+
+[tool.coverage.run]
+source = ["src/ishastra"]
+omit = [
+    "src/ishastra/k8s*",
+    "src/ishastra/operator*",
+    "src/ishastra/plugins*",
+    "src/ishastra/integrations*",
+    "src/ishastra/lab*",
+    "src/ishastra/slsa.py",
+    "src/ishastra/vault.py",
+    "src/ishastra/report_pdf.py",
+    "src/ishastra/core/k8s*",
+    "src/ishastra/core/pg_rls.py",
+    "src/ishastra/core/pg_queue.py",
+    "src/ishastra/core/sqlite_queue.py",
+    "src/ishastra/core/worker_runner.py",
 ]
 
 

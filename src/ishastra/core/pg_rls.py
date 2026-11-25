@@ -106,33 +106,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
-CREATE OR REPLACE FUNCTION is_mssp_partner_for_tenant(target_tenant TEXT) RETURNS BOOLEAN AS $$
-DECLARE
-    current_tenant TEXT := current_app_tenant();
-    is_partner BOOLEAN := false;
-BEGIN
-    IF current_tenant IS NULL OR current_tenant = '' THEN
-        RETURN false;
-    END IF;
-
-    -- Policy evaluation calls this for every table; a database without the
-    -- MSSP tables must not fail every query, it simply has no partners.
-    IF to_regclass('public.mssp_customers') IS NULL THEN
-        RETURN false;
-    END IF;
-
-    SELECT EXISTS (
-        SELECT 1 FROM mssp_customers mc
-        JOIN mssp_partners mp ON mp.partner_id = mc.partner_id
-        WHERE mc.tenant_id = target_tenant
-          AND mp.status = 'active'
-          AND mc.status IN ('active', 'trial')
-    ) INTO is_partner;
-
-    RETURN COALESCE(is_partner, false);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
-
 CREATE OR REPLACE FUNCTION rls_bypass_tenant(target_tenant TEXT) RETURNS BOOLEAN AS $$
 BEGIN
     IF is_global_admin() THEN
@@ -140,10 +113,6 @@ BEGIN
     END IF;
 
     IF is_org_admin() THEN
-        RETURN true;
-    END IF;
-
-    IF is_mssp_partner_for_tenant(target_tenant) THEN
         RETURN true;
     END IF;
 
@@ -157,7 +126,6 @@ GRANT EXECUTE ON FUNCTION set_app_current_tenant(TEXT) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION current_app_tenant() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION is_global_admin() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION is_org_admin() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION is_mssp_partner_for_tenant(TEXT) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION rls_bypass_tenant(TEXT) TO PUBLIC;
 """
 
@@ -201,40 +169,6 @@ def build_sql(existing_tables: set[str]) -> str:
         parts.append(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
         parts.append(f"DROP POLICY IF EXISTS {table}_isolation ON {table};")
         parts.append(f"CREATE POLICY {table}_isolation ON {table} USING ({check}) WITH CHECK ({check});")
-
-    mssp_partner_predicate = (
-        "EXISTS (SELECT 1 FROM mssp_partners mp "
-        "WHERE mp.partner_id = {table}.partner_id "
-        "AND (mp.admin_key_hash = current_setting('app.current_mssp_key_hash', true) "
-        "OR is_global_admin()"
-    )
-
-    if "mssp_partners" in existing_tables:
-        predicate = "admin_key_hash = current_setting('app.current_mssp_key_hash', true) OR is_global_admin()"
-        parts.append("ALTER TABLE mssp_partners ENABLE ROW LEVEL SECURITY;")
-        parts.append("DROP POLICY IF EXISTS mssp_partners_isolation ON mssp_partners;")
-        parts.append(
-            "CREATE POLICY mssp_partners_isolation ON mssp_partners "
-            f"USING ({predicate}) WITH CHECK ({predicate});"
-        )
-
-    for table in ("mssp_customers", "mssp_usage_records", "mssp_invitations"):
-        if table not in existing_tables:
-            continue
-        extra = ""
-        if table == "mssp_usage_records":
-            extra = (
-                " OR is_mssp_partner_for_tenant((SELECT tenant_id FROM mssp_customers "
-                "WHERE customer_id = mssp_usage_records.customer_id))"
-            )
-        elif table == "mssp_customers":
-            extra = " OR is_mssp_partner_for_tenant(mssp_customers.tenant_id)"
-        predicate = mssp_partner_predicate.format(table=table) + extra + "))"
-        parts.append(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
-        parts.append(f"DROP POLICY IF EXISTS {table}_isolation ON {table};")
-        parts.append(
-            f"CREATE POLICY {table}_isolation ON {table} USING ({predicate}) WITH CHECK ({predicate});"
-        )
 
     parts.append(GRANTS_SQL)
     return "\n".join(parts)

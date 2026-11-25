@@ -629,12 +629,9 @@ AuthConfig.model_rebuild()
 
 
 class PricingTierEnum(str, Enum):
-    """Pricing tier enumeration for API."""
+    """Pricing tier enumeration for API - only FREE exists."""
 
     FREE = "free"
-    STARTER = "starter"
-    PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 
 class TierLimitsModel(BaseModel):
@@ -652,47 +649,46 @@ class TierLimitsModel(BaseModel):
 
 
 class FeatureFlagsModel(BaseModel):
-    """Feature flags for a pricing tier."""
+    """Feature flags for a pricing tier - all enabled for FREE tier."""
 
     web_assessment: bool = True
     api_assessment: bool = True
     network_assessment: bool = True
-    agent_assessment: bool = False
-    full_web_profile: bool = False
-    full_api_profile: bool = False
+    agent_assessment: bool = True
+    full_web_profile: bool = True
+    full_api_profile: bool = True
 
-    oidc_sso: bool = False
-    saml_sso: bool = False
-    scim_provisioning: bool = False
+    oidc_sso: bool = True
+    saml_sso: bool = True
+    scim_provisioning: bool = True
 
-    multi_tenant: bool = False
-    org_hierarchy: bool = False
-    teams_rbac: bool = False
-    custom_roles: bool = False
+    multi_tenant: bool = True
+    org_hierarchy: bool = True
+    teams_rbac: bool = True
+    custom_roles: bool = True
 
     sarif_export: bool = True
     html_report: bool = True
-    pdf_report: bool = False
-    custom_reports: bool = False
-    compliance_reports: bool = False
+    pdf_report: bool = True
+    custom_reports: bool = True
+    compliance_reports: bool = True
 
     webhook_delivery: bool = True
-    github_integration: bool = False
-    gitlab_integration: bool = False
-    jira_integration: bool = False
-    slack_integration: bool = False
+    github_integration: bool = True
+    gitlab_integration: bool = True
+    jira_integration: bool = True
+    slack_integration: bool = True
 
     finding_deduplication: bool = True
-    finding_trends: bool = False
-    verified_resolution: bool = False
-    risk_acceptance_workflow: bool = False
+    finding_trends: bool = True
+    verified_resolution: bool = True
+    risk_acceptance_workflow: bool = True
     asset_inventory: bool = True
-    custom_policies: bool = False
-    api_key_scoping: bool = False
+    custom_policies: bool = True
+    api_key_scoping: bool = True
 
-    mssp_partner_portal: bool = False
-    multi_customer_management: bool = False
-    white_label_reports: bool = False
+    multi_customer_management: bool = True
+    white_label_reports: bool = True
     dedicated_support: bool = False
 
 
@@ -753,184 +749,3 @@ class UsageReportModel(BaseModel):
     overages: dict[str, int] = Field(default_factory=dict)
 
 
-class MSSPTierEnum(str, Enum):
-    """MSSP partner tier enumeration."""
-
-    REGISTERED = "registered"
-    AUTHORIZED = "authorized"
-    PREMIER = "premier"
-
-
-class MSSPPartnerStatusEnum(str, Enum):
-    """MSSP partner status enumeration."""
-
-    PENDING = "pending"
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    TERMINATED = "terminated"
-
-
-class MSSPCustomerStatusEnum(str, Enum):
-    """MSSP customer status enumeration."""
-
-    ACTIVE = "active"
-    TRIAL = "trial"
-    SUSPENDED = "suspended"
-    CHURNED = "churned"
-
-
-class MSSPTierLimitsModel(BaseModel):
-    """Resource limits for an MSSP tier."""
-
-    max_customers: int
-    max_total_assessments_per_month: int
-    max_total_concurrent_assessments: int
-    can_resell: bool
-    white_label_reports: bool
-    custom_branding: bool
-    dedicated_support: bool
-    portal_api_access: bool
-    revenue_share_pct: float
-
-
-class MSSPPartnerCreateRequest(BaseModel):
-    """Request to create an MSSP partner."""
-
-    name: str = Field(..., min_length=1, max_length=128)
-    contact_email: str = Field(..., min_length=1, max_length=256)
-    company_website: str | None = Field(default=None, max_length=512)
-    tier: MSSPTierEnum = Field(default=MSSPTierEnum.REGISTERED)
-    settings: dict[str, Any] | None = None
-
-
-class MSSPPartnerUpdateRequest(BaseModel):
-    """Request to update an MSSP partner."""
-
-    name: str | None = Field(default=None, min_length=1, max_length=128)
-    tier: MSSPTierEnum | None = None
-    status: MSSPPartnerStatusEnum | None = None
-    contact_email: str | None = Field(default=None, min_length=1, max_length=256)
-    company_website: str | None = Field(default=None, max_length=512)
-    settings: dict[str, Any] | None = None
-
-
-class MSSPPartnerResponse(BaseModel):
-    """MSSP partner response."""
-
-    partner_id: str
-    name: str
-    slug: str
-    tier: MSSPTierEnum
-    status: MSSPPartnerStatusEnum
-    contact_email: str
-    company_website: str | None
-    settings: dict[str, Any]
-    created_at: float
-    updated_at: float
-    approved_at: float | None = None
-    approved_by: str | None = None
-    limits: MSSPTierLimitsModel | None = None
-
-
-class MSSPCustomerCreateRequest(BaseModel):
-    """Request to add a customer to an MSSP."""
-
-    tenant_id: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
-    name: str = Field(..., min_length=1, max_length=128)
-    tier: PricingTierEnum = Field(default=PricingTierEnum.FREE)
-    billing_contact_email: str | None = Field(default=None, max_length=256)
-    technical_contact_email: str | None = Field(default=None, max_length=256)
-    settings: dict[str, Any] | None = None
-    trial_days: int = Field(default=30, ge=0, le=365)
-
-
-class MSSPCustomerUpdateRequest(BaseModel):
-    """Request to update an MSSP customer."""
-
-    name: str | None = Field(default=None, min_length=1, max_length=128)
-    status: MSSPCustomerStatusEnum | None = None
-    tier: PricingTierEnum | None = None
-    billing_contact_email: str | None = Field(default=None, max_length=256)
-    technical_contact_email: str | None = Field(default=None, max_length=256)
-    settings: dict[str, Any] | None = None
-    contract_ends_at: float | None = None
-
-
-class MSSPCustomerResponse(BaseModel):
-    """MSSP customer response."""
-
-    customer_id: str
-    partner_id: str
-    tenant_id: str
-    name: str
-    status: MSSPCustomerStatusEnum
-    tier: PricingTierEnum
-    billing_contact_email: str | None
-    technical_contact_email: str | None
-    settings: dict[str, Any]
-    created_at: float
-    updated_at: float
-    trial_ends_at: float | None = None
-    contract_ends_at: float | None = None
-    effective_limits: dict[str, Any] | None = None
-
-
-class MSSPInvitationCreateRequest(BaseModel):
-    """Request to create an MSSP customer invitation."""
-
-    email: str = Field(..., min_length=1, max_length=256)
-    customer_name: str = Field(..., min_length=1, max_length=128)
-    tier: PricingTierEnum = Field(default=PricingTierEnum.FREE)
-    expires_in_days: int = Field(default=7, ge=1, le=90)
-
-
-class MSSPInvitationResponse(BaseModel):
-    """MSSP invitation response."""
-
-    invitation_id: str
-    partner_id: str
-    email: str
-    customer_name: str
-    tier: PricingTierEnum
-    status: str
-    expires_at: float
-    created_at: float
-    accepted_at: float | None = None
-
-
-class MSSPUsageRecordResponse(BaseModel):
-    """MSSP usage record response."""
-
-    record_id: str
-    partner_id: str
-    customer_id: str
-    period_start: float
-    period_end: float
-    assessments_run: int
-    assessments_succeeded: int
-    findings_generated: int
-    api_calls: int
-    retention_days_used: int
-    created_at: float
-
-
-class MSSPUsageSummaryResponse(BaseModel):
-    """MSSP usage summary for a partner."""
-
-    partner_id: str
-    period_start: float
-    period_end: float
-    total_assessments: int
-    total_succeeded: int
-    total_findings: int
-    total_api_calls: int
-    total_retention_days: int
-    active_customers: int
-
-
-class MSSPPartnerUsageReportRequest(BaseModel):
-    """Request for partner usage report."""
-
-    period_start: float = Field(..., description="Unix timestamp for period start")
-    period_end: float = Field(..., description="Unix timestamp for period end")
-    customer_id: str | None = Field(default=None, description="Optional specific customer")

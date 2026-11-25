@@ -80,7 +80,6 @@ def _convert_feature_flags(features: FeatureFlags) -> FeatureFlagsModel:
         asset_inventory=features.asset_inventory,
         custom_policies=features.custom_policies,
         api_key_scoping=features.api_key_scoping,
-        mssp_partner_portal=features.mssp_partner_portal,
         multi_customer_management=features.multi_customer_management,
         white_label_reports=features.white_label_reports,
         dedicated_support=features.dedicated_support,

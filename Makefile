@@ -2,7 +2,7 @@
 
 
 REGISTRY ?= ghcr.io/your-org
-TAG ?= v4.0.0rc1
+TAG ?= v4.0.0
 NAMESPACE ?= ishastra-system
 RELEASE ?= ishastra
 PLATFORM ?= linux/amd64,linux/arm64

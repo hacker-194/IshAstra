@@ -609,7 +609,7 @@ def verify_with_jwks(receipt: SignedReceipt, jwks: JWKS) -> bool:
 
 ## Related
 
-- [Scope Gate](scope-gate/concepts.md)
-- [Scope Signing](scope-gate/configuration.md#signing)
-- [API: Proof Verification](api/scope-management.md#proof-verification)
-- [Compliance Mapping](compliance/overview.md)
+- [Scope Gate](../scope-gate/concepts.md)
+- [Scope Signing](../scope-gate/configuration.md#signing)
+- [API: Proof Verification](../api/scope-management.md#proof-verification)
+- [Compliance Mapping](../compliance/overview.md)

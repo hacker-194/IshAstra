@@ -45,7 +45,7 @@ terraform plan
 
 ## Resources
 
-See [`terraform/ishastra/README.md`](../terraform/ishastra/README.md) for complete resource and data source reference.
+See [Helm Chart Reference](../deployment/helm.md) for complete resource and value reference.
 
 ## Example: Deploy IshAstra on Kubernetes with Terraform
 

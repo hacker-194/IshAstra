@@ -22,7 +22,6 @@ __all__ = [
     "k8s_job_runner",
     "k8s_queue",
     "locks",
-    "mssp",
     "object_storage",
     "org",
     "oidc",

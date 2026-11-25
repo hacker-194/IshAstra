@@ -39,7 +39,6 @@ from ishastra.api.middleware import RLSTenantMiddleware, SecurityHeadersMiddlewa
 from ishastra.api.routers import assessments, assets, exceptions, findings, monitoring, probe, system, tenants
 from ishastra.api.routers import auth as auth_router
 from ishastra.api.routers import compliance as compliance_router
-from ishastra.api.routers import mssp as mssp_router
 from ishastra.api.routers import organizations_v2 as organizations_v2_router
 from ishastra.api.routers import policies as policies_router
 from ishastra.api.routers import pricing as pricing_router
@@ -384,7 +383,6 @@ def create_app() -> FastAPI:
         auth_router,
         scim_router,
         pricing_router,
-        mssp_router,
     ):
         app.include_router(module.router)
 

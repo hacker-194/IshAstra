@@ -1459,44 +1459,7 @@ class SQLiteDatabase(Database):
                 await connection.rollback()
                 raise
             version = target
-        await self._migrate_sqlite_mssp(connection)
         return version
-
-    async def _migrate_sqlite_mssp(self, connection: aiosqlite.Connection) -> None:
-        """Create the MSSP tables on SQLite (PostgreSQL has its own path).
-
-        MSSP migrations carry their own version marker: their numbers (30+)
-        overlap the core schema's and must never move ``PRAGMA user_version``.
-        """
-        from ishastra.core.mssp import MIGRATIONS_MSSP
-
-        await connection.execute("BEGIN IMMEDIATE")
-        try:
-            await connection.execute(
-                "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-            )
-            cursor = await connection.execute("SELECT value FROM schema_meta WHERE key = 'mssp_version'")
-            row = await cursor.fetchone()
-            applied = int(row[0]) if row else 0
-            for target, script in MIGRATIONS_MSSP:
-                if target <= applied:
-                    continue
-                for statement in script.split(";"):
-                    stmt = "\n".join(
-                        line for line in statement.splitlines() if not line.strip().startswith("--")
-                    ).strip()
-                    if stmt:
-                        await connection.execute(stmt)
-                await connection.execute(
-                    "INSERT INTO schema_meta (key, value) VALUES ('mssp_version', ?) "
-                    "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                    (str(target),),
-                )
-                applied = target
-            await connection.commit()
-        except Exception:
-            await connection.rollback()
-            raise
 
     async def schema_version(self) -> int:
         async with self.transaction() as conn:
@@ -1753,30 +1716,7 @@ class PostgreSQLDatabase(Database):
                     raise
                 version = target
 
-        await self._migrate_pg_mssp(conn)
         await self._migrate_pg_rls(conn)
-
-    async def _migrate_pg_mssp(self, conn: asyncpg.Connection) -> None:
-        """Create the MSSP tables on PostgreSQL (SQLite gets them elsewhere)."""
-        from ishastra.core.mssp import MIGRATIONS_MSSP_PG
-
-        row = await conn.fetchrow("SELECT value FROM settings WHERE key = 'mssp_version'")
-        applied = int(row["value"]) if row else 0
-        for target, script in MIGRATIONS_MSSP_PG:
-            if target <= applied:
-                continue
-            async with conn.transaction():
-                for statement in script.split(";"):
-                    stmt = "\n".join(
-                        line for line in statement.splitlines() if not line.strip().startswith("--")
-                    ).strip()
-                    if stmt:
-                        await conn.execute(stmt)
-            await conn.execute(
-                "INSERT INTO settings (key, value) VALUES ('mssp_version', $1) "
-                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-                str(target),
-            )
 
     async def _migrate_pg_rls(self, conn: asyncpg.Connection) -> None:
         """Apply the row-level-security step once the schema is current."""

@@ -72,3 +72,6 @@ kubeseal
 /detection-benchmark-results.json
 scope-signing-key.pem
 scope-jwks.json
+
+# Mutation testing artifacts
+mutants/

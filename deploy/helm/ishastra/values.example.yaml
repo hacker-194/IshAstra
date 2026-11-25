@@ -6,7 +6,7 @@
 global:
   image:
     repository: ghcr.io/hacker-194/ishastra
-    tag: "4.0.0rc1"
+    tag: "4.0.0"
     pullPolicy: IfNotPresent
     pullSecrets: []
   labels: {}

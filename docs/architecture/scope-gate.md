@@ -558,8 +558,8 @@ Shows: Layer decisions, DNS resolution, IP matching, pinned destination selectio
 
 ## Related
 
-- [Scope Gate Configuration](scope-gate/configuration.md)
-- [Policy-as-Code](scope-gate/policies.md)
-- [Break Glass](scope-gate/break-glass.md)
-- [TLA+ Verification](scope-gate/tla-verification.md)
-- [API: Scope Management](api/scope-management.md)
+- [Scope Gate Configuration](../scope-gate/configuration.md)
+- [Policy-as-Code](../scope-gate/policies.md)
+- [Break Glass](../scope-gate/break-glass.md)
+- [TLA+ Verification](../scope-gate/tla-verification.md)
+- [API: Scope Management](../api/scope-management.md)

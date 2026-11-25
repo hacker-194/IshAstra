@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ishastra-adapter-hello"
+version = "0.1.0"
+description = "Minimal Ishastra adapter example — prints 'hello' for every authorized target"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = []
+keywords = ["ishastra", "adapter", "security", "example"]
+
+[project.entry-points."ishastra.adapters"]
+hello = "ishastra_adapter_hello:HelloAdapter"
+
+[tool.setuptools.packages.find]
+where = ["."]

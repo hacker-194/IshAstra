@@ -70,8 +70,6 @@ class FeatureFlags:
     asset_inventory: bool = True
     custom_policies: bool = True
     api_key_scoping: bool = True
-
-    mssp_partner_portal: bool = True
     multi_customer_management: bool = True
     white_label_reports: bool = True
     dedicated_support: bool = False
@@ -183,7 +181,6 @@ FEATURE_DESCRIPTIONS: dict[str, str] = {
     "asset_inventory": "Derived asset inventory",
     "custom_policies": "Custom engagement policies",
     "api_key_scoping": "Project-scoped and read-only API keys",
-    "mssp_partner_portal": "MSSP partner portal access",
     "multi_customer_management": "Multi-customer management",
     "white_label_reports": "White-label report branding",
     "dedicated_support": "Dedicated support channel",

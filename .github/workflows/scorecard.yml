@@ -7,8 +7,10 @@
 name: Scorecard
 
 on:
+  # Scorecard only supports the default branch (main) for push events; a
+  # master/release push fails with "Only the default branch main is supported".
   push:
-    branches: [main, master, "release/*"]
+    branches: [main]
   schedule:
     - cron: '0 0 * * 0'
 

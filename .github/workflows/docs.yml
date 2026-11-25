@@ -1,8 +1,10 @@
 name: Docs
 
 on:
+  # The github-pages environment only permits the default branch (main); a
+  # master push fails the deploy job with an environment-protection error.
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
       - "docs/**"
       - "mkdocs.yml"

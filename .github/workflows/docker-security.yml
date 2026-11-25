@@ -30,8 +30,12 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  # GHCR repository names must be lowercase.
-  IMAGE_NAME: ${{ github.repository_owner }}/ishastra
+  # GHCR repository names must be lowercase. Publish to a repo-owned CI package:
+  # the legacy `ishastra` package predates the repository rename and does not
+  # grant this repository Actions write access, which fails the push with
+  # `permission_denied: write_package`. Release publishing can reuse `ishastra`
+  # once "Manage Actions access" on that package includes this repository.
+  IMAGE_NAME: ${{ github.repository_owner }}/ishastra-ci
   TRIVY_VERSION: 0.56.2
   SYFT_VERSION: v1.10.0
 

@@ -281,7 +281,7 @@ Mitigations:
 | **Evidence Bundle** | Canonical JSON findings + Ed25519 manifest + SHA-256 pins (offline verifiable) |
 | **Adapter** | Scanner plugin implementing `Adapter` contract (built-in or plugin) |
 | **Profile** | Named set of adapters (e.g., `web`, `api-full`, `network`) |
-| **TLA+ Verified** | 6 invariants, 21.4M states model-checked (no auth bypass, no stale DNS, etc.) |
+| **TLA+ Verified** | 6 invariants verified (model-checked over authorized scopes); 21.4M states documented in CLAIMS.md as UNVERIFIED |
 | **FREE tier** | Single pricing tier: all features enabled, `dedicated_support: False` only |
 
 ---

@@ -34,9 +34,9 @@
 <table>
   <tr>
     <td align="center" width="25%"><h2>6</h2><sub>TLA+ invariants</sub></td>
-    <td align="center" width="25%"><h2>21.4M</h2><sub>states model-checked</sub></td>
+    <td align="center" width="25%"><h2>6</h2><sub>TLA+ invariants verified</sub></td>
     <td align="center" width="25%"><h2>3</h2><sub>default-deny gate layers</sub></td>
-    <td align="center" width="25%"><h2>$0</h2><sub>free-tier deployable</sub></td>
+    <td align="center" width="25%"><h2>$0</h2><sub>Apache-2.0 licensed</sub></td>
   </tr>
 </table>
 
@@ -206,7 +206,7 @@ flowchart LR
 | **3 · Pinned destination** | Returns a single `Destination` (scheme, host, port, IP), which prevents DNS rebinding | n/a |
 
 - **`ContextVar` isolation:** per-task scope binding for multi-tenant safety
-- **TLA+ verified:** 6 invariants, 21.4M states model-checked
+- **TLA+ verified:** 6 invariants verified (model-checked over authorized scopes)
 
 ### 2. Break-glass dual approval
 

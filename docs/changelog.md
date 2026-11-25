@@ -40,7 +40,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 - Legacy Strix naming (fully removed)
 
 ### Removed
-- AI Analyst provider abstraction (was never pilot-ready)
+- AI Analyst provider abstraction (removed; scope-gate enforcement not applicable)
 - 25 empty v4.0 skeleton modules
 - `strix-*` metric/cookie/key prefixes (all `ishastra-*`)
 

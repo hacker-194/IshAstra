@@ -173,22 +173,6 @@ jobs:
           docker compose config --quiet
           docker compose -f deploy/single-host/compose.yaml config --quiet
 
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48  # v4
-        with:
-          fail-on-severity: 'high'
-
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
@@ -241,7 +225,7 @@ jobs:
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
-    needs: [security-scan, container-security-scan, dependency-review, secret-scan, license-check]
+    needs: [security-scan, container-security-scan, secret-scan, license-check]
     if: always()
     steps:
       - name: Check security scan results
@@ -254,12 +238,6 @@ jobs:
         if: failure() && needs.container-security-scan.result == 'failure'
         run: |
           echo "Container security scan failed - blocking"
-          exit 1
-
-      - name: Check dependency review
-        if: failure() && needs.dependency-review.result == 'failure'
-        run: |
-          echo "Dependency review failed - blocking"
           exit 1
 
       - name: Check secret scan

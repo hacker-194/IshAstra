@@ -1,0 +1,422 @@
+name: Deploy
+
+# Deployment is deliberately manual: a push must never deploy, roll back, or
+# soak-test production. Dispatch this workflow from the release tag you intend
+# to ship. The CI workflow validates every push and release tag separately.
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation to run
+        required: true
+        type: choice
+        default: deploy-staging
+        options:
+          - deploy-staging
+          - deploy-production
+          - rollback-staging
+          - rollback-production
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ISHASTRA_INGRESS_HOST: ${{ vars.ISHASTRA_INGRESS_HOST }}
+  ISHASTRA_API_HOST: ${{ vars.ISHASTRA_API_HOST }}
+  ISHASTRA_SCOPE_JSON: ${{ secrets.ISHASTRA_SCOPE_JSON }}
+
+jobs:
+  publish:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Resolve image name
+        id: image
+        run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "name=$image" >> "$GITHUB_OUTPUT"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish the commit image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [publish]
+    if: inputs.operation == 'deploy-staging' || inputs.operation == 'deploy-production'
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ISHASTRA_NAMESPACE: ishastra-staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          test -n "$ISHASTRA_INGRESS_HOST" || { echo "::error::Set the staging ISHASTRA_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_API_HOST" || { echo "::error::Set the staging ISHASTRA_API_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_SCOPE_JSON" || { echo "::error::Set the approved staging ISHASTRA_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$ISHASTRA_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$ISHASTRA_INGRESS_HOST" "$ISHASTRA_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          import json, re, sys
+          for host in sys.argv[1:3]:
+              if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
+                  raise SystemExit(f"Invalid deployment hostname: {host!r}")
+              if host == "example.com" or host.endswith(".example.com"):
+                  raise SystemExit("Replace example.com deployment hostnames")
+          scope = json.load(open(sys.argv[3], encoding="utf-8"))
+          if not scope.get("include") or not scope.get("authorized_by") or not scope.get("authorization_ref"):
+              raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
+          PY
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Verify provisioned staging prerequisites
+        run: |
+          set -euo pipefail
+          for secret in ghcr-secret ishastra-secrets ishastra-redis-secret ishastra-postgresql-secret; do
+            kubectl get secret "$secret" -n "$ISHASTRA_NAMESPACE" >/dev/null
+          done
+          for key in ISHASTRA_API_KEY ISHASTRA_AUDIT_HMAC_KEY ISHASTRA_ENCRYPTION_KEY; do
+            if ! kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::ishastra-secrets is missing $key"
+              exit 1
+            fi
+          done
+          kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o 'jsonpath={.data.ISHASTRA_ENCRYPTION_KEY}' \
+            | base64 -d \
+            | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
+          kubectl get secret ishastra-postgresql-secret -n "$ISHASTRA_NAMESPACE" \
+            -o 'jsonpath={.data.database-url}' | grep -q .
+          kubectl get secret ishastra-redis-secret -n "$ISHASTRA_NAMESPACE" \
+            -o 'jsonpath={.data.redis-password}' | grep -q .
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
+        with:
+          version: v3.14.0
+      - name: Deploy to Staging
+        run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          helm upgrade --install ishastra-staging ./deploy/helm/ishastra \
+            --namespace ishastra-staging \
+            --create-namespace \
+            -f ./deploy/helm/ishastra/values-staging.yaml \
+            --set-string "global.image.repository=$image" \
+            --set-string "global.image.tag=sha-$GITHUB_SHA" \
+            --set-string "api.ingress.hosts[0].host=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$ISHASTRA_INGRESS_HOST\\,$ISHASTRA_API_HOST" \
+            --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
+            --wait --timeout 10m
+
+  smoke-tests-staging:
+    name: Smoke Tests Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deploy-staging]
+    if: inputs.operation == 'deploy-staging' || inputs.operation == 'deploy-production'
+    environment: staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-staging --timeout=5m
+      - name: Verify externally reachable API behavior
+        run: |
+          kubectl run smoke-test-staging --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            --env="BASE_URL=https://$ISHASTRA_INGRESS_HOST" \
+            -- sh -ec '
+              expect_status() {
+                expected="$1"
+                path="$2"
+                actual="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$BASE_URL$path")"
+                if [ "$actual" != "$expected" ]; then
+                  echo "$path expected HTTP $expected, got $actual" >&2
+                  exit 1
+                fi
+              }
+              expect_status 200 /api/health
+              expect_status 200 /api/ready
+              expect_status 401 /api/metrics
+              expect_status 401 /api/findings
+            '
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [smoke-tests-staging]
+    if: inputs.operation == 'deploy-production'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ISHASTRA_NAMESPACE: ishastra-production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Require a release tag
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::error::Production deploys must be dispatched from a v* release tag"
+            exit 1
+          fi
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          test -n "$ISHASTRA_INGRESS_HOST" || { echo "::error::Set the production ISHASTRA_INGRESS_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_API_HOST" || { echo "::error::Set the production ISHASTRA_API_HOST environment variable"; exit 1; }
+          test -n "$ISHASTRA_SCOPE_JSON" || { echo "::error::Set the approved production ISHASTRA_SCOPE_JSON environment secret"; exit 1; }
+          printf '%s' "$ISHASTRA_SCOPE_JSON" > "$RUNNER_TEMP/scope.json"
+          python - "$ISHASTRA_INGRESS_HOST" "$ISHASTRA_API_HOST" "$RUNNER_TEMP/scope.json" <<'PY'
+          import json, re, sys
+          for host in sys.argv[1:3]:
+              if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}", host):
+                  raise SystemExit(f"Invalid deployment hostname: {host!r}")
+              if host == "example.com" or host.endswith(".example.com"):
+                  raise SystemExit("Replace example.com deployment hostnames")
+          scope = json.load(open(sys.argv[3], encoding="utf-8"))
+          if not scope.get("include") or not scope.get("authorized_by") or not scope.get("authorization_ref"):
+              raise SystemExit("The approved scope must include targets, authorized_by, and authorization_ref")
+          PY
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+      - name: Verify provisioned production prerequisites
+        run: |
+          set -euo pipefail
+          for secret in ghcr-secret ishastra-secrets ishastra-redis-secret ishastra-postgresql-secret; do
+            kubectl get secret "$secret" -n "$ISHASTRA_NAMESPACE" >/dev/null
+          done
+          for key in ISHASTRA_API_KEY ISHASTRA_AUDIT_HMAC_KEY ISHASTRA_ENCRYPTION_KEY; do
+            if ! kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o "jsonpath={.data.$key}" | grep -q .; then
+              echo "::error::ishastra-secrets is missing $key"
+              exit 1
+            fi
+          done
+          kubectl get secret ishastra-secrets -n "$ISHASTRA_NAMESPACE" -o 'jsonpath={.data.ISHASTRA_ENCRYPTION_KEY}' \
+            | base64 -d \
+            | python -c 'import base64,sys; key=base64.b64decode(sys.stdin.read().strip(), validate=True); assert len(key) == 32'
+          kubectl get secret ishastra-postgresql-secret -n "$ISHASTRA_NAMESPACE" \
+            -o 'jsonpath={.data.database-url}' | grep -q .
+          kubectl get secret ishastra-redis-secret -n "$ISHASTRA_NAMESPACE" \
+            -o 'jsonpath={.data.redis-password}' | grep -q .
+          kubectl get --raw /apis/external.metrics.k8s.io/v1beta1 >/dev/null
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
+        with:
+          version: v3.14.0
+      - name: Deploy to Production
+        run: |
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          helm upgrade --install ishastra-prod ./deploy/helm/ishastra \
+            --namespace ishastra-production \
+            --create-namespace \
+            -f ./deploy/helm/ishastra/values-prod.yaml \
+            --set-string "global.image.repository=$image" \
+            --set-string "global.image.tag=sha-$GITHUB_SHA" \
+            --set-string "api.ingress.hosts[0].host=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.hosts[1].host=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.tls[0].hosts[0]=$ISHASTRA_INGRESS_HOST" \
+            --set-string "api.ingress.tls[0].hosts[1]=$ISHASTRA_API_HOST" \
+            --set-string "api.ingress.annotations.external-dns\\.alpha\\.kubernetes\\.io/hostname=$ISHASTRA_INGRESS_HOST\\,$ISHASTRA_API_HOST" \
+            --set-file configMap.scopeJson="$RUNNER_TEMP/scope.json" \
+            --wait --timeout 10m
+
+  smoke-tests-production:
+    name: Smoke Tests Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deploy-production]
+    if: inputs.operation == 'deploy-production'
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-production --timeout=5m
+      - name: Verify externally reachable API behavior
+        run: |
+          kubectl run smoke-test-prod --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            --env="BASE_URL=https://$ISHASTRA_INGRESS_HOST" \
+            -- sh -ec '
+              expect_status() {
+                expected="$1"
+                path="$2"
+                actual="$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$BASE_URL$path")"
+                if [ "$actual" != "$expected" ]; then
+                  echo "$path expected HTTP $expected, got $actual" >&2
+                  exit 1
+                fi
+              }
+              expect_status 200 /api/health
+              expect_status 200 /api/ready
+              expect_status 401 /api/metrics
+              expect_status 401 /api/findings
+              expect_status 404 /docs
+            '
+
+  rollback-staging:
+    name: Rollback Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: inputs.operation == 'rollback-staging'
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
+        with:
+          version: v3.14.0
+      - name: Rollback Staging
+        run: |
+          helm rollback ishastra-staging -n ishastra-staging --wait --timeout 5m
+
+  rollback-verification-staging:
+    name: Rollback Verification Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [rollback-staging]
+    if: inputs.operation == 'rollback-staging'
+    environment: staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.STAGING_KUBECONFIG }}
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-staging --timeout=5m
+      - name: Verify health after rollback
+        run: |
+          kubectl run rollback-verify-staging --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/health"
+      - name: Verify readiness after rollback
+        run: |
+          kubectl run rollback-ready-staging --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/ready"
+      - name: Verify revision
+        run: |
+          REVISION=$(helm status ishastra-staging -n ishastra-staging -o json | jq -r .revision)
+          echo "Rolled back to revision: $REVISION"
+          if [ "$REVISION" -lt 1 ]; then
+            echo "ERROR: Invalid revision after rollback"
+            exit 1
+          fi
+
+  rollback-production:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: inputs.operation == 'rollback-production'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4  # v4
+        with:
+          version: v3.14.0
+      - name: Rollback Production
+        run: |
+          helm rollback ishastra-prod -n ishastra-production --wait --timeout 5m
+
+  rollback-verification-production:
+    name: Rollback Verification Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [rollback-production]
+    if: inputs.operation == 'rollback-production'
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@ae59a723ba9abe7a9655538854a025448dbab4aa  # v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.PRODUCTION_KUBECONFIG }}
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/ishastra-ishastra-api -n ishastra-production --timeout=5m
+      - name: Verify health after rollback
+        run: |
+          kubectl run rollback-verify-prod --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/health"
+      - name: Verify readiness after rollback
+        run: |
+          kubectl run rollback-ready-prod --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            -- curl -sf "https://$ISHASTRA_INGRESS_HOST/api/ready"
+      - name: Verify revision
+        run: |
+          REVISION=$(helm status ishastra-prod -n ishastra-production -o json | jq -r .revision)
+          echo "Rolled back to revision: $REVISION"
+          if [ "$REVISION" -lt 1 ]; then
+            echo "ERROR: Invalid revision after rollback"
+            exit 1
+          fi

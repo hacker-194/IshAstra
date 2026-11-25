@@ -63,7 +63,7 @@ jobs:
           FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
           set -euo pipefail
-          ishastra assess --target "$TARGET" --scope "$SCOPE_FILE" \
+          ishastra assess run --target "$TARGET" --scope "$SCOPE_FILE" \
             --profile "$PROFILE" --output ishastra-results.sarif --actor "github-actions"
           if [ "$FAIL_ON_FINDINGS" = "true" ]; then
             python - <<'PY'

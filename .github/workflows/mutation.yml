@@ -1,0 +1,38 @@
+name: Mutation Testing
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_DEFAULT: "3.12"
+
+jobs:
+  mutation-scope:
+    name: Mutation testing - scope authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+          cache: pip
+          cache-dependency-path: |
+            constraints.txt
+            pyproject.toml
+      - name: Install dependencies
+        run: pip install -e ".[dev,mutation]" -c constraints.txt
+      - name: Mutate the authorization gate
+        run: mutmut run
+      - name: List surviving mutants
+        if: always()
+        run: mutmut results

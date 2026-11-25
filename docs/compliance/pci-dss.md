@@ -197,7 +197,10 @@ Mapping of IshAstra controls to Payment Card Industry Data Security Standard v4.
 
 ```bash
 # Generate PCI DSS evidence package
-ishastra compliance generate --framework pci-dss --output ./pci-evidence/
+# Built-in evidence packs cover NRB, NTA and NCSP. Export the findings in a
+# machine-readable format for your SOC 2 / NIST / ISO / PCI evidence tooling.
+ishastra evidence --target https://app.example.com --scope scope.json \
+  --framework all --format pdf --output evidence.pdf
 
 # Structure:
 pci-evidence/

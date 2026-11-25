@@ -358,11 +358,8 @@ curl -X POST https://api.example.com/api/v1/assessments \
 ### Via CLI
 
 ```bash
-# Run single adapter
-ishastra adapter run http_probe --target https://example.com --scope scope.json
-
-# Run all built-in
-ishastra adapter run-all --target https://example.com --scope scope.json
+# Built-in adapters run through an assessment profile
+ishastra assess run --target https://example.com --scope scope.json --profile web
 ```
 
 ### Programmatically

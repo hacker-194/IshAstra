@@ -230,7 +230,7 @@ capacity numbers:
 | Component | Scaling approach | Tested |
 |-----------|------------------|--------|
 | API + worker | Vertical: more CPU/RAM, `ISHASTRA_WORKERS` threads | Single host |
-| Job queue | In-process by default; `redis-streams` durable queue; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
+| Job queue | In-process by default; durable `redis-streams`, `sqlite` and `postgres` queues; `k8s-jobs` one Job per assessment (experimental) | 10-job soak |
 | PostgreSQL | Single writer against a managed instance | Single host |
 | Redis | Shared rate-limit counters | Single node |
 | Scope gate check | In-process, sub-millisecond on pinned destinations | 95% covered, TLA+-checked |

@@ -565,17 +565,9 @@ scope_gate_geo_cache_hits_total
 ### Debug Commands
 
 ```bash
-# Test policy match
-ishastra policy test --ip 35.192.10.5 --scope scope.json
-
-# Check ASN resolution
-ishastra policy asn-lookup 35.192.10.5
-
-# Check Geo resolution
-ishastra policy geo-lookup 35.192.10.5
-
-# Show cache stats
-ishastra policy cache-stats
+# Show the policy the caller is judged against. The Scope Gate applies it to
+# every outbound connection, so an out-of-scope target fails the assessment.
+curl -s http://localhost:8000/api/scope -H "Authorization: Bearer $KEY"
 ```
 
 ---

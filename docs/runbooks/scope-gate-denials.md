@@ -36,8 +36,8 @@ kubectl logs -n ishastra-system -l app=ishastra-worker --tail=500 | grep -i "den
 # List active scopes
 ishastra scope list --status active
 
-# Validate scope document
-ishastra scope validate scope.json
+# Show the active policy the caller is judged against
+curl -s http://localhost:8000/api/scope -H "Authorization: Bearer $KEY"
 
 # Test specific target
 ishastra scope test --scope scope_prod_001 --url https://target.example.com

@@ -292,7 +292,10 @@ Comprehensive mapping of IshAstra controls to NIST SP 800-53 Revision 5.
 
 ```bash
 # Generate NIST 800-53 evidence package
-ishastra compliance generate --framework nist --output ./nist-evidence/
+# Built-in evidence packs cover NRB, NTA and NCSP. Export the findings in a
+# machine-readable format for your SOC 2 / NIST / ISO / PCI evidence tooling.
+ishastra evidence --target https://app.example.com --scope scope.json \
+  --framework all --format pdf --output evidence.pdf
 
 # Structure:
 nist-evidence/

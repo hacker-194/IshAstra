@@ -19,7 +19,7 @@ _SCOPE_MODE = re.compile(r"^ISHASTRA_SCOPE_MODE\s*=\s*(\S+)", re.MULTILINE)
 _QUEUE_MODE = re.compile(r"^ISHASTRA_QUEUE_MODE\s*=\s*(\S+)", re.MULTILINE)
 
 _SCOPE_MODES = {"auto", "global", "managed"}
-_QUEUE_MODES = {"inprocess", "redis-streams", "k8s-jobs"}
+_QUEUE_MODES = {"inprocess", "redis-streams", "sqlite", "postgres", "k8s-jobs"}
 
 
 def _read(path: str) -> str:
@@ -82,6 +82,36 @@ def test_action_can_install_without_a_pypi_release() -> None:
     assert 'default: "3.5.0"' not in text
 
 
+def test_action_invokes_the_assess_run_subcommand() -> None:
+    text = _read("action.yml")
+    assert "ishastra assess run" in text
+    assert "ishastra assess --target" not in text
+
+
+def test_api_reference_uses_the_live_api_prefix() -> None:
+    for path in (ROOT / "docs" / "api").glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        assert "/api/v1" not in text, f"{path.name} documents a removed API prefix"
+
+
+def test_helm_role_cannot_write_services_or_endpoints() -> None:
+    import yaml
+
+    values = yaml.safe_load(_read("deploy/helm/ishastra/values.yaml"))
+    rules = values["rbac"]["roleRules"]
+    for rule in rules:
+        resources = set(rule.get("resources", []))
+        if resources & {"services", "endpoints", "endpointslices"}:
+            assert set(rule.get("verbs", [])) <= {"get", "list", "watch"}, rule
+    batch = [rule for rule in rules if "jobs" in rule.get("resources", [])]
+    assert batch and "create" in batch[0]["verbs"], "k8s-jobs needs batch/jobs create"
+
+
+def test_operator_runbooks_use_current_metric_labels() -> None:
+    for path in (ROOT / "docs" / "runbooks").glob("*.md"):
+        assert "strix" not in path.read_text(encoding="utf-8").lower(), path.name
+
+
 def test_no_markdown_points_at_a_different_repository() -> None:
     bad = re.compile(r"github\.com/(?:ishastra|ishastra-project|useishastra)/")
     offenders = [
@@ -100,3 +130,36 @@ def test_package_and_chart_versions_match() -> None:
     assert pyproject and chart
     # Helm requires SemVer (4.0.0-rc1); the package reports PEP 440 (4.0.0rc1).
     assert pyproject.group(1) == chart.group(1).replace("-", "") == __version__
+
+
+_DEAD_CLI_COMMANDS = (
+    "ishastra compliance ",
+    "ishastra adapter migrate",
+    "ishastra adapter run",
+    "ishastra adapter run-all",
+    "ishastra adapter run-external",
+    "ishastra auth rotate-key",
+    "ishastra scope migrate",
+    "ishastra scope validate",
+    "ishastra policy ",
+    "ishastra worker start",
+    "ishastra keys rotate",
+    "ishastra finding migrate-status",
+    "ishastra scope-gate test",
+    "ishastra migrate",
+)
+
+
+def test_docs_do_not_advertise_removed_cli_commands() -> None:
+    skip = {"changelog.md", "consent-policy.md", "audit-report.md"}
+    offenders = []
+    for path in (ROOT / "docs").rglob("*.md"):
+        if path.name in skip or "migration" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            f"{path.relative_to(ROOT)}: {command}"
+            for command in _DEAD_CLI_COMMANDS
+            if command in text
+        )
+    assert not offenders, offenders

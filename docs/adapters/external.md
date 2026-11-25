@@ -509,11 +509,8 @@ curl -X POST https://api.example.com/api/v1/assessments \
 ### Via CLI
 
 ```bash
-# Run single external adapter
-ishastra adapter run nuclei --target https://example.com --scope scope.json
-
-# Run all external
-ishastra adapter run-external --target https://example.com --scope scope.json
+# External tools run through the profile that wires them in
+ishastra assess run --target https://example.com --scope scope.json --profile web-deep
 ```
 
 ---

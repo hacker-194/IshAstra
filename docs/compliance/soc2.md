@@ -149,7 +149,10 @@ Mapping of IshAstra controls to SOC 2 Trust Services Criteria (Security, Availab
 
 ```bash
 # Generate SOC 2 evidence package
-ishastra compliance generate --framework soc2 --output ./soc2-evidence/
+# Built-in evidence packs cover NRB, NTA and NCSP. Export the findings in a
+# machine-readable format for your SOC 2 / NIST / ISO / PCI evidence tooling.
+ishastra evidence --target https://app.example.com --scope scope.json \
+  --framework all --format pdf --output evidence.pdf
 
 # Structure:
 soc2-evidence/

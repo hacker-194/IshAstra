@@ -566,7 +566,7 @@ scopeGate:
 
 ```bash
 # Generate new key
-ishastra keys rotate
+ishastra scope-key-rotate
 
 # Output: new key ID, JWKS updated
 # Old key retained for verification

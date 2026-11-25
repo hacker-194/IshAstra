@@ -78,7 +78,7 @@ helm install ishastra-green ./deploy/helm/ishastra -n ishastra-green \
   --set global.image.tag=3.5.1
 
 # 2. Run database migrations (if any)
-kubectl exec -n ishastra-green ishastra-green-api-0 -- /usr/local/bin/ishastra migrate
+# Schema upgrades run automatically on startup; there is no migrate command.
 
 # 3. Start green environment
 kubectl rollout status deployment/ishastra-green-api -n ishastra-green --timeout=300s
@@ -128,7 +128,7 @@ helm upgrade ishastra ./deploy/helm/ishastra -n ishastra \
   --wait --timeout=10m
 
 # 5. Run migrations (if any)
-kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/ishastra migrate
+# Schema upgrades run automatically on startup; there is no migrate command.
 
 # 6. Verify health
 curl -s http://ishastra.example.com/api/health
@@ -157,7 +157,7 @@ kubectl rollout status deployment/ishastra-api -n ishastra --timeout=300s
 kubectl rollout status deployment/ishastra-scheduler -n ishastra --timeout=300s
 
 # 3. Run migrations
-kubectl exec -n ishastra ishastra-api-0 -- /usr/local/bin/ishastra migrate
+# Schema upgrades run automatically on startup; there is no migrate command.
 
 # 4. Verify
 curl -s http://ishastra.example.com/api/health

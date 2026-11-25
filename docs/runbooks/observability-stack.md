@@ -122,7 +122,7 @@ kubectl exec -n monitoring loki-0 -- wget -qO- http://localhost:3100/ready | jq 
 kubectl exec -n monitoring loki-0 -- wget -qO- 'http://localhost:3100/loki/api/v1/query?query={job=~"ishastra.*"}' | jq .
 
 # Check retention
-kubectl exec -n monitoring loki-0 -- wget -qO- http://localhost:3100/loki/api/v1/series?match%5B%5D=%7Bjob%3D%22strix%22%7D | jq .
+kubectl exec -n monitoring loki-0 -- wget -qO- http://localhost:3100/loki/api/v1/series?match%5B%5D=%7Bjob%3D%22ishastra%22%7D | jq .
 ```
 
 ### 5. Tempo Issues
@@ -138,7 +138,7 @@ kubectl logs -n monitoring -l app.kubernetes.io/name=tempo --tail=100
 kubectl exec -n monitoring tempo-0 -- wget -qO- http://localhost:3200/ready | jq .
 
 # Check traces
-kubectl exec -n monitoring tempo-0 -- wget -qO- 'http://localhost:3200/api/search?q=service.name%3Dstrix' | jq .
+kubectl exec -n monitoring tempo-0 -- wget -qO- 'http://localhost:3200/api/search?q=service.name%3Dishastra' | jq .
 ```
 
 ### 6. OTel Collector Issues

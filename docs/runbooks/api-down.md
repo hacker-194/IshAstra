@@ -47,7 +47,7 @@ kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s http://localhost:
 kubectl exec -n ishastra-system deploy/ishastra-api -- redis-cli -h ishastra-redis ping
 
 # Scope Gate self-test
-kubectl exec -n ishastra-system deploy/ishastra-api -- ishastra scope-gate test --scope scope_prod_001
+kubectl exec -n ishastra-system deploy/ishastra-api -- curl -s http://localhost:8000/api/ready
 ```
 
 ## Common Causes & Fixes

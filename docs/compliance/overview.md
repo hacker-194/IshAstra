@@ -95,10 +95,13 @@ IshAstra is designed to meet stringent security and compliance requirements out 
 
 ```bash
 # Generate compliance evidence package
-ishastra compliance generate --framework nist --output evidence/
+# Built-in evidence packs cover NRB, NTA and NCSP. Export the findings in a
+# machine-readable format for your SOC 2 / NIST / ISO / PCI evidence tooling.
+ishastra evidence --target https://app.example.com --scope scope.json \
+  --framework all --format pdf --output evidence.pdf
 
 # Export specific control evidence
-ishastra compliance export AC-6 --format pdf --output ./AC-6-evidence.pdf
+# Per-control exports are not built in; see the control mapping above.
 ```
 
 ### Continuous Monitoring

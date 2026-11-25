@@ -71,15 +71,30 @@ ishastra assess run \
 
 Profiles: `web`, `web-deep`, `api`, `api-deep`, `network`. The gate is re-checked inside every adapter, and the SARIF output is written only for an authorized target.
 
-For asynchronous work:
+### Verified first-assessment example
+The following command sequence exercises the full authorisation path and produces a SARIF report. It sets `ISHASTRA_ENV=production` so the server refuses placeholder keys and disables `/docs`.
 
 ```bash
-ishastra assess submit --target https://app.example.com/ --scope scope.json --profile web
-ishastra assess list
-ishastra assess status <job-id>
+export ISHASTRA_ENV=production
+export ISHASTRA_API_KEY="$(openssl rand -hex 32)"
+export ISHASTRA_AUDIT_HMAC_KEY="$(openssl rand -base64 32)"
+export ISHASTRA_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+
+# 1. Create a scope (or use the demo scope)
+ishastra scope-wizard --output scope.json
+
+# 2. Run the assessment (target must be in the scope)
+ishastra assess run \
+  --target https://app.example.com/ \
+  --scope scope.json \
+  --profile web \
+  --output result.sarif
+
+# 3. Verify the signed evidence
+ihastra verify result.sarif
 ```
 
-Over HTTP, `POST /api/assess` queues the job (or runs inline with `wait: true`), `GET /api/assess/{job_id}` returns the job, and `GET /api/assess/{job_id}/sarif` returns the report.
+## 5. Run the API server
 
 ## 5. Run the API server
 

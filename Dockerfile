@@ -12,7 +12,7 @@
 
 
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS builder
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,7 +38,7 @@ RUN python -m venv /opt/venv \
 
 
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS runtime
 
 
 
@@ -61,6 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxslt1.1 \
     libxmlsec1 \
     libxmlsec1-openssl \
+    libzstd1 \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libcairo2 \

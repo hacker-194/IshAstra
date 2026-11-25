@@ -23,7 +23,6 @@ __all__ = [
     "k8s_queue",
     "locks",
     "object_storage",
-    "org",
     "oidc",
     "organizations",
     "policies",
@@ -37,7 +36,6 @@ __all__ = [
     "scope",
     "signatures",
     "store",
-    "tenants",
     "urls",
     "worker",
 ]

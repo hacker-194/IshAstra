@@ -41,10 +41,6 @@ DATA_TABLES = (
     "organizations",
     "teams",
     "memberships",
-    "mssp_partners",
-    "mssp_customers",
-    "mssp_usage_records",
-    "mssp_invitations",
 )
 
 
@@ -278,7 +274,7 @@ class TestRLSPolicies:
                    WHERE proname IN (
                        'set_app_current_tenant', 'current_app_tenant',
                        'is_global_admin', 'is_org_admin',
-                       'is_mssp_partner_for_tenant', 'rls_bypass_tenant'
+                       'rls_bypass_tenant'
                    )"""
             )
             names = {row["proname"] for row in functions}
@@ -287,7 +283,6 @@ class TestRLSPolicies:
                 "current_app_tenant",
                 "is_global_admin",
                 "is_org_admin",
-                "is_mssp_partner_for_tenant",
                 "rls_bypass_tenant",
             }
 
@@ -348,10 +343,6 @@ class TestRLSPolicies:
                     "compliance_schedules",
                     "compliance_reports",
                     "compliance_exports",
-                    "mssp_partners",
-                    "mssp_customers",
-                    "mssp_usage_records",
-                    "mssp_invitations",
                 ],
             )
             disabled = [row["relname"] for row in rows if not row["relrowsecurity"]]
@@ -387,48 +378,6 @@ class TestRLSPolicies:
             }
             missing = expected - names
             assert not missing, f"missing indexes {sorted(missing)}"
-
-    async def test_mssp_partner_isolation(self, pg_pool):
-        async with pg_pool.acquire() as conn:
-            await conn.execute("SELECT set_app_current_tenant($1)", SEED_ADMIN)
-            await conn.execute(
-                """INSERT INTO mssp_partners (partner_id, name, slug, tier, status, admin_key_hash,
-                       contact_email, created_at, updated_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-                "mssp_test",
-                "Test MSSP",
-                "test-mssp",
-                "authorized",
-                "active",
-                "partner_key_hash",
-                "partner@example.com",
-                1234567890.0,
-                1234567890.0,
-            )
-            await conn.execute(
-                """INSERT INTO mssp_customers (customer_id, partner_id, tenant_id, name, status, tier,
-                       created_at, updated_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-                "cust_1",
-                "mssp_test",
-                "customer_tenant",
-                "Customer Corp",
-                "active",
-                "pro",
-                1234567890.0,
-                1234567890.0,
-            )
-
-            await conn.execute("SELECT set_app_current_tenant($1)", "partner_admin")
-            await conn.execute("SELECT set_config('app.current_mssp_key_hash', 'partner_key_hash', false)")
-            customers = await conn.fetch(
-                "SELECT * FROM mssp_customers WHERE tenant_id = $1", "customer_tenant"
-            )
-            assert len(customers) == 1
-
-            await conn.execute("SELECT set_config('app.current_mssp_key_hash', 'other_partner_hash', false)")
-            other = await conn.fetch("SELECT * FROM mssp_customers")
-            assert other == []
 
     async def test_org_admin_access(self, pg_pool):
         async with pg_pool.acquire() as conn:

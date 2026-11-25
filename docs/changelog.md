@@ -47,7 +47,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - **Critical**: Crashed scanners (pip-audit, safety) no longer report false clean passes
 - CI security gates hardened: removed `|| true` and `continue-on-error: true`
-- Git history cleaned: removed 5 Co-Authored-By: Claude Fable 5 trailers
+- Git history cleaned: removed 5 AI co-author trailers
 - Process-kill test flakiness: dispatcher now exits cleanly on SIGTERM
 - Vulnerable dependencies updated: mitmproxy 12.1.3→12.3.1, kubernetes 30.1.0
 - Template allowlist glob patterns with fnmatch

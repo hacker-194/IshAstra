@@ -103,14 +103,26 @@ class LocalObjectStore(ObjectStore):
         os.makedirs(self.base_path, exist_ok=True)
 
     def _tenant_path(self, key: str) -> str:
-        """Resolve tenant-scoped path. Keys are prefixed with tenant_id/."""
+        """Resolve tenant-scoped path. Keys are prefixed with tenant_id/.
+
+        Refuses keys that resolve outside the tenant directory: object keys are
+        a trust boundary, and ``../`` or an absolute path would otherwise read
+        or write another tenant's files.
+        """
         parts = key.split("/", 1)
         if len(parts) != 2:
             raise ValueError(f"Invalid key format (expected tenant_id/object_key): {key}")
         tenant_id, object_key = parts
-        tenant_dir = os.path.join(self.base_path, tenant_id)
+        base = os.path.realpath(self.base_path)
+        tenant_dir = os.path.realpath(os.path.join(base, tenant_id))
+        path = os.path.realpath(os.path.join(tenant_dir, object_key))
+        if (
+            os.path.commonpath([base, tenant_dir]) != base
+            or os.path.commonpath([tenant_dir, path]) != tenant_dir
+        ):
+            raise ValueError(f"Invalid key: path escapes the tenant directory: {key}")
         os.makedirs(tenant_dir, exist_ok=True)
-        return os.path.join(tenant_dir, object_key)
+        return path
 
     async def put_object(
         self,

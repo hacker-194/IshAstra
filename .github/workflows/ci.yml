@@ -710,7 +710,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - name: Install Trivy
         env:
-          TRIVY_VERSION: v0.56.2
+          TRIVY_VERSION: v0.76.2
         run: |
           set -euo pipefail
           curl -sSfL --retry 3 --retry-delay 2 \

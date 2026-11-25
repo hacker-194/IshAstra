@@ -36,7 +36,7 @@ env:
   # `permission_denied: write_package`. Release publishing can reuse `ishastra`
   # once "Manage Actions access" on that package includes this repository.
   IMAGE_NAME: ${{ github.repository_owner }}/ishastra-ci
-  TRIVY_VERSION: 0.56.2
+  TRIVY_VERSION: 0.76.2
   SYFT_VERSION: v1.10.0
 
 jobs:

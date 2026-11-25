@@ -92,7 +92,7 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" dist/* --clobber
           else
             gh release create "$GITHUB_REF_NAME" dist/* \
-              --title "Ishastra $GITHUB_REF_NAME" \
+              --title "IshAstra $GITHUB_REF_NAME" \
               --generate-notes
           fi
 
@@ -109,6 +109,8 @@ jobs:
       name: pypi
       url: https://pypi.org/p/ishastra
     permissions:
+      actions: read
+      contents: read
       id-token: write
     steps:
       - name: Download dist artifacts
@@ -121,4 +123,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # release/v1
         with:
           repository-url: https://upload.pypi.org/legacy/
+          # Re-running a tag must not fail because the files already exist.
+          skip-existing: true
           verbose: true

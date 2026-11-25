@@ -1753,18 +1753,23 @@ async def _close_connections(connections: list[Any]) -> None:
 _database: Database | None = None
 _database_lock = threading.Lock()
 _database_creating = False
+# Bumped whenever the configured database changes. A creation coroutine that
+# started before the change must not publish its now-stale pool afterwards.
+_generation = 0
 _path: str = "ishastra.db"
 
 
 def configure(path: str | Path) -> None:
     """Set the database file path or DSN. Resets the connection pool."""
-    global _path, _database, _database_creating
+    global _path, _database, _database_creating, _generation
 
-    if _database is not None and hasattr(_database, "discard_sync"):
-        _database.discard_sync()
-    _path = str(path)
-    _database = None
-    _database_creating = False
+    with _database_lock:
+        _generation += 1
+        previous, _database = _database, None
+        _database_creating = False
+        _path = str(path)
+    if previous is not None and hasattr(previous, "discard_sync"):
+        previous.discard_sync()
 
 
 def current_path() -> str:
@@ -1846,15 +1851,22 @@ async def get_database() -> Database:
             create = not _database_creating
             if create:
                 _database_creating = True
+                generation = _generation
         if create:
+            stale: Database | None = None
             try:
                 db = _create_database()
 
                 await db.migrate()
 
                 _restrict_permissions(_path)
-                _database = db
-                return _database
+                with _database_lock:
+                    if generation == _generation:
+                        _database = db
+                        return db
+                    stale, db = db, None
+                if stale is not None:
+                    await stale.close()
             finally:
                 with _database_lock:
                     _database_creating = False
@@ -1864,10 +1876,12 @@ async def get_database() -> Database:
 
 async def close_database() -> None:
     """Close the database."""
-    global _database
-    if _database is not None:
-        await _database.close()
-        _database = None
+    global _database, _generation
+    with _database_lock:
+        _generation += 1
+        db, _database = _database, None
+    if db is not None:
+        await db.close()
 
 
 async def reset_database() -> None:

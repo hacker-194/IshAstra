@@ -80,9 +80,9 @@ explicitly re-approved with a new date.
 | Logging hygiene | `py/log-injection` (18) — SCIM and scope paths log request-controlled strings | 3 (observability/logging pass) |
 | Error handling | `py/empty-except` (33), `py/file-not-closed` (1), `py/stack-trace-exposure` (1) | 3 |
 | Resource/config hardening | Trivy `KSV-*` (124): read-only root filesystems, default security contexts, missing limits on the bundled monitoring stack | 3–4 |
-| CI supply chain | Scorecard `PinnedDependenciesID` (39), `TokenPermissionsID` (8) | 4 |
+| CI supply chain | Scorecard `PinnedDependenciesID` (39); `TokenPermissionsID` (8) fixed in Phase 4 — alerts close after re-scan | 4 |
 | Governance signals | Scorecard `CodeReviewID`, `MaintainedID`, `BranchProtectionID`, `CIIBestPracticesID`, `FuzzingID` (5) | 5 |
-| Container base image | `CVE-2026-124851` (`libzstd1`, fix available) | 4 (rebuild) |
+| Container base image | `CVE-2026-124851` (`libzstd1`): Dockerfile now installs the fixed package and pins the base digest; alert clears after the CI image rebuild | 4 |
 | Dead/duplicate code | `py/unused-import` (19), `py/import-and-import-from` (19), `py/repeated-import` (16), `py/cyclic-import` (12), `py/unused-global-variable` (23), `py/unused-local-variable` (11), `py/multiple-definition` (1), `py/unnecessary-delete` (1), `py/polluting-import` (1), `py/regex/duplicate-in-character-class` (1), `py/bad-tag-filter` (1), `py/ineffectual-statement` (source) | 5 |
 | Example code | `py/call/wrong-arguments` (1) in `examples/adapter-hello` | 6 |
 

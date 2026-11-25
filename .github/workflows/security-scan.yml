@@ -26,7 +26,6 @@ env:
 
 permissions:
   contents: read
-  security-events: write
   actions: read
 
 concurrency:
@@ -38,6 +37,10 @@ jobs:
     name: Security Scan (Python)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -103,6 +106,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: security-scan
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4

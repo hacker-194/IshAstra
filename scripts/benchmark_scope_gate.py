@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import time
 
-from ishastra.core import scope as scope_module
+from ishastra.security.authorization import scope as scope_module
 
 ADDRESS = "93.184.216.34"
 URL = "https://example.com/login"
@@ -46,7 +46,6 @@ def main() -> int:
     args = parser.parse_args()
 
     scope_module.resolve_sync = lambda host, port=None: [ADDRESS]
-    scope_module._host_buckets.clear()
     gate = scope_module.Scope(
         program="Load",
         authorized_by="Benchmark",

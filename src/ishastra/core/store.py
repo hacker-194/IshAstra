@@ -4451,8 +4451,3 @@ def reset_audit_chain_sync() -> int:
 get_db_pool = get_database
 close_db_pool = close_database
 reset_db_pool = reset_database
-
-
-_run_async = _run_async
-_fetchall = _fetchall
-_execute = _execute

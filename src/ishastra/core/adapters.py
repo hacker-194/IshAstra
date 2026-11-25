@@ -1099,6 +1099,22 @@ def _bounded(value: Any, limit: int) -> str:
     return _CONTROL_CHARS.sub("", value).strip()[:limit]
 
 
+def _require_gateway(adapter_id: str, context: dict[str, Any] | None) -> str:
+    """Return the egress gateway URL, or refuse to run an external tool.
+
+    "proxy" enforcement is only real when traffic is forced through the
+    gateway. Falling back to a direct connection when the gateway is not
+    configured would turn a configuration mistake into a gate bypass.
+    """
+    gateway_url = str((context or {}).get("gateway_url") or "").strip()
+    if not gateway_url:
+        raise AdapterError(
+            f"{adapter_id}: egress gateway required for external tools; "
+            "set ISHASTRA_GATEWAY_URL or pass gateway_url in the job context"
+        )
+    return gateway_url
+
+
 def _run_tool(
     argv: list[str],
     *,
@@ -1235,10 +1251,8 @@ class NmapAdapter(Adapter):
                 destination.ip,
             ]
         )
-        # When enforcement is "proxy", route nmap through the CONNECT proxy.
-        if self.enforcement == "proxy" and context is not None:
-            gateway_url = context.get("gateway_url", "http://gateway:8080")
-            argv.extend(["--proxies", gateway_url])
+        # Enforcement is "proxy": never run nmap without a gateway.
+        argv.extend(["--proxies", _require_gateway(self.id, context)])
         code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
         if code != 0:
             raise AdapterError(f"nmap exited {code}: {stderr.strip()[:200]}")
@@ -1621,10 +1635,8 @@ class NiktoAdapter(Adapter):
         if parsed_target and parsed_target.scheme == "https":
             argv.append("-ssl")
 
-        # When enforcement is "proxy", route nikto through the CONNECT proxy via -useproxy.
-        if self.enforcement == "proxy" and context is not None:
-            gateway_url = context.get("gateway_url", "http://gateway:8080")
-            argv.extend(["-useproxy", gateway_url])
+        # Enforcement is "proxy": never run nikto without a gateway.
+        argv.extend(["-useproxy", _require_gateway(self.id, context)])
 
         code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
         if code != 0 and not stdout.strip():
@@ -1765,29 +1777,21 @@ class SqlmapAdapter(Adapter):
                 "or pass high_risk=true in job config"
             )
 
-        destination = checked_destination(target)
+        checked_destination(target)
         parsed_target = parse_url(target)
         if parsed_target is None or not parsed_target.query:
             raise AdapterNotApplicable("no query parameters available; sql injection testing is inconclusive")
-        ip_literal = f"[{destination.ip}]" if ":" in destination.ip else destination.ip
         host_header = (
             f"[{parsed_target.hostname}]" if ":" in (parsed_target.hostname or "") else parsed_target.hostname
         )
         if parsed_target.port is not None:
             host_header = f"{host_header}:{parsed_target.port}"
-        pinned_target = parsed_target._replace(netloc=f"{ip_literal}:{destination.port}").geturl()
 
-        # Use gateway proxy from context (consistent with NmapAdapter, NiktoAdapter)
-        gateway_url = ""
-        if context is not None:
-            gateway_url = context.get("gateway_url", "").strip()
-
-        if parsed_target.scheme == "https" and not gateway_url:
-            raise AdapterError(
-                "SQLMap HTTPS requires gateway proxy: set ISHASTRA_GATEWAY_URL "
-                "or pass gateway_url in job context"
-            )
-        tool_target = target if gateway_url else pinned_target
+        # Enforcement is "proxy": never run sqlmap without a gateway, even for
+        # plain HTTP. The gateway resolves the hostname and applies its own
+        # scope check; a direct pinned connection would bypass it.
+        gateway_url = _require_gateway(self.id, context)
+        tool_target = target
 
         ok, detail = self.available()
         if not ok:
@@ -1840,9 +1844,7 @@ class SqlmapAdapter(Adapter):
                 if auth.bearer:
                     argv.extend(["--header", f"Authorization: Bearer {auth.bearer}"])
 
-            # Pass proxy via --proxy flag (honors --proxy=http://gateway:port)
-            if gateway_url:
-                argv.extend(["--proxy", gateway_url])
+            argv.extend(["--proxy", gateway_url])
 
             code, stdout, stderr = _run_tool(argv, timeout=timeout, cancel=cancel)
 

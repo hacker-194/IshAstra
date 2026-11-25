@@ -53,7 +53,7 @@ Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch th
   <tr>
     <td width="33%" valign="top">
       <h3>🛡️ Default-deny</h3>
-      A three-layer Scope Gate validates URL/host, DNS/IP and the pinned destination before any connection is made. If it isn't explicitly authorized, it doesn't happen.
+      A three-layer Scope Gate validates URL/host, DNS/IP and the pinned destination before a built-in adapter connects. External tools (nmap, nikto, sqlmap) refuse to run unless the egress gateway is configured, so they cannot fall back to a direct connection. If it isn't explicitly authorized, it doesn't happen.
     </td>
     <td width="33%" valign="top">
       <h3>🔐 Tenant isolation</h3>

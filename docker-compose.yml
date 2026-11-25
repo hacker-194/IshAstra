@@ -56,6 +56,8 @@ services:
       - ISHASTRA_LOG_LEVEL=INFO
       - ISHASTRA_METRICS_ENABLED=true
       - ISHASTRA_OTEL_ENABLED=false
+      # External tools (nmap, nikto, sqlmap) refuse to run without the gateway.
+      - ISHASTRA_GATEWAY_URL=http://egress-gateway:8080
       - PYTHONUNBUFFERED=1
     volumes:
       - ./examples/scopes:/etc/ishastra/scopes:ro

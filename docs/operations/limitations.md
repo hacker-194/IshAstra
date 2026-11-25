@@ -30,9 +30,3 @@ off, not an undiscovered bug.
 - Imported SARIF/Nuclei/ZAP findings carry the importing tool's confidence; the
   fields the source format does not provide stay at their defaults.
 
-## Optional AI
-
-- Off by default. Requires `ISHASTRA_AI_ENABLED=1` and a local
-  OpenAI-compatible endpoint; non-local endpoints are refused.
-- Its notes are advisory, non-deterministic, and never change job state, scope
-  or capabilities. Do not treat them as evidence.

@@ -349,44 +349,23 @@ class TestNmapAdapter:
         proxy_idx = argv.index("--proxies")
         assert argv[proxy_idx + 1] == "http://proxy.example.com:3128"
 
-    def test_adapter_uses_default_proxy_when_context_missing(self, adapter):
-        """Test nmap falls back to default gateway when context lacks gateway_url."""
+    def test_adapter_refuses_without_gateway(self, adapter):
+        """Test nmap refuses to run instead of connecting directly."""
         adapter._version = "test"
         with (
             patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/nmap"),
-            patch("ishastra.core.adapters._run_tool", return_value=(0, self.NMAP_XML_WITH_PORT, "")) as run,
+            patch("ishastra.core.adapters._run_tool") as run,
             patch("ishastra.core.scope.active", return_value=None),
         ):
-            adapter.assess(
-                "http://example.com/",
-                timeout=30,
-                cancel=threading.Event(),
-                context={},
-            )
-        argv = run.call_args.args[0]
-        assert "--proxies" in argv
-        proxy_idx = argv.index("--proxies")
-        assert argv[proxy_idx + 1] == "http://gateway:8080"
-
-    def test_adapter_no_proxy_when_enforcement_none(self, adapter):
-        """Test nmap does not use proxy when enforcement is not proxy."""
-        adapter.enforcement = "none"
-        adapter._version = "test"
-        with (
-            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
-            patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/nmap"),
-            patch("ishastra.core.adapters._run_tool", return_value=(0, self.NMAP_XML_WITH_PORT, "")) as run,
-            patch("ishastra.core.scope.active", return_value=None),
-        ):
-            adapter.assess(
-                "http://example.com/",
-                timeout=30,
-                cancel=threading.Event(),
-                context={"gateway_url": "http://gateway:8080"},
-            )
-        argv = run.call_args.args[0]
-        assert "--proxies" not in argv
+            with pytest.raises(AdapterError, match="gateway"):
+                adapter.assess(
+                    "http://example.com/",
+                    timeout=30,
+                    cancel=threading.Event(),
+                    context={},
+                )
+            run.assert_not_called()
 
 
 class TestNucleiAdapter:
@@ -534,10 +513,16 @@ class TestExternalScannerPinning:
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/nikto"),
             patch("ishastra.core.adapters._run_tool", return_value=(0, "[]", "")) as run,
         ):
-            adapter.assess("https://example.com/", timeout=5, cancel=threading.Event())
+            adapter.assess(
+                "https://example.com/",
+                timeout=5,
+                cancel=threading.Event(),
+                context={"gateway_url": "http://gateway:8080"},
+            )
         argv = run.call_args.args[0]
         assert argv[argv.index("-host") + 1] == "203.0.113.10"
         assert argv[argv.index("-vhost") + 1] == "example.com"
+        assert argv[argv.index("-useproxy") + 1] == "http://gateway:8080"
         assert "-ssl" in argv
 
     def test_sqlmap_refuses_without_high_risk_authorization(self):
@@ -557,7 +542,7 @@ class TestExternalScannerPinning:
         with (
             patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
-            pytest.raises(AdapterError, match="gateway proxy"),
+            pytest.raises(AdapterError, match="gateway"),
         ):
             adapter.assess(
                 "https://example.com/search?q=1",
@@ -566,7 +551,7 @@ class TestExternalScannerPinning:
                 context={"high_risk": True},
             )
 
-    def test_sqlmap_uses_pinned_url_and_ignores_redirects(self):
+    def test_sqlmap_uses_gateway_and_ignores_redirects(self):
         adapter = SqlmapAdapter()
         adapter._version = "test"
         with (
@@ -574,19 +559,136 @@ class TestExternalScannerPinning:
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
             patch("ishastra.core.adapters._run_tool", return_value=(0, "", "")) as run,
         ):
-            # High-risk auth via context
             adapter.assess(
                 "http://example.com/search?q=1",
                 timeout=20,
                 cancel=threading.Event(),
-                context={"high_risk": True},
+                context={"high_risk": True, "gateway_url": "http://gateway:8080"},
             )
         argv = run.call_args.args[0]
-        assert argv[argv.index("-u") + 1] == "http://203.0.113.10:80/search?q=1"
-        assert argv[argv.index("--host") + 1] == "example.com"
+        assert argv[argv.index("-u") + 1] == "http://example.com/search?q=1"
+        assert argv[argv.index("--proxy") + 1] == "http://gateway:8080"
         assert "--ignore-redirects" in argv
-        # No proxy for HTTP
-        assert "--proxy" not in argv
+
+
+class TestExternalToolGatewayRequired:
+    """External tools refuse to run instead of falling back to a direct connection."""
+
+    @staticmethod
+    def _destination(scheme: str = "http", port: int = 80) -> Destination:
+        return Destination(scheme=scheme, host="example.com", port=port, ip="203.0.113.10")
+
+    def test_nmap_refuses_without_gateway(self):
+        adapter = NmapAdapter()
+        adapter._version = "test"
+        with (
+            patch.object(NmapAdapter, "available", return_value=(True, "ok")),
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters._run_tool") as run,
+            patch("ishastra.core.scope.active", return_value=None),
+        ):
+            with pytest.raises(AdapterError, match="gateway"):
+                adapter.assess(
+                    "http://example.com/",
+                    timeout=30,
+                    cancel=threading.Event(),
+                    context={},
+                )
+            run.assert_not_called()
+
+    def test_nikto_refuses_without_gateway(self):
+        adapter = NiktoAdapter()
+        adapter._version = "test"
+        with (
+            patch.object(NiktoAdapter, "available", return_value=(True, "ok")),
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters._run_tool") as run,
+        ):
+            with pytest.raises(AdapterError, match="gateway"):
+                adapter.assess(
+                    "http://example.com/",
+                    timeout=30,
+                    cancel=threading.Event(),
+                    context=None,
+                )
+            run.assert_not_called()
+
+    def test_sqlmap_refuses_without_gateway(self):
+        adapter = SqlmapAdapter()
+        adapter._version = "test"
+        with (
+            patch.object(SqlmapAdapter, "available", return_value=(True, "ok")),
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters._run_tool") as run,
+        ):
+            with pytest.raises(AdapterError, match="gateway"):
+                adapter.assess(
+                    "http://example.com/search?q=1",
+                    timeout=20,
+                    cancel=threading.Event(),
+                    context={"high_risk": True},
+                )
+            run.assert_not_called()
+
+    def test_nmap_passes_proxy_flag_when_gateway_present(self):
+        adapter = NmapAdapter()
+        adapter._version = "test"
+        with (
+            patch.object(NmapAdapter, "available", return_value=(True, "ok")),
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters._run_tool", return_value=(1, "", "failed")) as run,
+            patch("ishastra.core.scope.active", return_value=None),
+            pytest.raises(AdapterError),
+        ):
+            adapter.assess(
+                "http://example.com/",
+                timeout=30,
+                cancel=threading.Event(),
+                context={"gateway_url": "http://gateway:8080"},
+            )
+        argv = run.call_args.args[0]
+        assert argv[argv.index("--proxies") + 1] == "http://gateway:8080"
+
+    def test_nikto_passes_proxy_flag_when_gateway_present(self):
+        adapter = NiktoAdapter()
+        adapter._version = "test"
+        with (
+            patch.object(NiktoAdapter, "available", return_value=(True, "ok")),
+            patch("ishastra.core.adapters.checked_destination", return_value=self._destination()),
+            patch("ishastra.core.adapters._run_tool", return_value=(1, "", "failed")) as run,
+            pytest.raises(AdapterError),
+        ):
+            adapter.assess(
+                "http://example.com/",
+                timeout=30,
+                cancel=threading.Event(),
+                context={"gateway_url": "http://gateway:8080"},
+            )
+        argv = run.call_args.args[0]
+        assert argv[argv.index("-useproxy") + 1] == "http://gateway:8080"
+
+    @pytest.mark.parametrize("adapter_cls", [NmapAdapter, NiktoAdapter, SqlmapAdapter])
+    def test_tool_not_spawned_when_destination_denied(self, adapter_cls):
+        """A gate denial must propagate before any process is started."""
+        adapter = adapter_cls()
+        adapter._version = "test"
+        with (
+            patch.object(adapter_cls, "available", return_value=(True, "ok")),
+            patch(
+                "ishastra.core.adapters.checked_destination",
+                side_effect=PermissionError("out of scope"),
+            ),
+            patch("ishastra.core.adapters._run_tool") as run,
+            patch("ishastra.core.scope.active", return_value=None),
+        ):
+            with pytest.raises(PermissionError, match="out of scope"):
+                adapter.assess(
+                    "http://evil.example/",
+                    timeout=20,
+                    cancel=threading.Event(),
+                    context={"high_risk": True, "gateway_url": "http://gateway:8080"},
+                )
+            run.assert_not_called()
 
     def test_sqlmap_https_with_gateway_proxy_preserves_hostname(self):
         adapter = SqlmapAdapter()
@@ -633,12 +735,15 @@ class TestExternalScannerPinning:
             patch("ishastra.core.adapters.shutil.which", return_value="/usr/bin/sqlmap"),
             patch("ishastra.core.adapters._run_tool", return_value=(0, "", "")) as run,
         ):
-            # High-risk auth via rules_of_engagement in context
+            # High-risk auth via rules_of_engagement, with the required gateway
             adapter.assess(
                 "http://example.com/search?q=1",
                 timeout=20,
                 cancel=threading.Event(),
-                context={"rules_of_engagement": {"high_risk_allowed": True}},
+                context={
+                    "rules_of_engagement": {"high_risk_allowed": True},
+                    "gateway_url": "http://gateway:8080",
+                },
             )
         argv = run.call_args.args[0]
-        assert argv[argv.index("-u") + 1] == "http://203.0.113.10:80/search?q=1"
+        assert argv[argv.index("--proxy") + 1] == "http://gateway:8080"

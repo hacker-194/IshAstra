@@ -1,0 +1,129 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.leastPrivilege.enabled }}
+{{- $fullname := include "ishastra.fullname" . }}
+{{- $pgHost := printf "%s-postgresql" $fullname }}
+{{- $db := .Values.postgresql.auth.database }}
+{{- $owner := .Values.postgresql.auth.username }}
+{{- $app := .Values.postgresql.leastPrivilege.appUsername }}
+{{- $secret := include "ishastra.postgresqlSecretName" . }}
+{{- $ownerKey := .Values.postgresql.auth.existingSecretPasswordKey | default "postgresql-password" }}
+{{- $appKey := .Values.postgresql.leastPrivilege.appPasswordKey }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-postgresql-app-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "ishastra.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command: ["sh", "-c"]
+          args:
+            - until pg_isready -h {{ $pgHost }} -p 5432 -U {{ $owner }}; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ $ownerKey }}
+      containers:
+        - name: create-app-role
+          image: postgres:16-alpine
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              if psql -v ON_ERROR_STOP=1 --host {{ $pgHost }} --username {{ $owner }} \
+                  --dbname {{ $db }} -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{ $app }}'" | grep -q 1; then
+                psql -v ON_ERROR_STOP=1 --host {{ $pgHost }} --username {{ $owner }} \
+                  --dbname {{ $db }} -v app_password="$APP_PASSWORD" \
+                  -c "ALTER ROLE {{ $app }} LOGIN PASSWORD :'app_password' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;"
+              else
+                psql -v ON_ERROR_STOP=1 --host {{ $pgHost }} --username {{ $owner }} \
+                  --dbname {{ $db }} -v app_password="$APP_PASSWORD" \
+                  -c "CREATE ROLE {{ $app }} LOGIN PASSWORD :'app_password' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;"
+              fi
+              psql -v ON_ERROR_STOP=1 --host {{ $pgHost }} --username {{ $owner }} \
+                --dbname {{ $db }} <<'SQL'
+              GRANT CONNECT ON DATABASE {{ $db }} TO {{ $app }};
+              GRANT USAGE ON SCHEMA public TO {{ $app }};
+              ALTER DEFAULT PRIVILEGES FOR ROLE {{ $owner }} IN SCHEMA public
+                  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {{ $app }};
+              ALTER DEFAULT PRIVILEGES FOR ROLE {{ $owner }} IN SCHEMA public
+                  GRANT USAGE, SELECT ON SEQUENCES TO {{ $app }};
+              SQL
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ $ownerKey }}
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ $appKey }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-postgresql-migrate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ishastra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-migrate
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "ishastra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "ishastra.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command: ["sh", "-c"]
+          args:
+            - until pg_isready -h {{ $pgHost }} -p 5432 -U {{ $owner }}; do sleep 2; done
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ $ownerKey }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.tag }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
+          command: ["ishastra", "migrate"]
+          env:
+            - name: ISHASTRA_ENV
+              value: development
+            - name: ISHASTRA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: owner-database-url
+{{- end }}

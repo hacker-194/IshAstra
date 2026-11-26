@@ -48,7 +48,7 @@ and committed locally on branch `remediation/2026-11-25`.
 ## Open Findings / Limitations
 
 ### UNVERIFIED / FALSE Claims Remaining
-- **21.4M-state figure**: UNVERIFIED - exact figure origin not verified in code; may be model abstraction size
+- **21.4M-state figure**: Was UNVERIFIED during remediation; **later VERIFIED** (`docs/tla/model-check-results.txt`: 21,458,641 states, 6 invariants PASS)
 - **Production-ready claim**: Replaced with precise language ("controlled pilot with stated limits")
 - **Compliance-ready claim**: Replaced with precise language ("meets specified framework mappings with limitations")
 - **Tamper-evident**: PARTIAL - HMAC key is server-held; asymmetric signing recommended

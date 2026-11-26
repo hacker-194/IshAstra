@@ -391,7 +391,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 ## Limitations
 
 These are stated so nobody builds against guarantees that do not exist. The
-full list lives in [SECURITY.md](SECURITY.md#deliberate-limitations).
+full list lives in [SECURITY.md](SECURITY.md#limitations).
 
 - **Single writer per database.** One worker lease holder; no clustering or
   automated failover.

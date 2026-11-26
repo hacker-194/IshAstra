@@ -23,7 +23,7 @@ IshAstra is designed to meet stringent security and compliance requirements out 
 │  │                    Core Platform Controls                           │   │
 │  │  • Default-deny authorization (Scope Gate)                          │   │
 │  │  • Cryptographic audit chain (IshAstra Proof)                          │   │
-│  │  • Formal verification (TLA+ 6 invariants, 21.4M states)           │   │
+│  │  • Formal verification (TLA+ 6 invariants, 21.4M states verified)           │   │
 │  │  • Multi-tenancy with RLS isolation                                 │   │
 │  │  • Break-glass dual approval                                        │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │

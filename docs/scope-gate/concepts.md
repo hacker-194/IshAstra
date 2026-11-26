@@ -264,7 +264,7 @@ Verify Receipt (Offline verification)
 
 ## TLA+ Formal Verification
 
-Scope Gate logic formally verified with 6 invariants over 21.4M states.
+Scope Gate logic formally verified with 6 invariants over 21.4M states (`docs/tla/model-check-results.txt`).
 
 | Invariant | Guarantees |
 |-----------|------------|

@@ -91,9 +91,12 @@ These are documented constraints for production deployment, verified during the 
   CLAIMS.md as UNVERIFIED.
 - **Compliance pages are mappings only.** `docs/compliance/*` maps controls to
   NIST/ISO/SOC/PCI clauses. No certification issued. Documented in CLAIMS.md.
-- **Egress gateway required for external tools.** nmap, nikto, sqlmap require a
-  gateway URL to use proxy mode; without it they connect directly. Documented
-  in enforcement-matrix.md and test_scope_thread_boundary.py.
+- **Egress gateway required for external tools.** nmap, nikto and sqlmap
+  declare `enforcement="proxy"` and refuse to run when no gateway URL is
+  supplied (`ISHASTRA_GATEWAY_URL` or `gateway_url` in the job context); they
+  never fall back to a direct connection. Third-party plugins may declare
+  `enforcement="none"` and bypass the gate. Documented in
+  `docs/scope-gate/enforcement-matrix.md`.
 - **Worker RBAC and container privileges.** Single-tenant limits apply;
   multi-tenant requires additional hardening. Documented as PARTIAL in claims.
 - **Integration tests not run in this environment.** Requires external tools
@@ -102,8 +105,7 @@ These are documented constraints for production deployment, verified during the 
   installed environment with 9 pinned dependencies + transitive closure.
 - **DNS resolution bypass and redirect handling.** Operator-controlled; not
   enforced by default. Documented in enforcement-matrix.md.
-- **TLA+ 21.4M-state figure.** UNVERIFIED (origin not verified in code;
-  may be model abstraction size). Documented in CLAIMS.md.
+- **TLA+ 21.4M-state figure.** VERIFIED (`docs/tla/model-check-results.txt`: 21,458,641 states, 6 invariants PASS). Scope: address authorization decision only (not full system). Documented in CLAIMS.md.
 
 ## Hardening checklist for operators
 

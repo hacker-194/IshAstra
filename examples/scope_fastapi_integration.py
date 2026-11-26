@@ -21,21 +21,19 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Security, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import APIKeyHeader
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, HttpUrl
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ishastra.core.scope import Scope, ScopeGate, load, configure, bound
+from ishastra.core.scope import Scope, ScopeGate, bound, load
 from ishastra.metrics import init_metrics
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,7 +86,7 @@ class AssessRequest(BaseModel):
 class AssessResponse(BaseModel):
     job_id: str
     status: str
-    scope_decision: Optional[dict] = None
+    scope_decision: dict | None = None
 
 
 class ScopeValidationResponse(BaseModel):
@@ -108,18 +106,18 @@ class HealthResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str
-    detail: Optional[str] = None
+    detail: str | None = None
 
 
 class ScopeManager:
     """Production-ready scope manager with caching, hot-reload, and JWKS verification."""
 
-    def __init__(self, scope_dir: Path, default_scope_path: Path, jwks_path: Optional[Path] = None):
+    def __init__(self, scope_dir: Path, default_scope_path: Path, jwks_path: Path | None = None):
         self.scope_dir = scope_dir
         self.default_scope_path = default_scope_path
         self.jwks_path = jwks_path
         self._cache: dict[str, tuple[Scope, float]] = {}
-        self._default_scope: Optional[Scope] = None
+        self._default_scope: Scope | None = None
         self._load_default_sync()
 
     def _load_default_sync(self):
@@ -441,14 +439,14 @@ def create_app() -> FastAPI:
 
     @app.get("/health", response_model=HealthResponse)
     async def health():
-        return HealthResponse(status="healthy", timestamp=datetime.now(timezone.utc), version=APP_VERSION)
+        return HealthResponse(status="healthy", timestamp=datetime.now(UTC), version=APP_VERSION)
 
     @app.get("/ready", response_model=HealthResponse)
     async def ready():
 
         try:
             await scope_manager.get_scope("readiness-check")
-            return HealthResponse(status="ready", timestamp=datetime.now(timezone.utc), version=APP_VERSION)
+            return HealthResponse(status="ready", timestamp=datetime.now(UTC), version=APP_VERSION)
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Not ready: {e}")
 

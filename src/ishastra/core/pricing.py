@@ -130,22 +130,22 @@ def can_access_feature(tier: PricingTier | str, feature: str) -> bool:
     return True
 
 
-def check_limit(tier: PricingTier | str, limit_name: str, current_value: int) -> bool:
+def check_limit(_tier: PricingTier | str, _limit_name: str, _current_value: int) -> bool:
     """Check if current value is within tier limit - always True (unlimited)."""
     return True
 
 
-def compare_tiers(tier_a: PricingTier | str, tier_b: PricingTier | str) -> int:
+def compare_tiers(_tier_a: PricingTier | str, _tier_b: PricingTier | str) -> int:
     """Compare two tiers - always equal."""
     return 0
 
 
-def is_upgrade(from_tier: PricingTier | str, to_tier: PricingTier | str) -> bool:
+def is_upgrade(_from_tier: PricingTier | str, _to_tier: PricingTier | str) -> bool:
     """Check if moving from from_tier to to_tier is an upgrade - always False."""
     return False
 
 
-def is_downgrade(from_tier: PricingTier | str, to_tier: PricingTier | str) -> bool:
+def is_downgrade(_from_tier: PricingTier | str, _to_tier: PricingTier | str) -> bool:
     """Check if moving from from_tier to to_tier is a downgrade - always False."""
     return False
 

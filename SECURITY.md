@@ -81,14 +81,16 @@ Details: [`docs/scope-gate/concepts.md`](docs/scope-gate/concepts.md),
 
 These are stated so nobody builds against guarantees that do not exist. The full list lives in CLAIMS.md.
 
-- **Single writer per database.** One worker lease holder; no clustering or automated failover.
-- **SQLite is the pilot backend.** PostgreSQL is supported single-host, not as a multi-node database.
-- **No third-party audit or certification.** The TLA+ model and adversarial tests are evidence, not a penetration test.
-- **Compliance pages are mappings.** `docs/compliance/*` is not a SOC 2, ISO 27001 or PCI DSS certificate.
-- **External tools require the egress gateway.** nmap, nikto and sqlmap refuse to run without it; plugin adapters may declare `enforcement="none"`.
-- **Performance figures are single-machine baselines.** See `docs/reliability.md`; no soak or multi-node numbers.
-- **k8s-jobs is experimental.** The default and pilot queue is inprocess or a durable single-host mode.
+- **Single-writer database.** One worker lease holder per database; no clustering or automated failover. PostgreSQL multi-node HA is not supported (see CLAIMS.md §3).
+- **SQLite is the pilot backend.** PostgreSQL is supported single-host only; multi-node or HA PostgreSQL is not supported by core code.
+- **No third-party security audit or certification.** TLA+ model checking (6 invariants, 21.4M states) and adversarial unit tests are evidence, not a penetration test. No SOC 2, ISO 27001, or PCI DSS certificate exists.
+- **Compliance docs are control mappings, not certifications.** `docs/compliance/*` maps controls to IshAstra features; no auditor has issued a certificate.
+- **External tools require the egress gateway.** nmap, nikto, and sqlmap refuse to run without it; they still execute on the worker host after the check (no sandbox isolation). Plugin adapters may declare `enforcement="none"`.
+- **No soak or multi-node performance data.** Single-machine baselines exist (`docs/reliability.md`). The soak CI job (`benchmark-soak`, 100 VU, 1h) and regression detection script exist but have not produced a baseline artifact yet.
+- **k8s-jobs queue is experimental.** Integration tests exist but are skipped without a cluster. Not the default queue mode.
+- **redis-streams queue mode has no integration tests in CI.** Code exists but is untested in the test suite.
 - **Not on PyPI yet.** Install from the repository or build the wheel.
+- **Resource management components are implemented but not characterized.** Streaming, bounded queues, artifact lifecycle, storage quotas, evidence compression, DB optimization, and resource profiles are coded and unit-tested (46 tests) but carry no benchmark numbers, no soak data, and no documented production tuning guidance beyond RESOURCE_MANAGEMENT.md.
 
 ## Hardening checklist for operators
 

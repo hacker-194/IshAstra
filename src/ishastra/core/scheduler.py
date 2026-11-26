@@ -270,10 +270,14 @@ class Scheduler:
         )
         if lease and lease.acquired:
             self._scheduler_lease = lease
-            log.info("Became scheduler leader: %s", self._holder_id)
+            log.info("Became scheduler leader: %s (fencing_token=%d)", self._holder_id, lease.fencing_token)
             return True
-        current_holder = await store.get_lease_holder(SCHEDULER_LEASE_NAME)
-        log.info("Scheduler leader is %s, running as follower", current_holder)
+        current_holder, current_token = await store.get_lease_holder(SCHEDULER_LEASE_NAME)
+        log.info(
+            "Scheduler leader is %s (fencing_token=%d), running as follower",
+            current_holder,
+            current_token,
+        )
         return False
 
     async def _renew_lease_loop(self) -> None:
@@ -282,7 +286,7 @@ class Scheduler:
             while self._running:
                 await asyncio.sleep(SCHEDULER_LEASE_RENEWAL_INTERVAL)
                 if self._scheduler_lease and self._scheduler_lease.acquired:
-                    renewed = await store.renew_lease(
+                    renewed, new_token = await store.renew_lease(
                         SCHEDULER_LEASE_NAME,
                         self._holder_id,
                         ttl_seconds=SCHEDULER_LEASE_TTL,
@@ -292,6 +296,8 @@ class Scheduler:
                         self._scheduler_lease._acquired = False
                         await self._stop_scheduled_jobs()
                         break
+                    self._scheduler_lease.fencing_token = new_token
+                    log.debug("Renewed scheduler lease, fencing_token=%d", new_token)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -501,9 +507,13 @@ class Scheduler:
                 await self._lease_renewal_task
 
         if self._scheduler_lease and self._scheduler_lease.acquired:
-            await store.release_lease(SCHEDULER_LEASE_NAME, self._holder_id)
+            await store.release_lease(
+                SCHEDULER_LEASE_NAME,
+                self._holder_id,
+                fencing_token=self._scheduler_lease.fencing_token,
+            )
             self._scheduler_lease._acquired = False
-            log.info("Released scheduler lease")
+            log.info("Released scheduler lease (fencing_token=%d)", self._scheduler_lease.fencing_token)
 
         if self._scheduler:
             self._scheduler.shutdown(wait=True)

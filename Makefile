@@ -90,6 +90,9 @@ lint: ## Run linter, type checker and secret scan
 	mypy src/
 	python3 scripts/check_secrets.py
 
+preflight: ## Validate a production environment file (fails closed)
+	python3 scripts/production_preflight.py --env-file $${ENV_FILE:-.env.production} --scope-file $${SCOPE_FILE:-config/scope.json} $${PREFLIGHT_ARGS:-}
+
 format: ## Format code with ruff
 	ruff format src/ tests/
 

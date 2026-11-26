@@ -1147,6 +1147,103 @@ MIGRATIONS_PG: list[tuple[int, str]] = [
     CREATE INDEX IF NOT EXISTS tokens_by_key ON capability_tokens (key_id);
     """,
     ),
+    (
+        32,
+        """
+    -- Migration 32: Lease fencing token for safe failover (PostgreSQL)
+    ALTER TABLE distributed_leases
+        ADD COLUMN IF NOT EXISTS fencing_token BIGINT NOT NULL DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS idx_distributed_leases_fencing_token
+        ON distributed_leases (fencing_token);
+    """,
+    ),
+    (
+        33,
+        """
+    -- Migration 33: Durable PostgreSQL queue schema (worker runtime reads only)
+    CREATE TABLE IF NOT EXISTS ishastra_queue (
+        job_id             TEXT PRIMARY KEY,
+        tenant_id          TEXT NOT NULL,
+        target             TEXT NOT NULL,
+        profile            TEXT NOT NULL,
+        actor              TEXT NOT NULL,
+        policy             TEXT NOT NULL,
+        policy_id          TEXT NOT NULL DEFAULT '',
+        state              TEXT NOT NULL DEFAULT 'queued',
+        created_at         DOUBLE PRECISION NOT NULL,
+        claimed_at         DOUBLE PRECISION,
+        claimed_by         TEXT,
+        visibility_timeout DOUBLE PRECISION,
+        retries            INTEGER NOT NULL DEFAULT 0,
+        max_attempts       INTEGER NOT NULL DEFAULT 3,
+        idempotency_key    TEXT,
+        cancel_requested   BOOLEAN NOT NULL DEFAULT FALSE,
+        error              TEXT NOT NULL DEFAULT '',
+        finished_at        DOUBLE PRECISION
+    );
+    CREATE INDEX IF NOT EXISTS idx_ishastra_queue_state_created
+        ON ishastra_queue (state, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ishastra_queue_idempotency
+        ON ishastra_queue (idempotency_key) WHERE idempotency_key IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_ishastra_queue_policy
+        ON ishastra_queue (policy_id, state);
+    CREATE TABLE IF NOT EXISTS job_attempts (
+        id          BIGSERIAL PRIMARY KEY,
+        job_id      TEXT NOT NULL,
+        attempt     INTEGER NOT NULL,
+        worker      TEXT NOT NULL,
+        state       TEXT NOT NULL DEFAULT 'running',
+        started_at  DOUBLE PRECISION NOT NULL,
+        finished_at DOUBLE PRECISION,
+        error       TEXT NOT NULL DEFAULT '',
+        UNIQUE (job_id, attempt)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_attempts_job
+        ON job_attempts (job_id, attempt DESC);
+    """,
+    ),
+    (
+        34,
+        """
+    -- Migration 34: SCIM 2.0 mapping and token tables
+    CREATE TABLE IF NOT EXISTS scim_user_mappings (
+        scim_id          TEXT PRIMARY KEY,
+        ishastra_user_id TEXT NOT NULL,
+        tenant_id        TEXT NOT NULL,
+        scim_token       TEXT NOT NULL,
+        created_at       DOUBLE PRECISION NOT NULL,
+        UNIQUE(tenant_id, scim_token, scim_id)
+    );
+    CREATE INDEX IF NOT EXISTS scim_user_mappings_by_tenant
+        ON scim_user_mappings (tenant_id, scim_token);
+    CREATE TABLE IF NOT EXISTS scim_group_mappings (
+        scim_id      TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        external_id  TEXT,
+        tenant_id    TEXT NOT NULL,
+        org_id       TEXT,
+        member_ids   TEXT NOT NULL DEFAULT '[]',
+        scim_token   TEXT NOT NULL,
+        created_at   DOUBLE PRECISION NOT NULL,
+        updated_at   DOUBLE PRECISION NOT NULL,
+        UNIQUE(tenant_id, scim_token, scim_id)
+    );
+    CREATE INDEX IF NOT EXISTS scim_group_mappings_by_tenant
+        ON scim_group_mappings (tenant_id, scim_token);
+    CREATE TABLE IF NOT EXISTS scim_tokens (
+        token_hash   TEXT PRIMARY KEY,
+        tenant_id    TEXT NOT NULL,
+        org_id       TEXT,
+        name         TEXT NOT NULL,
+        active       INTEGER NOT NULL DEFAULT 1,
+        created_at   DOUBLE PRECISION NOT NULL,
+        expires_at   DOUBLE PRECISION,
+        last_used    DOUBLE PRECISION
+    );
+    CREATE INDEX IF NOT EXISTS scim_tokens_by_tenant
+        ON scim_tokens (tenant_id, active);
+    """,
+    ),
 ]
 
 TERMINAL_STATES = ("completed", "partial", "failed", "cancelled")
@@ -1691,10 +1788,22 @@ class PostgreSQLDatabase(Database):
             return row[0] if row else 0
 
     async def _migrate_pg(self, conn: asyncpg.Connection, dsn: str) -> None:
-        """Apply PostgreSQL migrations."""
-        await conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        row = await conn.fetchrow("SELECT COALESCE(value::int, 0) FROM settings WHERE key = 'schema_version'")
-        version = row[0] if row else 0
+        """Apply PostgreSQL migrations.
+
+        Only executes DDL when the schema is missing or behind. A least-privilege
+        runtime role may have no CREATE privilege on a current schema.
+        """
+        settings_exists = await conn.fetchval("SELECT to_regclass('public.settings') IS NOT NULL")
+        if settings_exists:
+            row = await conn.fetchrow(
+                "SELECT COALESCE(value::int, 0) FROM settings WHERE key = 'schema_version'"
+            )
+            version = row[0] if row else 0
+        else:
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            version = 0
         for target, script in MIGRATIONS_PG:
             if target <= version:
                 continue
@@ -3646,7 +3755,7 @@ async def save_api_key(
     import json
 
     db = await get_database()
-    async with db.transaction() as conn:
+    async with db.transaction_with_tenant(tenant_id) as conn:
         await _execute(
             conn,
             "INSERT INTO api_keys (tenant_id, key_hash, tier, admin, active, scope, project, "
@@ -3970,12 +4079,20 @@ def _lease_lock_id(name: str, category: str = "custom") -> int:
 class Lease:
     """Represents a held distributed lease."""
 
-    def __init__(self, name: str, holder: str, category: str = "custom", lock_id: int | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        holder: str,
+        category: str = "custom",
+        lock_id: int | None = None,
+        fencing_token: int = 0,
+    ) -> None:
         self.name = name
         self.holder = holder
         self.category = category
         self.lock_id = lock_id or _lease_lock_id(name, category)
         self._acquired = False
+        self.fencing_token = fencing_token
 
     @property
     def acquired(self) -> bool:
@@ -3984,7 +4101,7 @@ class Lease:
     def __repr__(self) -> str:
         return (
             f"Lease(name={self.name!r}, holder={self.holder!r}, "
-            f"lock_id={self.lock_id}, acquired={self._acquired})"
+            f"lock_id={self.lock_id}, fencing_token={self.fencing_token}, acquired={self._acquired})"
         )
 
 
@@ -4001,6 +4118,9 @@ async def try_acquire_lease(
     Uses PostgreSQL advisory locks for coordination. Returns a Lease object
     if acquired, None if another holder has it.
 
+    Fencing token ensures that even if a stale holder tries to operate after
+    losing the lease, its operations are rejected due to stale token.
+
     Args:
         name: Unique lease name (e.g., "scheduler", "rate_limiter:tenant123")
         holder: Identifier for this process (e.g., hostname:pid, pod name)
@@ -4009,7 +4129,7 @@ async def try_acquire_lease(
         ttl_seconds: Lease TTL for monitoring (not enforced by DB)
 
     Returns:
-        Lease object if acquired, None if not available
+        Lease object with fencing_token if acquired, None if not available
     """
     db = await get_database()
     if not db.is_postgresql():
@@ -4022,25 +4142,32 @@ async def try_acquire_lease(
     async with db.advisory_lock(lock_id) as conn:
         row = await _fetchone(
             conn,
-            "SELECT holder, expires_at FROM distributed_leases WHERE name = ?",
+            "SELECT holder, expires_at, fencing_token FROM distributed_leases WHERE name = ?",
             name,
         )
         now = time.time()
         if row and row["holder"] != holder and row["expires_at"] and row["expires_at"] > now:
             return None
 
+        # Determine fencing token: 1 for new acquisition, increment for renewal
+        fencing_token = 1
+        if row and row["holder"] == holder:
+            # Renewing existing lease - increment fencing token
+            fencing_token = (row["fencing_token"] or 0) + 1
+
         await _execute(
             conn,
             """INSERT INTO distributed_leases
-               (name, holder, lock_id, category, acquired_at, expires_at, ttl_seconds)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+               (name, holder, lock_id, category, acquired_at, expires_at, ttl_seconds, fencing_token)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (name) DO UPDATE SET
                    holder = excluded.holder,
                    lock_id = excluded.lock_id,
                    category = excluded.category,
                    acquired_at = excluded.acquired_at,
                    expires_at = excluded.expires_at,
-                   ttl_seconds = excluded.ttl_seconds""",
+                   ttl_seconds = excluded.ttl_seconds,
+                   fencing_token = excluded.fencing_token""",
             name,
             holder,
             lock_id,
@@ -4048,68 +4175,93 @@ async def try_acquire_lease(
             now,
             now + ttl_seconds,
             ttl_seconds,
+            fencing_token,
         )
 
-    lease = Lease(name, holder, category, lock_id)
+    lease = Lease(name, holder, category, lock_id, fencing_token=fencing_token)
     lease._acquired = True
     return lease
 
 
-async def release_lease(name: str, holder: str) -> bool:
+async def release_lease(name: str, holder: str, fencing_token: int | None = None) -> bool:
     """Release a held lease.
 
-    Returns True if the lease was released, False if not held by this holder.
+    If fencing_token is provided, only releases if the token matches (prevents
+    stale holders from releasing a lease they no longer own).
+
+    Returns True if the lease was released, False if not held by this holder
+    or token mismatch.
     """
     db = await get_database()
     if not db.is_postgresql():
         return True
 
     async with db.transaction() as conn:
-        cursor = await _execute(
-            conn,
-            "DELETE FROM distributed_leases WHERE name = ? AND holder = ?",
-            name,
-            holder,
-        )
+        if fencing_token is not None:
+            cursor = await _execute(
+                conn,
+                "DELETE FROM distributed_leases WHERE name = ? AND holder = ? AND fencing_token = ?",
+                name,
+                holder,
+                fencing_token,
+            )
+        else:
+            cursor = await _execute(
+                conn,
+                "DELETE FROM distributed_leases WHERE name = ? AND holder = ?",
+                name,
+                holder,
+            )
         return cursor.rowcount > 0
 
 
-async def get_lease_holder(name: str) -> str | None:
-    """Get the current holder of a lease, if any."""
-    db = await get_database()
-    if not db.is_postgresql():
-        return None
-    async with db.transaction() as conn:
-        row = await _fetchone(
-            conn,
-            "SELECT holder FROM distributed_leases WHERE name = ?",
-            name,
-        )
-        return row["holder"] if row else None
+async def get_lease_holder(name: str) -> tuple[str | None, int]:
+    """Get the current holder of a lease and its fencing token, if any.
 
-
-async def renew_lease(name: str, holder: str, ttl_seconds: float = 30.0) -> bool:
-    """Renew a lease's TTL.
-
-    Returns True if renewed, False if not held by this holder or lease doesn't exist.
+    Returns (holder, fencing_token) or (None, 0) if lease doesn't exist.
     """
     db = await get_database()
     if not db.is_postgresql():
-        return True
+        return None, 0
+    async with db.transaction() as conn:
+        row = await _fetchone(
+            conn,
+            "SELECT holder, fencing_token FROM distributed_leases WHERE name = ?",
+            name,
+        )
+        if row:
+            return row["holder"], row["fencing_token"] or 0
+        return None, 0
+
+
+async def renew_lease(name: str, holder: str, ttl_seconds: float = 30.0) -> tuple[bool, int]:
+    """Renew a lease's TTL and increment fencing token.
+
+    Returns (True, new_fencing_token) if renewed, (False, 0) if not held by this
+    holder or lease doesn't exist. The fencing token increments on each renewal,
+    ensuring stale holders cannot operate after losing the lease.
+    """
+    db = await get_database()
+    if not db.is_postgresql():
+        return True, 0
 
     now = time.time()
     async with db.transaction() as conn:
-        cursor = await _execute(
+        # Increment fencing token atomically with renewal
+        row = await _fetchone(
             conn,
             """UPDATE distributed_leases
-               SET expires_at = ?, ttl_seconds = ?
-               WHERE name = ? AND holder = ?""",
+               SET expires_at = ?, ttl_seconds = ?, fencing_token = fencing_token + 1
+               WHERE name = ? AND holder = ?
+               RETURNING fencing_token""",
             now + ttl_seconds,
             ttl_seconds,
             name,
             holder,
         )
-        return cursor.rowcount > 0
+        if row:
+            return True, row["fencing_token"]
+        return False, 0
 
 
 async def cleanup_expired_leases() -> int:
@@ -4138,7 +4290,7 @@ async def list_active_leases() -> list[dict[str, Any]]:
     async with db.transaction() as conn:
         rows = await _fetchall(
             conn,
-            "SELECT name, holder, category, lock_id, acquired_at, expires_at, ttl_seconds "
+            "SELECT name, holder, category, lock_id, acquired_at, expires_at, ttl_seconds, fencing_token "
             "FROM distributed_leases WHERE expires_at > ?",
             now,
         )
@@ -4161,7 +4313,8 @@ async def _ensure_leases_table() -> None:
                 category TEXT NOT NULL DEFAULT 'custom',
                 acquired_at DOUBLE PRECISION NOT NULL,
                 expires_at DOUBLE PRECISION NOT NULL,
-                ttl_seconds DOUBLE PRECISION NOT NULL
+                ttl_seconds DOUBLE PRECISION NOT NULL,
+                fencing_token BIGINT NOT NULL DEFAULT 0
             )""",
         )
         await _execute(
@@ -4171,6 +4324,11 @@ async def _ensure_leases_table() -> None:
         await _execute(
             conn,
             "CREATE INDEX IF NOT EXISTS idx_distributed_leases_category ON distributed_leases (category)",
+        )
+        await _execute(
+            conn,
+            "CREATE INDEX IF NOT EXISTS idx_distributed_leases_fencing_token "
+            "ON distributed_leases (fencing_token)",
         )
 
 

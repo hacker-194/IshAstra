@@ -96,7 +96,7 @@ class TestMigrations:
             assert len(script) > 0
 
     def test_pg_migrations_exist(self):
-        """PostgreSQL migrations exist (leases 29, revocations 30, token registry 31)."""
+        """PostgreSQL migrations exist through SCIM (version 34)."""
         expected_targets = {
             10,
             11,
@@ -120,6 +120,9 @@ class TestMigrations:
             29,
             30,
             31,
+            32,
+            33,
+            34,
         }
         assert {target for target, _script in MIGRATIONS_PG} == expected_targets
         for target, script in MIGRATIONS_PG:

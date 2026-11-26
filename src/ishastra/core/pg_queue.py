@@ -88,6 +88,14 @@ class PostgresAssessmentQueue:
 
     async def _init_schema(self) -> None:
         db = await self._db()
+        async with db.transaction() as conn:
+            present = await conn.fetchval(
+                "SELECT to_regclass($1) IS NOT NULL AND to_regclass($2) IS NOT NULL",
+                QUEUE_TABLE,
+                "job_attempts",
+            )
+        if present:
+            return
         statements = [
             f"""
             CREATE TABLE IF NOT EXISTS {QUEUE_TABLE} (
@@ -345,58 +353,82 @@ class PostgresAssessmentQueue:
         )
 
     async def _claim_next(self) -> Job | None:
-        """Atomically claim the oldest queued job; None when the queue is empty."""
+        """Atomically claim the oldest queued job; None when the queue is empty.
+
+        Retries with exponential backoff on serialization failures (SQLSTATE 40001)
+        which can occur under high concurrency with FOR UPDATE SKIP LOCKED.
+        """
         db = await self._db()
         now = time.time()
-        async with db.transaction() as conn:
-            await self._recover_orphans(conn, now)
-            row = await conn.fetchrow(
-                f"""
-                WITH next AS (
-                    SELECT job_id FROM {QUEUE_TABLE}
-                    WHERE state = 'queued'
-                    ORDER BY created_at
-                    LIMIT 1
-                    FOR UPDATE SKIP LOCKED
-                )
-                UPDATE {QUEUE_TABLE} q
-                SET state = 'running',
-                    claimed_at = $1,
-                    claimed_by = $2,
-                    visibility_timeout = $3,
-                    retries = q.retries + 1,
-                    error = ''
-                FROM next
-                WHERE q.job_id = next.job_id
-                RETURNING q.*
-                """,
-                now,
-                self._worker_id,
-                self.visibility_seconds,
-            )
-            if row is not None:
-                await conn.execute(
-                    """
-                    INSERT INTO job_attempts (job_id, attempt, worker, started_at)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (job_id, attempt) DO NOTHING
-                    """,
-                    row["job_id"],
-                    row["retries"],
-                    self._worker_id,
-                    now,
-                )
-        if row is None:
-            return None
-        data = dict(row)
-        data["id"] = data["job_id"]
-        data["policy"] = json.loads(data["policy"])
-        job = _job_from_row(data)
-        with self._lock:
-            self._tenants.setdefault(job.id, data["tenant_id"])
-        if data.get("cancel_requested"):
-            job.cancel()
-        return job
+        max_retries = 3
+        base_delay = 0.05  # 50ms
+
+        for attempt in range(max_retries):
+            try:
+                async with db.transaction() as conn:
+                    await self._recover_orphans(conn, now)
+                    row = await conn.fetchrow(
+                        f"""
+                        WITH next AS (
+                            SELECT job_id FROM {QUEUE_TABLE}
+                            WHERE state = 'queued'
+                            ORDER BY created_at
+                            LIMIT 1
+                            FOR UPDATE SKIP LOCKED
+                        )
+                        UPDATE {QUEUE_TABLE} q
+                        SET state = 'running',
+                            claimed_at = $1,
+                            claimed_by = $2,
+                            visibility_timeout = $3,
+                            retries = q.retries + 1,
+                            error = ''
+                        FROM next
+                        WHERE q.job_id = next.job_id
+                        RETURNING q.*
+                        """,
+                        now,
+                        self._worker_id,
+                        self.visibility_seconds,
+                    )
+                    if row is not None:
+                        await conn.execute(
+                            """
+                            INSERT INTO job_attempts (job_id, attempt, worker, started_at)
+                            VALUES ($1, $2, $3, $4)
+                            ON CONFLICT (job_id, attempt) DO NOTHING
+                            """,
+                            row["job_id"],
+                            row["retries"],
+                            self._worker_id,
+                            now,
+                        )
+                if row is None:
+                    return None
+                data = dict(row)
+                data["id"] = data["job_id"]
+                data["policy"] = json.loads(data["policy"])
+                job = _job_from_row(data)
+                with self._lock:
+                    self._tenants.setdefault(job.id, data["tenant_id"])
+                if data.get("cancel_requested"):
+                    job.cancel()
+                return job
+            except Exception as e:
+                # Check for serialization failure (SQLSTATE 40001)
+                if "40001" in str(e) and attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    log.debug(
+                        "Serialization failure claiming job, retrying in %.3fs (attempt %d/%d)",
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
+
+        return None
 
     def _thread_entry(self) -> None:
         loop = asyncio.new_event_loop()

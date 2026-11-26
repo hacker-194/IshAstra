@@ -25,7 +25,6 @@ from ishastra.integrations import (
     get_connector,
 )
 
-
 SAMPLE_FINDING = {
     "finding": {
         "category": "sql_injection",

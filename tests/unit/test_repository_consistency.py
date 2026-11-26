@@ -146,7 +146,6 @@ _DEAD_CLI_COMMANDS = (
     "ishastra keys rotate",
     "ishastra finding migrate-status",
     "ishastra scope-gate test",
-    "ishastra migrate",
 )
 
 

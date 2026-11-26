@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ishastra.core.adapter_base import Adapter, AdapterResult
+from ishastra.core.adapter_base import Adapter, AdapterResult, checked_destination
 from ishastra.core.findings import Finding
-from ishastra.core.adapter_base import checked_destination
 
 
 class HelloAdapter(Adapter):
@@ -60,6 +59,7 @@ class HelloAdapter(Adapter):
 # Entry point for direct execution (useful for debugging)
 if __name__ == "__main__":
     import asyncio
+
     from ishastra.core.scope import ScopeDocument, ScopeMetadata
     from ishastra.security.authorization.scope import ScopeGate
 

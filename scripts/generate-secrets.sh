@@ -22,7 +22,7 @@ INCLUDE_INTEGRATIONS=false
 FORCE=false
 
 
-while [[ $
+while [[ $# -gt 0 ]]; do
     case $1 in
         --output)
             OUTPUT_FILE="$2"
@@ -188,19 +188,11 @@ append_var "ISHASTRA_REDIS_REQUIRED" "1"
 OUTPUT+="\n"
 
 
-append_comment "Celery Configuration (used when ISHASTRA_QUEUE_MODE=celery)"
-append_var "ISHASTRA_CELERY_BROKER_URL" "redis://redis:6379/1"
-append_var "ISHASTRA_CELERY_RESULT_BACKEND" "redis://redis:6379/2"
-append_var "ISHASTRA_CELERY_MAX_TASKS_PER_CHILD" "50"
-append_var "ISHASTRA_CELERY_MAX_MEMORY_PER_CHILD" "1073741824"
-append_var "ISHASTRA_CELERY_TASK_TIME_LIMIT" "3600"
-append_var "ISHASTRA_CELERY_TASK_SOFT_TIME_LIMIT" "300"
-OUTPUT+="\n"
 
-
-append_comment "PostgreSQL Configuration (uncomment if using PostgreSQL)"
-append_comment "ISHASTRA_DB=postgresql://ishastra:\${ISHASTRA_DB_PASSWORD}@postgres:5432/ishastra"
-append_comment "ISHASTRA_DB_PASSWORD=$(gen_base64 24)"
+append_comment "PostgreSQL Configuration (Docker Compose)"
+append_comment "Owner runs migrations; the app role is non-owner and has no CREATE"
+append_var "POSTGRES_PASSWORD" "$(gen_hex 24)"
+append_var "ISHASTRA_APP_PASSWORD" "$(gen_hex 24)"
 OUTPUT+="\n"
 
 
@@ -224,6 +216,7 @@ OUTPUT+="\n"
 
 append_comment "Grafana Admin Password"
 append_var "GRAFANA_PASSWORD" "$(gen_password 24)"
+append_var "KEYCLOAK_ADMIN_PASSWORD" "$(gen_password 24)"
 OUTPUT+="\n"
 
 

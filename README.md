@@ -42,9 +42,6 @@
 
 </div>
 
-> [!NOTE]
-> **Project status: pilot-ready** (IshAstra 4.0.0rc1). The authorization core is TLA+-model-checked and CI-enforced; capability tokens, the egress gateway, hardened workers and signed evidence bundles are implemented. "Pilot-ready" means suitable for authorized, single-tenant testing with operator supervision — it is not a certification, a security guarantee, or a multi-node scale claim. Read [Production deployment](docs/quickstart/production.md), [SECURITY.md](SECURITY.md) and [Limitations](#limitations) before promising uptime.
-
 ## Why IshAstra
 
 Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch this?"** first, and proves the answer afterwards.
@@ -101,9 +98,6 @@ Most scanners ask *"what can I find?"* IshAstra asks **"am I allowed to touch th
 
 ## Try it in one command
 
-> [!NOTE]
-> The package is not yet published to PyPI, so install from the repository.
-
 ```bash
 git clone https://github.com/hacker-194/IshAstra.git
 cd IshAstra
@@ -112,7 +106,7 @@ pip install -c constraints.txt -e .
 ishastra demo
 ```
 
-The demo writes its own **Ed25519-signed scope** (localhost only), generates an admin key, uses SQLite, and prints the URL plus the key you paste into the top bar. Nothing outside `.ishastra-demo/` is touched.
+The demo writes its own Ed25519-signed scope (localhost only), generates an admin key, uses SQLite, and prints the URL plus the key you paste into the top bar. Nothing outside `.ishastra-demo/` is touched.
 
 ### Drop it into CI
 
@@ -154,7 +148,7 @@ flowchart TB
     AD --> F["📊 Findings engine<br/>Normalize → Dedupe → Redact → Persist (SQLite) → Export"]
 ```
 
-> Every adapter **re-checks the Scope Gate internally**, so a misbehaving adapter can't bypass authorization.
+> Every adapter re-checks the Scope Gate internally, so a misbehaving adapter can't bypass authorization.
 
 ## Phase 2: Security spine (pilot-ready)
 
@@ -271,7 +265,7 @@ ishastra bundle --verify evidence.zip --jwks jwks.json
 | **Kubernetes (Helm)**      | `helm install ishastra ./deploy/helm/ishastra -n ishastra --create-namespace` | Varies |
 
 <details>
-<summary><b>☁️ Free tier: $0/month on Oracle Cloud Always Free</b></summary>
+<summary><b>Free tier: $0/month on Oracle Cloud Always Free</b></summary>
 
 <br>
 
@@ -283,22 +277,20 @@ chmod +x scripts/bootstrap-free.sh
 ./scripts/bootstrap-free.sh
 ```
 
-**What you get:**
-
-| | Component | Details |
-| :-: | :-------- | :------ |
-| ☸️ | **k0s cluster** | Oracle Always Free Arm (2 OCPU / 12 GB total, halved by Oracle in June 2026). Add a third controller for quorum |
-| 🐘 | **Neon PostgreSQL** | Serverless, 0.5 GB free |
-| ⚡ | **Upstash Redis** | Serverless, 256 MB free |
-| 🌩️ | **Cloudflare Tunnel** | Ingress with zero public IP and DDoS protection |
-| 🔒 | **SealedSecrets** | Git-safe secret management |
-| 📈 | **Prometheus + Grafana** | Monitoring out of the box |
-| 🚪 | **IshAstra ScopeGate API** | Served at `https://api.yourdomain.com` |
+| Component | Details |
+| :-------- | :------ |
+| k0s cluster | Oracle Always Free Arm (2 OCPU / 12 GB total, halved by Oracle in June 2026). Add a third controller for quorum |
+| Neon PostgreSQL | Serverless, 0.5 GB free |
+| Upstash Redis | Serverless, 256 MB free |
+| Cloudflare Tunnel | Ingress with zero public IP and DDoS protection |
+| SealedSecrets | Git-safe secret management |
+| Prometheus + Grafana | Monitoring out of the box |
+| IshAstra ScopeGate API | Served at `https://api.yourdomain.com` |
 
 </details>
 
 <details>
-<summary><b>🐳 Local development with Docker Compose</b></summary>
+<summary><b>Local development with Docker Compose</b></summary>
 
 <br>
 
@@ -322,7 +314,7 @@ docker compose up -d
 ## Extend and integrate
 
 <details>
-<summary><b>🔌 Third-party adapters (plugins)</b></summary>
+<summary><b>Third-party adapters (plugins)</b></summary>
 
 <br>
 
@@ -333,21 +325,21 @@ Adapters plug in without forking the project. Publish one under the `ishastra.ad
 my-probe = "my_package.adapters:MyProbe"
 ```
 
-A plugin can add an adapter id but **cannot replace a built-in one**.
+A plugin can add an adapter id but cannot replace a built-in one.
 
 > [!CAUTION]
-> Third-party adapters are opt-in. Set `ISHASTRA_ALLOW_PLUGINS=1` only for packages you trust: plugins run in-process and can open network connections **without the Scope Gate**.
+> Third-party adapters are opt-in. Set `ISHASTRA_ALLOW_PLUGINS=1` only for packages you trust: plugins run in-process and can open network connections without the Scope Gate.
 
 </details>
 
 <details>
-<summary><b>🔔 Job notifications (webhooks &amp; Slack)</b></summary>
+<summary><b>Job notifications (webhooks &amp; Slack)</b></summary>
 
 <br>
 
 Set `ISHASTRA_NOTIFY_WEBHOOK_URL` to POST a JSON summary (job, target, state, verdict, severity counts) whenever a job finishes. The same body carries Slack `text` and `blocks`, so a Slack incoming webhook renders it as a formatted card while other receivers read the structured fields.
 
-- Destinations must be **public https URLs**
+- Destinations must be public https URLs
 - Set `ISHASTRA_WEBHOOK_SECRET` to add an `X-Ishastra-Signature: sha256=…` HMAC header so the receiver can verify the payload
 
 </details>
@@ -385,29 +377,39 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - 🔍 [Security Review](docs/security-review.md)
 - 📐 [TLA+ Verification](docs/scope-gate/tla-verification.md)
 
-> [!IMPORTANT]
-> IshAstra is built for authorized testing. Only assess systems you own or have explicit permission to test.
+
 
 ## Limitations
 
 These are stated so nobody builds against guarantees that do not exist. The
-full list lives in [SECURITY.md](SECURITY.md#limitations).
+full list lives in [CLAIMS.md](CLAIMS.md).
 
-- **Single writer per database.** One worker lease holder; no clustering or
-  automated failover.
-- **SQLite is the pilot backend.** PostgreSQL is supported single-host, not as
-  a multi-node database.
-- **No third-party audit or certification.** The TLA+ model and adversarial
-  tests are evidence, not a penetration test.
-- **Compliance pages are mappings.** `docs/compliance/*` is not a SOC 2, ISO
-  27001 or PCI DSS certificate.
-- **External tools require the egress gateway.** nmap, nikto and sqlmap refuse
-  to run without it; plugin adapters may declare `enforcement="none"`.
-- **Performance figures are single-machine baselines.** See
-  [docs/reliability.md](docs/reliability.md); no soak or multi-node numbers.
-- **`k8s-jobs` is experimental.** The default and pilot queue is `inprocess`
-  or a durable single-host mode.
+- **Single-writer database.** One worker lease holder per database; no clustering
+  or automated failover. PostgreSQL multi-node HA is not supported.
+- **SQLite is the pilot backend.** PostgreSQL is supported single-host only;
+  multi-node or HA PostgreSQL is not supported by core code.
+- **No third-party security audit or certification.** TLA+ model checking (6
+  invariants, 21.4M states) and adversarial tests are evidence, not a
+  penetration test. No SOC 2, ISO 27001, or PCI DSS certificate.
+- **Compliance docs are control mappings, not certifications.**
+  `docs/compliance/*` maps controls to features; no auditor-issued certificate
+  exists.
+- **External tools require the egress gateway.** nmap, nikto, and sqlmap refuse
+  to run without it; they still execute on the worker host after the check (no
+  sandbox). Plugin adapters may declare `enforcement="none"`.
+- **No soak or multi-node performance data.** Single-machine baselines exist in
+  [docs/reliability.md](docs/reliability.md). Soak CI job and regression
+  detection script exist but have no baseline artifact yet.
+- **`k8s-jobs` queue is experimental.** Integration tests exist but are skipped
+  without a cluster. Not the default queue mode.
+- **`redis-streams` queue mode has no integration tests in CI.** Code exists but
+  is untested.
 - **Not on PyPI yet.** Install from the repository or build the wheel.
+- **Resource management components are implemented but not characterized.**
+  Streaming, bounded queues, artifact lifecycle, storage quotas, evidence
+  compression, DB optimization, and resource profiles are coded and unit-tested
+  (46 tests) but carry no benchmark numbers, no soak data, and no documented
+  production tuning guidance beyond [RESOURCE_MANAGEMENT.md](RESOURCE_MANAGEMENT.md).
 
 Baseline findings, alert dispositions and release evidence are public:
 [AUDIT.md](AUDIT.md), [alert triage](docs/security/alert-triage.md),
@@ -428,10 +430,10 @@ Released under the **Apache-2.0** license. See [LICENSE](LICENSE). Use is limite
 
 <img src="./assets/divider.svg" alt="" width="100%">
 
-*Authorization-first. Audit-ready. Open source under Apache-2.0.*
+Authorization-first. Audit-ready. Open source under Apache-2.0.
 
 <br>
 
-[⭐ Star this repo](https://github.com/hacker-194/IshAstra) &nbsp;·&nbsp; [🐛 Report a bug](https://github.com/hacker-194/IshAstra/issues) &nbsp;·&nbsp; [💬 Join the discussion](https://github.com/hacker-194/IshAstra/discussions)
+[Star this repo](https://github.com/hacker-194/IshAstra) &nbsp;·&nbsp; [Report a bug](https://github.com/hacker-194/IshAstra/issues) &nbsp;·&nbsp; [Join the discussion](https://github.com/hacker-194/IshAstra/discussions)
 
 </div>

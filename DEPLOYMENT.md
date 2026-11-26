@@ -212,7 +212,7 @@ If a release introduces regressions:
 2. **Scope Gate now mandatory at every boundary** — existing scope documents must add Layer 2/3 config or all targets rejected
 3. **AI Analyst Provider removed** — replace with optional local AI advisor (Ollama)
 4. **Queue mode renamed** — `redis` → `redis-streams`; the accepted modes are `inprocess`, `redis-streams`, `sqlite`, `postgres` and `k8s-jobs`
-5. **Database schema** — new tables are applied automatically at startup; there is no Alembic step (capability_tokens, capability_revocations, evidence_signatures, organizations, teams, memberships)
+5. **Database schema** — run `ishastra migrate` once with a DDL-capable role; the API/worker runtime role needs no schema privileges (no Alembic step)
 6. **RoE extended** — add `rate_limit_rps`, `high_risk_allowed`, `testing_hours`, `required_notifications`, `data_handling`
 7. **Deployment defaults** — SQLite now default, PostgreSQL experimental
 

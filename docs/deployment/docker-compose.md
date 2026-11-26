@@ -12,7 +12,7 @@ horizontal scale.
 
 | Service | Purpose | Port (loopback) |
 |---------|---------|-----------------|
-| `scope-gate` | The IshAstra API/worker process (FastAPI + in-process queue) | `127.0.0.1:8000` |
+| `ishastra` | The IshAstra API process (FastAPI) | `127.0.0.1:8000` |
 | `postgres` | Database (`ISHASTRA_DATABASE_URL`) | `127.0.0.1:5432` |
 | `redis` | Shared rate-limit counters | `127.0.0.1:6379` |
 | `nginx` | Reverse proxy on 80/443 | public |
@@ -29,11 +29,12 @@ lease on the database, so a second process would refuse to start. Scale with
 
 ```bash
 cp .env.production.example .env.production
-# edit keys and scope path; generate secrets with:
+# edit keys and scope path; generate POSTGRES_PASSWORD, ISHASTRA_APP_PASSWORD,
+# GRAFANA_PASSWORD and KEYCLOAK_ADMIN_PASSWORD with:
 #   python -c 'import secrets; print(secrets.token_urlsafe(32))'
 
 # One-time scope setup
-docker compose --env-file .env.production run --rm scope-gate \
+docker compose --env-file .env.production run --rm ishastra \
   ishastra scope-wizard --output /etc/ishastra/scopes/scope.json
 
 docker compose --env-file .env.production up -d --build
@@ -65,13 +66,14 @@ database and Redis bound to loopback — the compose file already does.
 ## Operations
 
 ```bash
-docker compose logs -f scope-gate     # JSON logs
+docker compose logs -f ishastra       # JSON logs
 docker compose exec postgres pg_dump -U ishastra ishastra | gzip > backup-$(date +%F).sql.gz
-docker compose restart scope-gate     # SIGTERM is graceful and bounded
+docker compose restart ishastra       # SIGTERM is graceful and bounded
 ```
 
-Migrations are applied by the application at startup; there is no Alembic
-CLI. Back up before upgrading and verify `/api/ready` plus `/api/audit/verify`
+Run `docker compose run --rm ishastra migrate` with the owner DSN before the
+first start and before an upgrade. The long-running API/worker do not execute
+DDL. Back up before upgrading and verify `/api/ready` plus `/api/audit/verify`
 afterwards.
 
 ## Limits

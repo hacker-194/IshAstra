@@ -9,7 +9,6 @@ by pinning to the validated IP address.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import httpx
 from httpx import Request, Response
@@ -34,7 +33,7 @@ class ScopeValidatingTransport(httpx.BaseTransport):
     def __init__(
         self,
         scope: Scope,
-        wrapped: Optional[httpx.BaseTransport] = None,
+        wrapped: httpx.BaseTransport | None = None,
         *,
         allow_redirects: bool = True,
         max_redirects: int = 5,
@@ -45,7 +44,7 @@ class ScopeValidatingTransport(httpx.BaseTransport):
         self.max_redirects = max_redirects
         self._redirect_count = 0
 
-    def _validate_request(self, request: Request) -> tuple[bool, Optional[Response]]:
+    def _validate_request(self, request: Request) -> tuple[bool, Response | None]:
         """Validate a request synchronously."""
         url = str(request.url)
 
@@ -77,7 +76,7 @@ class ScopeValidatingTransport(httpx.BaseTransport):
 
         return True, None
 
-    async def _validate_request_async(self, request: Request) -> tuple[bool, Optional[Response]]:
+    async def _validate_request_async(self, request: Request) -> tuple[bool, Response | None]:
         """Validate a request asynchronously."""
         url = str(request.url)
 
@@ -134,7 +133,7 @@ class MultiTenantScopeTransport(httpx.BaseTransport):
     def __init__(
         self,
         scope_resolver,
-        wrapped: Optional[httpx.BaseTransport] = None,
+        wrapped: httpx.BaseTransport | None = None,
     ):
         self.scope_resolver = scope_resolver
         self.wrapped = wrapped or httpx.AsyncHTTPTransport()
@@ -181,7 +180,7 @@ def create_scoped_client(
     scope: Scope,
     *,
     timeout: float = 30.0,
-    limits: Optional[httpx.Limits] = None,
+    limits: httpx.Limits | None = None,
     **kwargs,
 ) -> httpx.AsyncClient:
     """
@@ -254,8 +253,9 @@ async def example_basic_usage():
 
 async def example_multi_tenant():
     """Multi-tenant usage with per-request scope resolution."""
-    from ishastra.core.scope import load
     from pathlib import Path
+
+    from ishastra.core.scope import load
 
     SCOPE_DIR = Path("/etc/ishastra/scopes")
     scopes = {}
@@ -284,8 +284,9 @@ async def example_multi_tenant():
 
 async def example_with_retries():
     """Client with retry logic and scope validation."""
-    from ishastra.core.scope import load
     from httpx import Retry
+
+    from ishastra.core.scope import load
 
     scope = load("/etc/ishastra/scope.json")
     transport = ScopeValidatingTransport(scope)

@@ -503,6 +503,67 @@ class TestTCPScannerPlugin:
         assert plugin_path.exists(), f"Plugin not found at {plugin_path}"
         assert os.access(plugin_path, os.X_OK), "Plugin not executable"
 
+    def test_tcp_scanner_plugin_requires_gateway_fail_closed(self):
+        """Test TCP scanner plugin fails closed when no gateway URL provided."""
+        plugin_path = (
+            Path(__file__).parent.parent.parent / "src" / "ishastra" / "plugins" / "tcp_port_scanner.py"
+        )
+
+        proc = subprocess.Popen(
+            [sys.executable, str(plugin_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        try:
+            # Read handshake
+            handshake_line = proc.stdout.readline()
+            assert handshake_line, "No handshake received"
+            handshake = json.loads(handshake_line)
+            assert handshake["result"]["adapter"] == "tcp-port-scanner"
+
+            # Send assess request WITHOUT gateway_url in context - should fail
+            assess_req = (
+                json.dumps(
+                    {
+                        "protocol": 1,
+                        "method": "assess",
+                        "params": {
+                            "target": "http://127.0.0.1/",
+                            "timeout": 5.0,
+                            "context": {"ports": [22, 80, 443]},  # No gateway_url
+                        },
+                        "id": 1,
+                    }
+                )
+                + "\n"
+            )
+            proc.stdin.write(assess_req)
+            proc.stdin.flush()
+
+            # Read response - should be an error (fail-closed)
+            response_line = proc.stdout.readline()
+            assert response_line, "No assess response"
+            response = json.loads(response_line)
+            assert response["id"] == 1
+            assert "error" in response, "Expected error for missing gateway_url"
+            error = response["error"]
+            assert error["code"] == "INTERNAL_ERROR"
+            assert "egress gateway required" in error["message"].lower()
+
+            # Shutdown
+            shutdown_req = json.dumps({"protocol": 1, "method": "shutdown", "params": {}, "id": 2}) + "\n"
+            proc.stdin.write(shutdown_req)
+            proc.stdin.flush()
+
+            proc.wait(timeout=5)
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                proc.wait(timeout=2)
+
     def test_tcp_scanner_plugin_handshake(self):
         """Test TCP scanner plugin handshake works."""
         plugin_path = (
@@ -570,7 +631,7 @@ class TestTCPScannerPlugin:
             handshake = json.loads(handshake_line)
             assert handshake["result"]["adapter"] == "tcp-port-scanner"
 
-            # Send assess request - scan localhost on a few ports
+            # Send assess request - scan localhost on a few ports (with gateway for fail-closed)
             assess_req = (
                 json.dumps(
                     {
@@ -579,7 +640,7 @@ class TestTCPScannerPlugin:
                         "params": {
                             "target": "http://127.0.0.1/",
                             "timeout": 5.0,
-                            "context": {"ports": [22, 80, 443]},
+                            "context": {"ports": [22, 80, 443], "gateway_url": "http://gateway:8080"},
                         },
                         "id": 1,
                     }

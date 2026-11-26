@@ -2,7 +2,7 @@
 
 ``ISHASTRA_QUEUE_MODE`` chooses the implementation:
 
-* ``inprocess`` (default) - threads in this process, no external dependency.
+* ``inprocess`` (default for dev) - threads in this process, no external dependency.
 * ``redis-streams`` - durable stream entry per job; queued work survives a
   restart and several worker processes can share the stream.
 * ``k8s-jobs`` - one Kubernetes Job per assessment, for fleet deployments.
@@ -10,6 +10,7 @@
   and several worker processes can share the queue through database locking.
 * ``postgres`` - durable PostgreSQL queue using ``FOR UPDATE SKIP LOCKED``;
   queued work survives a restart and several processes claim distinct jobs.
+  **Default for production (ISHASTRA_ENV=production).**
 
 The Celery mode was removed: no shipped artefact installed the extra and no
 worker command existed, so it could only ever raise at runtime.
@@ -31,7 +32,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-QUEUE_MODE = os.environ.get("ISHASTRA_QUEUE_MODE", "inprocess").strip().lower()
+# Default queue mode: postgres for production, inprocess for dev
+_env = os.environ.get("ISHASTRA_ENV", "development").strip().lower()
+_default_mode = "postgres" if _env == "production" else "inprocess"
+QUEUE_MODE = os.environ.get("ISHASTRA_QUEUE_MODE", _default_mode).strip().lower()
 QUEUE_MODE_K8S_JOBS = "k8s-jobs"
 QUEUE_MODE_REDIS_STREAMS = "redis-streams"
 QUEUE_MODE_SQLITE = "sqlite"

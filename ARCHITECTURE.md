@@ -78,7 +78,7 @@ IshAstra is an **authorized security assessment platform** that enforces authori
 - **Layer 2 (DNS/IP)**: Resolves hostname, validates every returned IP against `authorized_networks`, denies special-use addresses (loopback, link-local, private, multicast, etc.) unless explicitly authorized
 - **Layer 3 (Pinned Destination)**: Returns a single `Destination` (scheme, host, port, IP) that adapters MUST connect to — prevents DNS rebinding between validation and connection
 
-**Key Features**:
+**Features**:
 - ContextVar-based per-task scope binding for multi-tenant isolation (`bound` context manager)
 - Observer pattern for IshAstra Proof receipting every gate decision
 - Atomic configuration reload — invalid documents never replace active policy
@@ -254,7 +254,7 @@ POST /api/assess {target, profile}
 GET /api/assess/{id} → coverage, findings, verdict
 ```
 
-## Phase 2: Security Spine (Production-Ready)
+## Phase 2: Security Spine
 
 ### 9. Capability Tokens (`src/ishastra/security/capabilities/`)
 

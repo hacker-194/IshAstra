@@ -977,6 +977,15 @@ scim_store = SCIMStore()
 async def init_scim_tables() -> None:
     """Initialize SCIM database tables."""
     db = await store.get_database()
+    if db.is_postgresql():
+        async with db.transaction() as conn:
+            present = await conn.fetchval(
+                "SELECT to_regclass('public.scim_user_mappings') IS NOT NULL "
+                "AND to_regclass('public.scim_group_mappings') IS NOT NULL "
+                "AND to_regclass('public.scim_tokens') IS NOT NULL"
+            )
+        if present:
+            return
     async with db.transaction() as conn:
         await store._execute(
             conn,

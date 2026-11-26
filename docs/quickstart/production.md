@@ -8,25 +8,42 @@ not implement.
 ## Status
 
 IshAstra is **pilot-grade for a single-tenant, single-host deployment**. The
-authorization core is mature (TLA+-checked, 95% covered, property and
-adversarial tests in CI); the platform around it is deliberately single-writer
-and has no HA story.
+authorization core is TLA+-checked and covered by property, adversarial and
+mutation tests in CI; the platform around it is deliberately single-writer and
+has no HA story.
 
 Use this page as the go/no-go reference before pointing IshAstra at production
 infrastructure.
+
+## Deployment profile used by this repository
+
+These are the assumptions the code and tests are written against. Confirm they
+match your environment; a different profile needs different work.
+
+| Field | Selected profile |
+|-------|------------------|
+| Target environment | One Linux host (VM or bare metal), or one Kubernetes namespace, single region |
+| Tenancy | Single-tenant per deployment. Organization/team tables exist, but a shared multi-tenant SaaS is not supported |
+| Availability target | None promised. Internal target 99.5%/month for a host you operate; no HA controller exists |
+| RTO | 1 hour (restore, promote, DNS/load-balancer switch); measured restore is seconds for a 2 GB SQLite database |
+| RPO | The backup interval. Default hourly cron means RPO <= 1 hour |
+| Peak load | Not claimed. Measure with `scripts/assessment_load_check.py`; sizing table below |
+| Compliance | None certified. NIST/ISO/SOC 2/PCI pages are control mappings, not certificates |
+| Data classification and retention | Operator-defined. No automatic deletion unless `ISHASTRA_RETENTION_DAYS` is set; the sample production env uses 90 days |
 
 ## Supported topologies
 
 | Topology | Status | Notes |
 |----------|--------|-------|
-| One process + SQLite (WAL) | **Supported** | Default; best pilot choice |
-| One process + PostgreSQL | Supported, single-host | Tested migrations, SIGTERM, 10-job soak; no HA |
+| One process + SQLite (WAL) | **Supported** | Dev/demo only; best pilot choice |
+| One process + PostgreSQL | **Primary production backend** | Tested migrations, SIGTERM, 10-job soak; no HA |
 | Compose stack on one host | Supported | One `ishastra` service; Redis for shared rate limits |
 | Kubernetes with one replica | Supported | Helm chart renders API/worker/scheduler; run **one** writer |
-| Multiple worker replicas | Supported | `ISHASTRA_QUEUE_MODE=redis-streams`; the database stays single-writer |
+| Multiple worker replicas | Supported | `ISHASTRA_QUEUE_MODE=redis-streams` or `postgres`; the database stays single-writer |
 | Multiple API replicas | Supported with `redis-streams` | Login state, rate limits and the key registry are shared via Redis; key revocation propagates within 5 seconds |
 | `ISHASTRA_QUEUE_MODE=k8s-jobs` | Experimental | One K8s Job per assessment; no HA queue guarantee |
 | `ISHASTRA_QUEUE_MODE=redis-streams` | Supported | Durable Redis Stream: queued jobs survive restart and several worker processes share it; the database is still single-writer |
+| `ISHASTRA_QUEUE_MODE=postgres` | **Supported** | Durable PostgreSQL queue using FOR UPDATE SKIP LOCKED; multiple workers claim distinct jobs |
 | Active/active or automatic failover | **Not supported** | Manual warm-standby promotion only |
 | Object storage (S3/GCS) | **Not implemented** | Findings and reports live in the database and local disk |
 
@@ -49,7 +66,19 @@ change.
 
    Containers: build/pull the image and pin it by digest, not by tag.
 
-3. **Write `/etc/ishastra/ishastra.env`** (mode `0600`, owned by the service user):
+3. **Provision PostgreSQL** (local or managed). Run the schema setup once with a
+   migration-capable role (the database owner):
+
+   ```bash
+   export ISHASTRA_DATABASE_URL=postgresql://owner:pass@host:5432/ishastra
+   /opt/ishastra/venv/bin/ishastra migrate
+   ```
+
+   Run the API and workers with a separate non-owner role that has only DML
+   rights; `scripts/production_preflight.py` fails if the runtime role is a
+   superuser, bypasses RLS, or owns tables.
+
+4. **Write `/etc/ishastra/ishastra.env`** (mode `0600`, owned by the service user):
 
    ```ini
    ISHASTRA_ENV=production
@@ -57,7 +86,7 @@ change.
    ISHASTRA_AUDIT_HMAC_KEY=<different random value>
    ISHASTRA_ENCRYPTION_KEY=<base64 32-byte AES key>
    ISHASTRA_SCOPE_FILE=/etc/ishastra/scope.json
-   ISHASTRA_DB=/var/lib/ishastra/ishastra.db
+   ISHASTRA_DATABASE_URL=postgresql://user:pass@host:5432/ishastra
    ISHASTRA_RETENTION_DAYS=90
    ISHASTRA_LOG_FORMAT=json
    ISHASTRA_LOG_LEVEL=INFO
@@ -65,17 +94,18 @@ change.
    ```
 
    `ISHASTRA_ENV=production` is fail-closed: it refuses placeholder or short keys
-   and disables `/docs`, `/redoc` and `/openapi.json`.
+   and disables `/docs`, `/redoc` and `/openapi.json`. It also selects
+   `ISHASTRA_QUEUE_MODE=postgres` by default.
 
-4. **Load a signed scope document.** Generate the signing key, publish the
+5. **Load a signed scope document.** Generate the signing key, publish the
    JWKS, and sign `scope.json` (`ishastra scope-keygen`, `ishastra scope-sign`). An
    unsigned or expired document is refused. Keep the private key in the signing
    system, not on the API host.
 
-5. **Run one process** under systemd (see `DEPLOYMENT.md` §4) behind a TLS
+6. **Run one process** under systemd (see `DEPLOYMENT.md` §4) behind a TLS
    reverse proxy. Do not add a second process pointed at the same database.
 
-6. **Probe `/api/ready`** from the load balancer and alert on it. `/api/health`
+7. **Probe `/api/ready`** from the load balancer and alert on it. `/api/health`
    is liveness only.
 
 ## Capacity guidance
@@ -127,8 +157,36 @@ Runbooks live in `docs/runbooks/`.
 4. Roll back the binary, not the database, unless the release notes say a
    migration is irreversible. If it is, restore the pre-upgrade backup.
 
+## Preflight (run before every deploy)
+
+The preflight reuses the application's own startup validation and adds the
+infrastructure checks the process cannot see. It fails closed, prints PASS/WARN/FAIL
+per check, and never prints secret values.
+
+```bash
+python3 scripts/production_preflight.py \
+  --env-file /etc/ishastra/ishastra.env \
+  --scope-file /etc/ishastra/scope.json \
+  --backup-dir /backups
+
+# Compatibility wrapper (same flags):
+./scripts/validate-env.sh --env-file /etc/ishastra/ishastra.env \
+  --scope-file /etc/ishastra/scope.json --backup-dir /backups
+```
+
+It checks: production environment, non-placeholder credentials, PostgreSQL
+backend, durable queue, egress gateway, scope document, declared TLS
+termination, writable backup location, and — when a PostgreSQL DSN is supplied —
+database reachability, non-superuser role, no `BYPASSRLS`, no table ownership,
+and RLS enabled on `jobs`.
+
+Use `--allow-sqlite` only for a single-operator pilot (downgrades the SQLite and
+in-process queue checks to warnings) and `--skip-db` only when the database is
+checked separately.
+
 ## Go-live checklist
 
+- [ ] Production preflight passes (see above)
 - [ ] Exactly one writer process against the database
 - [ ] TLS everywhere; HTTP only on loopback
 - [ ] Secrets from a manager, rotated after bootstrap
@@ -142,8 +200,9 @@ Runbooks live in `docs/runbooks/`.
 
 ## What CI proves (and what it does not)
 
-Proven on every change: 1500+ tests, scope gate coverage floor, TLA+ model
-check, property tests, DNS-offline denial, schema/wheel packaging, Helm lint.
+Proven on every change: 1,900+ collected tests (service-backed suites skip when
+their service is absent), the scope gate coverage floor, the TLA+ model check,
+property tests, DNS-offline denial, schema/wheel packaging, and Helm lint.
 
 Not proven by CI: multi-node behaviour (there is none), PostgreSQL on a managed
 service, container runtime smoke on your orchestrator, or an independent

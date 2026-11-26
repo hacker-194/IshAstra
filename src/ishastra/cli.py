@@ -205,6 +205,37 @@ def _prepare_demo_environment(directory: Path) -> dict[str, str]:
     }
 
 
+def _run_migrate(args: argparse.Namespace) -> int:
+    """Create or upgrade the database schema, then exit."""
+    import asyncio
+
+    from ishastra.config import get_settings, reset_settings
+    from ishastra.core import store
+    from ishastra.core.store import close_database
+
+    reset_settings()
+    settings = get_settings()
+    if not settings.db_path:
+        print("error: ISHASTRA_DATABASE_URL or ISHASTRA_DB not configured", file=sys.stderr)
+        return 2
+
+    store.configure(settings.db_path)
+
+    async def run() -> int:
+        db = await store.get_database()
+        version = await db.migrate()
+        await close_database()
+        return version
+
+    try:
+        version = asyncio.run(run())
+    except Exception as exc:  # noqa: BLE001 - surface migration failure to the operator
+        print(f"error: migration failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"schema version {version}")
+    return 0
+
+
 def _run_demo(args: argparse.Namespace) -> None:
     """Boot a self-contained instance: signed localhost scope, fresh key, SQLite."""
     directory = Path(args.data_dir).expanduser().resolve()
@@ -2819,6 +2850,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Clear the sealed audit chain before starting. Use only for a deliberate recovery.",
     )
 
+    subparsers.add_parser("migrate", help="Create or upgrade the database schema, then exit")
+
     demo_parser = subparsers.add_parser(
         "demo", help="Run a self-contained instance with a generated key and signed localhost scope"
     )
@@ -3786,6 +3819,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "serve":
         _run_server(args)
+    elif args.command == "migrate":
+        sys.exit(_run_migrate(args))
     elif args.command == "demo":
         _run_demo(args)
     elif args.command == "backup":

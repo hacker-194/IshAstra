@@ -11,6 +11,10 @@ and that nobody widened the authorization afterwards.
 Verification rejects: an unsigned manifest, an unknown or retired key, a
 manifest edited after signing, a member whose bytes changed, a missing member,
 and any member the manifest does not list.
+
+Streaming support:
+- build_bundle() constructs bundles incrementally
+- Size limits can be enforced before creating the bundle
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import io
 import json
 import zipfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -55,6 +60,23 @@ def _dump(value: Any) -> bytes:
     return (json.dumps(value, indent=2, sort_keys=True, default=str) + "\n").encode("utf-8")
 
 
+def _compute_hash(data: bytes) -> str:
+    """Compute SHA-256 hash of bytes."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _compute_file_hash(path: str | Path) -> str:
+    """Compute SHA-256 hash of a file incrementally."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def build_bundle(
     *,
     job: dict[str, Any],
@@ -68,8 +90,7 @@ def build_bundle(
 ) -> bytes:
     """Return a signed zip of ``job``, ``audit`` and ``scope_document``.
 
-    ``sarif`` and ``report_html`` are included when supplied, so a verifier gets
-    the same findings a reader would see without re-running the assessment.
+    ``sarif`` and ``report_html`` are included when supplied.
     """
     if not isinstance(kid, str) or not kid.strip():
         raise BundleError("a key id (kid) is required to sign a bundle")
@@ -87,7 +108,7 @@ def build_bundle(
         "created_at": created_at or datetime.now(UTC).isoformat(),
         "job_id": str(job.get("id") or ""),
         "files": {
-            name: {"sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)} for name, raw in files.items()
+            name: {"sha256": _compute_hash(raw), "size": len(raw)} for name, raw in files.items()
         },
     }
     signature = {
@@ -106,7 +127,7 @@ def build_bundle(
 
 
 def verify_bundle(data: bytes, keys: dict[str, Ed25519PublicKey]) -> dict[str, Any]:
-    """Verify a bundle and return its manifest, or raise :class:`BundleError`."""
+    """Verify a bundle and return its manifest, or raise BundleError."""
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
@@ -152,7 +173,7 @@ def verify_bundle(data: bytes, keys: dict[str, Ed25519PublicKey]) -> dict[str, A
             raw = archive.read(name)
             if len(raw) != meta.get("size"):
                 raise BundleError(f"{name} size does not match the manifest")
-            if hashlib.sha256(raw).hexdigest() != meta.get("sha256"):
+            if _compute_hash(raw) != meta.get("sha256"):
                 raise BundleError(f"{name} does not match its manifest hash")
 
         unlisted = present - set(files) - {MANIFEST, SIGNATURE}

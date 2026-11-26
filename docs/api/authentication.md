@@ -13,7 +13,9 @@ ishastra create-api-key --tenant default
 ```
 
 Options: `--tier {free,pro,enterprise}`, `--scope {read,write}`, `--admin`,
-`--ttl-days N`. The key is printed once; store it in a secret manager.
+`--ttl-days N`. `--tier` is a rate-limit profile label kept for compatibility,
+not a license tier; every deployment is free and ungated. The key is printed
+once; store it in a secret manager.
 
 The same operation over HTTP (admin key required):
 

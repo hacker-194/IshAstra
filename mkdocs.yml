@@ -146,6 +146,7 @@ nav:
       - Releasing: contributing/releasing.md
   - Changelog: changelog.md
   - License: license.md
+  - License and cost: pricing.md
 
 extra:
   social:

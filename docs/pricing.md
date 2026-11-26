@@ -1,95 +1,40 @@
-# Pricing & Design Partner Program
+# License and Cost
 
-## Design Partner Program
+IshAstra is free and open source. There is no paid edition, no license key,
+and no feature gated behind a purchase.
 
-We are recruiting 3-5 design partners for the v4.0 GA release (Q1 2027). Design partners get:
+## What you get
 
-- **Free lifetime PRO tier** (up to 50 concurrent assessments)
-- **Direct engineering access** — Slack channel with core team
-- **Roadmap influence** — Priority on features you need
-- **Co-marketing** — Joint case study, logo on site (with approval)
-- **Early access** — Pre-release builds, new adapter betas
+- **Apache-2.0 license.** Use, modify, and redistribute it, including
+  commercially, under the terms in [LICENSE](../LICENSE).
+- **Every feature in the repository.** The API, workers, egress gateway,
+  scope gate, RBAC, SSO, reports, evidence bundles, and adapters are all in the
+  same source tree. Nothing is withheld for a commercial tier.
+- **No telemetry.** The software does not phone home. Optional outbound calls
+  (for example an external scanner or an identity provider) happen only when an
+  operator configures them.
+- **Self-hosted by default.** You run it on your infrastructure and keep your
+  data.
 
-### Who qualifies
+## What you pay for
 
-| Profile | Example |
-|---------|---------|
-| Internal security team | 50-500 employee company running continuous assessments |
-| Pentest boutique | 5-20 consultants delivering client engagements |
-| MSSP / MDR provider | Managed detection & response needing assessment automation |
-| Compliance team | SOC 2 / ISO 27001 evidence automation |
+Only the infrastructure you choose: compute, PostgreSQL, Redis, object storage,
+DNS, and any managed services. The [zero-cost deployment guide](quickstart/free-tier.md)
+describes one way to run it on free-tier infrastructure.
 
-### Commitment
+## What is not offered
 
-- Weekly 30-min sync during onboarding (first 4 weeks)
-- Monthly 30-min sync thereafter
-- Run ≥ 5 assessments/month on authorized targets
-- Share sanitized feedback (no customer data)
+- No hosted/managed IshAstra service.
+- No commercial support contract or response-time SLA.
+- No certification (SOC 2, ISO 27001, PCI DSS, etc.). The compliance pages map
+  controls; they are not certificates.
+- No uptime guarantee. See [Production deployment](quickstart/production.md)
+  for the supported topology and its limits.
 
-### Apply
+Support is community-based through the repository issue tracker. See
+[SUPPORT.md](../SUPPORT.md).
 
-Email: `design-partners@ishastra.io` with:
-1. Company & team size
-2. Current assessment workflow
-3. Top 3 pain points with existing tools
-4. Authorized target scope (internal, client, or both)
+## API compatibility
 
----
-
-## Pricing Tiers (v4.0 GA — Subject to Change)
-
-| Feature | FREE | STARTER | PRO | ENTERPRISE |
-|---------|------|---------|-----|------------|
-| **Monthly assessments** | 10 | 100 | 500 | Unlimited |
-| **Concurrent jobs** | 1 | 3 | 10 | 50+ |
-| **Queue mode** | In-process | In-process | Redis Streams | Redis + K8s Jobs |
-| **Database** | SQLite | SQLite | PostgreSQL | PostgreSQL HA |
-| **Tenants** | 1 | 3 | 10 | Unlimited |
-| **Organizations / Teams** | ❌ | ❌ | ✅ | ✅ |
-| **RBAC (Admin/Analyst/Viewer)** | ❌ | ❌ | ✅ | ✅ |
-| **SSO (OIDC/SAML)** | ❌ | ❌ | ❌ | ✅ |
-| **SLSA Provenance** | ❌ | ✅ | ✅ | ✅ |
-| **Evidence bundles (NRB/NTA/NCSP)** | ✅ | ✅ | ✅ | ✅ |
-| **Audit chain verification** | ✅ | ✅ | ✅ | ✅ |
-| **Scope Gate (TLA+ verified)** | ✅ | ✅ | ✅ | ✅ |
-| **Capability tokens / Egress gateway** | ❌ | ❌ | ✅ | ✅ |
-| **Disaster recovery runbooks** | ✅ | ✅ | ✅ | ✅ |
-| **Warm standby promotion** | ✅ | ✅ | ✅ | ✅ |
-| **Plugin framework** | ✅ | ✅ | ✅ | ✅ |
-| **Template allowlist (Nuclei/NSE)** | ✅ | ✅ | ✅ | ✅ |
-| **Support** | Community | Email (48h) | Email (24h) | Slack + Phone (4h) |
-| **SLA** | ❌ | 99.5% | 99.9% | 99.95% |
-
-**FREE tier** is self-hosted only (your infrastructure, your data). No cloud account required.
-
-**STARTER/PRO/ENTERPRISE** available as:
-- Self-hosted (your cloud, your keys)
-- Managed cloud (IshAstra-hosted, dedicated tenancy) — contact sales
-
----
-
-## FAQ
-
-**Is the FREE tier really free forever?**
-Yes. No credit card, no trial expiry, no telemetry. Apache-2.0 license.
-
-**Can I upgrade from self-hosted to managed later?**
-Yes. Export/import assessment data via `ishastra export` / `ishastra import-sarif`.
-
-**What counts as an "assessment"?**
-One job execution against an authorized target. A 500-page web app scan = 1 assessment.
-
-**Do you charge per finding?**
-No. Unlimited findings per assessment.
-
-**Is there a volume discount?**
-Enterprise tier includes volume pricing. Contact sales.
-
-**What payment methods?**
-Annual invoice (net-30), credit card via Stripe. No crypto.
-
----
-
-## Contact Sales
-
-`pricing@ishastra.io` — response within 1 business day.
+`/api/pricing/*` endpoints exist for older clients. They report a single
+`free` tier with unlimited limits and no gating; they are not a storefront.

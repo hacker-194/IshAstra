@@ -143,13 +143,24 @@ class RevocationList:
                 if statement.strip():
                     await conn.execute(statement)
 
+    async def _table_exists(self, name: str) -> bool:
+        """RLS-aware existence check; SQLite has no schema privileges."""
+        if not self.db.is_postgresql():
+            return False
+        async with self.db.transaction() as conn:
+            return bool(await conn.fetchval("SELECT to_regclass($1) IS NOT NULL", name))
+
     async def initialize(self) -> None:
         """Create the revocation table if it doesn't exist."""
+        if await self._table_exists("capability_revocations"):
+            return
         sql = REVOCATION_TABLE_PG if self.db.is_postgresql() else REVOCATION_TABLE_SQLITE
         await self._run_ddl(sql)
 
     async def initialize_token_registry(self) -> None:
         """Create the token registry table if it doesn't exist."""
+        if await self._table_exists("capability_tokens"):
+            return
         sql = TOKEN_REGISTRY_PG if self.db.is_postgresql() else TOKEN_REGISTRY_SQLITE
         await self._run_ddl(sql)
 

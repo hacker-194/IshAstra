@@ -113,8 +113,8 @@ Every series below is defined in `src/ishastra/metrics.py`:
 | `ishastra_reports_total` | counter | `kind` |
 | `ishastra_build_info` | gauge | `version` |
 
-`mode` is the queue backend; the in-process worker publishes `inprocess`, and the
-Celery and Kubernetes queue modes do not emit queue/worker gauges yet. **Not exported**: compliance scoring (`ishastra_compliance_*`) and the
+`mode` is the queue backend; the in-process worker publishes `inprocess`. The
+Kubernetes queue mode does not emit queue/worker gauges yet. **Not exported**: compliance scoring (`ishastra_compliance_*`) and the
 `ishastra_assessment_*` Kubernetes job gauges. Panels built on those have no data
 source; the compliance alert was removed rather than left firing on nothing.
 

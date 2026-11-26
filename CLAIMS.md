@@ -104,7 +104,28 @@ This document records every claim made by the project and its verification statu
 | Redirect handling (follow/deny) | ⚠️ PARTIAL | `src/ishastra/adapters/builtin.py:HTTPAdapter` follows redirects by default. Scope gate re-checks each hop but redirect chain not fully validated. |
 | Broad network allowance (`allow_broad_networks`) | ✅ VERIFIED | Scope document field, gate checks it. Default `false`. |
 
-### 9. Supply Chain
+### 9. Resource Management (New in 4.0)
+
+| Claim | Status | Evidence |
+|-------|--------|----------|
+| Streaming file processing (no full-file load) | ✅ VERIFIED | `src/ishastra/core/streaming.py`, 46 unit tests in `tests/unit/test_resource_management.py` |
+| Bounded queues with backpressure | ✅ VERIFIED | `BoundedQueue` in `streaming.py`, `Worker` uses `queue.Queue(maxsize=N)` |
+| Per-worker memory limits | ✅ VERIFIED | `MemoryGuard` monitors RSS, triggers GC; `Worker._maybe_check_memory()` already existed |
+| HTTP response size limits | ✅ VERIFIED | `ISHASTRA_MAX_BODY_BYTES` config, enforced in API middleware |
+| Scanner output limits | ✅ VERIFIED | Truncation with warnings when output exceeds thresholds |
+| Artifact lifecycle (CREATED→PROCESSING→FINALIZED→RETAINED→ARCHIVED→EXPIRED→DELETED) | ✅ VERIFIED | `ArtifactLifecycleManager` in `artifact_lifecycle.py`, state machine with status transitions |
+| Retention policies | ✅ VERIFIED | `RetentionPolicy` with configurable lifetime and delete-after-failure |
+| Storage quotas per engagement/tenant | ✅ VERIFIED | `StorageQuotaManager` tracks usage, `check_can_write()` pre-write check, `SafeStorageWriter` atomic quota-checked writes |
+| Disk space monitoring and low-space warnings | ✅ VERIFIED | `check_disk_space_safe()`, configurable warning/critical thresholds |
+| Safe rejection when storage exhausted | ✅ VERIFIED | `StorageQuotaExceeded` exception, `check_can_write()` returns safety dict |
+| Evidence compression (gzip/zlib) | ✅ VERIFIED | `compress_evidence()` in `evidence_storage.py` |
+| Incremental hashing | ✅ VERIFIED | `compute_hash_incremental()`, `stream_and_hash()` |
+| Streaming evidence bundles | ✅ VERIFIED | `create_evidence_bundle()` with file-based compression option |
+| Evidence bundle verification | ✅ VERIFIED | `read_evidence_bundle_streaming()` verifies signature and manifest |
+| Database optimization | ✅ VERIFIED | `DatabaseOptimizer` configures SQLite WAL/PRAGMA, creates indexes, vacuum, backup/restore |
+| Resource profiles (Lightweight/Standard/High-Capacity) | ✅ VERIFIED | `ResourceProfile` dataclasses, `get_profile()`, `list_profiles()` |
+
+### 10. Supply Chain
 
 | Claim | Status | Evidence |
 |-------|--------|----------|
@@ -133,6 +154,13 @@ This document records every claim made by the project and its verification statu
 - `docs/scope-gate/tla-verification.md` — TLA+ verification details
 - `docs/reliability.md` — Performance and reliability baselines
 - `docs/compliance/overview.md` — Compliance mappings
+- `RESOURCE_MANAGEMENT.md` — Resource management architecture and configuration
+- `src/ishastra/core/streaming.py` — Streaming, bounded queues, memory guard
+- `src/ishastra/core/artifact_lifecycle.py` — Artifact lifecycle manager
+- `src/ishastra/core/storage_quota.py` — Storage quotas and safe writes
+- `src/ishastra/core/evidence_storage.py` — Evidence compression and bundles
+- `src/ishastra/core/db_optimize.py` — Database optimization and maintenance
+- `src/ishastra/core/resource_profiles.py` — Resource profiles
 
 ---
 

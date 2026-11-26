@@ -24,6 +24,7 @@ import contextlib
 import ipaddress
 import json
 import logging
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -479,7 +480,7 @@ async def main() -> int:
 
     shutdown_event = asyncio.Event()
 
-    def _signal_handler(signum, frame):
+    def _signal_handler(signum, _frame):
         shutdown_event.set()
 
     signal.signal(signal.SIGTERM, _signal_handler)

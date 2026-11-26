@@ -561,7 +561,7 @@ async def saml_login(request: Request, settings: Settings = Depends(get_settings
 async def saml_acs(
     request: Request,
     SAMLResponse: str | None = None,
-    RelayState: str | None = None,
+    _RelayState: str | None = None,
     settings: Settings = Depends(get_settings),
 ):
     """Handle SAML Assertion Consumer Service (ACS) callback."""

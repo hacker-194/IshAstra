@@ -6,8 +6,10 @@ services:
       POSTGRES_DB: ishastra
       POSTGRES_USER: ishastra
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (no default credential)}
+      ISHASTRA_APP_PASSWORD: ${ISHASTRA_APP_PASSWORD:?set ISHASTRA_APP_PASSWORD in .env (no default credential)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/initdb:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     ports:
       - "127.0.0.1:5432:5432"
@@ -16,6 +18,30 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - ishastra-network
+
+  # One-shot schema setup as the database owner. Runtime services use the
+  # non-owner ishastra_app role created by deploy/postgres/initdb.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: ishastra-migrate
+    image: ishastra/api:dev
+    command: ["migrate"]
+    environment:
+      - ISHASTRA_ENV=${ISHASTRA_ENV:-development}
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_API_KEY=${ISHASTRA_API_KEY:-}
+      - ISHASTRA_AUDIT_HMAC_KEY=${ISHASTRA_AUDIT_HMAC_KEY:-}
+      - ISHASTRA_ENCRYPTION_KEY=${ISHASTRA_ENCRYPTION_KEY:-}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
     networks:
       - ishastra-network
 
@@ -36,15 +62,15 @@ services:
     networks:
       - ishastra-network
 
-  scope-gate:
+  ishastra:
     build:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    container_name: ishastra-scope-gate
-    image: ishastra/scope-gate:dev
+    container_name: ishastra-api
+    image: ishastra/api:dev
     environment:
-      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra_app:${ISHASTRA_APP_PASSWORD:?set ISHASTRA_APP_PASSWORD in .env}@postgres:5432/ishastra
       - ISHASTRA_REDIS_URL=redis://redis:6379/0
       - ISHASTRA_SCOPE_DIR=/etc/ishastra/scopes
       - ISHASTRA_SCOPE_JWKS=/etc/ishastra/scope-jwks.json
@@ -55,6 +81,12 @@ services:
       - ISHASTRA_OIDC_REDIRECT_URI=${ISHASTRA_OIDC_REDIRECT_URI:-}
       - ISHASTRA_LOG_LEVEL=INFO
       - ISHASTRA_METRICS_ENABLED=true
+      # The API refuses to start in production without these three. Supply them
+      # through .env or the secret manager; empty values are refused at startup.
+      - ISHASTRA_ENV=${ISHASTRA_ENV:-development}
+      - ISHASTRA_API_KEY=${ISHASTRA_API_KEY:-}
+      - ISHASTRA_AUDIT_HMAC_KEY=${ISHASTRA_AUDIT_HMAC_KEY:-}
+      - ISHASTRA_ENCRYPTION_KEY=${ISHASTRA_ENCRYPTION_KEY:-}
       - ISHASTRA_OTEL_ENABLED=false
       # External tools (nmap, nikto, sqlmap) refuse to run without the gateway.
       - ISHASTRA_GATEWAY_URL=http://egress-gateway:8080
@@ -70,6 +102,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     stop_grace_period: 30s
     healthcheck:
@@ -97,9 +131,9 @@ services:
       target: runtime
     container_name: ishastra-egress-gateway
     image: ishastra/egress-gateway:dev
-    command: ["ishastra", "worker", "gateway"]
+    command: ["worker", "gateway"]
     environment:
-      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra_app:${ISHASTRA_APP_PASSWORD:?set ISHASTRA_APP_PASSWORD in .env}@postgres:5432/ishastra
       - ISHASTRA_REDIS_URL=redis://redis:6379/0
       - ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH=/etc/ishastra/keys/capability-private.key
       - ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH=/etc/ishastra/keys/capability-public.key
@@ -118,6 +152,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -148,9 +184,9 @@ services:
       target: runtime
     container_name: ishastra-worker-manager
     image: ishastra/worker-manager:dev
-    command: ["ishastra", "worker", "manager"]
+    command: ["worker", "manager"]
     environment:
-      - ISHASTRA_DATABASE_URL=postgresql://ishastra:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/ishastra
+      - ISHASTRA_DATABASE_URL=postgresql://ishastra_app:${ISHASTRA_APP_PASSWORD:?set ISHASTRA_APP_PASSWORD in .env}@postgres:5432/ishastra
       - ISHASTRA_REDIS_URL=redis://redis:6379/0
       - ISHASTRA_CAPABILITY_PRIVATE_KEY_PATH=/etc/ishastra/keys/capability-private.key
       - ISHASTRA_CAPABILITY_PUBLIC_KEY_PATH=/etc/ishastra/keys/capability-public.key
@@ -170,6 +206,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       egress-gateway:
         condition: service_started
     restart: unless-stopped
@@ -249,11 +287,13 @@ services:
     container_name: ishastra-nginx
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
     ports:
       - "80:80"
       - "443:443"
     depends_on:
-      - scope-gate
+      ishastra:
+        condition: service_healthy
     networks:
       - ishastra-network
 

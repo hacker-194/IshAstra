@@ -90,6 +90,14 @@ spec:
           env:
             {{- include "ishastra.worker.env" . | nindent 12 }}
 
+            {{- if and .Values.postgresql.enabled (not (index (index .Values.worker.env) "ISHASTRA_DATABASE_URL")) }}
+            - name: ISHASTRA_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ishastra.postgresqlSecretName" . }}
+                  key: database-url
+            {{- end }}
+
             - name: ISHASTRA_SCHEDULER_ENABLED
               value: "false"
             - name: ISHASTRA_MONITOR_ENABLED

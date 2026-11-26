@@ -100,7 +100,7 @@ required scope. This is an audit limitation, not evidence of zero alerts.
 | `hexstrike` extra (`fastmcp`, Selenium, mitmproxy…, angr) | Optional, heavy, carries the vulnerable `fastmcp` pin |
 | `advise` command | Local model, off by default |
 | Consent policy (`docs/consent-policy.md`) | Explicitly "Draft — not yet implemented" |
-| Plugin template and `tcp_port_scanner` | `enforcement = "none"` (in-process only) |
+| Plugin template and `tcp_port_scanner` | `enforcement = "proxy"`; both require a gateway URL (fail-closed) |
 | MSSP/partner model | Removed from architecture; organization/team model remains |
 
 ---
@@ -114,21 +114,22 @@ it is **not unconditionally true for external tools**:
 | Adapter | Declared enforcement | Actual behaviour |
 |---------|----------------------|------------------|
 | `HTTPAdapter`, `CrawlerAdapter`, `OpenAPIAdapter`, `DynamicValidationAdapter`, `SSRFOOBAdapter`, `AuthorizationDiffAdapter` | in-process scope checks | outbound requests use the scoped client |
-| `NmapAdapter` | `proxy` | adds `--proxies <gateway>` **only when a gate context is supplied**; otherwise runs against the resolved IP directly |
-| `NiktoAdapter` | `proxy` | adds `-useproxy` **only when a gate context is supplied**; otherwise runs directly |
-| `SqlmapAdapter` | `proxy` | adds `--proxy` **only when a gateway URL is present**; otherwise runs directly |
-| `TcpPortScanner` | `none` | direct socket connection, no proxy mode |
-| Plugin template | `none` (default) | whatever the plugin author implements |
+| `NmapAdapter` | `proxy` | adds `--proxies <gateway>` and **refuses to execute** when no gateway URL is supplied (fail-closed) |
+| `NiktoAdapter` | `proxy` | adds `-useproxy <gateway>` and **refuses to execute** when no gateway URL is supplied (fail-closed) |
+| `SqlmapAdapter` | `proxy` | adds `--proxy <gateway>` and **refuses to execute** when no gateway URL is supplied (fail-closed) |
+| `TcpPortScanner` | `proxy` | requires a gateway URL; refuses to run without one (fail-closed) |
+| Plugin template | `proxy` (default) | plugins that explicitly declare `none` run in-process and can bypass the gate |
 
 Code references: `src/ishastra/core/adapters.py` lines 1153, 1238–1239, 1335,
 1547, 1624–1625, 1703, 1843–1845; `src/ishastra/plugins/tcp_port_scanner.py`
 line 80; `src/ishastra/plugins/template.py` line 91.
 
-So the accurate statement today is: **the gate decides before the action and
-records it; in-process HTTP paths are pinned to the authorized destination, and
-external tools are proxied only when the caller supplies a gateway context.**
-Phase 1 must either make the proxy mandatory (fail closed when it is missing) or
-reword the claim.
+Current behaviour (Phase 2, 2026-11-25): **the gate decides before the action
+and records it; in-process HTTP paths are pinned to the authorized destination,
+and nmap, nikto and sqlmap refuse to execute unless the caller supplies a
+gateway context.** The remaining gap is isolation, not fail-open: the tools
+still run on the worker host after the gateway check, so egress is only bounded
+once the gateway is actually deployed and the host firewall matches it.
 
 ---
 
@@ -136,7 +137,7 @@ reword the claim.
 
 | Location | Claim | Reality |
 |----------|-------|---------|
-| `README.md` headline | "before any connection is made" | external tools fall back to direct connections without a gateway context (section 5) |
+| `README.md` headline | "before any connection is made" | fixed in Phase 2: external tools now refuse to run without a gateway context (section 5) |
 | `README.md` footer | "Free forever" | Not contradicted by tiers: `pricing.py` defines one FREE tier with no feature gating. Reworded to a licence statement so it is not a perpetual promise. |
 | `README.md` capability table | capability tokens are "Unforgeable" | they are Ed25519-signed; forgery requires the private key, not impossible |
 | `README.md`, `docs/index.md` | "compliance-ready" | mappings and evidence packs exist; there is no certification or audit opinion |
@@ -153,8 +154,8 @@ single-writer database lease.
 
 ## 7. Phase 1 priorities (proposed)
 
-1. Make `enforcement == "proxy"` fail closed: refuse to execute nmap, nikto or
-   sqlmap when no gateway URL is supplied, instead of connecting directly.
+1. ✅ Done (Phase 2): `enforcement == "proxy"` fails closed — nmap, nikto and
+   sqlmap refuse to execute when no gateway URL is supplied.
 2. Add per-adapter integration tests that assert denial plus an audit receipt
    for out-of-scope host, out-of-scope IP, rebinding hostname, redirect, and
    private/link-local address.

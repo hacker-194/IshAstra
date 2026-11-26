@@ -125,7 +125,7 @@ def _configure_logging(log_level: str = "INFO", log_format: str = "text") -> Non
     logging.basicConfig(level=log_level.upper(), handlers=[handler])
 
 
-def _handle_signal(signum: int, frame: Any) -> None:
+def _handle_signal(signum: int, _frame: Any) -> None:
     """Handle shutdown signals."""
     sig_name = signal.Signals(signum).name
     log.info("Received signal %s, initiating graceful shutdown...", sig_name)

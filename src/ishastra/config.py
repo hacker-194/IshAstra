@@ -82,6 +82,7 @@ class Settings:
     db_path: str = "ishastra.db"
 
     database_url: str = ""
+    app_password: str = ""
     api_key: str = ""
 
     scope_mode: str = "auto"
@@ -183,6 +184,7 @@ class Settings:
         if scope_mode not in {"auto", "global", "managed"}:
             raise ValueError("ISHASTRA_SCOPE_MODE must be one of: auto, global, managed")
         database_url = os.environ.get("ISHASTRA_DATABASE_URL", "").strip()
+        app_password = os.environ.get("ISHASTRA_APP_PASSWORD", "").strip()
         api_key = _secret("ISHASTRA_API_KEY", os.environ.get("ISHASTRA_API_KEY", "").strip())
         encryption_key = _secret(
             "ISHASTRA_ENCRYPTION_KEY",
@@ -278,6 +280,7 @@ class Settings:
             redis_url=os.environ.get("ISHASTRA_REDIS_URL", "redis://localhost:6379/0"),
             worker_memory_mb=_int("ISHASTRA_WORKER_MEMORY_MB", 1024, minimum=0),
             database_url=database_url,
+            app_password=app_password,
             encryption_key=encryption_key,
             oidc_issuer=os.environ.get("ISHASTRA_OIDC_ISSUER", "").strip(),
             oidc_client_id=os.environ.get("ISHASTRA_OIDC_CLIENT_ID", "").strip(),

@@ -147,6 +147,7 @@ markers = [
     "scope: marks tests as requiring scope configuration",
     "external: marks tests requiring external tools (nmap, nuclei)",
     "asyncio: marks tests as async",
+    "k8s: marks tests as requiring Kubernetes cluster",
 ]
 
 
@@ -190,11 +191,14 @@ warn_unused_ignores = true
 
 [tool.mutmut]
 
-
 source_paths = ["src"]
-only_mutate = ["src/ishastra/security/authorization/scope.py"]
+only_mutate = [
+    "src/ishastra/security/authorization/scope.py",
+    "src/ishastra/core/pg_rls.py",
+]
 pytest_add_cli_args = ["-o", "addopts=", "-q", "-p", "no:cacheprovider"]
 pytest_add_cli_args_test_selection = [
     "tests/unit/test_scope.py",
     "tests/unit/test_scope_gate.py",
+    "tests/test_rls.py",
 ]

@@ -53,7 +53,7 @@ def _install_signal_handlers(worker_manager: WorkerManager) -> None:
     _current_worker_manager = worker_manager
     _shutdown_event = asyncio.Event()
 
-    def _signal_handler(signum=None, frame=None) -> None:
+    def _signal_handler(signum=None, _frame=None) -> None:
         # Use call_soon_threadsafe to ensure the event loop sees the event
         try:
             loop = asyncio.get_running_loop()

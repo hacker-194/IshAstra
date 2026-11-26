@@ -44,7 +44,7 @@ ishastra/
 │   ├── ishastra/
 │   │   ├── api/           # FastAPI REST API
 │   │   ├── core/          # Scope Gate, IshAstra Proof, auth
-│   │   ├── workers/       # Celery workers
+│   │   ├── workers/       # worker processes
 │   │   ├── adapters/      # Built-in & external adapters
 │   │   ├── models/        # SQLAlchemy + Pydantic
 │   │   ├── db/            # Database, migrations, RLS

@@ -630,6 +630,12 @@ postgresql:
     existingSecretPasswordKey: postgresql-password
     database: ishastra
     username: ishastra
+  leastPrivilege:
+    # Post-install jobs create this non-owner role and run migrations as the
+    # owner. The existing secret must contain app-password and owner-database-url.
+    enabled: true
+    appUsername: ishastra_app
+    appPasswordKey: app-password
   primary:
     resources:
       limits:
@@ -854,6 +860,8 @@ secrets:
   postgresqlSecret:
 
     postgresql-password: ""
+
+    app-password: ""
   grafanaSecret:
 
     admin-user: "admin"

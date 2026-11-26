@@ -37,8 +37,7 @@
 These limitations were verified during the 7-phase hardening program and are
 documented so operators do not build against guarantees that do not exist:
 
-- **21.4M-state figure: UNVERIFIED** (documented in CLAIMS.md; exact figure origin
-  not verified in code; may be model abstraction size)
+- **21.4M-state figure: VERIFIED** (`docs/tla/model-check-results.txt`: 21,458,641 states, 6 invariants PASS)
 - **Single writer per database** (one process owns the worker lease; no clustering,
   distributed queue, or automated failover) - verified in Phase 0 baseline)
 - **SQLite is the pilot backend** (PostgreSQL supported single-host only; not a
@@ -59,8 +58,6 @@ documented so operators do not build against guarantees that do not exist:
   vulnerable packages, 30 advisory entries verified)
 - **DNS resolution bypass and redirect handling** (operator-controlled;
   not enforced by default) - documented in enforcement-matrix.md
-- **TLA+ 21.4M-state figure** (UNVERIFIED; origin not verified in code;
-  may be model abstraction size) - documented in CLAIMS.md
 - **SARIF upload only on success or fail-on-findings** (Phase 5 action.yml
   reliability fix) - verified in CI pipeline
 

@@ -77,35 +77,18 @@ Details: [`docs/scope-gate/concepts.md`](docs/scope-gate/concepts.md),
 [`ARCHITECTURE.md`](ARCHITECTURE.md),
 [`docs/quickstart/production.md`](docs/quickstart/production.md).
 
-## Real-World Limitations
+## Limitations
 
-These are documented constraints for production deployment, verified during the 7-phase hardening program:
+These are stated so nobody builds against guarantees that do not exist. The full list lives in CLAIMS.md.
 
-- **Single writer per database.** One process owns the worker lease; a second
-  process pointed at the same database refuses to start. No clustering, distributed
-  queue, or automated failover. Verified in Phase 0 baseline.
-- **SQLite is the pilot backend.** PostgreSQL is supported single-host only.
-  Not a multi-node database. Dependency pinned in `constraints.txt`.
-- **No third-party security certification.** TLA+ model-checked invariants and
-  adversarial tests provide evidence, not a penetration test. Documented in
-  CLAIMS.md as UNVERIFIED.
-- **Compliance pages are mappings only.** `docs/compliance/*` maps controls to
-  NIST/ISO/SOC/PCI clauses. No certification issued. Documented in CLAIMS.md.
-- **Egress gateway required for external tools.** nmap, nikto and sqlmap
-  declare `enforcement="proxy"` and refuse to run when no gateway URL is
-  supplied (`ISHASTRA_GATEWAY_URL` or `gateway_url` in the job context); they
-  never fall back to a direct connection. Third-party plugins may declare
-  `enforcement="none"` and bypass the gate. Documented in
-  `docs/scope-gate/enforcement-matrix.md`.
-- **Worker RBAC and container privileges.** Single-tenant limits apply;
-  multi-tenant requires additional hardening. Documented as PARTIAL in claims.
-- **Integration tests not run in this environment.** Requires external tools
-  (nmap, nuclei, docker). Documented as operational limitation.
-- **Full code/container scanning not executed locally.** pip-audit runs against
-  installed environment with 9 pinned dependencies + transitive closure.
-- **DNS resolution bypass and redirect handling.** Operator-controlled; not
-  enforced by default. Documented in enforcement-matrix.md.
-- **TLA+ 21.4M-state figure.** VERIFIED (`docs/tla/model-check-results.txt`: 21,458,641 states, 6 invariants PASS). Scope: address authorization decision only (not full system). Documented in CLAIMS.md.
+- **Single writer per database.** One worker lease holder; no clustering or automated failover.
+- **SQLite is the pilot backend.** PostgreSQL is supported single-host, not as a multi-node database.
+- **No third-party audit or certification.** The TLA+ model and adversarial tests are evidence, not a penetration test.
+- **Compliance pages are mappings.** `docs/compliance/*` is not a SOC 2, ISO 27001 or PCI DSS certificate.
+- **External tools require the egress gateway.** nmap, nikto and sqlmap refuse to run without it; plugin adapters may declare `enforcement="none"`.
+- **Performance figures are single-machine baselines.** See `docs/reliability.md`; no soak or multi-node numbers.
+- **k8s-jobs is experimental.** The default and pilot queue is inprocess or a durable single-host mode.
+- **Not on PyPI yet.** Install from the repository or build the wheel.
 
 ## Hardening checklist for operators
 

@@ -112,7 +112,7 @@ The **authorization engine** — default-deny for every outbound connection.
 **Key Properties:**
 - **ContextVar isolation**: Per-task scope binding prevents cross-tenant leakage
 - **Observer pattern**: Every decision receipted for IshAstra Proof audit chain
-- **TLA+ model-checked**: 6 invariants, 21.4M states explored; this is not a formal proof
+- **TLA+ model-checked**: 6 invariants, 21.4M states verified (`docs/tla/model-check-results.txt`); this is not a formal proof
 
 ### 3. Job Orchestration (`src/ishastra/core/scheduler.py`, `worker.py`)
 - **In-process queue** (default), **Redis Streams** (durable), or **Kubernetes Jobs** (experimental)

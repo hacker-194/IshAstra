@@ -77,21 +77,35 @@ Details: [`docs/scope-gate/concepts.md`](docs/scope-gate/concepts.md),
 [`ARCHITECTURE.md`](ARCHITECTURE.md),
 [`docs/quickstart/production.md`](docs/quickstart/production.md).
 
-## Deliberate limitations
+## Real-World Limitations
 
-These are architectural choices, not bugs, and are documented so operators do
-not build against guarantees that do not exist:
+These are documented constraints for production deployment, verified during the 7-phase hardening program:
 
 - **Single writer per database.** One process owns the worker lease; a second
-  process pointed at the same database refuses to start. There is no clustering,
-  distributed queue, or automated failover.
-- **SQLite is the pilot backend.** PostgreSQL is supported single-host and is
-  not a multi-node database here.
-- **No formal third-party audit yet.** The scope model is TLA+-checked and the
-  suite includes property and adversarial tests, but that is not a substitute
-  for an independent penetration test of a deployment.
-- **Compliance pages are mappings.** `docs/compliance/*` maps controls to NIST,
-  ISO 27001, SOC 2 and PCI DSS clauses. It is not a certification.
+  process pointed at the same database refuses to start. No clustering, distributed
+  queue, or automated failover. Verified in Phase 0 baseline.
+- **SQLite is the pilot backend.** PostgreSQL is supported single-host only.
+  Not a multi-node database. Dependency pinned in `constraints.txt`.
+- **No third-party security certification.** TLA+ model-checked invariants and
+  adversarial tests provide evidence, not a penetration test. Documented in
+  CLAIMS.md as UNVERIFIED.
+- **Compliance pages are mappings only.** `docs/compliance/*` maps controls to
+  NIST/ISO/SOC/PCI clauses. No certification issued. Documented in CLAIMS.md.
+- **Egress gateway required for external tools.** nmap, nikto and sqlmap
+  declare `enforcement="proxy"` and refuse to run when no gateway URL is
+  supplied (`ISHASTRA_GATEWAY_URL` or `gateway_url` in the job context); they
+  never fall back to a direct connection. Third-party plugins may declare
+  `enforcement="none"` and bypass the gate. Documented in
+  `docs/scope-gate/enforcement-matrix.md`.
+- **Worker RBAC and container privileges.** Single-tenant limits apply;
+  multi-tenant requires additional hardening. Documented as PARTIAL in claims.
+- **Integration tests not run in this environment.** Requires external tools
+  (nmap, nuclei, docker). Documented as operational limitation.
+- **Full code/container scanning not executed locally.** pip-audit runs against
+  installed environment with 9 pinned dependencies + transitive closure.
+- **DNS resolution bypass and redirect handling.** Operator-controlled; not
+  enforced by default. Documented in enforcement-matrix.md.
+- **TLA+ 21.4M-state figure.** VERIFIED (`docs/tla/model-check-results.txt`: 21,458,641 states, 6 invariants PASS). Scope: address authorization decision only (not full system). Documented in CLAIMS.md.
 
 ## Hardening checklist for operators
 

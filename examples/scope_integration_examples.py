@@ -10,13 +10,14 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import AsyncIterator, Optional
 
 import httpx
-from ishastra.core.scope import Scope, ScopeGate, load, configure, Destination
+
+from ishastra.core.scope import Scope, ScopeGate, load
 
 
 def basic_sync_example():
@@ -58,7 +59,7 @@ class ScopeValidatingTransport(httpx.BaseTransport):
     Use this to automatically enforce scope on all HTTP clients.
     """
 
-    def __init__(self, scope: Scope, wrapped: Optional[httpx.BaseTransport] = None):
+    def __init__(self, scope: Scope, wrapped: httpx.BaseTransport | None = None):
         self.scope = scope
         self.wrapped = wrapped or httpx.AsyncHTTPTransport()
 
@@ -130,7 +131,7 @@ class TenantScopeManager:
         self.scope_dir = scope_dir
         self.jwks_env = jwks_env
         self._cache: dict[str, tuple[Scope, float]] = {}
-        self._default_scope: Optional[Scope] = None
+        self._default_scope: Scope | None = None
 
     def get_scope(self, tenant_id: str) -> Scope:
         """Get scope for tenant, loading from file with hot-reload."""
@@ -193,11 +194,11 @@ def generate_ephemeral_scope(
     authorized_networks: list[str],
     allowed_ports: list[int],
     expires_in_hours: int = 2,
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
 ) -> dict:
     """Generate a short-lived scope document for CI/CD pipelines."""
 
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+    expires_at = datetime.now(UTC) + timedelta(hours=expires_in_hours)
 
     scope_doc = {
         "version": 2,
@@ -254,7 +255,7 @@ def create_break_glass_scope(
     Requires dual approval - both approvers must sign off.
     """
 
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+    expires_at = datetime.now(UTC) + timedelta(hours=expires_in_hours)
 
     scope_doc = {
         "version": 2,
@@ -272,7 +273,7 @@ def create_break_glass_scope(
             "incident_ticket": incident_ticket,
             "approver_1": approver_1,
             "approver_2": approver_2,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
     }
 

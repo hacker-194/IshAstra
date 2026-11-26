@@ -88,7 +88,7 @@ class AdapterBase:
     # Contract
     protocols: tuple[str, ...] = ("tcp",)
     scan_modes: tuple[str, ...] = ("connect",)
-    enforcement: str = "none"
+    enforcement: str = "proxy"
     timeout: float = 300.0
 
     def info(self) -> dict[str, Any]:
@@ -227,30 +227,34 @@ def main(adapter: AdapterBase) -> None:
     server.run()
 
 
-# Example usage:
-#
-# class MyAdapter(AdapterBase):
-#     id = "my-custom-adapter"
-#     version = "1.0"
-#     asset_types = ("web",)
-#     requires = ("mytool",)
-#
-#     def available(self) -> tuple[bool, str]:
-#         # Check if mytool is installed
-#         return True, "available"
-#
-#     def assess(
-#         self,
-#         target: str,
-#         *,
-#         timeout: float,
-#         cancel: threading.Event,
-#         context: dict[str, Any] | None = None,
-#     ) -> AdapterResult:
-#         result = AdapterResult()
-#         # ... your assessment logic ...
-#         result.findings.append(Finding(...))
-#         return result
-#
-# if __name__ == "__main__":
-#     main(MyAdapter())
+__example__ = """
+Example usage (see docs/adapters/custom.md for full guide):
+
+class MyAdapter(AdapterBase):
+    id = "my-custom-adapter"
+    version = "1.0"
+    asset_types = ("web",)
+    requires = ("mytool",)
+    enforcement = "proxy"
+
+    def available(self) -> tuple[bool, str]:
+        return True, "available"
+
+    def assess(
+        self,
+        target: str,
+        *,
+        timeout: float,
+        cancel: threading.Event,
+        context: dict[str, Any] | None = None,
+    ) -> AdapterResult:
+        gateway_url = (context or {}).get("gateway_url")
+        if not gateway_url:
+            raise RuntimeError(f"{self.id}: egress gateway required; set ISHASTRA_GATEWAY_URL")
+        result = AdapterResult()
+        result.findings.append(Finding(...))
+        return result
+
+if __name__ == "__main__":
+    main(MyAdapter())
+"""

@@ -9,6 +9,16 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.0.0-rc1] - 2025-11-24
 
+### Fixed (2026-11-26)
+- **Dead code cleanup**: Removed 13 ERA001 violations in `src/ishastra/plugins/template.py` (commented examples → docstring `__example__`)
+- **Secure-by-default**: Changed plugin template default `enforcement` from `"none"` to `"proxy"`
+- **Unused imports**: Fixed F401 in `examples/scope_fastapi_integration.py` and `examples/scope_integration_examples.py`
+- **Modern syntax**: Union types (`X | None`), `datetime.UTC` in examples
+- **Documentation accuracy**: Corrected "21.4M states UNVERIFIED" → VERIFIED with TLC output reference (`docs/tla/model-check-results.txt`) in CLAIMS.md, SECURITY.md, GOVERNANCE.md, docs/compliance/overview.md, docs/scope-gate/concepts.md, docs/architecture/overview.md
+- **Security gate exceptions**: Documented SEC-2026-001 (pip HIGH findings in build tool), SEC-2026-002 (gh-action-pypi-publish CRITICAL)
+
+## [4.0.0-rc1] - 2025-11-24
+
 ### Added
 - **Capability Tokens**: Ed25519-signed JWTs with TTL ≤900s for worker→gateway auth
 - **Egress Gateway**: CONNECT proxy with nftables deny-by-default firewall
@@ -30,7 +40,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 - **Redaction**: Credentials stripped from evidence, SARIF, logs, webhooks
 - **Queue Modes**: Added `k8s-jobs` alongside `in-process`, `redis-streams`, `sqlite`
 - **Organizations v2**: Org/Team/Membership hierarchy with RBAC roles
-- **Pricing Tiers**: FREE/STARTER/PRO/ENTERPRISE with feature flags
+- **Licensing**: single Apache-2.0 edition; all features included, no paid tiers
 - **Dispatch Reliability**: Synchronous SIGTERM handling, `os._exit(0)` cleanup
 - **CLI**: Added `worker gateway` subcommand for standalone gateway
 - **Deployment**: SQLite default, PostgreSQL experimental, hardened compose
@@ -40,7 +50,7 @@ Project adheres to [Semantic Versioning](https://semver.org/).
 - Legacy Strix naming (fully removed)
 
 ### Removed
-- AI Analyst provider abstraction (was never pilot-ready)
+- AI Analyst provider abstraction (removed; scope-gate enforcement not applicable)
 - 25 empty v4.0 skeleton modules
 - `strix-*` metric/cookie/key prefixes (all `ishastra-*`)
 

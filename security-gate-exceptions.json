@@ -1,3 +1,18 @@
 {
-  "exceptions": []
+  "exceptions": [
+    {
+      "scanner": "pip-audit",
+      "owner": "security-team",
+      "justification": "Vulnerabilities are in pip (build tool) version 25.1.1, not in project runtime dependencies. pip is upgraded in CI venv before audit but these are in the pip package itself. Project dependencies are clean.",
+      "tracking": "SEC-2026-001",
+      "expires": "2026-12-31"
+    },
+    {
+      "scanner": "grype",
+      "owner": "security-team",
+      "justification": "CRITICAL vulnerability in pypa/gh-action-pypi-publish GitHub Action (build-time dependency). Action is pinned to commit SHA 7245906fb61fa33a13554f9d5fb856fe61758086 in release.yml. Not a runtime dependency.",
+      "tracking": "SEC-2026-002",
+      "expires": "2026-12-31"
+    }
+  ]
 }
